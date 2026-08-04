@@ -11,12 +11,12 @@ function getTenantId(request: Request): string {
 export async function GET(request: Request) {
   try {
     const { data, error } = await supabaseAdmin
-      .from('campaigns')
+      .from('tenant_fields')
       .select('*')
       .eq('tenant_id', getTenantId(request))
-      .order('created_at', { ascending: false })
+      .order('sort_order', { ascending: true })
     if (error) throw error
-    return NextResponse.json(data)
+    return NextResponse.json(data || [])
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
@@ -24,14 +24,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { data, error } = await supabaseAdmin
-      .from('campaigns')
-      .insert({ ...body, tenant_id: getTenantId(request) })
-      .select()
-      .single()
+    const fields = await request.json()
+    if (!Array.isArray(fields)) return NextResponse.json({ error: 'Expected array of fields' }, { status: 400 })
+    const { error } = await supabaseAdmin
+      .from('tenant_fields')
+      .upsert(
+        fields.map((f: any) => ({ ...f, tenant_id: getTenantId(request) })),
+        { onConflict: 'tenant_id,field_key' }
+      )
     if (error) throw error
-    return NextResponse.json(data)
+    return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

@@ -1,103 +1,116 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { parseCSV, ParsedContact } from '@/lib/csv-parser';
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+import { parseCSV } from '@/lib/csv-parser'
 
-// Helper for normalization, mirroring the client-side logic
-const normalizePhone = (phone: string | null | undefined): string | null => {
-    if (!phone) return null;
-    let digits = phone.replace(/\D/g, '');
-    if (digits.length === 10) digits = `1${digits}`;
-    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-    return null;
-};
-const normalizeEmail = (email: string | null | undefined): string | null => {
-    if (!email) return null;
-    return email.trim().toLowerCase();
-};
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
-export async function GET() {
+function getTenantId(request: Request): string {
+  const url = new URL(request.url)
+  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+}
+
+export async function GET(request: Request) {
+  const tenantId = getTenantId(request)
   try {
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .select('*')
-      .order('last_name', { ascending: true });
-    if (error) throw error;
-    return NextResponse.json(data);
+      .eq('tenant_id', tenantId)
+      .order('last_name', { ascending: true })
+
+    if (error) throw error
+    return NextResponse.json(data)
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-    try {
-        const { csv } = await request.json();
-        if (!csv) {
-            return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 });
+  try {
+    const { csv } = await request.json()
+    if (!csv) return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 })
+
+    const parsedContacts = await parseCSV(csv)
+
+    const { data: existingContacts, error: selectError } = await supabaseAdmin
+      .from('contacts')
+      .select('id, phone, email, first_name, last_name')
+      .eq('tenant_id', getTenantId(request))
+
+    if (selectError) throw selectError
+
+    const phoneMap = new Map(existingContacts.map(c => [c.phone, c]))
+    const emailMap = new Map(existingContacts.map(c => [c.email?.toLowerCase(), c]))
+    const nameMap = new Map(existingContacts.map(c => [`${c.first_name} ${c.last_name}`.toLowerCase(), c]))
+
+    let createdCount = 0
+    let updatedCount = 0
+    const toInsert: any[] = []
+    const toUpdate: any[] = []
+
+    for (const contact of parsedContacts) {
+      const normPhone = contact.phone || null
+      const normEmail = contact.email?.toLowerCase() || null
+      const normName = `${contact.first_name} ${contact.last_name}`.toLowerCase()
+
+      const existing =
+        (normPhone && phoneMap.get(normPhone)) ||
+        (normEmail && emailMap.get(normEmail)) ||
+        nameMap.get(normName)
+
+      // Extract music-school specific fields into custom_fields
+      const { instrument, lesson_day, lesson_time, service_type, instructor, plan_name, session_name, last_attended, tags, ...baseContact } = contact
+
+      const custom_fields = {
+        ...(instrument && { instrument }),
+        ...(lesson_day && { lesson_day }),
+        ...(lesson_time && { lesson_time }),
+        ...(service_type && { service_type }),
+        ...(instructor && { instructor }),
+        ...(plan_name && { plan_name }),
+        ...(session_name && { session_name }),
+        ...(last_attended && { last_attended }),
+      }
+
+      if (existing) {
+        const merged = { ...existing }
+        for (const key in baseContact) {
+          if ((baseContact as any)[key] !== null && (baseContact as any)[key] !== undefined) {
+            (merged as any)[key] = (baseContact as any)[key]
+          }
         }
-        
-        const parsedContacts = await parseCSV(csv);
-
-        const { data: existingContacts, error: selectError } = await supabaseAdmin
-            .from('contacts')
-            .select('*');
-        if (selectError) throw selectError;
-
-        const phoneMap = new Map(existingContacts.map(c => [normalizePhone(c.phone), c]));
-        const emailMap = new Map(existingContacts.map(c => [normalizeEmail(c.email), c]));
-        const nameMap = new Map(existingContacts.map(c => [`${c.first_name} ${c.last_name}`.toLowerCase(), c]));
-
-        let createdCount = 0;
-        let updatedCount = 0;
-        const toInsert = [];
-        const toUpdate = [];
-
-        for (const contact of parsedContacts) {
-            const normPhone = normalizePhone(contact.phone);
-            const normEmail = normalizeEmail(contact.email);
-            const normName = `${contact.first_name} ${contact.last_name}`.toLowerCase();
-            
-            let existing = (normPhone && phoneMap.get(normPhone)) || 
-                           (normEmail && emailMap.get(normEmail)) || 
-                           nameMap.get(normName);
-
-            if (existing) {
-                const merged = { ...existing };
-                (Object.keys(contact) as (keyof typeof contact)[]).forEach(key => {
-    if (contact[key] !== null && contact[key] !== undefined) {
-        (merged as any)[key] = contact[key];
+        merged.custom_fields = { ...((existing as any).custom_fields || {}), ...custom_fields }
+        if (tags?.length) merged.tags = tags
+        toUpdate.push(merged)
+      } else {
+        toInsert.push({
+          ...baseContact,
+          tenant_id: getTenantId(request),
+          custom_fields,
+          tags: tags || [],
+        })
+      }
     }
-});
-                toUpdate.push(merged);
-            } else {
-                toInsert.push(contact);
-            }
-        }
 
-        if (toInsert.length > 0) {
-            const { error } = await supabaseAdmin.from('contacts').insert(toInsert);
-            if (error) throw error;
-            createdCount = toInsert.length;
-        }
-
-        if (toUpdate.length > 0) {
-            for (const contact of toUpdate) {
-                const { error } = await supabaseAdmin
-                    .from('contacts')
-                    .update(contact)
-                    .eq('id', contact.id);
-                if (error) console.warn(`Failed to update contact ${contact.id}:`, error.message);
-                else updatedCount++;
-            }
-        }
-        
-        return NextResponse.json({
-            message: 'Import successful',
-            created: createdCount,
-            updated: updatedCount,
-        });
-
-    } catch (error) {
-        console.error('Import failed:', error);
-        return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    if (toInsert.length > 0) {
+      const { error } = await supabaseAdmin.from('contacts').insert(toInsert)
+      if (error) throw error
+      createdCount = toInsert.length
     }
+
+    for (const contact of toUpdate) {
+      const { error } = await supabaseAdmin
+        .from('contacts')
+        .update(contact)
+        .eq('id', contact.id)
+      if (error) console.warn('Update failed:', error.message)
+      else updatedCount++
+    }
+
+    return NextResponse.json({ message: 'Import successful', created: createdCount, updated: updatedCount })
+  } catch (error) {
+    console.error('Import failed:', error)
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+  }
 }

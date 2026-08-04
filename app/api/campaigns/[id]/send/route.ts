@@ -1,82 +1,105 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { twilioClient } from '@/lib/twilio';
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import twilio from 'twilio'
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: campaignId } = await params;
-  const { recipientIds } = await request.json();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
+function getTenantId(request: Request): string {
+  const url = new URL(request.url)
+  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+}
+
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const tenantId = getTenantId(request)
   try {
-    // 1. Fetch campaign and contacts
+    const { recipientIds } = await request.json()
+    if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
+
+    // Get campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('*')
-      .eq('id', campaignId)
-      .single();
-    
-    if (campaignError) throw campaignError;
+      .eq('id', params.id)
+      .single()
+    if (campaignError) throw campaignError
 
+    // Get Twilio config for tenant
+    const { data: twilioConfig, error: twilioError } = await supabaseAdmin
+      .from('twilio_config')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .single()
+    if (twilioError || !twilioConfig) {
+      return NextResponse.json({ error: 'Twilio not configured. Please connect Twilio in Settings.' }, { status: 400 })
+    }
+
+    // Get contacts
     const { data: contacts, error: contactsError } = await supabaseAdmin
       .from('contacts')
-      .select('*')
-      .in('id', recipientIds);
+      .select('id, first_name, last_name, phone, account_holder_phone, message_routing, is_minor')
+      .in('id', recipientIds)
+      .eq('opted_out', false)
+    if (contactsError) throw contactsError
 
-    if (contactsError) throw contactsError;
+    function resolvePhone(contact: any, sendTo?: string): string | null {
+      const routing = contact.is_minor ? 'account_holder' : (contact.message_routing || 'account_holder')
 
-    // 2. Send messages
-    const messagePromises = contacts.map(contact => {
-        const personalizedMessage = campaign.message.replace('{first_name}', contact.first_name);
-        
-        return twilioClient.messages.create({
-            body: `${personalizedMessage}\n\nReply STOP to unsubscribe.`,
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: contact.phone,
-            mediaUrl: campaign.media_url ? [campaign.media_url] : undefined,
-        }).then(message => ({
+      if (routing === 'student') {
+        return contact.phone || contact.account_holder_phone || null
+      }
+      if (routing === 'account_holder') {
+        return contact.account_holder_phone || contact.phone || null
+      }
+      if (routing === 'account_holder_fallback') {
+        return contact.account_holder_phone || contact.phone || null
+      }
+      return contact.phone || null
+    }
+
+    const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token)
+    const results = await Promise.allSettled(
+      contacts
+        .filter(c => resolvePhone(c))
+        .map(async (contact) => {
+          const toPhone = resolvePhone(contact)
+          const body = campaign.message.replace(/\{first_name\}/gi, contact.first_name)
+          const messageParams: any = {
+            body,
+            from: twilioConfig.phone_number,
+            to: toPhone,
+          }
+          if (campaign.media_url) messageParams.mediaUrl = [campaign.media_url]
+
+          const msg = await client.messages.create(messageParams)
+
+          await supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            campaign_id: campaign.id,
             contact_id: contact.id,
-            status: 'queued' as const,
-            twilio_sid: message.sid,
-            error_message: undefined as string | undefined,
-        })).catch(error => ({
-            contact_id: contact.id,
-            status: 'failed' as const,
-            twilio_sid: undefined as string | undefined,
-            error_message: error.message,
-        }));
-    });
-
-    const results = await Promise.allSettled(messagePromises);
-
-    // 3. Record message statuses
-    const messageRecords = results
-        .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
-        .map(result => ({
-            campaign_id: campaignId,
-            contact_id: result.value.contact_id,
-            channel: 'sms',
             direction: 'outbound',
-            status: result.value.status,
-            twilio_sid: result.value.twilio_sid,
-            error_message: result.value.error_message
-        }));
+            channel: 'sms',
+            body,
+            media_url: campaign.media_url || null,
+            status: msg.status,
+            twilio_sid: msg.sid,
+          })
 
-    await supabaseAdmin.from('messages').insert(messageRecords);
+          await new Promise(r => setTimeout(r, 50))
+          return msg
+        })
+    )
 
-    // 4. Update campaign status
+    const sent = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+
     await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'sent', sent_at: new Date() })
-      .eq('id', campaignId);
+      .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: sent })
+      .eq('id', campaign.id)
 
-    return NextResponse.json({ success: true, message: 'Campaign sent.' });
-
+    return NextResponse.json({ sent, failed })
   } catch (error) {
-    console.error('Failed to send campaign:', error);
-    // Optionally update campaign to 'failed' status
-    await supabaseAdmin.from('campaigns').update({ status: 'failed' }).eq('id', campaignId);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    console.error('Send error:', error)
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
 }

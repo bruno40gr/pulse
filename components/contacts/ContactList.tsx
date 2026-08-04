@@ -1,232 +1,170 @@
-"use client";
-
-import { useEffect, useState } from 'react';
-import EmptyState from '@/components/ui/EmptyState';
-import CSVImporter from './CSVImporter';
-import { UploadCloud } from 'lucide-react';
-
-interface Contact {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  email: string | null;
-  instrument: string | null;
-  service_type: string | null;
-  lesson_day: string | null;
-  lesson_time: string | null;
-  instructor: string | null;
-  client_status: string;
-  last_attended: string | null;
-  opted_out: boolean;
-}
+'use client'
+import { useEffect, useState } from 'react'
+import CSVImporter from './CSVImporter'
+import { getActiveTenantId } from '@/lib/tenant'
 
 interface ContactListProps {
-  selectedContactIds?: string[];
-  onContactsLoaded?: (contacts: any[]) => void;
-  onSelectionChange?: (ids: string[]) => void;
+  selectedContactIds: string[]
+  onContactsLoaded: (contacts: any[]) => void
 }
 
-export default function ContactList({ selectedContactIds = [], onContactsLoaded, onSelectionChange }: ContactListProps) {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isImporterOpen, setIsImporterOpen] = useState(false);
-  const [manualSelection, setManualSelection] = useState<Set<string>>(new Set());
+export default function ContactList({ selectedContactIds, onContactsLoaded }: ContactListProps) {
+  const [contacts, setContacts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isImporterOpen, setIsImporterOpen] = useState(false)
 
-  const filterActive = selectedContactIds.length > 0;
-  const displayContacts = filterActive
-    ? contacts.filter(c => selectedContactIds.includes(c.id))
-    : contacts;
-
-  const isChecked = (id: string) => {
-    if (filterActive) return selectedContactIds.includes(id);
-    return manualSelection.has(id);
-  };
-
-  const toggleContact = (id: string) => {
-    if (filterActive) return;
-    const next = new Set(manualSelection);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setManualSelection(next);
-    onSelectionChange?.([...next]);
-  };
-
-  const toggleAll = () => {
-    if (filterActive) return;
-    if (manualSelection.size === displayContacts.length) {
-      setManualSelection(new Set());
-      onSelectionChange?.([]);
-    } else {
-      const all = new Set(displayContacts.map(c => c.id));
-      setManualSelection(all);
-      onSelectionChange?.([...all]);
+  useEffect(() => {
+    let cancelled = false
+    async function loadContacts() {
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/contacts?tenant=${getActiveTenantId()}`)
+        const data = await response.json()
+        if (!cancelled) {
+          setContacts(data)
+          onContactsLoaded(data)
+        }
+      } catch (error) {
+        console.error('Failed to load contacts:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  };
+    loadContacts()
+    return () => {
+      cancelled = true
+    }
+  }, [onContactsLoaded])
 
-  const allChecked = !filterActive && manualSelection.size === displayContacts.length && displayContacts.length > 0;
-
-  const fetchContacts = async () => {
+  const handleImportComplete = async () => {
     try {
-      setLoading(true);
-      const response = await fetch('/api/contacts');
-      if (!response.ok) throw new Error('Failed to fetch contacts');
-      const data = await response.json();
-      setContacts(data);
-      onContactsLoaded?.(data);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+      const response = await fetch(`/api/contacts?tenant=${getActiveTenantId()}`)
+      const data = await response.json()
+      setContacts(data)
+      onContactsLoaded(data)
+    } catch (error) {
+      console.error('Failed to refresh contacts:', error)
     }
-  };
-
-  useEffect(() => {
-    fetchContacts();
-  }, []);
-
-  // When filter changes, notify parent of new selection
-  useEffect(() => {
-    if (filterActive) {
-      onSelectionChange?.(selectedContactIds);
-      setManualSelection(new Set());
-    }
-  }, [selectedContactIds.join(',')]);
+  }
 
   if (loading) {
     return (
-      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E8E2DA' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8E2DA' }}>
-          <div style={{ height: '20px', background: '#FAF6F0', borderRadius: '4px', width: '200px' }} />
+      <div style={{ background: 'white', border: '1px solid #E8E8E4', borderRadius: '12px', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #E8E8E4' }}>
+          <div style={{ height: '28px', width: '120px', background: '#F1F1EF', borderRadius: '6px' }} />
         </div>
-        {[...Array(5)].map((_, i) => (
-          <div key={i} style={{ padding: '12px 20px', borderBottom: '1px solid #FAF6F0', display: 'flex', gap: '16px' }}>
-            <div style={{ height: '14px', background: '#FAF6F0', borderRadius: '4px', width: '150px' }} />
-            <div style={{ height: '14px', background: '#FAF6F0', borderRadius: '4px', width: '120px' }} />
-            <div style={{ height: '14px', background: '#FAF6F0', borderRadius: '4px', width: '180px' }} />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} style={{ display: 'flex', gap: '16px', padding: '14px 24px', borderBottom: i < 4 ? '1px solid #F5F5F4' : 'none' }}>
+            <div style={{ width: '18px', height: '18px', background: '#F1F1EF', borderRadius: '4px', flexShrink: 0 }} />
+            <div style={{ flex: 1, height: '14px', background: '#F1F1EF', borderRadius: '4px' }} />
+            <div style={{ flex: 1.2, height: '14px', background: '#F1F1EF', borderRadius: '4px' }} />
+            <div style={{ flex: 1.5, height: '14px', background: '#F1F1EF', borderRadius: '4px' }} />
+            <div style={{ flex: 1, height: '14px', background: '#F1F1EF', borderRadius: '4px' }} />
           </div>
         ))}
       </div>
-    );
-  }
-
-  if (error) {
-    return <div style={{ color: '#DC2626', padding: '16px' }}>Error: {error}</div>;
+    )
   }
 
   if (contacts.length === 0) {
     return (
-      <>
-        <EmptyState
-          icon={UploadCloud}
-          title="No contacts yet"
-          description="Get started by importing your contacts from an Opus CSV export."
-          action={
-            <button
-              onClick={() => setIsImporterOpen(true)}
-              style={{ backgroundColor: '#FF0044', color: 'white', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', cursor: 'pointer', border: 'none' }}
-            >
-              Import CSV
-            </button>
-          }
-        />
-        <CSVImporter
-          isOpen={isImporterOpen}
-          onClose={() => setIsImporterOpen(false)}
-          onImportComplete={() => { setIsImporterOpen(false); fetchContacts(); }}
-        />
-      </>
-    );
+      <div style={{ background: 'white', border: '1px solid #E8E8E4', borderRadius: '12px', padding: '64px 24px', textAlign: 'center' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#1A1A1A', margin: '0 0 8px', fontFamily: 'sans-serif' }}>No contacts yet</h3>
+        <p style={{ color: '#6B6B6B', fontSize: '14px', margin: '0 0 24px', fontFamily: 'sans-serif' }}>Import your contacts to get started</p>
+        <button
+          onClick={() => setIsImporterOpen(true)}
+          style={{
+            padding: '10px 20px',
+            background: '#C8392B',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'sans-serif',
+          }}
+        >
+          Import CSV
+        </button>
+        <CSVImporter isOpen={isImporterOpen} onClose={() => setIsImporterOpen(false)} onImportComplete={handleImportComplete} />
+      </div>
+    )
   }
 
   return (
-    <>
-      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E8E2DA', overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#FAF6F0', color: '#7A6860' }}>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    onChange={toggleAll}
-                    style={{ cursor: filterActive ? 'default' : 'pointer' }}
-                  />
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Name</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Phone</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Email</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Instrument</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Service</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Lesson Day/Time</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Instructor</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, whiteSpace: 'nowrap' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayContacts.map((contact) => (
-                <tr
-                  key={contact.id}
-                  onClick={() => toggleContact(contact.id)}
-                  style={{
-                    borderBottom: '1px solid #FAF6F0',
-                    background: isChecked(contact.id) ? 'rgba(255,0,68,0.15)' : 'white',
-                    transition: 'background 0.1s',
-                    cursor: filterActive ? 'default' : 'pointer',
-                  }}
-                >
-                  <td style={{ padding: '10px 16px' }}>
-                    <input
-                      type="checkbox"
-                      checked={isChecked(contact.id)}
-                      onChange={() => toggleContact(contact.id)}
-                      onClick={e => e.stopPropagation()}
-                      style={{ cursor: filterActive ? 'default' : 'pointer' }}
-                    />
-                  </td>
-                  <td style={{ padding: '10px 16px', fontWeight: 500 }}>{contact.first_name} {contact.last_name}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-jetbrains-mono), monospace', fontSize: '12px' }}>{contact.phone || '–'}</td>
-                  <td style={{ padding: '10px 16px', color: '#7A6860' }}>{contact.email || '–'}</td>
-                  <td style={{ padding: '10px 16px' }}>{contact.instrument || '–'}</td>
-                  <td style={{ padding: '10px 16px' }}>
-                    {contact.service_type ? (
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '20px',
-                        background: contact.service_type === 'group' ? '#DCF0E4' : 'rgba(0,168,200,0.16)',
-                        color: contact.service_type === 'group' ? '#1F5C3A' : '#006E84',
-                      }}>
-                        {contact.service_type}
-                      </span>
-                    ) : '–'}
-                  </td>
-                  <td style={{ padding: '10px 16px', color: '#7A6860' }}>{contact.lesson_day || '–'} {contact.lesson_time || ''}</td>
-                  <td style={{ padding: '10px 16px', color: '#7A6860' }}>{contact.instructor || '–'}</td>
-                  <td style={{ padding: '10px 16px' }}>
-                    <span style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '20px',
-                      background: contact.client_status === 'active' ? '#DCF0E4' : '#FAF6F0',
-                      color: contact.client_status === 'active' ? '#3D8B5F' : '#7A6860',
-                    }}>
-                      {contact.client_status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <div style={{ background: 'white', border: '1px solid #E8E8E4', borderRadius: '12px', overflow: 'hidden' }}>
+      {/* Table header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid #E8E8E4' }}>
+        <span style={{ fontSize: '13px', color: '#6B6B6B', fontFamily: 'sans-serif' }}>{contacts.length} contacts</span>
+        <button
+          onClick={() => setIsImporterOpen(true)}
+          style={{
+            padding: '8px 16px',
+            background: '#C8392B',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'sans-serif',
+          }}
+        >
+          Import CSV
+        </button>
       </div>
-      <CSVImporter
-        isOpen={isImporterOpen}
-        onClose={() => setIsImporterOpen(false)}
-        onImportComplete={() => { setIsImporterOpen(false); fetchContacts(); }}
-      />
-    </>
-  );
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <thead>
+          <tr style={{ textAlign: 'left', color: '#6B6B6B', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <th style={{ padding: '10px 24px', borderBottom: '1px solid #E8E8E4', fontWeight: 600, width: '32px' }}>
+              <input type="checkbox" checked={false} onChange={() => {}} />
+            </th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Name</th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Instrument</th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Phone</th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Email</th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Service</th>
+            <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Instructor</th>
+            <th style={{ padding: '10px 24px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {contacts.map((contact) => {
+            const isSelected = selectedContactIds.includes(contact.id)
+            const instrument = contact.custom_fields?.instrument
+            const serviceType = contact.custom_fields?.service_type
+            const instructor = contact.custom_fields?.instructor
+            return (
+              <tr
+                key={contact.id}
+                style={{
+                  background: isSelected ? '#FFF5F5' : 'white',
+                  borderBottom: '1px solid #F5F5F4',
+                  color: '#1A1A1A',
+                }}
+              >
+                <td style={{ padding: '12px 24px' }}>
+                  <input type="checkbox" checked={isSelected} readOnly />
+                </td>
+                <td style={{ padding: '12px', fontWeight: 500 }}>
+                  {contact.first_name} {contact.last_name}
+                </td>
+                <td style={{ padding: '12px', color: '#6B6B6B' }}>{instrument || '—'}</td>
+                <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.phone || '—'}</td>
+                <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.email || '—'}</td>
+                <td style={{ padding: '12px', color: '#6B6B6B' }}>{serviceType || '—'}</td>
+                <td style={{ padding: '12px', color: '#6B6B6B' }}>{instructor || '—'}</td>
+                <td style={{ padding: '12px 24px', color: '#6B6B6B' }}>{contact.client_status || '—'}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      <CSVImporter isOpen={isImporterOpen} onClose={() => setIsImporterOpen(false)} onImportComplete={handleImportComplete} />
+    </div>
+  )
 }
