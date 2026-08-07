@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         nameMap.get(normName)
 
       // Extract music-school specific fields into custom_fields
-      const { instrument, lesson_day, lesson_time, service_type, instructor, plan_name, session_name, last_attended, tags, ...baseContact } = contact
+      const { instrument, lesson_day, lesson_time, service_type, instructor, plan_name, session_name, last_attended, date_of_birth, tags, ...baseContact } = contact
 
       const custom_fields = {
         ...(instrument && { instrument }),
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       } else {
         toInsert.push({
           ...baseContact,
+          ...(date_of_birth && { date_of_birth }),
           tenant_id: getTenantId(request),
           custom_fields,
           tags: tags || [],

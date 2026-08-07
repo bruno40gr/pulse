@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Paperclip, X, Sparkles } from 'lucide-react'
+import { Button, Avatar, Textarea, Input } from '@/components/ui'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface ComposePanelProps {
   recipientCount: number
@@ -9,10 +11,20 @@ interface ComposePanelProps {
   channel?: 'sms' | 'email'
   onClose?: () => void
   onSent?: () => void
+  mode?: 'bulk' | 'single'
+  contactContext?: {
+    id: string
+    first_name: string
+    last_name: string
+    custom_fields?: Record<string, any>
+    last_attended?: string | null
+    notes_history?: {text: string, timestamp: string}[]
+  }
 }
 
 export default function ComposePanel({
-  recipientCount, filterExplanation, recipientIds, channel = 'sms', onClose, onSent
+  recipientCount, filterExplanation, recipientIds, channel = 'sms', onClose, onSent,
+  mode = 'bulk', contactContext
 }: ComposePanelProps) {
   const [message, setMessage] = useState('')
   const [mediaUrl, setMediaUrl] = useState('')
@@ -29,13 +41,12 @@ export default function ComposePanel({
   const [sentResult, setSentResult] = useState<{ sent: number, failed: number } | null>(null)
 
   const isMMS = !!mediaUrl
-  const firstNamePreview = 'Alex'
+  const firstNamePreview = contactContext?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
   const effectiveCount = effectiveRecipientIds.length
   const effectiveSendCount = sendTo === 'both' ? effectiveCount * 2 : effectiveCount
 
-  // Auto-run sensitive check when recipientIds changes
   useEffect(() => {
     if (!recipientIds.length) return
     fetch('/api/contacts/check-sensitive', {
@@ -51,12 +62,18 @@ export default function ComposePanel({
   const handleAiDraft = async () => {
     setAiLoading(true)
     try {
+      const contextNote = mode === 'single' && contactContext?.notes_history?.length
+        ? `Contact notes: ${contactContext.notes_history[0].text}`
+        : ''
+
       const res = await fetch('/api/draft-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: message.trim() || 'Write a warm, friendly message',
-          recipient_context: filterExplanation,
+          description: message.trim() || 'Write a warm friendly message',
+          recipient_context: mode === 'single' && contactContext
+            ? `Writing to ${contactContext.first_name} ${contactContext.last_name}. ${Object.entries(contactContext.custom_fields || {}).map(([k,v]) => `${k}: ${v}`).join(', ')}. ${contextNote}`
+            : filterExplanation,
         })
       })
       const data = await res.json()
@@ -105,76 +122,105 @@ export default function ComposePanel({
 
   if (sent && sentResult) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', padding: '48px' }}>
-        <div style={{ width: '48px', height: '48px', background: '#F0FDF4', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>✓</div>
-        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1A1A1A', margin: 0 }}>Message sent</h3>
-        <p style={{ fontSize: '14px', color: '#6B6B6B', margin: 0, textAlign: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: spacing.lg, padding: spacing['4xl'] }}>
+        <div style={{ width: '48px', height: '48px', background: colors.successLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>✓</div>
+        <h3 style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Message sent</h3>
+        <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, textAlign: 'center' }}>
           Delivered to {sentResult.sent} contacts.
           {sentResult.failed > 0 && ` ${sentResult.failed} failed.`}
         </p>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => { setSent(false); setSentResult(null); setMessage(''); setMediaUrl(''); setSensitiveCheck(null); setRemovedIds(new Set()) }}
-          style={{ background: 'transparent', border: '1px solid #E8E8E4', borderRadius: '8px', padding: '8px 20px', fontSize: '14px', cursor: 'pointer', fontFamily: 'sans-serif', marginTop: '8px' }}
+          style={{ marginTop: spacing.sm }}
         >
           Send another
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', height: '100%', overflow: 'hidden' }}>
-
       {/* Left column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['2xl'], overflowY: 'auto' }}>
 
-        {/* Recipient subtitle */}
-        <div style={{ fontSize: '13px', color: '#6B6B6B', marginBottom: '16px' }}>
-          {effectiveCount} {effectiveCount === 1 ? 'recipient' : 'recipients'}
-          {removedIds.size > 0 && <span style={{ color: '#A0A0A0' }}> ({removedIds.size} removed)</span>}
-          {filterExplanation && ` · ${filterExplanation}`}
-        </div>
+        {/* Context header */}
+        {mode === 'single' && contactContext ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 4px' }}>
+            <Avatar firstName={contactContext.first_name} lastName={contactContext.last_name} size={36} />
+            <div>
+              <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
+                {contactContext.first_name} {contactContext.last_name}
+              </div>
+              <div style={{ fontSize: typography.sizeSm, color: colors.textSecondary, marginTop: '2px', fontFamily: typography.fontSans }}>
+                {[
+                  contactContext.custom_fields?.instrument || contactContext.custom_fields?.subject,
+                  contactContext.custom_fields?.instructor || contactContext.custom_fields?.session_day,
+                  contactContext.last_attended ? `Last attended ${new Date(contactContext.last_attended).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null
+                ].filter(Boolean).join(' · ')}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: typography.sizeBase, color: colors.textSecondary, fontFamily: typography.fontSans, marginBottom: spacing.lg }}>
+            {effectiveCount} {effectiveCount === 1 ? 'recipient' : 'recipients'}
+            {removedIds.size > 0 && <span style={{ color: colors.textMuted }}> ({removedIds.size} removed)</span>}
+            {filterExplanation && ` · ${filterExplanation}`}
+          </div>
+        )}
 
-        {/* Send to toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-          <span style={{ color: '#6B6B6B' }}>Send to</span>
-          {(['account_holders', 'students', 'both'] as const).map(option => (
-            <button
-              key={option}
-              onClick={() => setSendTo(option)}
-              style={{
-                padding: '3px 10px',
-                borderRadius: '20px',
-                border: '1px solid',
-                fontSize: '12px',
-                cursor: 'pointer',
-                fontFamily: 'sans-serif',
-                background: sendTo === option ? '#1A1A1A' : 'white',
-                color: sendTo === option ? 'white' : '#6B6B6B',
-                borderColor: sendTo === option ? '#1A1A1A' : '#E8E8E4',
-              }}
-            >
-              {option === 'account_holders' ? 'Account holders' : option === 'students' ? 'Students' : 'Both'}
-            </button>
-          ))}
-        </div>
+        {/* Send to — radio buttons */}
+        {mode !== 'single' && (
+          <div>
+            <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary, marginBottom: spacing.xs, display: 'block' }}>Send to</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {[
+                { value: 'account_holders', label: 'Account holders' },
+                { value: 'students', label: 'Students' },
+                { value: 'both', label: 'Both' },
+              ].map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: spacing.sm,
+                    padding: `${spacing.xs} 0`,
+                    cursor: 'pointer',
+                    fontFamily: typography.fontSans,
+                    fontSize: typography.sizeBase,
+                    color: colors.text,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="sendTo"
+                    checked={sendTo === opt.value}
+                    onChange={() => setSendTo(opt.value as 'account_holders' | 'students' | 'both')}
+                    style={{ accentColor: colors.espresso, width: '16px', height: '16px', cursor: 'pointer', margin: 0 }}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {/* Inline warnings */}
-        {sensitiveCheck && (sensitiveCheck.flagged.length > 0 || sensitiveCheck.opted_out.length > 0) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {sensitiveCheck.opted_out.length > 0 && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '10px 14px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#92400E', marginBottom: '6px' }}>
+        {/* Inline warnings — only in bulk mode */}
+        {mode !== 'single' && sensitiveCheck && (sensitiveCheck.flagged.length > 0 || sensitiveCheck.opted_out.length > 0) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+            {sensitiveCheck.opted_out.filter(c => !removedIds.has(c.id)).length > 0 && (
+              <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
+                <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
                   {sensitiveCheck.opted_out.length} opted out
                 </div>
                 {sensitiveCheck.opted_out
                   .filter(c => !removedIds.has(c.id))
                   .map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                      <span style={{ fontSize: '12px', color: '#92400E' }}>{c.name}</span>
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
+                      <span style={{ fontSize: typography.sizeSm, color: colors.warning }}>{c.name}</span>
                       <button
                         onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                        style={{ fontSize: '11px', color: '#92400E', background: 'transparent', border: '1px solid #FDE68A', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontFamily: 'sans-serif' }}
+                        style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.xs, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                       >
                         Remove
                       </button>
@@ -182,27 +228,27 @@ export default function ComposePanel({
                   ))}
               </div>
             )}
-            {sensitiveCheck.flagged.length > 0 && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 14px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#991B1B', marginBottom: '6px' }}>
-                  {sensitiveCheck.flagged.filter(c => !removedIds.has(c.id)).length} flagged for attention
+            {sensitiveCheck.flagged.filter(c => !removedIds.has(c.id)).length > 0 && (
+              <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
+                <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
+                  {sensitiveCheck.flagged.filter(c => !removedIds.has(c.id)).length} needs your attention
                 </div>
                 {sensitiveCheck.flagged
                   .filter(c => !removedIds.has(c.id))
                   .map(c => (
-                    <div key={c.id} style={{ marginBottom: '8px' }}>
+                    <div key={c.id} style={{ marginBottom: spacing.sm }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: '#991B1B' }}>{c.name}</span>
+                        <span style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
                         <button
                           onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                          style={{ fontSize: '11px', color: '#991B1B', background: 'transparent', border: '1px solid #FECACA', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontFamily: 'sans-serif' }}
+                          style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.xs, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                         >
                           Remove
                         </button>
                       </div>
                       {c.note && (
-                        <div style={{ fontSize: '11px', color: '#6B6B6B', marginTop: '2px', fontStyle: 'italic' }}>
-                          "{c.note.slice(0, 80)}{c.note.length > 80 ? '...' : ''}"
+                        <div style={{ fontSize: typography.sizeXs, color: colors.textSecondary, marginTop: '2px', fontStyle: 'italic' }}>
+                          &ldquo;{c.note.slice(0, 80)}{c.note.length > 80 ? '...' : ''}&rdquo;
                         </div>
                       )}
                     </div>
@@ -215,26 +261,25 @@ export default function ComposePanel({
         {/* Message textarea with AI assist */}
         <div>
           <div style={{ position: 'relative' }}>
-            <textarea
+            <Textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
               placeholder="Write your message... Use {first_name} to personalize."
               style={{
-                width: '100%', height: '120px', border: '1px solid #E8E8E4', borderRadius: '10px',
-                padding: '12px 12px 40px', fontSize: '13px', fontFamily: 'sans-serif',
-                resize: 'none', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
+                height: '120px',
+                paddingBottom: '40px',
               }}
             />
             <button
               onClick={handleAiDraft}
               disabled={aiLoading}
               style={{
-                position: 'absolute', bottom: '10px', left: '10px',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                background: aiLoading ? '#E8E8E4' : message.trim() ? '#1A1A1A' : '#F0F0EC',
-                color: aiLoading ? '#A0A0A0' : message.trim() ? 'white' : '#6B6B6B',
-                border: 'none', borderRadius: '6px', padding: '5px 10px',
-                fontSize: '12px', cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: 'sans-serif',
+                position: 'absolute', bottom: spacing.sm, left: spacing.sm,
+                display: 'flex', alignItems: 'center', gap: spacing.xs,
+                background: aiLoading ? colors.borderLight : message.trim() ? colors.espresso : colors.borderLight,
+                color: aiLoading ? colors.textMuted : message.trim() ? 'white' : colors.textSecondary,
+                border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`,
+                fontSize: typography.sizeSm, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans,
               }}
             >
               <Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}
@@ -242,16 +287,16 @@ export default function ComposePanel({
           </div>
 
           {/* Char count + media */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '12px', color: '#A0A0A0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: spacing.xs, fontSize: typography.sizeSm, color: colors.textMuted }}>
             <button
               onClick={() => setShowMediaInput(!showMediaInput)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                background: showMediaInput || isMMS ? '#1A1A1A' : 'white',
-                color: showMediaInput || isMMS ? 'white' : '#6B6B6B',
-                border: '1px solid #E8E8E4', borderRadius: '8px',
-                padding: '7px 12px', fontSize: '13px', cursor: 'pointer',
-                fontFamily: 'sans-serif',
+                display: 'flex', alignItems: 'center', gap: spacing.xs,
+                background: showMediaInput || isMMS ? colors.espresso : colors.surface,
+                color: showMediaInput || isMMS ? 'white' : colors.textSecondary,
+                border: `1px solid ${colors.border}`, borderRadius: radius.md,
+                padding: `${spacing.xs} ${spacing.md}`, fontSize: typography.sizeBase, cursor: 'pointer',
+                fontFamily: typography.fontSans,
               }}
             >
               <Paperclip size={13} />
@@ -263,16 +308,15 @@ export default function ComposePanel({
 
         {/* Media URL input */}
         {showMediaInput && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            <Input
               type="text"
               value={mediaUrl}
               onChange={e => setMediaUrl(e.target.value)}
               placeholder="Paste Cloudinary or image URL..."
-              style={{ flex: 1, border: '1px solid #E8E8E4', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', fontFamily: 'sans-serif', outline: 'none' }}
             />
             {mediaUrl && (
-              <button onClick={() => setMediaUrl('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#6B6B6B' }}>
+              <button onClick={() => setMediaUrl('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textSecondary }}>
                 <X size={16} />
               </button>
             )}
@@ -280,30 +324,26 @@ export default function ComposePanel({
         )}
 
         {/* Cost line */}
-        <div style={{ fontSize: '12px', color: '#A0A0A0', textAlign: 'center' }}>
+        <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, textAlign: 'center' }}>
           SMS · {effectiveSendCount} messages · ~${(effectiveSendCount * (isMMS ? 0.02 : 0.0083)).toFixed(2)}
         </div>
 
         {/* Send button */}
-        <button
+        <Button
+          variant="primary"
           onClick={handleSend}
           disabled={!message.trim() || effectiveCount === 0 || isSending}
-          style={{
-            background: !message.trim() || effectiveCount === 0 || isSending ? '#E8E8E4' : '#C8392B',
-            color: !message.trim() || effectiveCount === 0 || isSending ? '#A0A0A0' : 'white',
-            border: 'none', borderRadius: '10px', padding: '12px',
-            fontSize: '14px', fontWeight: 600, cursor: !message.trim() || effectiveCount === 0 || isSending ? 'not-allowed' : 'pointer',
-            fontFamily: 'sans-serif', width: '100%',
-          }}
+          size="lg"
+          style={{ background: !message.trim() || effectiveCount === 0 || isSending ? undefined : colors.crimson }}
         >
           {isSending ? 'Sending...' : 'Send message'}
-        </button>
+        </Button>
       </div>
 
       {/* Right column — phone preview */}
-      <div style={{ background: '#F8F8F7', borderLeft: '1px solid #E8E8E4', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
+      <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: '#A0A0A0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px', textAlign: 'center' }}>Preview</div>
+          <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: spacing.sm, textAlign: 'center' }}>Preview</div>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <div style={{
               width: '240px',
@@ -317,13 +357,10 @@ export default function ComposePanel({
               overflow: 'hidden',
               position: 'relative',
             }}>
-              {/* Dynamic island */}
               <div style={{ background: '#1A1A1A', height: '36px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
                 <div style={{ width: '80px', height: '22px', background: '#000', borderRadius: '20px' }} />
               </div>
-              {/* Screen */}
               <div style={{ flex: 1, background: '#F2F2F7', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* Status bar */}
                 <div style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: '#1A1A1A' }}>
                     {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -334,13 +371,11 @@ export default function ComposePanel({
                     </div>
                   </div>
                 </div>
-                {/* iMessage header */}
                 <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-                  <div style={{ width: '36px', height: '36px', background: '#C8392B', borderRadius: '50%', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: 'white', fontWeight: 600 }}>H</div>
+                  <div style={{ width: '36px', height: '36px', background: colors.crimson, borderRadius: '50%', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: 'white', fontWeight: 600 }}>H</div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>Headliner</div>
                   <div style={{ fontSize: '10px', color: '#8E8E93' }}>text message</div>
                 </div>
-                {/* Message area */}
                 <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '4px', overflow: 'hidden' }}>
                   <div style={{ fontSize: '10px', color: '#8E8E93', textAlign: 'center', marginBottom: '4px' }}>Today</div>
                   {mediaUrl && (
@@ -360,7 +395,6 @@ export default function ComposePanel({
                   </div>
                   <div style={{ textAlign: 'right', fontSize: '9px', color: '#8E8E93' }}>Delivered</div>
                 </div>
-                {/* iMessage input bar */}
                 <div style={{ padding: '6px 8px', borderTop: '1px solid #E8E8E4', display: 'flex', alignItems: 'center', gap: '6px', background: '#F2F2F7', flexShrink: 0 }}>
                   <div style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid #E8E8E4', padding: '5px 10px', fontSize: '11px', color: '#C8C8CC' }}>iMessage</div>
                   <div style={{ width: '22px', height: '22px', background: '#007AFF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -368,7 +402,6 @@ export default function ComposePanel({
                   </div>
                 </div>
               </div>
-              {/* Home bar */}
               <div style={{ background: '#1A1A1A', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
                 <div style={{ width: '60px', height: '4px', background: '#3A3A3A', borderRadius: '4px' }} />
               </div>

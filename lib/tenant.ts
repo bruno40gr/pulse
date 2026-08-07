@@ -11,3 +11,16 @@ export function setActiveTenantId(id: string): void {
 }
 
 export const DEFAULT_TENANT = DEFAULT_TENANT_ID
+
+const DICEBEAR_TENANTS = [
+  '00000000-0000-0000-0000-000000000002', // Sacramento Martial Arts
+  '00000000-0000-0000-0000-000000000003', // Kumon Learning Center
+]
+
+export function shouldUseDiceBear(tenantId: string): boolean {
+  return DICEBEAR_TENANTS.includes(tenantId)
+}
+
+export function getDiceBearUrl(firstName: string, lastName: string): string {
+  return `https://api.dicebear.com/9.x/lorelei/svg?seed=${encodeURIComponent(firstName)}+${encodeURIComponent(lastName)}`
+}

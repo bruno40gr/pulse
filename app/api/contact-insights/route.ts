@@ -23,22 +23,20 @@ Today: ${new Date().toLocaleDateString()}
 Return ONLY valid JSON, no markdown:
 {
   "insights": [
-    { "icon": "📅", "text": "Missed last 3 sessions" },
-    { "icon": "📝", "text": "Parent requested no promotional messages" }
+    { "type": "risk", "text": "Missed last 3 sessions" },
+    { "type": "info", "text": "Parent requested no promotional messages" }
   ]
 }
 
-Choose icons that match the insight type:
-📅 attendance/schedule
-📝 communication preference or note
-⭐ achievement or milestone
-💳 billing or membership
-🎂 personal milestone
-⚠️ needs attention
-💬 recent communication
-📈 progress
+Choose a type for each insight:
+"risk" — churning, missed sessions, opted out, attendance dropping, payment issues
+"milestone" — achievement, progress, birthday within 30 days, anniversary, positive trend
+"info" — neutral fact, communication preference, schedule detail, note
+"nudge" — needs attention soon, upcoming deadline, gentle reminder
 
-Be specific. Use real data from the contact. Keep each insight under 10 words. Never invent facts not present in the data.`
+Birthday rule: If date_of_birth is within 30 days of today, generate a milestone insight like "Birthday on March 15, turning 5" or "Turning 16 on April 7". Always include the date and age.
+
+Be specific. Use real data from the contact. Keep each insight under 10 words. Never invent facts not present in the data. Never use em dashes or special characters — use plain text only.`
       }]
     })
 

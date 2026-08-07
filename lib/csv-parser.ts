@@ -5,6 +5,7 @@ export interface ParsedContact {
   last_name: string
   email: string | null
   phone: string | null
+  date_of_birth?: string | null
   instructor?: string | null
   last_attended?: string | null
   tags?: string[]
@@ -136,6 +137,9 @@ export async function parseCSV(csv: string): Promise<ParsedContact[]> {
       email: null,
       phone: null,
     }
+
+    // Detect date of birth from common header names
+    contact.date_of_birth = row['Date of Birth'] || row['DOB'] || row['Birthday'] || row['Birth Date'] || null
 
     if (type === 'attendance') {
       contact.email = row['Client Email'] || null

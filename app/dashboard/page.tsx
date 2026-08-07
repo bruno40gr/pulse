@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
+import { Button, Badge } from '@/components/ui'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface Insight {
   type: 'risk' | 'milestone' | 'opportunity' | 'nudge'
@@ -11,17 +13,17 @@ interface Insight {
   urgency: 'high' | 'medium' | 'low'
 }
 
-const typeConfig = {
-  risk: { color: '#DC2626', bg: '#FEF2F2', label: 'At risk' },
-  milestone: { color: '#16A34A', bg: '#F0FDF4', label: 'Milestone' },
-  opportunity: { color: '#2563EB', bg: '#EFF6FF', label: 'Opportunity' },
-  nudge: { color: '#D97706', bg: '#FFFBEB', label: 'Heads up' },
+const typeConfig: Record<string, 'error' | 'success' | 'info' | 'warning'> = {
+  risk: 'error',
+  milestone: 'success',
+  opportunity: 'info',
+  nudge: 'warning',
 }
 
-const urgencyDot = {
-  high: '#DC2626',
-  medium: '#D97706',
-  low: '#6B6B6B',
+const urgencyColor: Record<string, string> = {
+  high: colors.error,
+  medium: colors.yellow,
+  low: colors.textSecondary,
 }
 
 const loadingMessages = [
@@ -36,16 +38,46 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0])
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/insights?tenant=${getActiveTenantId()}`)
+    const tenant = getActiveTenantId()
+    const cacheKey = `pulse_insights_${tenant}`
+    const cacheTimeKey = `pulse_insights_time_${tenant}`
+    const cached = localStorage.getItem(cacheKey)
+    const cachedTime = localStorage.getItem(cacheTimeKey)
+
+    // Show cached data instantly
+    if (cached && cachedTime) {
+      try {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed)) {
+          setInsights(parsed)
+          setLastUpdated(cachedTime)
+          setLoading(false)
+        }
+      } catch {}
+    }
+
+    // Fetch fresh data
+    fetch(`/api/insights?tenant=${tenant}`)
       .then(r => r.json())
       .then(data => {
-        if (data.insights) setInsights(data.insights)
-        else setError('Could not load insights.')
+        if (data.insights) {
+          setInsights(data.insights)
+          const now = new Date().toISOString()
+          localStorage.setItem(cacheKey, JSON.stringify(data.insights))
+          localStorage.setItem(cacheTimeKey, now)
+          setLastUpdated(now)
+        } else if (!cached) {
+          setError('Could not load insights.')
+        }
         setLoading(false)
       })
-      .catch(() => { setError('Could not load insights.'); setLoading(false) })
+      .catch(() => {
+        if (!cached) setError('Could not load insights.')
+        setLoading(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -59,97 +91,82 @@ export default function DashboardPage() {
   }, [loading])
 
   return (
-    <div style={{ padding: '32px' }}>
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#1A1A1A', margin: 0 }}>Good morning.</h1>
-        <p style={{ color: '#6B6B6B', fontSize: '14px', marginTop: '4px' }}>Here is what is worth your attention today.</p>
+    <div style={{ padding: spacing['3xl'] }}>
+      <div style={{ marginBottom: spacing['3xl'] }}>
+        <h1 style={{ fontSize: typography.size2xl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Good morning.</h1>
+        <p style={{ color: colors.textSecondary, fontSize: typography.sizeMd, marginTop: spacing.xs }}>Here is what is worth your attention today.</p>
       </div>
 
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: spacing.lg }}>
           <div style={{
-            width: '32px', height: '32px', border: '2px solid #E8E8E4',
-            borderTop: '2px solid #C8392B', borderRadius: '50%',
+            width: '32px', height: '32px', border: `2px solid ${colors.borderLight}`,
+            borderTop: `2px solid ${colors.crimson}`, borderRadius: '50%',
             animation: 'spin 0.8s linear infinite'
           }} />
-          <p style={{ fontSize: '14px', color: '#6B6B6B', margin: 0, transition: 'opacity 0.3s' }}>
+          <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, transition: 'opacity 0.3s' }}>
             {loadingMessage}
           </p>
         </div>
       )}
 
       {error && (
-        <p style={{ color: '#DC2626', fontSize: '14px' }}>{error}</p>
+        <p style={{ color: colors.error, fontSize: typography.sizeMd }}>{error}</p>
       )}
 
       {!loading && !error && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+          {lastUpdated && (
+            <p style={{ color: colors.textMuted, fontSize: typography.sizeXs, marginBottom: spacing.md, fontFamily: typography.fontSans }}>
+              Last updated {Math.round((Date.now() - new Date(lastUpdated).getTime()) / 60000)} min ago
+            </p>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: spacing.md }}>
             {insights.map((insight, i) => {
-              const config = typeConfig[insight.type] || typeConfig.nudge
+              const variant = typeConfig[insight.type] || 'warning'
               return (
                 <div key={i} style={{
-                  background: 'white',
-                  border: '1px solid #E8E8E4',
-                  borderRadius: '12px',
-                  padding: '24px',
+                  background: colors.surface,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radius.lg,
+                  padding: spacing.xl,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
+                  gap: spacing.sm,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: config.color,
-                      background: config.bg,
-                      padding: '3px 10px',
-                      borderRadius: '20px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                    }}>
-                      {config.label}
-                    </span>
+                    <Badge variant={variant}>{insight.type}</Badge>
                     <div style={{
                       width: '8px',
                       height: '8px',
                       borderRadius: '50%',
-                      background: urgencyDot[insight.urgency] || '#6B6B6B',
+                      background: urgencyColor[insight.urgency] || colors.textSecondary,
                     }} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#1A1A1A', margin: '0 0 6px' }}>{insight.title}</h3>
-                    <p style={{ fontSize: '13px', color: '#6B6B6B', margin: 0, lineHeight: 1.6 }}>{insight.description}</p>
+                    <h3 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: `0 0 ${spacing.xs}` }}>{insight.title}</h3>
+                    <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>{insight.description}</p>
                   </div>
                   <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '12px', color: '#A0A0A0' }}>
+                    <span style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>
                       {insight.contact_ids.length} {insight.contact_ids.length === 1 ? 'person' : 'people'}
                     </span>
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => {
                         const params = new URLSearchParams({ ids: insight.contact_ids.join(',') })
                         window.location.href = `/dashboard/campaigns?${params}`
                       }}
-                      style={{
-                        background: '#1A1A1A',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '7px 14px',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        fontFamily: 'sans-serif',
-                      }}
                     >
                       {insight.action_label}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )
             })}
           </div>
-          <button
+          <Button
+            variant="secondary"
             onClick={() => {
               setLoading(true)
               setInsights([])
@@ -160,20 +177,10 @@ export default function DashboardPage() {
                   setLoading(false)
                 })
             }}
-            style={{
-              marginTop: '20px',
-              background: 'transparent',
-              border: '1px solid #E8E8E4',
-              borderRadius: '8px',
-              padding: '8px 16px',
-              fontSize: '13px',
-              color: '#6B6B6B',
-              cursor: 'pointer',
-              fontFamily: 'sans-serif',
-            }}
+            style={{ marginTop: spacing.xl }}
           >
             Refresh insights
-          </button>
+          </Button>
         </>
       )}
     </div>
