@@ -14,14 +14,67 @@ export async function GET(request: Request) {
   const tenantId = getTenantId(request)
   try {
     const { data, error } = await supabaseAdmin
-      .from('contacts')
-      .select('*')
+      .from('people')
+      .select(`
+        id, tenant_id, first_name, last_name, phone, email,
+        date_of_birth, opted_out, notes_history, student_notes_history,
+        custom_fields, created_at, updated_at,
+        students (
+          id, client_status, last_attended, message_routing, is_minor, account_id,
+          accounts ( id, name, phone, email ),
+          enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
+        )
+      `)
       .eq('tenant_id', tenantId)
       .order('last_name', { ascending: true })
 
     if (error) throw error
-    return NextResponse.json(data)
+
+    // Flatten the joined data to match the old contacts shape
+    const flattened = (data || []).map((person: any) => {
+      const student = (person.students as any)?.[0] ?? {}
+      const account = (student as any).accounts ?? {}
+      const enrollment = (student as any).enrollments?.[0] ?? {}
+      const enrollmentFields = (enrollment as any).custom_fields ?? {}
+
+      return {
+        id: person.id,
+        tenant_id: person.tenant_id,
+        first_name: person.first_name,
+        last_name: person.last_name,
+        phone: person.phone,
+        email: person.email,
+        date_of_birth: person.date_of_birth,
+        opted_out: person.opted_out,
+        client_status: student.client_status || 'active',
+        last_attended: student.last_attended,
+        message_routing: student.message_routing || 'account_holder',
+        is_minor: student.is_minor ?? true,
+        account_id: student.account_id,
+        account_holder_name: account.name,
+        account_holder_phone: account.phone,
+        account_holder_email: account.email,
+        family_name: account.name,
+        notes_history: person.notes_history || [],
+        student_notes_history: person.student_notes_history || [],
+        custom_fields: {
+          ...person.custom_fields,
+          ...enrollmentFields,
+          instrument: enrollment.instrument || person.custom_fields?.instrument,
+          service_type: enrollment.service_type || person.custom_fields?.service_type,
+          lesson_day: enrollment.lesson_day || person.custom_fields?.lesson_day,
+          lesson_time: enrollment.lesson_time || person.custom_fields?.lesson_time,
+          plan_name: enrollment.plan_name || person.custom_fields?.plan_name,
+          session_name: enrollment.session_name || person.custom_fields?.session_name,
+          instructor: enrollmentFields.instructor || person.custom_fields?.instructor,
+        },
+        tags: person.custom_fields?.tags || [],
+      }
+    })
+
+    return NextResponse.json(flattened)
   } catch (error) {
+    console.error('Error fetching contacts:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
 }
@@ -31,23 +84,23 @@ export async function POST(request: Request) {
     const { csv } = await request.json()
     if (!csv) return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 })
 
+    const url = new URL(request.url)
+    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+
     const parsedContacts = await parseCSV(csv)
 
-    const { data: existingContacts, error: selectError } = await supabaseAdmin
-      .from('contacts')
+    // Fetch existing people for deduplication
+    const { data: existingPeople } = await supabaseAdmin
+      .from('people')
       .select('id, phone, email, first_name, last_name')
-      .eq('tenant_id', getTenantId(request))
+      .eq('tenant_id', tenantId)
 
-    if (selectError) throw selectError
-
-    const phoneMap = new Map(existingContacts.map(c => [c.phone, c]))
-    const emailMap = new Map(existingContacts.map(c => [c.email?.toLowerCase(), c]))
-    const nameMap = new Map(existingContacts.map(c => [`${c.first_name} ${c.last_name}`.toLowerCase(), c]))
+    const phoneMap = new Map(existingPeople?.map(p => [p.phone, p]) || [])
+    const emailMap = new Map(existingPeople?.map(p => [p.email?.toLowerCase(), p]) || [])
+    const nameMap = new Map(existingPeople?.map(p => [`${p.first_name} ${p.last_name}`.toLowerCase(), p]) || [])
 
     let createdCount = 0
     let updatedCount = 0
-    const toInsert: any[] = []
-    const toUpdate: any[] = []
 
     for (const contact of parsedContacts) {
       const normPhone = contact.phone || null
@@ -59,57 +112,126 @@ export async function POST(request: Request) {
         (normEmail && emailMap.get(normEmail)) ||
         nameMap.get(normName)
 
-      // Extract music-school specific fields into custom_fields
-      const { instrument, lesson_day, lesson_time, service_type, instructor, plan_name, session_name, last_attended, date_of_birth, tags, ...baseContact } = contact
+      const { instrument, lesson_day, lesson_time, service_type, instructor,
+              plan_name, session_name, last_attended, tags, client_status, ...baseContact } = contact
 
-      const custom_fields = {
-        ...(instrument && { instrument }),
-        ...(lesson_day && { lesson_day }),
-        ...(lesson_time && { lesson_time }),
-        ...(service_type && { service_type }),
-        ...(instructor && { instructor }),
-        ...(plan_name && { plan_name }),
-        ...(session_name && { session_name }),
-        ...(last_attended && { last_attended }),
+      const enrollmentFields: Record<string, any> = {
+        instrument, lesson_day, lesson_time, service_type,
+        plan_name, session_name,
+        instructor,
       }
 
       if (existing) {
-        const merged = { ...existing }
-        for (const key in baseContact) {
-          if ((baseContact as any)[key] !== null && (baseContact as any)[key] !== undefined) {
-            (merged as any)[key] = (baseContact as any)[key]
+        // Update existing person
+        await supabaseAdmin.from('people')
+          .update({ ...baseContact, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+
+        // Update their enrollment if it exists
+        const { data: existingStudent } = await supabaseAdmin
+          .from('students')
+          .select('id')
+          .eq('person_id', existing.id)
+          .single()
+
+        if (existingStudent) {
+          const { data: existingEnrollment } = await supabaseAdmin
+            .from('enrollments')
+            .select('id, custom_fields')
+            .eq('student_id', existingStudent.id)
+            .single()
+
+          if (existingEnrollment) {
+            await supabaseAdmin.from('enrollments')
+              .update({
+                ...Object.fromEntries(
+                  Object.entries(enrollmentFields).filter(([, v]) => v !== null && v !== undefined)
+                ),
+                custom_fields: { ...existingEnrollment.custom_fields, ...enrollmentFields },
+              })
+              .eq('id', existingEnrollment.id)
+          }
+
+          // Update student status
+          if (client_status || last_attended) {
+            await supabaseAdmin.from('students')
+              .update({
+                ...(client_status && { client_status }),
+                ...(last_attended && { last_attended }),
+              })
+              .eq('id', existingStudent.id)
           }
         }
-        merged.custom_fields = { ...((existing as any).custom_fields || {}), ...custom_fields }
-        if (tags?.length) merged.tags = tags
-        toUpdate.push(merged)
+
+        updatedCount++
       } else {
-        toInsert.push({
-          ...baseContact,
-          ...(date_of_birth && { date_of_birth }),
-          tenant_id: getTenantId(request),
-          custom_fields,
-          tags: tags || [],
-        })
+        // Create new person
+        const { data: newPerson, error: personError } = await supabaseAdmin
+          .from('people')
+          .insert({
+            ...baseContact,
+            tenant_id: tenantId,
+            custom_fields: {},
+          })
+          .select('id')
+          .single()
+
+        if (personError || !newPerson) {
+          console.error('Failed to create person:', personError)
+          continue
+        }
+
+        // Create account
+        const { data: newAccount } = await supabaseAdmin
+          .from('accounts')
+          .insert({
+            tenant_id: tenantId,
+            name: `${contact.first_name} ${contact.last_name} (account)`,
+            email: contact.email,
+            phone: contact.phone,
+          })
+          .select('id')
+          .single()
+
+        // Create student
+        const { data: newStudent } = await supabaseAdmin
+          .from('students')
+          .insert({
+            tenant_id: tenantId,
+            person_id: newPerson.id,
+            account_id: newAccount?.id,
+            client_status: client_status || 'active',
+            last_attended: last_attended || null,
+          })
+          .select('id')
+          .single()
+
+        // Create enrollment
+        if (newStudent) {
+          await supabaseAdmin.from('enrollments').insert({
+            tenant_id: tenantId,
+            student_id: newStudent.id,
+            ...Object.fromEntries(
+              Object.entries(enrollmentFields).filter(([, v]) => v !== null && v !== undefined)
+            ),
+            custom_fields: enrollmentFields,
+          })
+        }
+
+        createdCount++
       }
     }
 
-    if (toInsert.length > 0) {
-      const { error } = await supabaseAdmin.from('contacts').insert(toInsert)
-      if (error) throw error
-      createdCount = toInsert.length
-    }
+    // Run deduplication
+    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/api/contacts/deduplicate`, {
+      method: 'POST',
+    }).catch(() => {})
 
-    for (const contact of toUpdate) {
-      const { error } = await supabaseAdmin
-        .from('contacts')
-        .update(contact)
-        .eq('id', contact.id)
-      if (error) console.warn('Update failed:', error.message)
-      else updatedCount++
-    }
-
-    return NextResponse.json({ message: 'Import successful', created: createdCount, updated: updatedCount })
+    return NextResponse.json({
+      message: 'Import successful',
+      created: createdCount,
+      updated: updatedCount,
+    })
   } catch (error) {
     console.error('Import failed:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

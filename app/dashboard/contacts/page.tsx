@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, memo } from 'react'
 import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, Send } from 'lucide-react'
+import { SlidersHorizontal, X, Send, House } from 'lucide-react'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
@@ -310,12 +310,11 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* AI explanation banner */}
+      {/* AI explanation */}
       {filterExplanation && (
-        <div style={{ background: colors.errorLight, border: `1px solid ${colors.errorBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.lg}`, marginBottom: spacing.md, fontSize: typography.sizeBase, color: '#991B1B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>✦ {filterExplanation}</span>
-          <button onClick={clearSearch} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#991B1B' }}><X size={13} /></button>
-        </div>
+        <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, marginBottom: spacing.md, fontFamily: typography.fontSans }}>
+          {filterExplanation}
+        </p>
       )}
 
 
@@ -472,7 +471,19 @@ const ContactRow = memo(function ContactRow({
           </span>
         </span>
       </td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '12px' }}>{contact.phone ? contact.phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '12px' }}>
+                    {(() => {
+                      const phone = contact.phone || contact.account_holder_phone
+                      const showIcon = (contact as any).is_minor || (contact as any).message_routing === 'account_holder'
+                      if (!phone) return <span style={{ color: '#A0A0A0' }}>—</span>
+                      return (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>
+                          {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
+                        </span>
+                      )
+                    })()}
+                  </td>
       <td style={{ padding: '10px 16px' }}>{contact.email || '—'}</td>
       {tenantFields.slice(0, 3).map(f => (
         <td key={f.field_key} style={{ padding: '10px 16px', color: colors.textSecondary }}>{contact.custom_fields?.[f.field_key] || '—'}</td>

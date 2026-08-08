@@ -39,18 +39,48 @@ export async function POST(request: Request) {
     if (!query?.trim()) return NextResponse.json({ error: 'No query provided' }, { status: 400 })
 
     const { data: contacts, error } = await supabaseAdmin
-      .from('contacts')
-      .select('id, first_name, last_name, client_status, last_attended, tags, opted_out, custom_fields')
+      .from('people')
+      .select(`
+        id, first_name, last_name, opted_out,
+        students (
+          client_status, last_attended, is_minor, message_routing,
+          enrollments (
+            instrument, service_type, lesson_day, lesson_time,
+            plan_name, session_name, custom_fields
+          )
+        )
+      `)
       .eq('tenant_id', tenantId)
       .eq('opted_out', false)
 
     if (error) throw error
 
+    // Flatten for AI prompt
+    const flattened = (contacts || []).map((p: any) => {
+      const student = p.students?.[0] || {}
+      const enrollment = student.enrollments?.[0] || {}
+      return {
+        id: p.id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        client_status: student.client_status,
+        last_attended: student.last_attended,
+        is_minor: student.is_minor,
+        custom_fields: {
+          ...enrollment.custom_fields,
+          instrument: enrollment.instrument,
+          service_type: enrollment.service_type,
+          lesson_day: enrollment.lesson_day,
+          instructor: enrollment.custom_fields?.instructor,
+        }
+      }
+    })
+
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Query: "${query}"\n\nContacts: ${JSON.stringify(contacts)}` }]
+      messages: [{ role: 'user', content: `Query: "${query}"\n\nContacts: ${JSON.stringify(flattened)}` }]
     })
 
     const rawText = (response.content[0] as any).text

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { House } from 'lucide-react'
 import CSVImporter from './CSVImporter'
 import { getActiveTenantId } from '@/lib/tenant'
 
@@ -153,7 +154,19 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                   {contact.first_name} {contact.last_name}
                 </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{instrument || '—'}</td>
-                <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.phone || '—'}</td>
+                <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6B6B6B' }}>
+                  {(() => {
+                    const phone = contact.phone || contact.account_holder_phone
+                    const showIcon = contact.is_minor || contact.message_routing === 'account_holder'
+                    if (!phone) return <span style={{ color: '#A0A0A0' }}>—</span>
+                    return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span>{phone}</span>
+                        {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
+                      </span>
+                    )
+                  })()}
+                </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.email || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{serviceType || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{instructor || '—'}</td>

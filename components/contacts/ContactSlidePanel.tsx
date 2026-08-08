@@ -280,7 +280,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       </div>
 
       {/* Body */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
           <div style={{ padding: `${spacing.md} ${spacing['2xl']} 0` }}>
@@ -378,30 +378,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <SectionLabel>Message history</SectionLabel>
           </div>
           <div style={sectionPad}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-              {[
-                { date: 'Apr 12', text: 'Hey Tyler, see you in class at 4pm this Thursday...' },
-                { date: 'Mar 28', text: 'Thanks for confirming the schedule change...' },
-                { date: 'Feb 15', text: 'Welcome to Headliner! Your first lesson is...' },
-              ].map((msg, i) => (
-                <div key={i} style={{ display: 'flex', gap: spacing.sm, fontSize: typography.sizeBase, lineHeight: 1.4 }}>
-                  <span style={{ color: colors.textMuted, fontFamily: typography.fontSans, flexShrink: 0, fontSize: typography.sizeSm }}>{msg.date}</span>
-                  <span style={{ color: colors.text, fontFamily: typography.fontSans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.text}</span>
-                </div>
-              ))}
+            <div style={{
+              border: `1px dashed ${colors.border}`,
+              borderRadius: radius.md,
+              padding: `${spacing.md} ${spacing.lg}`,
+              textAlign: 'center',
+            }}>
+              <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0 }}>No messages sent yet</p>
             </div>
-            <button
-              onClick={() => setShowMessageHistory(true)}
-              style={{
-                background: 'transparent', border: 'none', padding: 0,
-                marginTop: spacing.sm,
-                fontSize: typography.sizeSm, color: colors.textSecondary,
-                cursor: 'pointer', fontFamily: typography.fontSans,
-                textDecoration: 'underline', textUnderlineOffset: '2px',
-              }}
-            >
-              View all messages →
-            </button>
           </div>
 
           {divider}
@@ -453,8 +437,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Staff and parent communications</div>
 
             {!showStudentNoteInput && studentNotesHistory.length === 0 ? (
-              <div style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.md} ${spacing.lg}`, textAlign: 'center' }}>
-                <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginBottom: spacing.sm }}>No notes yet</div>
+              <div style={{
+                border: `1px dashed ${colors.border}`,
+                borderRadius: radius.md,
+                padding: `${spacing.xl} ${spacing['2xl']}`,
+                textAlign: 'center',
+              }}>
+                <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, marginBottom: spacing.sm }}>No notes yet</p>
                 <Button size="sm" variant="secondary" onClick={() => setShowStudentNoteInput(true)}>Add note</Button>
               </div>
             ) : (
@@ -510,8 +499,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Visible to your team only</div>
 
             {!showInternalNoteInput && notesHistory.length === 0 ? (
-              <div style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.md} ${spacing.lg}`, textAlign: 'center' }}>
-                <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginBottom: spacing.sm }}>No notes yet</div>
+              <div style={{
+                border: `1px dashed ${colors.borderLight}`,
+                borderRadius: radius.md,
+                padding: `${spacing.xl} ${spacing['2xl']}`,
+                textAlign: 'center',
+              }}>
+                <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, marginBottom: spacing.sm }}>No notes yet</p>
                 <Button size="sm" variant="secondary" onClick={() => setShowInternalNoteInput(true)}>Add note</Button>
               </div>
             ) : (

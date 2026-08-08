@@ -9,8 +9,9 @@ function getTenantId(request: Request): string {
   return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
 }
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const tenantId = getTenantId(request)
+  const { id } = await params
   try {
     const { recipientIds } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
@@ -19,7 +20,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
     if (campaignError) throw campaignError
 
@@ -33,32 +34,33 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Twilio not configured. Please connect Twilio in Settings.' }, { status: 400 })
     }
 
-    // Get contacts
+    // Get contacts from new schema
     const { data: contacts, error: contactsError } = await supabaseAdmin
-      .from('contacts')
-      .select('id, first_name, last_name, phone, account_holder_phone, message_routing, is_minor')
+      .from('people')
+      .select(`
+        id, first_name, last_name, phone,
+        students (
+          message_routing, is_minor,
+          accounts ( phone )
+        )
+      `)
       .in('id', recipientIds)
       .eq('opted_out', false)
     if (contactsError) throw contactsError
 
-    function resolvePhone(contact: any, sendTo?: string): string | null {
-      const routing = contact.is_minor ? 'account_holder' : (contact.message_routing || 'account_holder')
+    function resolvePhone(person: any): string | null {
+      const student = person.students?.[0] || {}
+      const accountPhone = student.accounts?.phone || null
+      const routing = student.is_minor ? 'account_holder' : (student.message_routing || 'account_holder')
 
-      if (routing === 'student') {
-        return contact.phone || contact.account_holder_phone || null
-      }
-      if (routing === 'account_holder') {
-        return contact.account_holder_phone || contact.phone || null
-      }
-      if (routing === 'account_holder_fallback') {
-        return contact.account_holder_phone || contact.phone || null
-      }
-      return contact.phone || null
+      if (routing === 'student') return person.phone || accountPhone
+      if (routing === 'account_holder') return accountPhone || person.phone
+      return person.phone || accountPhone
     }
 
     const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token)
     const results = await Promise.allSettled(
-      contacts
+      (contacts || [])
         .filter(c => resolvePhone(c))
         .map(async (contact) => {
           const toPhone = resolvePhone(contact)
@@ -95,7 +97,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     await supabaseAdmin
       .from('campaigns')
       .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: sent })
-      .eq('id', campaign.id)
+      .eq('id', id)
 
     return NextResponse.json({ sent, failed })
   } catch (error) {
