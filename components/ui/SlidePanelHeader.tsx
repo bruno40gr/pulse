@@ -29,6 +29,7 @@ export function SlidePanelHeader({
   actions,
   toast,
   badge,
+  titleSize,
 }: SlidePanelHeaderProps) {
   return (
     <div style={{

@@ -40,11 +40,11 @@ interface Insight {
   text: string
 }
 
-const insightConfig: Record<string, { icon: React.ReactNode; borderColor: string }> = {
-  risk: { icon: <AlertCircle size={14} />, borderColor: colors.error },
-  milestone: { icon: <Star size={14} />, borderColor: colors.green },
-  info: { icon: <Info size={14} />, borderColor: colors.teal },
-  nudge: { icon: <Clock size={14} />, borderColor: colors.yellow },
+const insightConfig: Record<string, { icon: React.ReactNode; borderColor: string; bg: string }> = {
+  risk: { icon: <AlertCircle size={14} />, borderColor: colors.error, bg: 'rgba(220,38,38,0.06)' },
+  milestone: { icon: <Star size={14} />, borderColor: colors.green, bg: 'rgba(61,139,95,0.06)' },
+  info: { icon: <Info size={14} />, borderColor: colors.teal, bg: 'rgba(0,168,200,0.06)' },
+  nudge: { icon: <Clock size={14} />, borderColor: colors.yellow, bg: 'rgba(245,166,35,0.06)' },
 }
 
 interface ContactSlidePanelProps {
@@ -53,43 +53,6 @@ interface ContactSlidePanelProps {
   onClose: () => void
   onUpdated: (updated: Contact) => void
   onCompose?: (contactIds: string[]) => void
-}
-
-function RadioGroup({ options, value, onChange }: {
-  options: { value: string; label: string; disabled?: boolean }[]
-  value: string
-  onChange: (val: string) => void
-}) {
-  return (
-    <div style={{ display: 'flex', gap: spacing.lg }}>
-      {options.map((opt) => {
-        const isDisabled = opt.disabled
-        return (
-          <label
-            key={opt.value}
-            style={{
-              display: 'flex', alignItems: 'center', gap: spacing.sm,
-              padding: `${spacing.xs} 0`,
-              cursor: isDisabled ? 'not-allowed' : 'pointer',
-              opacity: isDisabled ? 0.5 : 1,
-              fontFamily: typography.fontSans,
-              fontSize: typography.sizeBase,
-              color: colors.text,
-            }}
-          >
-            <input
-              type="radio"
-              checked={value === opt.value}
-              onChange={() => !isDisabled && onChange(opt.value)}
-              disabled={isDisabled}
-              style={{ accentColor: colors.espresso, width: '16px', height: '16px', cursor: isDisabled ? 'not-allowed' : 'pointer', margin: 0 }}
-            />
-            {opt.label}
-          </label>
-        )
-      })}
-    </div>
-  )
 }
 
 const inputStyle: React.CSSProperties = {
@@ -109,6 +72,20 @@ const selectStyle: React.CSSProperties = {
   ...inputStyle,
   cursor: 'pointer',
   appearance: 'auto',
+}
+
+const fieldLabelStyle: React.CSSProperties = {
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightMedium,
+  color: colors.textMuted,
+  marginBottom: '2px',
+  fontFamily: typography.fontSans,
+}
+
+const fieldValueStyle: React.CSSProperties = {
+  ...typography.body,
+  fontWeight: typography.weightMedium,
+  color: colors.text,
 }
 
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose }: ContactSlidePanelProps) {
@@ -173,7 +150,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     const cached = localStorage.getItem(cacheKey)
     const cachedTime = localStorage.getItem(cacheTimeKey)
 
-    // Show cached data instantly if within 10 min
     if (cached && cachedTime) {
       try {
         const age = Date.now() - new Date(cachedTime).getTime()
@@ -273,12 +249,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   }
 
   const handleStartEditing = () => {
-    // Populate edits from current contact values
     const initial: Record<string, any> = {}
     if (contact.phone) initial.phone = contact.phone
     if (contact.email) initial.email = contact.email
     if (contact.date_of_birth) initial.date_of_birth = contact.date_of_birth
-    // Include all tenant field values
     for (const f of tenantFields) {
       const val = contact.custom_fields?.[f.field_key]
       if (val !== undefined && val !== null) {
@@ -306,9 +280,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setEdits(prev => ({ ...prev, [key]: value }))
   }
 
-  const routing = contact.message_routing || 'account_holder'
-  const hasStudentPhone = !!contact.phone
-
   const displayPhone = (phone: string | null) => {
     if (!phone) return null
     const cleaned = phone.replace(/^\+1\s?/, '').replace(/\D/g, '')
@@ -317,7 +288,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     return phone.replace(/^\+1\s?/, '')
   }
 
-  // Calculate age from date_of_birth
   const getAgeFromDOB = (dob: string | null | undefined): number | null => {
     if (!dob) return null
     try {
@@ -333,12 +303,27 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   const age = getAgeFromDOB(contact.date_of_birth)
   const computedIsMinor = age !== null ? age < 18 : contact.is_minor
-  const ageLabel = age !== null ? `${age} y.o` : (contact.is_minor ? 'Minor' : null)
+  const ageLabel = age !== null ? `${age} y.o` : null
   const statusLabel = contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)
   const optedOutLabel = contact.opted_out ? 'Opted out' : null
 
+  const showAccountHolder = computedIsMinor
+    ? !!(contact.account_holder_name)
+    : hasDistinctAccountHolder
+
   const divider = <div style={{ height: '1px', background: colors.borderLight, margin: `${spacing.md} ${spacing['2xl']}` }} />
   const sectionPad: React.CSSProperties = { padding: `0 ${spacing['2xl']}` }
+
+  const noteAvatar = (initial: string, bg: string) => (
+    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: 'white', flexShrink: 0, marginTop: '1px' }}>
+      {initial}
+    </div>
+  )
+
+  const formatNoteTimestamp = (ts: string) => {
+    const d = new Date(ts)
+    return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+  }
 
   return (
     <SlidePanel isOpen={true} onClose={onClose}>
@@ -348,7 +333,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         avatar={{
           firstName: contact.first_name,
           lastName: contact.last_name,
-          size: 72,
+          size: 48,
           src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined,
         }}
         titleSize={typography.size2xl}
@@ -365,24 +350,52 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       />
 
       {/* Body */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 480px', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
-          {/* Personal info — no label, DOB first */}
-          <div style={{ padding: `${spacing.xl} ${spacing['2xl']} 0` }}>
+          {/* Account holder — always first for minors, only if distinct for adults */}
+          {showAccountHolder && (
+            <>
+              <div style={{ padding: `${spacing.xl} ${spacing['2xl']} ${spacing.xs}` }}>
+                <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
+              </div>
+              <div style={sectionPad}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
+                  {contact.account_holder_name && (
+                    <div>
+                      <div style={fieldLabelStyle}>Name</div>
+                      <div style={fieldValueStyle}>{cleanName(contact.account_holder_name)}</div>
+                    </div>
+                  )}
+                  {contact.family_name && (
+                    <div>
+                      <div style={fieldLabelStyle}>Family</div>
+                      <div style={fieldValueStyle}>{cleanName(contact.family_name)}</div>
+                    </div>
+                  )}
+                  {contact.account_holder_phone && (
+                    <div>
+                      <div style={fieldLabelStyle}>Phone</div>
+                      <div style={fieldValueStyle}>{displayPhone(contact.account_holder_phone)}</div>
+                    </div>
+                  )}
+                  {contact.account_holder_email && (
+                    <div>
+                      <div style={fieldLabelStyle}>Email</div>
+                      <div style={fieldValueStyle}>{contact.account_holder_email}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Student contact info — Phone, Email, DOB */}
+          <div style={{ padding: `${showAccountHolder ? spacing.md : spacing.xl} ${spacing['2xl']} 0` }}>
             {isEditing ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 <div>
-                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Date of birth</div>
-                  <input
-                    type="date"
-                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
-                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
-                    style={{ ...inputStyle, width: '160px' }}
-                  />
-                </div>
-                <div>
-                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
+                  <div style={fieldLabelStyle}>Phone</div>
                   <input
                     type="text"
                     value={edits.phone ?? contact.phone ?? ''}
@@ -392,7 +405,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   />
                 </div>
                 <div>
-                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
+                  <div style={fieldLabelStyle}>Email</div>
                   <input
                     type="email"
                     value={edits.email ?? contact.email ?? ''}
@@ -401,110 +414,89 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     style={inputStyle}
                   />
                 </div>
+                <div>
+                  <div style={fieldLabelStyle}>Date of birth</div>
+                  <input
+                    type="date"
+                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
+                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
+                    style={{ ...inputStyle, width: '160px' }}
+                  />
+                </div>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
-                {contact.date_of_birth && (
-                  <div>
-                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Date of birth</div>
-                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{formatDate(contact.date_of_birth)}</div>
-                  </div>
-                )}
                 {displayPhone(contact.phone) && (
                   <div>
-                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
-                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{displayPhone(contact.phone)}</div>
+                    <div style={fieldLabelStyle}>Phone</div>
+                    <div style={fieldValueStyle}>{displayPhone(contact.phone)}</div>
                   </div>
                 )}
                 {contact.email && (
                   <div>
-                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
-                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.email}</div>
+                    <div style={fieldLabelStyle}>Email</div>
+                    <div style={fieldValueStyle}>{contact.email}</div>
+                  </div>
+                )}
+                {contact.date_of_birth && (
+                  <div>
+                    <div style={fieldLabelStyle}>Date of birth</div>
+                    <div style={fieldValueStyle}>{formatDate(contact.date_of_birth)}</div>
                   </div>
                 )}
                 {contact.custom_fields?.preferred_channel && (
                   <div>
-                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Preferred channel</div>
-                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.custom_fields.preferred_channel}</div>
+                    <div style={fieldLabelStyle}>Preferred channel</div>
+                    <div style={fieldValueStyle}>{contact.custom_fields.preferred_channel}</div>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Account holder — names, emails, phones side by side */}
-          {hasDistinctAccountHolder && (
-            <>
-              {divider}
-              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
+          {/* AI Insights — in left column, tinted backgrounds */}
+          {!showAccountHolder && divider}
+          <div style={{ padding: `${spacing.md} ${spacing['2xl']} ${spacing.xs}` }}>
+            <SectionLabel style={sectionHeaderStyle}>AI Insights</SectionLabel>
+          </div>
+          <div style={{ ...sectionPad, paddingBottom: spacing.sm }}>
+            {insightsLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} style={{ height: '36px', background: colors.borderLight, borderRadius: radius.md, width: i === 2 ? '60%' : '100%' }} />
+                ))}
               </div>
-              <div style={sectionPad}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
-                  {contact.account_holder_name && (
-                    <div>
-                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Name</div>
-                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{cleanName(contact.account_holder_name)}</div>
+            ) : insights.length === 0 ? (
+              <p style={{ ...typography.bodySmall, color: colors.textMuted, margin: 0 }}>No insights yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {insights.map((insight, i) => {
+                  const config = insightConfig[insight.type ?? 'info'] ?? insightConfig.info
+                  return (
+                    <div key={i} style={{
+                      background: config.bg,
+                      borderLeft: `3px solid ${config.borderColor}`,
+                      borderRadius: radius.md,
+                      padding: `${spacing.sm} ${spacing.md}`,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: spacing.sm,
+                    }}>
+                      <span style={{ color: config.borderColor, flexShrink: 0, marginTop: '2px' }}>{config.icon}</span>
+                      <span style={{ ...typography.bodySmall, color: colors.text, lineHeight: 1.5 }}>{insight.text}</span>
                     </div>
-                  )}
-                  {contact.account_holder_email && (
-                    <div>
-                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
-                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.account_holder_email}</div>
-                    </div>
-                  )}
-                  {contact.account_holder_phone && (
-                    <div>
-                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
-                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{displayPhone(contact.account_holder_phone)}</div>
-                    </div>
-                  )}
-                  {contact.family_name && (
-                    <div>
-                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Family</div>
-                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{cleanName(contact.family_name)}</div>
-                    </div>
-                  )}
-                </div>
+                  )
+                })}
               </div>
-            </>
-          )}
+            )}
+          </div>
 
-          {/* Minor alert — always show if minor */}
-          {computedIsMinor && (
-            <div style={{ padding: `${spacing.md} ${spacing['2xl']} 0` }}>
-              <div style={{ ...typography.bodySmall, color: colors.warning, lineHeight: 1.5 }}>
-                Under 18. Confirm you have permission before messaging this student.
-              </div>
-            </div>
-          )}
-
-          {/* Message recipient — only if minor AND has phone */}
-          {computedIsMinor && hasStudentPhone && (
-            <>
-              {divider}
-              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>Message recipient</SectionLabel>
-              </div>
-              <div style={sectionPad}>
-                <RadioGroup
-                  options={[
-                    { value: 'account_holder', label: 'Parent or account holder' },
-                    { value: 'student', label: 'Student' },
-                  ]}
-                  value={routing}
-                  onChange={(val) => patch({ message_routing: val })}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Enrollment details */}
+          {/* More details */}
           {tenantFields.length > 0 && (
             <>
               {divider}
               <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>Details</SectionLabel>
+                <SectionLabel style={sectionHeaderStyle}>More details</SectionLabel>
               </div>
               <div style={{ ...sectionPad, paddingBottom: spacing['2xl'] }}>
                 {!hasEnrollment && !isEditing ? (
@@ -518,7 +510,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       if (f.field_options?.length) {
                         return (
                           <div key={f.field_key}>
-                            <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>{f.field_label}</div>
+                            <div style={fieldLabelStyle}>{f.field_label}</div>
                             <select
                               value={String(currentVal)}
                               onChange={e => updateEdit(f.field_key, e.target.value)}
@@ -534,7 +526,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       }
                       return (
                         <div key={f.field_key}>
-                          <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>{f.field_label}</div>
+                          <div style={fieldLabelStyle}>{f.field_label}</div>
                           <input
                             type="text"
                             value={String(currentVal)}
@@ -560,86 +552,47 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           )}
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div style={{ overflowY: 'auto', padding: `${spacing.md} ${spacing['2xl']} ${spacing['2xl']}`, borderLeft: `1px solid ${colors.borderLight}`, display: 'flex', flexDirection: 'column', gap: spacing.lg, background: colors.surface }}>
-          {/* AI Insights — sticky, prominent */}
-          <div style={{ position: 'sticky', top: 0, background: colors.surface, zIndex: 1, paddingTop: spacing.md, paddingBottom: spacing.md, marginBottom: spacing.sm }}>
-            <SectionLabel style={sectionHeaderStyle}>AI Insights</SectionLabel>
-            {insightsLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, marginTop: spacing.sm }}>
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} style={{ height: '44px', background: colors.borderLight, borderRadius: radius.md, width: i === 2 ? '60%' : '100%' }} />
-                ))}
-              </div>
-            ) : insights.length === 0 ? (
-              <p style={{ ...typography.bodySmall, color: colors.textMuted, margin: `${spacing.sm} 0 0` }}>No insights yet.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, marginTop: spacing.sm }}>
-                {insights.map((insight, i) => {
-                  const config = insightConfig[insight.type ?? 'info'] ?? insightConfig.info
-                  const tintMap: Record<string, string> = {
-                    risk: 'rgba(220,38,38,0.06)',
-                    milestone: 'rgba(61,139,95,0.06)',
-                    info: 'rgba(0,168,200,0.06)',
-                    nudge: 'rgba(245,166,35,0.06)',
-                  }
-                  return (
-                    <div key={i} style={{
-                      background: tintMap[insight.type ?? 'info'] ?? tintMap.info,
-                      borderLeft: `3px solid ${config.borderColor}`,
-                      borderRadius: radius.md,
-                      padding: `${spacing.md} ${spacing.lg}`,
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: spacing.md,
-                    }}>
-                      <span style={{ color: config.borderColor, flexShrink: 0, marginTop: '2px' }}>{config.icon}</span>
-                      <span style={{ ...typography.body, color: colors.text, lineHeight: 1.5 }}>{insight.text}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+        {/* RIGHT COLUMN — wider, notes-focused */}
+        <div style={{ overflowY: 'auto', padding: `${spacing.xl} ${spacing['2xl']} ${spacing['2xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.xl, background: colors.surface }}>
           {/* Notes */}
           <div>
             <SectionLabel style={sectionHeaderStyle}>Notes</SectionLabel>
-            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Staff and parent communications</div>
+            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.md }}>Staff and parent communications</div>
 
             {!showStudentInput ? (
               <Button
-                variant="ghost"
+                variant="secondary"
                 onClick={() => setShowStudentInput(true)}
-                style={{ width: '100%', justifyContent: 'flex-start', border: '1px dashed #E8E8E4' }}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
               >
-                + Add a note...
+                + Add a note
               </Button>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 <Textarea
                   value={studentNoteInput}
                   onChange={e => setStudentNoteInput(e.target.value)}
-                  placeholder="Add a note..."
-                  style={{ minHeight: '80px' }}
+                  placeholder="Write a note..."
+                  style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
                 />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button variant="primary" size="sm" onClick={saveStudentNote} disabled={studentNotesSaving}>
-                    {studentNotesSaving ? 'Saving...' : 'Save'}
-                  </Button>
+                <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
                   <Button variant="ghost" size="sm" onClick={() => { setShowStudentInput(false); setStudentNoteInput('') }}>
                     Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={saveStudentNote} disabled={studentNotesSaving}>
+                    {studentNotesSaving ? 'Saving...' : 'Save note'}
                   </Button>
                 </div>
               </div>
             )}
             {studentNotesHistory.length > 0 && !showStudentInput && (
-              <div style={{ marginTop: spacing.sm, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <div style={{ marginTop: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {studentNotesHistory.map((entry, i) => (
-                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, display: 'flex', gap: spacing.sm }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: colors.crimson, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: 'white', flexShrink: 0, marginTop: '1px' }}>S</div>
+                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: `${spacing.md}`, display: 'flex', gap: spacing.md }}>
+                    {noteAvatar('S', colors.crimson)}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                        {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {formatNoteTimestamp(entry.timestamp)}
                       </div>
                       <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
                     </div>
@@ -652,42 +605,45 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {/* Internal notes */}
           <div>
             <SectionLabel style={sectionHeaderStyle}>Internal notes</SectionLabel>
-            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Visible to your team only</div>
+            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.md }}>Visible to your team only</div>
 
             {!showInternalInput ? (
               <Button
-                variant="ghost"
+                variant="secondary"
                 onClick={() => setShowInternalInput(true)}
-                style={{ width: '100%', justifyContent: 'flex-start', border: '1px dashed #E8E8E4' }}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
               >
-                + Add a note...
+                + Add internal note
               </Button>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 <Textarea
                   value={internalNoteInput}
                   onChange={e => setInternalNoteInput(e.target.value)}
-                  placeholder="Add a note..."
-                  style={{ minHeight: '80px' }}
+                  placeholder="Write an internal note..."
+                  style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, background: colors.backgroundSecondary, resize: 'vertical' }}
                 />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button variant="primary" size="sm" onClick={saveInternalNote} disabled={internalNotesSaving}>
-                    {internalNotesSaving ? 'Saving...' : 'Save'}
-                  </Button>
+                <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
                   <Button variant="ghost" size="sm" onClick={() => { setShowInternalInput(false); setInternalNoteInput('') }}>
                     Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={saveInternalNote} disabled={internalNotesSaving}>
+                    {internalNotesSaving ? 'Saving...' : 'Save note'}
                   </Button>
                 </div>
               </div>
             )}
             {notesHistory.length > 0 && !showInternalInput && (
-              <div style={{ marginTop: spacing.sm, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <div style={{ marginTop: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {notesHistory.map((entry, i) => (
-                  <div key={i} style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
-                    <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                      {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  <div key={i} style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.md}`, display: 'flex', gap: spacing.md }}>
+                    {noteAvatar('T', colors.textMuted)}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
+                        {formatNoteTimestamp(entry.timestamp)}
+                      </div>
+                      <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
                     </div>
-                    <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
                   </div>
                 ))}
               </div>
