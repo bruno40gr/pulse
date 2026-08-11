@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse — adfects-inspired preview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Baloo+2:wght@600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #fbfdfc;
+    color: #1A1A1A;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ── */
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 40px;
+  }
+
+  .header {
+    margin-bottom: 48px;
+  }
+
+  .header h1 {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+  }
+
+  .header p {
+    font-size: 14px;
+    color: #6B7280;
+    line-height: 1.6;
+    max-width: 520px;
+  }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 4px;
+    letter-spacing: -0.015em;
+  }
+
+  .section-sub {
+    font-size: 13px;
+    color: #6B7280;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* ── Two-card row ── */
+  .card-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 28px;
+  }
+
+  .card-full {
+    grid-column: 1 / -1;
+  }
+
+  .card-header {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .step-num {
+    width: 24px; height: 24px;
+    background: #FF0044;
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1A1A1A;
+    margin-bottom: 4px;
+  }
+
+  .card-header p {
+    font-size: 13px;
+    color: #6B7280;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  /* ── Form elements ── */
+  label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #1A1A1A;
+    display: block;
+    margin-bottom: 4px;
+    margin-top: 16px;
+  }
+
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"],
+  input[type="password"],
+  textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    background: #FFFFFF;
+    transition: border-color 0.15s;
+  }
+
+  input:focus, textarea:focus { border-color: #1A1A1A; }
+
+  textarea {
+    min-height: 80px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: #9CA3AF;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-block;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.88; }
+
+  .btn-primary {
+    background: #1A130F;
+    color: white;
+  }
+
+  .btn-secondary {
+    background: #FFFFFF;
+    color: #1A1A1A;
+    border: 1px solid #E5E7EB;
+  }
+
+  .btn-ghost {
+    background: none;
+    border: none;
+    color: #FF0044;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .btn-ghost:hover { text-decoration: underline; }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #E5E7EB;
+  }
+
+  /* ── Status badges ── */
+  .status-ok {
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #16A34A;
+    font-weight: 500;
+  }
+
+  /* ── Copy fields ── */
+  .copy-field {
+    background: #f6f8f8;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1A1A1A;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .copy-field:hover { border-color: #D1D5DB; }
+
+  .field-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .field-label-row .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1A1A1A;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .field-group { margin-bottom: 18px; }
+
+  /* ── Two-col generated content ── */
+  .gen-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px 28px;
+    margin-top: 18px;
+  }
+
+  /* ── Checkbox list ── */
+  .checkbox-list {
+    background: #f6f8f8;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .checkbox-list label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #1A1A1A;
+    margin: 0;
+  }
+
+  .checkbox-list input[type="checkbox"] { accent-color: #FF0044; }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid #F3F4F6;
+    border-top: 2px solid #FF0044;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 14px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .center-box {
+    text-align: center;
+    padding: 40px 0;
+  }
+
+  .center-box p {
+    font-size: 14px;
+    color: #6B7280;
+    margin-bottom: 18px;
+  }
+
+  /* ── Error ── */
+  .error-box {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #DC2626;
+    margin-bottom: 14px;
+  }
+
+  .error-box button {
+    display: block;
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: #FF0044;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0;
+    text-decoration: underline;
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid #E5E7EB; margin: 0; }
+
+  /* ═══════════════════════════════════════════ */
+  /* CONTACTS TABLE */
+  /* ═══════════════════════════════════════════ */
+  .contacts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .contacts-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 14px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+
+  .contacts-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #F3F4F6;
+    color: #1A1A1A;
+    vertical-align: middle;
+  }
+
+  .contacts-table tr:hover td {
+    background: #fbfdfc;
+  }
+
+  .contact-name {
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  .contact-phone {
+    color: #6B7280;
+    font-size: 12px;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .pill-active { background: #F0FDF4; color: #16A34A; }
+  .pill-inactive { background: #F3F4F6; color: #9CA3AF; }
+  .pill-member { background: #EEF2FF; color: #4F46E5; }
+
+  .table-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .table-actions button {
+    background: none;
+    border: none;
+    color: #9CA3AF;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .table-actions button:hover {
+    background: #F3F4F6;
+    color: #1A1A1A;
+  }
+
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .table-toolbar .search-input {
+    width: 260px;
+    padding: 8px 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    background: #FFFFFF;
+  }
+
+  .table-toolbar .search-input:focus { border-color: #1A1A1A; }
+
+  .table-toolbar .count {
+    font-size: 12px;
+    color: #9CA3AF;
+  }
+
+  /* ═══════════════════════════════════════════ */
+  /* CONTACT CARD (slide panel) */
+  /* ═══════════════════════════════════════════ */
+  .contact-card {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .contact-card-top {
+    padding: 24px 28px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+
+  .contact-avatar {
+    width: 48px; height: 48px;
+    background: #1A130F;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+
+  .contact-card-top h3 {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #1A1A1A;
+    margin-bottom: 4px;
+  }
+
+  .contact-card-top .meta {
+    font-size: 13px;
+    color: #6B7280;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .contact-card-top .meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .contact-card-body {
+    padding: 20px 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 32px;
+  }
+
+  .contact-field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  .contact-field-value {
+    font-size: 14px;
+    color: #1A1A1A;
+    font-weight: 500;
+  }
+
+  .contact-card-actions {
+    padding: 16px 28px;
+    border-top: 1px solid #E5E7EB;
+    display: flex;
+    gap: 10px;
+  }
+
+  /* ── Comparison toggle ── */
+  .toggle-bar {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    display: flex;
+    gap: 0;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .toggle-bar button {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    border: none;
+    background: transparent;
+    color: #6B7280;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-bar button.active {
+    background: #1A130F;
+    color: white;
+  }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid #E5E7EB;
+    margin: 48px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="toggle-bar">
+  <button id="btn-current" class="active" onclick="switchView('current')">Current</button>
+  <button id="btn-new" onclick="switchView('new')">adfects-inspired</button>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- CURRENT VIEW -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="view-current" class="view active">
+<div class="page">
+  <h1 style="font-size:22px;font-weight:600;margin-bottom:4px;font-family:'DM Sans',sans-serif;">Settings</h1>
+  <p style="color:#6B6B6B;font-size:14px;margin-bottom:32px;">Complete these steps to start sending messages to your contacts.</p>
+
+  <div class="card-row">
+    <div class="card">
+      <div class="card-header">
+        <div class="step-num">1</div>
+        <div>
+          <h2>Connect your Twilio account</h2>
+          <p>Pulse uses Twilio to send text messages on your behalf. <a href="#" style="color:#FF0044;font-weight:500;">Create a free Twilio account</a> if you do not have one yet.</p>
+        </div>
+      </div>
+      <div class="status-ok">Twilio connected</div>
+      <label>Account SID</label>
+      <input type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="AC1234...">
+      <label>Auth Token</label>
+      <input type="password" placeholder="Your auth token" value="••••••••">
+      <button class="btn btn-primary" style="margin-top:20px;background:#FF0044;">Update credentials</button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="step-num">2</div>
+        <div>
+          <h2>Your sending number</h2>
+          <p>This is the number your contacts will see messages from. When contacts reply, their messages appear in your Pulse inbox.</p>
+        </div>
+      </div>
+      <div class="status-ok">Sending from +19168911212</div>
+      <label>Phone Number</label>
+      <span class="hint">Find this in your Twilio console under Phone Numbers. Use E.164 format (e.g. +19168911212).</span>
+      <input type="text" placeholder="+19168911212" value="+19168911212">
+    </div>
+  </div>
+
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="step-num">3</div>
+      <div>
+        <h2>Register your campaign</h2>
+        <p>US carriers require businesses to register their messaging use case before sending texts. Without this, your messages may be filtered or blocked.</p>
+      </div>
+    </div>
+
+    <div class="center-box">
+      <p>We will analyze your contacts and message history to generate the exact copy you need for Twilio registration.</p>
+      <button class="btn btn-primary" style="background:#FF0044;">Generate my campaign copy</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- NEW VIEW (adfects-inspired) -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="view-new" class="view">
+<div class="page">
+
+  <!-- ═══════════ SECTION: SETTINGS ═══════════ -->
+  <div class="header">
+    <h1>Your campaign copy, ready to go</h1>
+    <p>We analyzed your contacts, message history, and business type to generate the exact copy Twilio needs. Review it, tweak anything, then paste it in.</p>
+  </div>
+
+  <div class="card-row">
+    <div class="card" style="box-shadow:none;">
+      <div class="card-header">
+        <div class="step-num">1</div>
+        <div>
+          <h2>Connect your Twilio account</h2>
+          <p>Pulse uses Twilio to send text messages on your behalf. <a href="#" style="color:#FF0044;font-weight:500;">Create a free Twilio account</a> if you do not have one yet.</p>
+        </div>
+      </div>
+      <div class="status-ok">Twilio connected</div>
+      <label>Account SID</label>
+      <input type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="AC1234...">
+      <label>Auth Token</label>
+      <input type="password" placeholder="Your auth token" value="••••••••">
+      <button class="btn btn-primary" style="margin-top:20px;">Update credentials</button>
+    </div>
+
+    <div class="card" style="box-shadow:none;">
+      <div class="card-header">
+        <div class="step-num">2</div>
+        <div>
+          <h2>Your sending number</h2>
+          <p>This is the number your contacts will see messages from. When contacts reply, their messages appear in your Pulse inbox.</p>
+        </div>
+      </div>
+      <div class="status-ok">Sending from +19168911212</div>
+      <label>Phone Number</label>
+      <span class="hint">Find this in your Twilio console under Phone Numbers. Use E.164 format (e.g. +19168911212).</span>
+      <input type="text" placeholder="+19168911212" value="+19168911212">
+    </div>
+  </div>
+
+  <div class="card card-full" style="box-shadow:none;">
+    <div class="card-header">
+      <div class="step-num">3</div>
+      <div>
+        <h2>Register your campaign</h2>
+        <p>US carriers require businesses to register their messaging use case before sending texts. Without this, your messages may be filtered or blocked.</p>
+      </div>
+    </div>
+
+    <div class="gen-grid">
+      <div>
+        <div class="field-group">
+          <div class="field-label-row">
+            <span class="section-label">Use case</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field" style="font-weight:500;">Low Volume Mixed</div>
+          <span class="hint" style="margin-top:2px;">Select this in the Twilio dropdown.</span>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span class="section-label">Campaign description</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Headliner Music Academy, a music education school in Sacramento, CA, sends SMS messages to enrolled students and their parents or guardians. Messages serve two purposes: (1) Customer care — class reminders, schedule changes, instructor rescheduling, and billing updates; and (2) Marketing — promotional announcements about upcoming programs, open enrollment, and academy events. Recipients opt in by submitting their phone number through the signup form at headlinermusicacademy.com and checking an unchecked consent checkbox. Opt-in is optional and not required to enroll. All messages include opt-out instructions (reply STOP). Message frequency varies.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span class="section-label">How users consent</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">End users opt in to receive SMS messages from Headliner Music Academy by submitting their mobile phone number through the signup form at headlinermusicacademy.com. The form includes an unchecked checkbox that states: "By checking this box, I agree to receive SMS messages from Headliner Music Academy regarding scheduling, billing, reminders, and account updates. Message frequency varies. Reply STOP to opt out at any time." Providing a phone number and opting in is optional and not required to enroll or receive services.</div>
+        </div>
+
+        <div class="field-group">
+          <span class="section-label" style="display:block;margin-bottom:8px;">Message contents</span>
+          <div class="checkbox-list">
+            <label><input type="checkbox" checked> Messages will include embedded links</label>
+            <label><input type="checkbox" checked> Messages will include phone numbers</label>
+            <label><input type="checkbox"> Messages include content related to direct lending</label>
+            <label><input type="checkbox"> Messages include age-gated content</label>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span class="section-label" style="display:block;margin-bottom:8px;">Sample messages (5 required)</span>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span style="font-size:11px;color:#9CA3AF;font-weight:500;">Message 1</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Hi [First Name]! Just a reminder that your Bass 101 class meets this Tuesday at 7:00 PM at Headliner Music Academy. See you there! Reply STOP to opt out.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span style="font-size:11px;color:#9CA3AF;font-weight:500;">Message 2</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Hi [First Name], this is Headliner Music Academy. Your instructor needs to reschedule your lesson this week. Please call (916) 435-1300 to pick a new time. Reply STOP to opt out.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span style="font-size:11px;color:#9CA3AF;font-weight:500;">Message 3</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Hi [First Name], your monthly tuition payment of $150.00 was processed for your lessons at Headliner Music Academy. View your statement at headlinermusicacademy.com/account. Reply STOP to opt out.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span style="font-size:11px;color:#9CA3AF;font-weight:500;">Message 4</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Hi [First Name]! We have spots open in our summer Guitar program starting June 15. Reply YES for more info or call us at (916) 435-1300. Reply STOP to opt out.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <span style="font-size:11px;color:#9CA3AF;font-weight:500;">Message 5</span>
+            <button class="btn-ghost">Copy</button>
+          </div>
+          <div class="copy-field">Hi [First Name]! Headliner Music Academy's Spring Recital is Saturday, May 15th at 3:00 PM. Family and friends welcome! Details at headlinermusicacademy.com/events. Reply STOP to opt out.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary">Regenerate</button>
+      <a href="#" class="btn btn-primary">Open Twilio A2P Console</a>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: CONTACTS TABLE ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">Contacts</h2>
+    <p class="section-sub">128 contacts imported from your CSV. Use the AI filter to find the right people for your message.</p>
+  </div>
+
+  <div class="card" style="box-shadow:none;">
+    <div class="table-toolbar">
+      <input type="text" class="search-input" placeholder="Filter contacts...">
+      <span class="count">128 contacts</span>
+    </div>
+
+    <table class="contacts-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Instrument</th>
+          <th>Instructor</th>
+          <th>Last attended</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="contact-name">Mia Chen</div>
+            <div class="contact-phone">+1 (916) 555-0142</div>
+          </td>
+          <td><span class="pill pill-active">Active</span></td>
+          <td>Piano</td>
+          <td>Sarah Kim</td>
+          <td>Aug 9, 2026</td>
+          <td>
+            <div class="table-actions">
+              <button>View</button>
+              <button>Message</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="contact-name">James Rodriguez</div>
+            <div class="contact-phone">+1 (916) 555-0187</div>
+          </td>
+          <td><span class="pill pill-active">Active</span></td>
+          <td>Guitar</td>
+          <td>Mike Torres</td>
+          <td>Aug 8, 2026</td>
+          <td>
+            <div class="table-actions">
+              <button>View</button>
+              <button>Message</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="contact-name">Aisha Patel</div>
+            <div class="contact-phone">+1 (916) 555-0231</div>
+          </td>
+          <td><span class="pill pill-inactive">Inactive</span></td>
+          <td>Voice</td>
+          <td>Sarah Kim</td>
+          <td>Jun 2, 2026</td>
+          <td>
+            <div class="table-actions">
+              <button>View</button>
+              <button>Message</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="contact-name">Leo Thompson</div>
+            <div class="contact-phone">+1 (916) 555-0304</div>
+          </td>
+          <td><span class="pill pill-member">Member</span></td>
+          <td>Drums</td>
+          <td>Dave Nguyen</td>
+          <td>Aug 10, 2026</td>
+          <td>
+            <div class="table-actions">
+              <button>View</button>
+              <button>Message</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="contact-name">Emma Williams</div>
+            <div class="contact-phone">+1 (916) 555-0412</div>
+          </td>
+          <td><span class="pill pill-active">Active</span></td>
+          <td>Bass</td>
+          <td>Mike Torres</td>
+          <td>Aug 7, 2026</td>
+          <td>
+            <div class="table-actions">
+              <button>View</button>
+              <button>Message</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: CONTACT CARD ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">Contact detail</h2>
+    <p class="section-sub">Full profile view when you click into a contact from the table.</p>
+  </div>
+
+  <div class="card-row">
+    <div class="contact-card" style="box-shadow:none;">
+      <div class="contact-card-top">
+        <div class="contact-avatar">MC</div>
+        <h3>Mia Chen</h3>
+        <div class="meta">
+          <span><span class="pill pill-active">Active</span></span>
+          <span>+1 (916) 555-0142</span>
+          <span>mia.chen@email.com</span>
+        </div>
+      </div>
+      <div class="contact-card-body">
+        <div>
+          <div class="contact-field-label">Instrument</div>
+          <div class="contact-field-value">Piano</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Instructor</div>
+          <div class="contact-field-value">Sarah Kim</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Lesson day</div>
+          <div class="contact-field-value">Tuesday</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Lesson time</div>
+          <div class="contact-field-value">4:00 PM</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Service type</div>
+          <div class="contact-field-value">Private</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Last attended</div>
+          <div class="contact-field-value">August 9, 2026</div>
+        </div>
+      </div>
+      <div class="contact-card-actions">
+        <button class="btn btn-primary">Send message</button>
+        <button class="btn btn-secondary">Edit contact</button>
+      </div>
+    </div>
+
+    <div class="contact-card" style="box-shadow:none;">
+      <div class="contact-card-top">
+        <div class="contact-avatar">AP</div>
+        <h3>Aisha Patel</h3>
+        <div class="meta">
+          <span><span class="pill pill-inactive">Inactive</span></span>
+          <span>+1 (916) 555-0231</span>
+          <span>aisha.p@email.com</span>
+        </div>
+      </div>
+      <div class="contact-card-body">
+        <div>
+          <div class="contact-field-label">Instrument</div>
+          <div class="contact-field-value">Voice</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Instructor</div>
+          <div class="contact-field-value">Sarah Kim</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Lesson day</div>
+          <div class="contact-field-value">Wednesday</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Lesson time</div>
+          <div class="contact-field-value">5:30 PM</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Service type</div>
+          <div class="contact-field-value">Group</div>
+        </div>
+        <div>
+          <div class="contact-field-label">Last attended</div>
+          <div class="contact-field-value">June 2, 2026</div>
+        </div>
+      </div>
+      <div class="contact-card-actions">
+        <button class="btn btn-primary">Send message</button>
+        <button class="btn btn-secondary">Edit contact</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+  function switchView(view) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.toggle-bar button').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    document.getElementById('btn-' + view).classList.add('active');
+  }
+</script>
+
+</body>
+</html>

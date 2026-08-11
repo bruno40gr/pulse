@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { typography, radius, spacing } from '@/lib/tokens'
+import { colors, typography, spacing } from '@/lib/tokens'
 
 export default function DemoBanner() {
   const [isDemo, setIsDemo] = useState(false)
@@ -23,14 +23,12 @@ export default function DemoBanner() {
       display: 'flex',
       alignItems: 'center',
       gap: spacing.md,
-      background: '#EFF6FF',
-      borderBottom: '1px solid #BFDBFE',
+      background: colors.action,
       padding: `${spacing.sm} ${spacing['2xl']}`,
     }}>
       <span style={{
-        fontSize: typography.sizeBase,
-        color: '#1D4ED8',
-        fontFamily: typography.fontSans,
+        ...typography.bodySmall,
+        color: colors.surface,
       }}>
         Demo mode — messages are simulated and no SMS will be sent.
       </span>

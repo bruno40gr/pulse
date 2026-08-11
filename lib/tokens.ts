@@ -7,11 +7,8 @@ export const colors = {
   teal: '#00A8C8',
   tealDark: '#0090AA',
   yellow: '#F5A623',
-  yellowLight: '#FFFBEB',
-  yellowBorder: '#FDE68A',
   green: '#3D8B5F',
   greenDark: '#1F5C3A',
-  greenLight: '#DCF0E4',
 
   // Neutrals
   text: '#1A1A1A',
@@ -20,38 +17,86 @@ export const colors = {
   border: '#E5E7EB',
   borderLight: '#F3F4F6',
   surface: '#FFFFFF',
-  background: '#FAF6F0',
+  surfaceMuted: '#f6f8f8',
+  background: '#fbfdfc',
   backgroundSecondary: '#F3F4F6',
 
-  // Semantic
+  // Actions
+  action: '#1A130F',
+
+  // Semantic (text-only, no background boxes)
   error: '#DC2626',
-  errorLight: '#FEF2F2',
-  errorBorder: '#FECACA',
   success: '#16A34A',
-  successLight: '#F0FDF4',
-  successBorder: '#BBF7D0',
   warning: '#92400E',
-  warningLight: '#FFFBEB',
-  warningBorder: '#FDE68A',
 }
 
 export const typography = {
   fontSans: 'var(--font-dm-sans), sans-serif',
-  fontDisplay: 'Baloo 2, sans-serif',
+  fontDisplay: 'var(--font-baloo-2), sans-serif',
   fontMono: 'monospace',
+
+  // Size scale
   sizeXs: '11px',
   sizeSm: '12px',
-  sizeBase: '13px',
-  sizeMd: '14px',
-  size15: '15px',
-  sizeLg: '16px',
-  sizeXl: '18px',
-  size2xl: '22px',
-  size3xl: '28px',
+  sizeBase: '14px',
+  sizeMd: '15px',
+  size15: '16px',
+  sizeLg: '18px',
+  sizeXl: '20px',
+  size2xl: '24px',
+  size3xl: '32px',
+
+  // Weights
   weightNormal: 400,
   weightMedium: 500,
   weightSemibold: 600,
   weightBold: 700,
+
+  // Roles — use these instead of ad-hoc styles
+  h1: {
+    fontFamily: 'var(--font-baloo-2), sans-serif',
+    fontSize: '32px',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
+    lineHeight: 1.1,
+  },
+  sectionTitle: {
+    fontFamily: 'var(--font-baloo-2), sans-serif',
+    fontSize: '22px',
+    fontWeight: 700,
+    letterSpacing: '-0.015em',
+    lineHeight: 1.2,
+  },
+  h2: {
+    fontFamily: 'var(--font-dm-sans), sans-serif',
+    fontSize: '18px',
+    fontWeight: 600,
+    lineHeight: 1.3,
+  },
+  body: {
+    fontFamily: 'var(--font-dm-sans), sans-serif',
+    fontSize: '15px',
+    fontWeight: 400,
+    lineHeight: 1.5,
+  },
+  bodySmall: {
+    fontFamily: 'var(--font-dm-sans), sans-serif',
+    fontSize: '14px',
+    fontWeight: 400,
+    lineHeight: 1.5,
+  },
+  label: {
+    fontFamily: 'var(--font-dm-sans), sans-serif',
+    fontSize: '13px',
+    fontWeight: 500,
+    lineHeight: 1.3,
+  },
+  helper: {
+    fontFamily: 'var(--font-dm-sans), sans-serif',
+    fontSize: '12px',
+    fontWeight: 400,
+    lineHeight: 1.4,
+  },
 }
 
 export const radius = {
@@ -80,5 +125,4 @@ export const shadows = {
   lg: '0 8px 24px rgba(0,0,0,0.12)',
   xl: '0 20px 60px rgba(0,0,0,0.15)',
   panel: '-8px 0 40px rgba(0,0,0,0.12)',
-  elevated: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)',
 }

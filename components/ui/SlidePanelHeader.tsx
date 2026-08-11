@@ -12,6 +12,7 @@ interface SlidePanelHeaderProps {
   actions?: React.ReactNode
   toast?: string
   badge?: React.ReactNode
+  titleSize?: string
 }
 
 const HEADER_PADDING: React.CSSProperties = {
@@ -72,7 +73,7 @@ export function SlidePanelHeader({
         )}
         <div style={{ minWidth: 0 }}>
           <h2 style={{
-            fontSize: typography.sizeXl,
+            fontSize: titleSize || typography.sizeXl,
             fontWeight: typography.weightSemibold,
             margin: 0,
             color: colors.text,

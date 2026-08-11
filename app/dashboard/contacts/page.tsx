@@ -288,16 +288,14 @@ export default function ContactsPage() {
       {showStaleBanner && !bannerDismissed && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: colors.warningLight,
-          border: `1px solid ${colors.warningBorder}`,
+          background: colors.surfaceMuted,
           borderRadius: radius.md,
           padding: `${spacing.sm} ${spacing.lg}`,
           marginBottom: spacing.lg,
         }}>
           <span style={{
-            fontSize: typography.sizeBase,
+            ...typography.bodySmall,
             color: colors.warning,
-            fontFamily: typography.fontSans,
           }}>
             Your contact data is from {lastSynced
               ? new Date(lastSynced).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
@@ -338,7 +336,7 @@ export default function ContactsPage() {
           <button
             onClick={handleSearch}
             disabled={aiLoading || !query.trim()}
-            style={{ background: aiLoading || !query.trim() ? colors.borderLight : colors.crimson, color: aiLoading || !query.trim() ? colors.textMuted : 'white', border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.md}`, fontSize: typography.sizeBase, cursor: aiLoading || !query.trim() ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans, whiteSpace: 'nowrap' }}
+            style={{ background: aiLoading || !query.trim() ? colors.borderLight : colors.action, color: aiLoading || !query.trim() ? colors.textMuted : 'white', border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.md}`, fontSize: typography.sizeBase, cursor: aiLoading || !query.trim() ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans, whiteSpace: 'nowrap' }}
           >
             {aiLoading ? 'Searching...' : 'Search'}
           </button>
@@ -365,7 +363,7 @@ export default function ContactsPage() {
           disabled={selectedIds.size === 0}
           style={{
             display: 'flex', alignItems: 'center', gap: spacing.sm,
-            background: selectedIds.size > 0 ? colors.crimson : colors.borderLight,
+            background: selectedIds.size > 0 ? colors.action : colors.borderLight,
             color: selectedIds.size > 0 ? 'white' : colors.textMuted,
             border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
             fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
@@ -433,13 +431,13 @@ export default function ContactsPage() {
       {!aiLoading && (
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#A0A0A0', fontSize: '14px' }}>Loading contacts...</div>
+          <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>Loading contacts...</div>
         ) : displayed.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#A0A0A0', fontSize: '14px' }}>No contacts found.</div>
+          <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>No contacts found.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: '#FAFAF9', color: '#6B6B6B' }}>
+              <tr style={{ background: colors.surfaceMuted, color: colors.textSecondary }}>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>
                   <input type="checkbox" checked={selectedIds.size === displayed.length && displayed.length > 0} onChange={toggleSelectAll} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
                 </th>
@@ -598,7 +596,7 @@ const ContactRow = memo(function ContactRow({
   return (
     <tr
       onClick={(e) => onRowClick(contact, index, e)}
-      style={{ borderBottom: `1px solid ${colors.borderLight}`, background: isSelected ? '#F4F6FA' : colors.surface, cursor: 'pointer', transition: 'background 0.1s' }}
+      style={{ borderBottom: `1px solid ${colors.borderLight}`, background: isSelected ? colors.surfaceMuted : colors.surface, cursor: 'pointer', transition: 'background 0.1s' }}
     >
       <td style={{ padding: '10px 16px' }} onClick={e => e.stopPropagation()}>
         <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(contact.id)} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
@@ -608,7 +606,7 @@ const ContactRow = memo(function ContactRow({
                       <Avatar firstName={contact.first_name} lastName={contact.last_name} size={24} src={shouldUseDiceBear(tenantId) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined} />
           <span
             onClick={(e) => onNameClick(contact, e)}
-            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#E8E8E4' }}
+            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border }}
           >
             {contact.first_name} {contact.last_name}
           </span>
@@ -618,7 +616,7 @@ const ContactRow = memo(function ContactRow({
                     {(() => {
                       const phone = contact.phone || contact.account_holder_phone
                       const showIcon = (contact as any).is_minor || (contact as any).message_routing === 'account_holder'
-                      if (!phone) return <span style={{ color: '#A0A0A0' }}>—</span>
+                      if (!phone) return <span style={{ color: colors.textMuted }}>—</span>
                       return (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <span>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>

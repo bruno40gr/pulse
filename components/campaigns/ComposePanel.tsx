@@ -132,7 +132,7 @@ export default function ComposePanel({
   if (sent && sentResult) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: spacing.lg, padding: spacing['4xl'] }}>
-        <div style={{ width: '48px', height: '48px', background: colors.successLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>✓</div>
+        <div style={{ width: '48px', height: '48px', background: colors.surfaceMuted, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: colors.success }}>✓</div>
         <h3 style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Message sent</h3>
         <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, textAlign: 'center' }}>
           Delivered to {sentResult.sent} contacts.
@@ -182,30 +182,26 @@ export default function ComposePanel({
         {/* Inline warnings */}
         {sensitiveCheck && (sensitiveCheck.flagged.length > 0 || sensitiveCheck.opted_out.length > 0) && (
           mode === 'single' ? (
-            <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
-              <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning }}>
-                {sensitiveCheck.opted_out.length > 0 && `Contact has opted out. `}
-                {sensitiveCheck.flagged.length > 0 && `Contact needs attention: ${sensitiveCheck.flagged.map(c => c.note).filter(Boolean).join(', ')}`}
-              </div>
-              <div style={{ fontSize: typography.sizeSm, color: colors.warning, marginTop: spacing.xs }}>
-                Messages to opted-out contacts will not be delivered.
-              </div>
+            <div style={{ ...typography.bodySmall, color: colors.warning, marginBottom: spacing.sm }}>
+              {sensitiveCheck.opted_out.length > 0 && `Contact has opted out. `}
+              {sensitiveCheck.flagged.length > 0 && `Contact needs attention: ${sensitiveCheck.flagged.map(c => c.note).filter(Boolean).join(', ')}`}
+              {sensitiveCheck.opted_out.length > 0 && ' Messages to opted-out contacts will not be delivered.'}
             </div>
           ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
             {sensitiveCheck.opted_out.filter(c => !removedIds.has(c.id)).length > 0 && (
-              <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
-                <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
+              <div style={{ marginBottom: spacing.md }}>
+                <div style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
                   {sensitiveCheck.opted_out.length} opted out
                 </div>
                 {sensitiveCheck.opted_out
                   .filter(c => !removedIds.has(c.id))
                   .map(c => (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
-                      <span style={{ fontSize: typography.sizeSm, color: colors.warning }}>{c.name}</span>
+                      <span style={{ ...typography.bodySmall, color: colors.warning }}>{c.name}</span>
                       <button
                         onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                        style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+                        style={{ ...typography.helper, color: colors.warning, background: 'transparent', border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                       >
                         Remove
                       </button>
@@ -214,8 +210,8 @@ export default function ComposePanel({
               </div>
             )}
             {sensitiveCheck.flagged.filter(c => !removedIds.has(c.id)).length > 0 && (
-              <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
-                <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
+              <div style={{ marginBottom: spacing.md }}>
+                <div style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
                   {sensitiveCheck.flagged.filter(c => !removedIds.has(c.id)).length} needs your attention
                 </div>
                 {sensitiveCheck.flagged
@@ -223,16 +219,16 @@ export default function ComposePanel({
                   .map(c => (
                     <div key={c.id} style={{ marginBottom: spacing.sm }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
+                        <span style={{ ...typography.bodySmall, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
                         <button
                           onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                          style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+                          style={{ ...typography.helper, color: colors.warning, background: 'transparent', border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                         >
                           Remove
                         </button>
                       </div>
                       {c.note && (
-                        <div style={{ fontSize: typography.sizeXs, color: colors.textSecondary, marginTop: '2px', fontStyle: 'italic' }}>
+                        <div style={{ ...typography.helper, color: colors.textSecondary, marginTop: '2px', fontStyle: 'italic' }}>
                           &ldquo;{c.note.slice(0, 80)}{c.note.length > 80 ? '...' : ''}&rdquo;
                         </div>
                       )}

@@ -18,7 +18,7 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
       )}
       <input
         style={{
-          border: `1px solid ${error ? colors.errorBorder : colors.border}`,
+          border: `1px solid ${error ? colors.error : colors.border}`,
           borderRadius: radius.md,
           padding: `${spacing.sm} ${spacing.md}`,
           fontSize: typography.sizeBase,

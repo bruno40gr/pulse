@@ -1,6 +1,20 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
+import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
+
+interface CampaignCopy {
+  useCase: string
+  campaignDescription: string
+  sampleMessages: string[]
+  consentLanguage: string
+  messageAttributes: {
+    hasLinks: boolean
+    hasPhoneNumbers: boolean
+    hasLending: boolean
+    hasAgeGated: boolean
+  }
+}
 
 export default function SettingsPage() {
   const [accountSid, setAccountSid] = useState('')
@@ -12,6 +26,12 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const tenantId = getActiveTenantId()
+
+  const [campaignCopy, setCampaignCopy] = useState<CampaignCopy | null>(null)
+  const [copyLoading, setCopyLoading] = useState(false)
+  const [copyError, setCopyError] = useState('')
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editedCopy, setEditedCopy] = useState<CampaignCopy | null>(null)
 
   useEffect(() => {
     fetch(`/api/twilio-config?tenant=${tenantId}`)
@@ -44,185 +64,488 @@ export default function SettingsPage() {
     }
   }
 
-  const inputStyle = {
+  const generateCampaignCopy = async () => {
+    setCopyLoading(true)
+    setCopyError('')
+    try {
+      const res = await fetch(`/api/twilio/campaign-copy?tenant=${tenantId}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setCampaignCopy(data)
+      setEditedCopy(data)
+    } catch (e: any) {
+      setCopyError(e.message)
+    } finally {
+      setCopyLoading(false)
+    }
+  }
+
+  const updateEditedField = (field: string, value: any) => {
+    if (!editedCopy) return
+    setEditedCopy({ ...editedCopy, [field]: value })
+  }
+
+  const updateSampleMessage = (index: number, value: string) => {
+    if (!editedCopy) return
+    const newMessages = [...editedCopy.sampleMessages]
+    newMessages[index] = value
+    setEditedCopy({ ...editedCopy, sampleMessages: newMessages })
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+  }
+
+  // Shared styles using tokens
+  const inputS = {
     width: '100%',
-    padding: '10px 12px',
-    border: '1px solid #E8E8E4',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontFamily: 'sans-serif',
+    padding: `${spacing.md} ${spacing.lg}`,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    fontSize: typography.sizeMd,
+    fontFamily: typography.fontSans,
     boxSizing: 'border-box' as const,
     outline: 'none',
-    marginBottom: '4px',
+    background: colors.surface,
   }
 
-  const labelStyle = {
-    fontSize: '13px',
-    fontWeight: 500,
-    color: '#1A1A1A',
+  const labelS = {
+    fontSize: typography.sizeSm,
+    fontWeight: typography.weightMedium,
+    color: colors.text,
     display: 'block',
-    marginBottom: '4px',
-    marginTop: '16px',
+    marginBottom: spacing.xs,
+    marginTop: spacing.lg,
   }
 
-  const hintStyle = {
-    fontSize: '12px',
-    color: '#A0A0A0',
-    marginBottom: '8px',
+  const hintS = {
+    fontSize: typography.sizeXs,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
     display: 'block',
   }
 
-  const cardStyle = {
-    background: 'white',
-    border: '1px solid #E8E8E4',
-    borderRadius: '12px',
-    padding: '28px',
-    marginBottom: '20px',
+  const cardS = {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.xl,
+    padding: spacing['3xl'],
   }
 
-  const stepNumberStyle = {
+  const stepNumberS = {
     width: '24px',
     height: '24px',
-    background: '#C8392B',
+    background: colors.crimson,
     color: 'white',
-    borderRadius: '50%',
-    fontSize: '12px',
-    fontWeight: 700,
+    borderRadius: radius.full,
+    fontSize: typography.sizeSm,
+    fontWeight: typography.weightBold,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   }
 
+  const textareaS = {
+    ...inputS,
+    minHeight: '80px',
+    resize: 'vertical' as const,
+    lineHeight: 1.5,
+  }
+
+  const copyFieldS = {
+    background: colors.background,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: `${spacing.md} ${spacing.lg}`,
+    fontSize: typography.sizeBase,
+    lineHeight: 1.6,
+    color: colors.text,
+    fontFamily: typography.fontSans,
+    whiteSpace: 'pre-wrap' as const,
+    wordBreak: 'break-word' as const,
+  }
+
+  const sectionLabelS = {
+    ...typography.label,
+    color: colors.textSecondary,
+  }
+
   return (
-    <div style={{ padding: '32px', maxWidth: '600px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '4px' }}>Settings</h1>
-      <p style={{ color: '#6B6B6B', fontSize: '14px', marginBottom: '32px' }}>
-        Complete these steps to start sending messages to your contacts.
-      </p>
+    <div style={{ padding: spacing['4xl'], maxWidth: '1100px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: spacing['4xl'] }}>
+        <h1 style={{
+          fontSize: typography.size2xl,
+          fontWeight: typography.weightSemibold,
+          color: colors.text,
+          margin: '0 0 6px',
+        }}>
+          Your campaign copy, ready to go
+        </h1>
+        <p style={{
+          color: colors.textSecondary,
+          fontSize: typography.sizeMd,
+          margin: 0,
+          lineHeight: 1.6,
+          maxWidth: '520px',
+        }}>
+          We analyzed your contacts, message history, and business type to generate the exact copy Twilio needs. Review it, tweak anything, then paste it in.
+        </p>
+      </div>
 
-      {/* Step 1 — Twilio credentials */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '20px' }}>
-          <div style={stepNumberStyle}>1</div>
+      {/* Cards 1 & 2 — horizontally aligned */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.xl, marginBottom: spacing.xl }}>
+        {/* Card 1 — Twilio credentials */}
+        <div style={cardS}>
+          <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
+            <div style={stepNumberS}>1</div>
+            <div>
+              <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
+                Connect your Twilio account
+              </h2>
+              <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                Pulse uses Twilio to send text messages on your behalf.{' '}
+                <a href="https://www.twilio.com/try-twilio" target="_blank" style={{ color: colors.crimson, fontWeight: typography.weightMedium }}>
+                  Create a free Twilio account
+                </a>{' '}
+                if you do not have one yet.
+              </p>
+            </div>
+          </div>
+
+          {existing && (
+            <div style={{
+              ...typography.bodySmall,
+              color: colors.success,
+              fontWeight: typography.weightMedium,
+              marginBottom: spacing.xl,
+            }}>
+              Twilio connected
+            </div>
+          )}
+
+          <label style={labelS}>Account SID</label>
+          <input
+            type="text"
+            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            value={accountSid}
+            onChange={e => setAccountSid(e.target.value)}
+            style={inputS}
+          />
+
+          <label style={labelS}>Auth Token</label>
+          <input
+            type="password"
+            placeholder="Your auth token"
+            value={authToken}
+            onChange={e => setAuthToken(e.target.value)}
+            style={inputS}
+          />
+
+          {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, margin: `${spacing.md} 0 0` }}>{error}</p>}
+          {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, margin: `${spacing.md} 0 0` }}>Saved</p>}
+
+          <button
+            onClick={handleSave}
+            disabled={saving || !accountSid || !authToken}
+            style={{
+              background: saving || !accountSid || !authToken ? colors.borderLight : colors.action,
+              color: saving || !accountSid || !authToken ? colors.textMuted : 'white',
+              border: 'none',
+              borderRadius: radius.lg,
+              padding: `${spacing.md} ${spacing['2xl']}`,
+              fontSize: typography.sizeMd,
+              fontWeight: typography.weightMedium,
+              cursor: saving || !accountSid || !authToken ? 'not-allowed' : 'pointer',
+              fontFamily: typography.fontSans,
+              marginTop: spacing.xl,
+            }}
+          >
+            {saving ? 'Saving...' : existing ? 'Update credentials' : 'Connect Twilio'}
+          </button>
+        </div>
+
+        {/* Card 2 — Phone number */}
+        <div style={cardS}>
+          <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
+            <div style={stepNumberS}>2</div>
+            <div>
+              <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
+                Your sending number
+              </h2>
+              <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                This is the number your contacts will see messages from. When contacts reply, their messages appear in your Pulse inbox.
+              </p>
+            </div>
+          </div>
+
+          {existing?.phone_number && (
+            <div style={{
+              ...typography.bodySmall,
+              color: colors.success,
+              fontWeight: typography.weightMedium,
+              marginBottom: spacing.xl,
+            }}>
+              Sending from {existing.phone_number}
+            </div>
+          )}
+
+          <label style={labelS}>Phone Number</label>
+          <span style={hintS}>
+            Find this in your Twilio console under Phone Numbers. Use E.164 format (e.g. +19168911212).
+          </span>
+          <input
+            type="text"
+            placeholder="+19168911212"
+            value={phoneNumber}
+            onChange={e => setPhoneNumber(e.target.value)}
+            style={inputS}
+          />
+        </div>
+      </div>
+
+      {/* Card 3 — Campaign Registration (full width) */}
+      <div style={cardS}>
+        <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
+          <div style={stepNumberS}>3</div>
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Connect your Twilio account</h2>
-            <p style={{ fontSize: '13px', color: '#6B6B6B', margin: 0, lineHeight: 1.6 }}>
-              Pulse uses Twilio to send text messages on your behalf. You'll need a free Twilio account to get started.{' '}
-              <a href="https://www.twilio.com/try-twilio" target="_blank" style={{ color: '#C8392B' }}>Create one here</a> if you don't have one yet.
+            <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
+              Register your campaign
+            </h2>
+            <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
+              US carriers require businesses to register their messaging use case before sending texts. Without this, your messages may be filtered or blocked.
             </p>
           </div>
         </div>
 
-        {existing && (
-          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#16A34A', fontWeight: 500 }}>
-            ✓ Twilio connected
+        {!campaignCopy && !copyLoading && (
+          <div style={{ textAlign: 'center', padding: `${spacing['4xl']} 0` }}>
+            <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, marginBottom: spacing.xl }}>
+              We will analyze your contacts and message history to generate the exact copy you need for Twilio registration.
+            </p>
+            <button
+              onClick={generateCampaignCopy}
+              style={{
+                background: colors.action,
+                color: 'white',
+                border: 'none',
+                borderRadius: radius.lg,
+                padding: `${spacing.md} ${spacing['3xl']}`,
+                fontSize: typography.size15,
+                fontWeight: typography.weightSemibold,
+                cursor: 'pointer',
+                fontFamily: typography.fontSans,
+              }}
+            >
+              Generate my campaign copy
+            </button>
           </div>
         )}
 
-        <label style={labelStyle}>Account SID</label>
-        <span style={hintStyle}>
-          Log into <a href="https://console.twilio.com" target="_blank" style={{ color: '#C8392B' }}>console.twilio.com</a> → your Account SID is on the homepage, labeled "Account SID". It starts with "AC".
-        </span>
-        <input
-          type="text"
-          placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          value={accountSid}
-          onChange={e => setAccountSid(e.target.value)}
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Auth Token</label>
-        <span style={hintStyle}>
-          On the same Twilio homepage, click the eye icon next to "Auth Token" to reveal it, then copy it here.
-        </span>
-        <input
-          type="password"
-          placeholder="Your auth token"
-          value={authToken}
-          onChange={e => setAuthToken(e.target.value)}
-          style={inputStyle}
-        />
-
-        {error && <p style={{ color: '#DC2626', fontSize: '13px', margin: '12px 0 0' }}>{error}</p>}
-        {saved && <p style={{ color: '#16A34A', fontSize: '13px', margin: '12px 0 0' }}>✓ Saved</p>}
-
-        <button
-          onClick={handleSave}
-          disabled={saving || !accountSid || !authToken}
-          style={{
-            background: saving || !accountSid || !authToken ? '#E8E8E4' : '#C8392B',
-            color: saving || !accountSid || !authToken ? '#A0A0A0' : 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 24px',
-            fontSize: '14px',
-            fontWeight: 500,
-            cursor: saving || !accountSid || !authToken ? 'not-allowed' : 'pointer',
-            fontFamily: 'sans-serif',
-            marginTop: '20px',
-          }}
-        >
-          {saving ? 'Saving...' : existing ? 'Update credentials' : 'Connect Twilio'}
-        </button>
-      </div>
-
-      {/* Step 2 — Phone number */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '20px' }}>
-          <div style={stepNumberStyle}>2</div>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Your sending number</h2>
-            <p style={{ fontSize: '13px', color: '#6B6B6B', margin: 0, lineHeight: 1.6 }}>
-              This is the number your contacts will see messages from. It's separate from your business landline or personal cell — it's a dedicated number just for Pulse. When contacts reply, their messages appear in your Pulse inbox so you can track conversations in one place.
+        {copyLoading && (
+          <div style={{ textAlign: 'center', padding: `${spacing['4xl']} 0` }}>
+            <div style={{
+              width: '24px', height: '24px', border: `2px solid ${colors.borderLight}`,
+              borderTop: `2px solid ${colors.crimson}`, borderRadius: radius.full,
+              animation: 'spin 0.8s linear infinite', margin: `0 auto ${spacing.lg}`
+            }} />
+            <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0 }}>
+              Analyzing your business and writing your campaign...
             </p>
-          </div>
-        </div>
-
-        {existing?.phone_number && (
-          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#16A34A', fontWeight: 500 }}>
-            ✓ Sending from {existing.phone_number}
           </div>
         )}
 
-        <label style={labelStyle}>Phone Number</label>
-        <span style={hintStyle}>
-          In your Twilio console, go to Phone Numbers → Manage → Active Numbers. Copy the number in E.164 format (e.g. +19168911212).
-        </span>
-        <input
-          type="text"
-          placeholder="+19168911212"
-          value={phoneNumber}
-          onChange={e => setPhoneNumber(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-
-      {/* Step 3 — 10DLC */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '16px' }}>
-          <div style={stepNumberStyle}>3</div>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Make sure your messages get delivered</h2>
-            <p style={{ fontSize: '13px', color: '#6B6B6B', margin: 0, lineHeight: 1.6 }}>
-              US mobile carriers require businesses to register before sending texts at scale. Without registration, your messages may be filtered or blocked — even if everything else is set up correctly. This is a one-time process in your Twilio account and takes a few business days to get approved.
-            </p>
+        {copyError && (
+          <div style={{
+            ...typography.bodySmall,
+            color: colors.error,
+            marginBottom: spacing.lg,
+          }}>
+            {copyError}
+            <button
+              onClick={generateCampaignCopy}
+              style={{
+                display: 'block',
+                marginTop: spacing.sm,
+                background: 'none',
+                border: 'none',
+                color: colors.crimson,
+                cursor: 'pointer',
+                fontSize: typography.sizeBase,
+                fontWeight: typography.weightMedium,
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              Try again
+            </button>
           </div>
-        </div>
+        )}
 
-        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#92400E', marginBottom: '16px' }}>
-          {existing?.registration_status === 'approved'
-            ? '✓ Registration approved — your messages will be delivered.'
-            : 'Registration pending or not started. Complete this in your Twilio console to avoid message filtering.'}
-        </div>
+        {editedCopy && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: `${spacing['2xl']} ${spacing['3xl']}`,
+            marginTop: spacing.xl,
+          }}>
+            {/* Left column */}
+            <div>
+              {/* Use case */}
+              <div style={{ marginBottom: spacing.xl }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <label style={sectionLabelS}>Use case</label>
+                  <button onClick={() => copyToClipboard('Low Volume Mixed')} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
+                    Copy
+                  </button>
+                </div>
+                <div style={{ ...copyFieldS, fontWeight: typography.weightMedium }}>
+                  Low Volume Mixed
+                </div>
+                <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: spacing.xs, display: 'block' }}>
+                  Select this in the Twilio dropdown.
+                </span>
+              </div>
 
-        <a
-          href="https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc-overview"
-          target="_blank"
-          style={{ display: 'inline-block', background: '#1A1A1A', color: 'white', padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, textDecoration: 'none', fontFamily: 'sans-serif' }}
-        >
-          Complete registration in Twilio →
-        </a>
+              {/* Campaign description */}
+              <div style={{ marginBottom: spacing.xl }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <label style={sectionLabelS}>Campaign description</label>
+                  <button onClick={() => copyToClipboard(editedCopy.campaignDescription)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
+                    Copy
+                  </button>
+                </div>
+                {editingField === 'campaignDescription' ? (
+                  <div>
+                    <textarea value={editedCopy.campaignDescription} onChange={e => updateEditedField('campaignDescription', e.target.value)} style={textareaS} />
+                    <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField('campaignDescription')}>
+                    {editedCopy.campaignDescription}
+                  </div>
+                )}
+              </div>
+
+              {/* Consent language */}
+              <div style={{ marginBottom: spacing.xl }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <label style={sectionLabelS}>How users consent</label>
+                  <button onClick={() => copyToClipboard(editedCopy.consentLanguage)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
+                    Copy
+                  </button>
+                </div>
+                {editingField === 'consentLanguage' ? (
+                  <div>
+                    <textarea value={editedCopy.consentLanguage} onChange={e => updateEditedField('consentLanguage', e.target.value)} style={{ ...textareaS, minHeight: '100px' }} />
+                    <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField('consentLanguage')}>
+                    {editedCopy.consentLanguage}
+                  </div>
+                )}
+              </div>
+
+              {/* Message attributes */}
+              <div style={{ marginBottom: spacing.xl }}>
+                <label style={{ ...sectionLabelS, display: 'block', marginBottom: spacing.sm }}>Message contents</label>
+                <div style={{ ...copyFieldS, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
+                    <input type="checkbox" checked={editedCopy.messageAttributes.hasLinks} readOnly style={{ accentColor: colors.crimson }} />
+                    Messages will include embedded links
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
+                    <input type="checkbox" checked={editedCopy.messageAttributes.hasPhoneNumbers} readOnly style={{ accentColor: colors.crimson }} />
+                    Messages will include phone numbers
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
+                    <input type="checkbox" checked={editedCopy.messageAttributes.hasLending} readOnly style={{ accentColor: colors.crimson }} />
+                    Messages include content related to direct lending
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
+                    <input type="checkbox" checked={editedCopy.messageAttributes.hasAgeGated} readOnly style={{ accentColor: colors.crimson }} />
+                    Messages include age-gated content
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column — Sample messages */}
+            <div>
+              <label style={{ ...sectionLabelS, display: 'block', marginBottom: spacing.sm }}>
+                Sample messages (5 required)
+              </label>
+              {editedCopy.sampleMessages.map((msg, i) => (
+                <div key={i} style={{ marginBottom: spacing.md }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                    <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontWeight: typography.weightMedium }}>Message {i + 1}</span>
+                    <button onClick={() => copyToClipboard(msg)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
+                      Copy
+                    </button>
+                  </div>
+                  {editingField === `sample-${i}` ? (
+                    <div>
+                      <textarea value={msg} onChange={e => updateSampleMessage(i, e.target.value)} style={textareaS} />
+                      <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
+                        Done
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField(`sample-${i}`)}>
+                      {msg}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions — only show after generation */}
+        {editedCopy && (
+          <div style={{ display: 'flex', gap: spacing.md, marginTop: spacing['2xl'], paddingTop: spacing.xl, borderTop: `1px solid ${colors.border}` }}>
+            <button
+              onClick={generateCampaignCopy}
+              disabled={copyLoading}
+              style={{
+                background: colors.surface,
+                color: colors.text,
+                border: `1px solid ${colors.border}`,
+                borderRadius: radius.lg,
+                padding: `${spacing.md} ${spacing.xl}`,
+                fontSize: typography.sizeBase,
+                fontWeight: typography.weightMedium,
+                cursor: copyLoading ? 'not-allowed' : 'pointer',
+                fontFamily: typography.fontSans,
+              }}
+            >
+              Regenerate
+            </button>
+            <a
+              href="https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc-overview"
+              target="_blank"
+              style={{
+                background: colors.action,
+                color: 'white',
+                padding: `${spacing.md} ${spacing.xl}`,
+                borderRadius: radius.lg,
+                fontSize: typography.sizeBase,
+                fontWeight: typography.weightMedium,
+                textDecoration: 'none',
+                fontFamily: typography.fontSans,
+                display: 'inline-block',
+              }}
+            >
+              Open Twilio A2P Console
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )

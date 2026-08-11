@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -20,22 +21,22 @@ export default function SignupPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF9' }}>
-      <div style={{ background: 'white', padding: '48px', borderRadius: '16px', border: '1px solid #E8E8E4', width: '400px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '8px', fontFamily: 'sans-serif' }}>Pulse</h1>
-        <p style={{ color: '#6B6B6B', marginBottom: '32px', fontSize: '14px', fontFamily: 'sans-serif' }}>Create your account</p>
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.background }}>
+      <div style={{ background: colors.surface, padding: spacing['4xl'], borderRadius: radius['2xl'], border: `1px solid ${colors.border}`, width: '400px' }}>
+        <h1 style={{ ...typography.h1, marginBottom: spacing.sm }}>Pulse</h1>
+        <p style={{ ...typography.body, color: colors.textSecondary, marginBottom: spacing['3xl'] }}>Create your account</p>
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-          style={{ width: '100%', padding: '10px 12px', border: '1px solid #E8E8E4', borderRadius: '8px', marginBottom: '12px', fontSize: '14px', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+          style={{ width: '100%', padding: `${spacing.md} ${spacing.lg}`, border: `1px solid ${colors.border}`, borderRadius: radius.lg, marginBottom: spacing.md, fontSize: typography.sizeMd, boxSizing: 'border-box', fontFamily: typography.fontSans }} />
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSignup()}
-          style={{ width: '100%', padding: '10px 12px', border: '1px solid #E8E8E4', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
-        {error && <p style={{ color: '#DC2626', fontSize: '13px', marginBottom: '12px' }}>{error}</p>}
+          style={{ width: '100%', padding: `${spacing.md} ${spacing.lg}`, border: `1px solid ${colors.border}`, borderRadius: radius.lg, marginBottom: spacing.lg, fontSize: typography.sizeMd, boxSizing: 'border-box', fontFamily: typography.fontSans }} />
+        {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginBottom: spacing.md }}>{error}</p>}
         <button onClick={handleSignup} disabled={loading}
-          style={{ width: '100%', padding: '10px', background: '#C8392B', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, cursor: 'pointer', fontFamily: 'sans-serif' }}>
+          style={{ width: '100%', padding: spacing.md, background: colors.action, color: colors.surface, border: 'none', borderRadius: radius.lg, fontSize: typography.sizeMd, fontWeight: typography.weightMedium, cursor: 'pointer', fontFamily: typography.fontSans }}>
           {loading ? 'Creating account...' : 'Create account'}
         </button>
-        <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: '#6B6B6B', fontFamily: 'sans-serif' }}>
-          Already have an account? <a href="/login" style={{ color: '#C8392B' }}>Sign in</a>
+        <p style={{ textAlign: 'center', marginTop: spacing.lg, ...typography.bodySmall, color: colors.textSecondary }}>
+          Already have an account? <a href="/login" style={{ color: colors.crimson }}>Sign in</a>
         </p>
       </div>
     </main>

@@ -165,8 +165,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [showInternalInput, setShowInternalInput] = useState(false)
   const [showStudentInput, setShowStudentInput] = useState(false)
   const [showActions, setShowActions] = useState(false)
-  const [showMessageHistory, setShowMessageHistory] = useState(false)
-  const actionsRef = useRef<HTMLDivElement>(null)
+      const actionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const cacheKey = `pulse_contact_insights_${contact.id}`
@@ -349,9 +348,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         avatar={{
           firstName: contact.first_name,
           lastName: contact.last_name,
-          size: 40,
+          size: 72,
           src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined,
         }}
+        titleSize={typography.size2xl}
         badge={<Badge variant={
           contact.opted_out ? 'error' :
           contact.client_status === 'active' ? 'success' :
@@ -368,14 +368,21 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
-          <div style={{ padding: `${spacing.md} ${spacing['2xl']} 0` }}>
-            <SectionLabel style={sectionHeaderStyle}>Contact info</SectionLabel>
-          </div>
-          <div style={sectionPad}>
+          {/* Personal info — no label, DOB first */}
+          <div style={{ padding: `${spacing.xl} ${spacing['2xl']} 0` }}>
             {isEditing ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 <div>
-                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Phone</div>
+                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Date of birth</div>
+                  <input
+                    type="date"
+                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
+                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
+                    style={{ ...inputStyle, width: '160px' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
                   <input
                     type="text"
                     value={edits.phone ?? contact.phone ?? ''}
@@ -385,7 +392,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Email</div>
+                  <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
                   <input
                     type="email"
                     value={edits.email ?? contact.email ?? ''}
@@ -394,56 +401,112 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     style={inputStyle}
                   />
                 </div>
-                <div>
-                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Date of birth</div>
-                  <input
-                    type="date"
-                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
-                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
-                    style={{ ...inputStyle, width: '160px' }}
-                  />
-                </div>
               </div>
             ) : (
-              <>
-                {displayPhone(contact.phone) && <FieldRow label="Phone" value={displayPhone(contact.phone)} />}
-                {contact.email && <FieldRow label="Email" value={contact.email} />}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
                 {contact.date_of_birth && (
-                  <FieldRow label="DOB">
-                    <span style={{ fontSize: typography.size15, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
-                      {formatDate(contact.date_of_birth)}
-                    </span>
-                  </FieldRow>
+                  <div>
+                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Date of birth</div>
+                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{formatDate(contact.date_of_birth)}</div>
+                  </div>
                 )}
-              </>
-            )}
-            {contact.custom_fields?.preferred_channel && (
-              <FieldRow label="Preferred channel" value={contact.custom_fields.preferred_channel} />
-            )}
-            {hasDistinctAccountHolder && contact.account_holder_name && (
-              <FieldRow label="Parent" value={cleanName(contact.account_holder_name)} />
+                {displayPhone(contact.phone) && (
+                  <div>
+                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
+                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{displayPhone(contact.phone)}</div>
+                  </div>
+                )}
+                {contact.email && (
+                  <div>
+                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
+                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.email}</div>
+                  </div>
+                )}
+                {contact.custom_fields?.preferred_channel && (
+                  <div>
+                    <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Preferred channel</div>
+                    <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.custom_fields.preferred_channel}</div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
+          {/* Account holder — names, emails, phones side by side */}
           {hasDistinctAccountHolder && (
-            <div style={{ padding: `${spacing.sm} ${spacing['2xl']} 0` }}>
-              <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
-              <div style={{ marginTop: spacing.xs }}>
-                {contact.family_name && <FieldRow label="Family" value={cleanName(contact.family_name)} />}
-                {contact.account_holder_name && <FieldRow label="Name" value={cleanName(contact.account_holder_name)} />}
-                {contact.account_holder_phone && <FieldRow label="Phone" value={displayPhone(contact.account_holder_phone)} />}
-                {contact.account_holder_email && <FieldRow label="Email" value={contact.account_holder_email} />}
+            <>
+              {divider}
+              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
+                <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
+              </div>
+              <div style={sectionPad}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
+                  {contact.account_holder_name && (
+                    <div>
+                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Name</div>
+                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{cleanName(contact.account_holder_name)}</div>
+                    </div>
+                  )}
+                  {contact.account_holder_email && (
+                    <div>
+                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Email</div>
+                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{contact.account_holder_email}</div>
+                    </div>
+                  )}
+                  {contact.account_holder_phone && (
+                    <div>
+                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Phone</div>
+                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{displayPhone(contact.account_holder_phone)}</div>
+                    </div>
+                  )}
+                  {contact.family_name && (
+                    <div>
+                      <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>Family</div>
+                      <div style={{ ...typography.body, fontWeight: typography.weightMedium, color: colors.text }}>{cleanName(contact.family_name)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Minor alert — always show if minor */}
+          {computedIsMinor && (
+            <div style={{ padding: `${spacing.md} ${spacing['2xl']} 0` }}>
+              <div style={{ ...typography.bodySmall, color: colors.warning, lineHeight: 1.5 }}>
+                Under 18. Confirm you have permission before messaging this student.
               </div>
             </div>
           )}
 
+          {/* Message recipient — only if minor AND has phone */}
+          {computedIsMinor && hasStudentPhone && (
+            <>
+              {divider}
+              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
+                <SectionLabel style={sectionHeaderStyle}>Message recipient</SectionLabel>
+              </div>
+              <div style={sectionPad}>
+                <RadioGroup
+                  options={[
+                    { value: 'account_holder', label: 'Parent or account holder' },
+                    { value: 'student', label: 'Student' },
+                  ]}
+                  value={routing}
+                  onChange={(val) => patch({ message_routing: val })}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Enrollment details */}
           {tenantFields.length > 0 && (
             <>
               {divider}
               <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
                 <SectionLabel style={sectionHeaderStyle}>Details</SectionLabel>
               </div>
-              <div style={sectionPad}>
+              <div style={{ ...sectionPad, paddingBottom: spacing['2xl'] }}>
                 {!hasEnrollment && !isEditing ? (
                   <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, fontFamily: typography.fontSans }}>
                     No classes scheduled.
@@ -455,7 +518,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       if (f.field_options?.length) {
                         return (
                           <div key={f.field_key}>
-                            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>{f.field_label}</div>
+                            <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>{f.field_label}</div>
                             <select
                               value={String(currentVal)}
                               onChange={e => updateEdit(f.field_key, e.target.value)}
@@ -471,7 +534,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       }
                       return (
                         <div key={f.field_key}>
-                          <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>{f.field_label}</div>
+                          <div style={{ ...typography.helper, color: colors.textMuted, marginBottom: '2px' }}>{f.field_label}</div>
                           <input
                             type="text"
                             value={String(currentVal)}
@@ -495,89 +558,49 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
               </div>
             </>
           )}
+        </div>
 
-          {computedIsMinor && (
-            <>
-              {divider}
-              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>Message recipient</SectionLabel>
-              </div>
-              <div style={sectionPad}>
-                <RadioGroup
-                  options={[
-                    { value: 'account_holder', label: 'Parent or account holder' },
-                    { value: 'student', label: 'Student', disabled: !hasStudentPhone },
-                  ]}
-                  value={routing}
-                  onChange={(val) => patch({ message_routing: val })}
-                />
-                {routing === 'student' && (
-                  <div style={{ marginTop: spacing.sm, background: colors.warningLight, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeSm, color: colors.warning, lineHeight: 1.5 }}>
-                    Under 18. Confirm you have permission before messaging this student.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {divider}
-          <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-            <SectionLabel style={sectionHeaderStyle}>Message history</SectionLabel>
-          </div>
-          <div style={sectionPad}>
-            <div style={{
-              border: `1px dashed ${colors.border}`,
-              borderRadius: radius.md,
-              padding: `${spacing.md} ${spacing.lg}`,
-              textAlign: 'center',
-            }}>
-              <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0 }}>No messages sent yet</p>
-            </div>
-          </div>
-
-          {divider}
-          <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-            <SectionLabel style={sectionHeaderStyle}>Insights</SectionLabel>
-          </div>
-          <div style={{ ...sectionPad, paddingBottom: spacing['2xl'] }}>
+        {/* RIGHT COLUMN */}
+        <div style={{ overflowY: 'auto', padding: `${spacing.md} ${spacing['2xl']} ${spacing['2xl']}`, borderLeft: `1px solid ${colors.borderLight}`, display: 'flex', flexDirection: 'column', gap: spacing.lg, background: colors.surface }}>
+          {/* AI Insights — sticky, prominent */}
+          <div style={{ position: 'sticky', top: 0, background: colors.surface, zIndex: 1, paddingTop: spacing.md, paddingBottom: spacing.md, marginBottom: spacing.sm }}>
+            <SectionLabel style={sectionHeaderStyle}>AI Insights</SectionLabel>
             {insightsLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, marginTop: spacing.sm }}>
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} style={{ height: '36px', background: colors.borderLight, borderRadius: radius.md, width: i === 2 ? '60%' : '80%' }} />
+                  <div key={i} style={{ height: '44px', background: colors.borderLight, borderRadius: radius.md, width: i === 2 ? '60%' : '100%' }} />
                 ))}
               </div>
             ) : insights.length === 0 ? (
-              <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0 }}>No insights yet.</p>
+              <p style={{ ...typography.bodySmall, color: colors.textMuted, margin: `${spacing.sm} 0 0` }}>No insights yet.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, marginTop: spacing.sm }}>
                 {insights.map((insight, i) => {
                   const config = insightConfig[insight.type ?? 'info'] ?? insightConfig.info
+                  const tintMap: Record<string, string> = {
+                    risk: 'rgba(220,38,38,0.06)',
+                    milestone: 'rgba(61,139,95,0.06)',
+                    info: 'rgba(0,168,200,0.06)',
+                    nudge: 'rgba(245,166,35,0.06)',
+                  }
                   return (
                     <div key={i} style={{
-                      background: colors.surface,
+                      background: tintMap[insight.type ?? 'info'] ?? tintMap.info,
                       borderLeft: `3px solid ${config.borderColor}`,
-                      borderRadius: radius.sm,
-                      padding: `${spacing.sm} ${spacing.md}`,
-                      fontSize: typography.sizeBase,
-                      color: colors.text,
-                      lineHeight: 1.5,
-                      fontFamily: typography.fontSans,
+                      borderRadius: radius.md,
+                      padding: `${spacing.md} ${spacing.lg}`,
                       display: 'flex',
                       alignItems: 'flex-start',
-                      gap: spacing.sm,
+                      gap: spacing.md,
                     }}>
                       <span style={{ color: config.borderColor, flexShrink: 0, marginTop: '2px' }}>{config.icon}</span>
-                      <span>{insight.text}</span>
+                      <span style={{ ...typography.body, color: colors.text, lineHeight: 1.5 }}>{insight.text}</span>
                     </div>
                   )
                 })}
               </div>
             )}
           </div>
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div style={{ overflowY: 'auto', padding: `${spacing.md} ${spacing['2xl']} ${spacing['2xl']}`, borderLeft: `1px solid ${colors.borderLight}`, display: 'flex', flexDirection: 'column', gap: spacing.lg, background: colors.surface }}>
           {/* Notes */}
           <div>
             <SectionLabel style={sectionHeaderStyle}>Notes</SectionLabel>
@@ -689,31 +712,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         )}
       </div>
 
-      {/* Message history modal */}
-      {showMessageHistory && (
-        <>
-          <div onClick={() => setShowMessageHistory(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 70 }} />
-          <div style={{
-            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            background: colors.surface, borderRadius: radius.xl,
-            boxShadow: shadows.xl, zIndex: 80,
-            width: 'min(90vw, 640px)', maxHeight: '80vh',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <div style={{ padding: `${spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, margin: 0, color: colors.text, fontFamily: typography.fontSans }}>
-                Message history
-              </h3>
-              <button onClick={() => setShowMessageHistory(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: colors.textSecondary }}>×</button>
-            </div>
-            <div style={{ padding: spacing['2xl'], overflowY: 'auto', flex: 1 }}>
-              <p style={{ fontSize: typography.sizeBase, color: colors.textMuted, textAlign: 'center', padding: spacing['4xl'] }}>
-                Message history will appear here.
-              </p>
-            </div>
-          </div>
-        </>
-      )}
     </SlidePanel>
   )
 }

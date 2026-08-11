@@ -13,6 +13,7 @@ export interface ParsedContact {
   service_type?: string | null
   plan_name?: string | null
   session_name?: string | null
+  band_name?: string | null
   lesson_day?: string | null
   lesson_time?: string | null
   client_status?: string | null

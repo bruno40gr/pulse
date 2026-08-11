@@ -7,12 +7,12 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<string, React.CSSProperties> = {
-  success: { background: colors.successLight, color: colors.success },
-  warning: { background: colors.warningLight, color: colors.warning },
-  error: { background: colors.errorLight, color: colors.error },
-  info: { background: '#EFF6FF', color: '#1D4ED8' },
-  neutral: { background: colors.backgroundSecondary, color: colors.textSecondary },
-  minor: { background: '#EFF6FF', color: '#1D4ED8' },
+  success: { background: colors.surfaceMuted, color: colors.success },
+  warning: { background: colors.surfaceMuted, color: colors.warning },
+  error: { background: colors.surfaceMuted, color: colors.error },
+  info: { background: colors.surfaceMuted, color: colors.textSecondary },
+  neutral: { background: colors.surfaceMuted, color: colors.textSecondary },
+  minor: { background: colors.surfaceMuted, color: colors.textSecondary },
 }
 
 export function Badge({ variant = 'neutral', children, style }: BadgeProps) {
