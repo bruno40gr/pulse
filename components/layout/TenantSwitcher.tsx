@@ -5,6 +5,7 @@ import { setActiveTenantId, getActiveTenantId } from '@/lib/tenant'
 interface Tenant {
   id: string
   name: string
+  is_demo: boolean
 }
 
 export default function TenantSwitcher() {
@@ -26,9 +27,11 @@ export default function TenantSwitcher() {
 
   if (!tenants.length) return null
 
+  const activeTenant = tenants.find(t => t.id === active)
+
   return (
     <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2A2A' }}>
-      <div style={{ fontSize: '11px', color: '#6B6B6B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Demo tenant</div>
+      <div style={{ fontSize: '11px', color: '#6B6B6B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Select Demo Account</div>
       <select
         value={active}
         onChange={e => handleChange(e.target.value)}

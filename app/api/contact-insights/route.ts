@@ -14,29 +14,38 @@ export async function POST(request: Request) {
         role: 'user',
         content: `You are a relationship assistant for a small service business.
 
-Analyze this contact and generate 3-5 short, factual insight chips. Each insight should be a specific, scannable fact — not a paragraph.
+Analyze this contact and generate 3-5 short, specific, scannable insight chips. Each insight should be a concrete fact — not advice, not a paragraph.
 
 Contact data: ${JSON.stringify(contact)}
 Internal notes: ${notes || 'None'}
 Today: ${new Date().toLocaleDateString()}
 
+Important: If the contact is marked as 'active' but has not attended in more than 30 days, flag this contradiction explicitly. Example: "Marked active, but last attended 89 days ago."
+
+If last_attended is null or very old and status is active, that is worth flagging.
+If days_since_attended is over 21, treat as at-risk regardless of status.
+If days_since_attended is over 60, treat as high risk.
+
 Return ONLY valid JSON, no markdown:
 {
   "insights": [
-    { "type": "risk", "text": "Missed last 3 sessions" },
-    { "type": "info", "text": "Parent requested no promotional messages" }
+    {
+      "icon": "⚠",
+      "text": "Marked active, but last attended 89 days ago",
+      "type": "risk"
+    }
   ]
 }
 
-Choose a type for each insight:
-"risk" — churning, missed sessions, opted out, attendance dropping, payment issues
-"milestone" — achievement, progress, birthday within 30 days, anniversary, positive trend
-"info" — neutral fact, communication preference, schedule detail, note
-"nudge" — needs attention soon, upcoming deadline, gentle reminder
+Types: risk (churn/absence/contradiction), milestone (achievement/progress), opportunity (open spot/advancement), nudge (follow-up/renewal)
 
-Birthday rule: If date_of_birth is within 30 days of today, generate a milestone insight like "Birthday on March 15, turning 5" or "Turning 16 on April 7". Always include the date and age.
+Choose icons from this set only — no emojis, use these exact strings:
+risk → ⚠
+milestone → ★
+opportunity → ◎
+nudge → ↻
 
-Be specific. Use real data from the contact. Keep each insight under 10 words. Never invent facts not present in the data. Never use em dashes or special characters — use plain text only.`
+Keep each insight under 12 words. Be specific — use real numbers and dates from the data. Never invent facts.`
       }]
     })
 

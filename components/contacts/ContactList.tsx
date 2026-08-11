@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { House } from 'lucide-react'
+import { Badge } from '@/components/ui'
+import { colors, typography } from '@/lib/tokens'
 import CSVImporter from './CSVImporter'
 import { getActiveTenantId } from '@/lib/tenant'
 
@@ -170,7 +172,18 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.email || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{serviceType || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{instructor || '—'}</td>
-                <td style={{ padding: '12px 24px', color: '#6B6B6B' }}>{contact.client_status || '—'}</td>
+                <td style={{ padding: '12px 24px' }}>
+                  <Badge variant={
+                    contact.opted_out ? 'error' :
+                    contact.client_status === 'active' ? 'success' :
+                    contact.client_status === 'pending' ? 'warning' :
+                    contact.client_status === 'inactive' ? 'neutral' :
+                    contact.client_status === 'lead' ? 'info' :
+                    'neutral'
+                  }>
+                    {contact.client_status || '—'}
+                  </Badge>
+                </td>
               </tr>
             )
           })}

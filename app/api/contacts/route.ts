@@ -67,6 +67,7 @@ export async function GET(request: Request) {
           plan_name: enrollment.plan_name || person.custom_fields?.plan_name,
           session_name: enrollment.session_name || person.custom_fields?.session_name,
           instructor: enrollmentFields.instructor || person.custom_fields?.instructor,
+          band_name: enrollmentFields.band_name || person.custom_fields?.band_name,
         },
         tags: person.custom_fields?.tags || [],
       }
@@ -113,19 +114,24 @@ export async function POST(request: Request) {
         nameMap.get(normName)
 
       const { instrument, lesson_day, lesson_time, service_type, instructor,
-              plan_name, session_name, last_attended, tags, client_status, ...baseContact } = contact
+              plan_name, session_name, band_name, last_attended, tags, client_status, ...baseContact } = contact
 
       const enrollmentFields: Record<string, any> = {
         instrument, lesson_day, lesson_time, service_type,
         plan_name, session_name,
-        instructor,
+        instructor, band_name,
       }
 
       if (existing) {
-        // Update existing person
-        await supabaseAdmin.from('people')
-          .update({ ...baseContact, updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
+        // Update existing person — only write fields that have a value
+        const cleanBaseContact = Object.fromEntries(
+          Object.entries(baseContact).filter(([, v]) => v !== null && v !== undefined && v !== '')
+        )
+        if (Object.keys(cleanBaseContact).length > 0) {
+          await supabaseAdmin.from('people')
+            .update({ ...cleanBaseContact, updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+        }
 
         // Update their enrollment if it exists
         const { data: existingStudent } = await supabaseAdmin
@@ -147,7 +153,12 @@ export async function POST(request: Request) {
                 ...Object.fromEntries(
                   Object.entries(enrollmentFields).filter(([, v]) => v !== null && v !== undefined)
                 ),
-                custom_fields: { ...existingEnrollment.custom_fields, ...enrollmentFields },
+                custom_fields: {
+                  ...existingEnrollment.custom_fields,
+                  ...Object.fromEntries(
+                    Object.entries(enrollmentFields).filter(([, v]) => v !== undefined)
+                  ),
+                },
               })
               .eq('id', existingEnrollment.id)
           }
@@ -226,6 +237,12 @@ export async function POST(request: Request) {
     await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/api/contacts/deduplicate`, {
       method: 'POST',
     }).catch(() => {})
+
+    // Update tenant last_synced_at
+    await supabaseAdmin
+      .from('tenants')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', tenantId)
 
     return NextResponse.json({
       message: 'Import successful',

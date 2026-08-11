@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Paperclip, X, Sparkles } from 'lucide-react'
 import { Button, Avatar, Textarea, Input } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { getActiveTenantId } from '@/lib/tenant'
 
 interface ComposePanelProps {
   recipientCount: number
@@ -36,16 +37,16 @@ export default function ComposePanel({
     opted_out: { id: string, name: string }[]
   } | null>(null)
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
-  const [sendTo, setSendTo] = useState<'account_holders' | 'students' | 'both'>('account_holders')
   const [sent, setSent] = useState(false)
   const [sentResult, setSentResult] = useState<{ sent: number, failed: number } | null>(null)
+  const prePolishMessage = useRef<string>('')
 
   const isMMS = !!mediaUrl
   const firstNamePreview = contactContext?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
   const effectiveCount = effectiveRecipientIds.length
-  const effectiveSendCount = sendTo === 'both' ? effectiveCount * 2 : effectiveCount
+  const effectiveSendCount = effectiveCount
 
   useEffect(() => {
     if (!recipientIds.length) return
@@ -61,6 +62,7 @@ export default function ComposePanel({
 
   const handleAiDraft = async () => {
     setAiLoading(true)
+    if (message.trim()) prePolishMessage.current = message
     try {
       const contextNote = mode === 'single' && contactContext?.notes_history?.length
         ? `Contact notes: ${contactContext.notes_history[0].text}`
@@ -85,11 +87,19 @@ export default function ComposePanel({
     }
   }
 
+  const handleUndoPolish = () => {
+    if (prePolishMessage.current) {
+      setMessage(prePolishMessage.current)
+      prePolishMessage.current = ''
+    }
+  }
+
   const handleSend = async () => {
     if (!message.trim() || effectiveCount === 0) return
     setIsSending(true)
+    const tenantId = getActiveTenantId()
     try {
-      const campaignRes = await fetch('/api/campaigns', {
+      const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,13 +108,12 @@ export default function ComposePanel({
           media_url: mediaUrl || null,
           filter_query: filterExplanation,
           recipient_count: effectiveSendCount,
-          send_to: sendTo,
           status: 'sending',
         })
       })
       const campaign = await campaignRes.json()
 
-      const sendRes = await fetch(`/api/campaigns/${campaign.id}/send`, {
+      const sendRes = await fetch(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipientIds: effectiveRecipientIds })
@@ -170,43 +179,19 @@ export default function ComposePanel({
           </div>
         )}
 
-        {/* Send to — radio buttons */}
-        {mode !== 'single' && (
-          <div>
-            <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary, marginBottom: spacing.xs, display: 'block' }}>Send to</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              {[
-                { value: 'account_holders', label: 'Account holders' },
-                { value: 'students', label: 'Students' },
-                { value: 'both', label: 'Both' },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: spacing.sm,
-                    padding: `${spacing.xs} 0`,
-                    cursor: 'pointer',
-                    fontFamily: typography.fontSans,
-                    fontSize: typography.sizeBase,
-                    color: colors.text,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="sendTo"
-                    checked={sendTo === opt.value}
-                    onChange={() => setSendTo(opt.value as 'account_holders' | 'students' | 'both')}
-                    style={{ accentColor: colors.espresso, width: '16px', height: '16px', cursor: 'pointer', margin: 0 }}
-                  />
-                  {opt.label}
-                </label>
-              ))}
+        {/* Inline warnings */}
+        {sensitiveCheck && (sensitiveCheck.flagged.length > 0 || sensitiveCheck.opted_out.length > 0) && (
+          mode === 'single' ? (
+            <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
+              <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.warning }}>
+                {sensitiveCheck.opted_out.length > 0 && `Contact has opted out. `}
+                {sensitiveCheck.flagged.length > 0 && `Contact needs attention: ${sensitiveCheck.flagged.map(c => c.note).filter(Boolean).join(', ')}`}
+              </div>
+              <div style={{ fontSize: typography.sizeSm, color: colors.warning, marginTop: spacing.xs }}>
+                Messages to opted-out contacts will not be delivered.
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Inline warnings — only in bulk mode */}
-        {mode !== 'single' && sensitiveCheck && (sensitiveCheck.flagged.length > 0 || sensitiveCheck.opted_out.length > 0) && (
+          ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
             {sensitiveCheck.opted_out.filter(c => !removedIds.has(c.id)).length > 0 && (
               <div style={{ background: colors.warningLight, border: `1px solid ${colors.warningBorder}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
@@ -220,7 +205,7 @@ export default function ComposePanel({
                       <span style={{ fontSize: typography.sizeSm, color: colors.warning }}>{c.name}</span>
                       <button
                         onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                        style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.xs, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+                        style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                       >
                         Remove
                       </button>
@@ -241,7 +226,7 @@ export default function ComposePanel({
                         <span style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
                         <button
                           onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                          style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.xs, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+                          style={{ fontSize: typography.sizeXs, color: colors.warning, background: 'transparent', border: `1px solid ${colors.warningBorder}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
                         >
                           Remove
                         </button>
@@ -256,33 +241,49 @@ export default function ComposePanel({
               </div>
             )}
           </div>
+          )
         )}
 
         {/* Message textarea with AI assist */}
         <div>
-          <div style={{ position: 'relative' }}>
-            <Textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="Write your message... Use {first_name} to personalize."
-              style={{
-                height: '120px',
-                paddingBottom: '40px',
-              }}
-            />
+          <Textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            placeholder="Write your message... Use {first_name} to personalize."
+            style={{
+              height: '120px',
+            }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs }}>
             <button
               onClick={handleAiDraft}
               disabled={aiLoading}
               style={{
-                position: 'absolute', bottom: spacing.sm, left: spacing.sm,
-                display: 'flex', alignItems: 'center', gap: spacing.xs,
+                display: 'inline-flex', alignItems: 'center', gap: spacing.xs,
                 background: aiLoading ? colors.borderLight : message.trim() ? colors.espresso : colors.borderLight,
                 color: aiLoading ? colors.textMuted : message.trim() ? 'white' : colors.textSecondary,
                 border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`,
                 fontSize: typography.sizeSm, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans,
               }}
             >
-              <Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}
+              {prePolishMessage.current && !aiLoading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleUndoPolish() }}
+                    style={{
+                      background: 'transparent', border: 'none', color: 'inherit',
+                      cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit',
+                      fontWeight: typography.weightSemibold, textDecoration: 'underline'
+                    }}
+                  >
+                    Undo
+                  </button>
+                  <span style={{ color: colors.border }}>|</span>
+                  <Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}
+                </span>
+              ) : (
+                <><Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}</>
+              )}
             </button>
           </div>
 
@@ -324,9 +325,11 @@ export default function ComposePanel({
         )}
 
         {/* Cost line */}
-        <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, textAlign: 'center' }}>
-          SMS · {effectiveSendCount} messages · ~${(effectiveSendCount * (isMMS ? 0.02 : 0.0083)).toFixed(2)}
-        </div>
+        {message.trim().length > 0 && (
+          <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, textAlign: 'center' }}>
+            SMS · {effectiveSendCount} messages · ~${(effectiveSendCount * (isMMS ? 0.02 : 0.0083)).toFixed(2)}
+          </div>
+        )}
 
         {/* Send button */}
         <Button
@@ -393,7 +396,7 @@ export default function ComposePanel({
                       {previewMessage}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: '9px', color: '#8E8E93' }}>Delivered</div>
+                  {sent && <div style={{ textAlign: 'right', fontSize: '9px', color: '#8E8E93' }}>Delivered</div>}
                 </div>
                 <div style={{ padding: '6px 8px', borderTop: '1px solid #E8E8E4', display: 'flex', alignItems: 'center', gap: '6px', background: '#F2F2F7', flexShrink: 0 }}>
                   <div style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid #E8E8E4', padding: '5px 10px', fontSize: '11px', color: '#C8C8CC' }}>iMessage</div>

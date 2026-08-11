@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import TenantSwitcher from '@/components/layout/TenantSwitcher'
+import DemoBanner from '@/components/ui/DemoBanner'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,7 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: '/dashboard', label: 'Dashboard' },
             { href: '/dashboard/contacts', label: 'Contacts' },
             { href: '/dashboard/inbox', label: 'Inbox' },
-            { href: '/dashboard/history', label: 'History' },
+            { href: '/dashboard/history', label: 'Campaigns' },
           ].map(({ href, label }) => (
             <Link key={href} href={href} style={{ display: 'block', padding: '9px 12px', borderRadius: '8px', color: '#A0A0A0', textDecoration: 'none', fontSize: '14px', marginBottom: '2px' }}>
               {label}
@@ -38,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
       {/* Main content */}
       <main style={{ marginLeft: '220px', flex: 1, background: '#FAFAF9', color: '#1A1A1A' }}>
+        <DemoBanner />
         {children}
       </main>
     </div>

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export default function SettingsPage() {
   const [accountSid, setAccountSid] = useState('')
@@ -10,20 +11,21 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const tenantId = getActiveTenantId()
 
   useEffect(() => {
-    fetch('/api/twilio-config')
+    fetch(`/api/twilio-config?tenant=${tenantId}`)
       .then(r => r.json())
       .then(data => { setExisting(data); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }, [tenantId])
 
   const handleSave = async () => {
     setSaving(true)
     setError('')
     setSaved(false)
     try {
-      const res = await fetch('/api/twilio-config', {
+      const res = await fetch(`/api/twilio-config?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_sid: accountSid, auth_token: authToken, phone_number: phoneNumber }),
@@ -147,16 +149,16 @@ export default function SettingsPage() {
 
         <button
           onClick={handleSave}
-          disabled={saving || !accountSid || !authToken || !phoneNumber}
+          disabled={saving || !accountSid || !authToken}
           style={{
-            background: saving || !accountSid || !authToken || !phoneNumber ? '#E8E8E4' : '#C8392B',
-            color: saving || !accountSid || !authToken || !phoneNumber ? '#A0A0A0' : 'white',
+            background: saving || !accountSid || !authToken ? '#E8E8E4' : '#C8392B',
+            color: saving || !accountSid || !authToken ? '#A0A0A0' : 'white',
             border: 'none',
             borderRadius: '8px',
             padding: '10px 24px',
             fontSize: '14px',
             fontWeight: 500,
-            cursor: saving || !accountSid || !authToken || !phoneNumber ? 'not-allowed' : 'pointer',
+            cursor: saving || !accountSid || !authToken ? 'not-allowed' : 'pointer',
             fontFamily: 'sans-serif',
             marginTop: '20px',
           }}

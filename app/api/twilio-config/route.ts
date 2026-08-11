@@ -25,8 +25,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { account_sid, auth_token, phone_number } = await request.json()
-    if (!account_sid || !auth_token || !phone_number) {
-      return NextResponse.json({ error: 'All fields required' }, { status: 400 })
+    if (!account_sid || !auth_token) {
+      return NextResponse.json({ error: 'Account SID and Auth Token are required' }, { status: 400 })
     }
     const { data: existing } = await supabaseAdmin
       .from('twilio_config')

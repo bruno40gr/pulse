@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, TrendingDown, Clock, AlertTriangle, Star, CheckCircle, Info, Calendar } from 'lucide-react'
-import { Avatar, Badge, SectionLabel, FieldRow, Button, Textarea, SlidePanel } from '@/components/ui'
+import { Avatar, Badge, SectionLabel, FieldRow, Button, Textarea, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
 
@@ -41,7 +41,7 @@ interface Insight {
 }
 
 const insightConfig: Record<string, { icon: React.ReactNode; borderColor: string }> = {
-  risk: { icon: <AlertCircle size={14} />, borderColor: colors.crimson },
+  risk: { icon: <AlertCircle size={14} />, borderColor: colors.error },
   milestone: { icon: <Star size={14} />, borderColor: colors.green },
   info: { icon: <Info size={14} />, borderColor: colors.teal },
   nudge: { icon: <Clock size={14} />, borderColor: colors.yellow },
@@ -92,7 +92,60 @@ function RadioGroup({ options, value, onChange }: {
   )
 }
 
+const inputStyle: React.CSSProperties = {
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.sm,
+  padding: `${spacing.xs} ${spacing.sm}`,
+  fontSize: typography.sizeBase,
+  fontFamily: typography.fontSans,
+  color: colors.text,
+  background: colors.surface,
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+}
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  cursor: 'pointer',
+  appearance: 'auto',
+}
+
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose }: ContactSlidePanelProps) {
+  const cleanName = (name: string | null | undefined) =>
+    name?.replace(' (account)', '').trim() || null
+
+  const hasDistinctAccountHolder = !!(
+    contact.account_holder_name &&
+    !contact.account_holder_name.includes('(account)') &&
+    (
+      contact.account_holder_phone !== contact.phone ||
+      contact.account_holder_email !== contact.email
+    )
+  )
+
+  const hasEnrollment = !!(
+    contact.custom_fields?.instrument ||
+    contact.custom_fields?.service_type ||
+    contact.custom_fields?.lesson_day ||
+    contact.custom_fields?.instructor ||
+    contact.custom_fields?.plan_name ||
+    contact.custom_fields?.band_name
+  )
+
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return null
+    return new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
+  const sectionHeaderStyle: React.CSSProperties = {
+    fontSize: typography.sizeSm,
+    fontWeight: typography.weightSemibold,
+    color: colors.textMuted,
+    marginBottom: '12px',
+    fontFamily: typography.fontSans,
+  }
+
   const [insights, setInsights] = useState<Insight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [internalNoteInput, setInternalNoteInput] = useState('')
@@ -108,8 +161,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [saving, setSaving] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const [showInternalNoteInput, setShowInternalNoteInput] = useState(false)
-  const [showStudentNoteInput, setShowStudentNoteInput] = useState(false)
+  const [edits, setEdits] = useState<Record<string, any>>({})
+  const [showInternalInput, setShowInternalInput] = useState(false)
+  const [showStudentInput, setShowStudentInput] = useState(false)
   const [showActions, setShowActions] = useState(false)
   const [showMessageHistory, setShowMessageHistory] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
@@ -202,7 +256,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setNotesHistory(updated)
     setInternalNoteInput('')
     setInternalNotesSaving(false)
-    setShowInternalNoteInput(false)
+    setShowInternalInput(false)
     showToast('changes saved')
   }
 
@@ -215,8 +269,42 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setStudentNotesHistory(updated)
     setStudentNoteInput('')
     setStudentNotesSaving(false)
-    setShowStudentNoteInput(false)
+    setShowStudentInput(false)
     showToast('changes saved')
+  }
+
+  const handleStartEditing = () => {
+    // Populate edits from current contact values
+    const initial: Record<string, any> = {}
+    if (contact.phone) initial.phone = contact.phone
+    if (contact.email) initial.email = contact.email
+    if (contact.date_of_birth) initial.date_of_birth = contact.date_of_birth
+    // Include all tenant field values
+    for (const f of tenantFields) {
+      const val = contact.custom_fields?.[f.field_key]
+      if (val !== undefined && val !== null) {
+        initial[f.field_key] = val
+      }
+    }
+    setEdits(initial)
+    setIsEditing(true)
+  }
+
+  const handleSaveEdits = async () => {
+    if (Object.keys(edits).length > 0) {
+      await patch(edits)
+    }
+    setEdits({})
+    setIsEditing(false)
+  }
+
+  const handleCancelEditing = () => {
+    setEdits({})
+    setIsEditing(false)
+  }
+
+  const updateEdit = (key: string, value: string) => {
+    setEdits(prev => ({ ...prev, [key]: value }))
   }
 
   const routing = contact.message_routing || 'account_holder'
@@ -239,7 +327,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       let age = today.getFullYear() - birth.getFullYear()
       const m = today.getMonth() - birth.getMonth()
       if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
-      if (age > 0 && age < 100) return age
+      if (age >= 0 && age < 120) return age
     } catch {}
     return null
   }
@@ -255,77 +343,94 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   return (
     <SlidePanel isOpen={true} onClose={onClose}>
-      {/* Header */}
-      <div style={{ padding: `${spacing.xl} ${spacing['2xl']} ${spacing.lg}`, borderBottom: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
-          <Avatar firstName={contact.first_name} lastName={contact.last_name} size={56} src={shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined} />
-          <div>
-            <h2 style={{ fontSize: typography.size3xl, fontWeight: typography.weightSemibold, margin: 0, color: colors.text, fontFamily: typography.fontSans, lineHeight: 1.15 }}>
-              {contact.first_name} {contact.last_name}
-              <Badge variant={contact.client_status === 'active' ? 'success' : 'neutral'} style={{ marginLeft: spacing.sm, verticalAlign: 'middle' }}>{statusLabel}</Badge>
-            </h2>
-            <div style={{ fontSize: typography.sizeBase, color: colors.textSecondary, marginTop: '3px', fontFamily: typography.fontSans }}>
-              {[ageLabel, optedOutLabel].filter(Boolean).join(' \u2022 ')}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, paddingTop: spacing.xs }}>
-          {toastMessage && (
-            <span style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
-              {toastMessage}
-            </span>
-          )}
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: colors.textSecondary, lineHeight: 1 }}>×</button>
-        </div>
-      </div>
+      <SlidePanelHeader
+        title={`${contact.first_name} ${contact.last_name}`}
+        subtitle={[ageLabel, optedOutLabel].filter(Boolean).join(' \u2022 ') || undefined}
+        avatar={{
+          firstName: contact.first_name,
+          lastName: contact.last_name,
+          size: 40,
+          src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined,
+        }}
+        badge={<Badge variant={
+          contact.opted_out ? 'error' :
+          contact.client_status === 'active' ? 'success' :
+          contact.client_status === 'pending' ? 'warning' :
+          contact.client_status === 'inactive' ? 'neutral' :
+          contact.client_status === 'lead' ? 'info' :
+          'neutral'
+        }>{statusLabel}</Badge>}
+        onClose={onClose}
+        toast={toastMessage || undefined}
+      />
 
       {/* Body */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
           <div style={{ padding: `${spacing.md} ${spacing['2xl']} 0` }}>
-            <SectionLabel>Contact info</SectionLabel>
+            <SectionLabel style={sectionHeaderStyle}>Contact info</SectionLabel>
           </div>
           <div style={sectionPad}>
-            {displayPhone(contact.phone) && <FieldRow label="Phone" value={displayPhone(contact.phone)} />}
-            {contact.email && <FieldRow label="Email" value={contact.email} />}
-            {contact.date_of_birth && (
-              <FieldRow label="DOB">
-                {isEditing ? (
+            {isEditing ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                <div>
+                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Phone</div>
+                  <input
+                    type="text"
+                    value={edits.phone ?? contact.phone ?? ''}
+                    onChange={e => updateEdit('phone', e.target.value)}
+                    placeholder="Phone number"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Email</div>
+                  <input
+                    type="email"
+                    value={edits.email ?? contact.email ?? ''}
+                    onChange={e => updateEdit('email', e.target.value)}
+                    placeholder="Email address"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>Date of birth</div>
                   <input
                     type="date"
-                    value={contact.date_of_birth || ''}
-                    onChange={(e) => patch({ date_of_birth: e.target.value || null })}
-                    style={{
-                      border: `1px solid ${colors.border}`,
-                      borderRadius: radius.sm,
-                      padding: `${spacing.xs} ${spacing.sm}`,
-                      fontSize: typography.sizeBase,
-                      fontFamily: typography.fontSans,
-                      color: colors.text,
-                      background: colors.surface,
-                      outline: 'none',
-                      width: '140px',
-                    }}
+                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
+                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
+                    style={{ ...inputStyle, width: '160px' }}
                   />
-                ) : (
-                  <span style={{ fontSize: typography.size15, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
-                    {new Date(contact.date_of_birth).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
+                </div>
+              </div>
+            ) : (
+              <>
+                {displayPhone(contact.phone) && <FieldRow label="Phone" value={displayPhone(contact.phone)} />}
+                {contact.email && <FieldRow label="Email" value={contact.email} />}
+                {contact.date_of_birth && (
+                  <FieldRow label="DOB">
+                    <span style={{ fontSize: typography.size15, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
+                      {formatDate(contact.date_of_birth)}
+                    </span>
+                  </FieldRow>
                 )}
-              </FieldRow>
+              </>
             )}
-            {contact.is_minor && contact.account_holder_name && (
-              <FieldRow label="Parent" value={contact.account_holder_name} />
+            {contact.custom_fields?.preferred_channel && (
+              <FieldRow label="Preferred channel" value={contact.custom_fields.preferred_channel} />
+            )}
+            {hasDistinctAccountHolder && contact.account_holder_name && (
+              <FieldRow label="Parent" value={cleanName(contact.account_holder_name)} />
             )}
           </div>
 
-          {(contact.account_holder_name || contact.account_holder_phone || contact.account_holder_email || contact.family_name) && (
+          {hasDistinctAccountHolder && (
             <div style={{ padding: `${spacing.sm} ${spacing['2xl']} 0` }}>
-              <SectionLabel>Account holder</SectionLabel>
+              <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
               <div style={{ marginTop: spacing.xs }}>
-                {contact.family_name && <FieldRow label="Family" value={contact.family_name} />}
-                {contact.account_holder_name && <FieldRow label="Name" value={contact.account_holder_name} />}
+                {contact.family_name && <FieldRow label="Family" value={cleanName(contact.family_name)} />}
+                {contact.account_holder_name && <FieldRow label="Name" value={cleanName(contact.account_holder_name)} />}
                 {contact.account_holder_phone && <FieldRow label="Phone" value={displayPhone(contact.account_holder_phone)} />}
                 {contact.account_holder_email && <FieldRow label="Email" value={contact.account_holder_email} />}
               </div>
@@ -336,15 +441,57 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <>
               {divider}
               <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel>Details</SectionLabel>
+                <SectionLabel style={sectionHeaderStyle}>Details</SectionLabel>
               </div>
               <div style={sectionPad}>
-                {tenantFields.map(f => {
-                  const val = contact.custom_fields?.[f.field_key]
-                  return (
-                    <FieldRow key={f.field_key} label={f.field_label} value={val ? (val.charAt(0).toUpperCase() + val.slice(1)) : null} />
-                  )
-                })}
+                {!hasEnrollment && !isEditing ? (
+                  <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, fontFamily: typography.fontSans }}>
+                    No classes scheduled.
+                  </p>
+                ) : isEditing ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                    {tenantFields.map(f => {
+                      const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
+                      if (f.field_options?.length) {
+                        return (
+                          <div key={f.field_key}>
+                            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>{f.field_label}</div>
+                            <select
+                              value={String(currentVal)}
+                              onChange={e => updateEdit(f.field_key, e.target.value)}
+                              style={selectStyle}
+                            >
+                              <option value="">—</option>
+                              {f.field_options.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={f.field_key}>
+                          <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '2px', fontFamily: typography.fontSans }}>{f.field_label}</div>
+                          <input
+                            type="text"
+                            value={String(currentVal)}
+                            onChange={e => updateEdit(f.field_key, e.target.value)}
+                            placeholder={f.field_label}
+                            style={inputStyle}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  tenantFields.map(f => {
+                    const val = contact.custom_fields?.[f.field_key]
+                    if (!val) return null
+                    return (
+                      <FieldRow key={f.field_key} label={f.field_label} value={String(val).charAt(0).toUpperCase() + String(val).slice(1)} />
+                    )
+                  })
+                )}
               </div>
             </>
           )}
@@ -353,7 +500,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <>
               {divider}
               <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel>Message recipient</SectionLabel>
+                <SectionLabel style={sectionHeaderStyle}>Message recipient</SectionLabel>
               </div>
               <div style={sectionPad}>
                 <RadioGroup
@@ -375,7 +522,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {divider}
           <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-            <SectionLabel>Message history</SectionLabel>
+            <SectionLabel style={sectionHeaderStyle}>Message history</SectionLabel>
           </div>
           <div style={sectionPad}>
             <div style={{
@@ -390,7 +537,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {divider}
           <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-            <SectionLabel>Insights</SectionLabel>
+            <SectionLabel style={sectionHeaderStyle}>Insights</SectionLabel>
           </div>
           <div style={{ ...sectionPad, paddingBottom: spacing['2xl'] }}>
             {insightsLoading ? (
@@ -404,7 +551,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {insights.map((insight, i) => {
-                  const config = insightConfig[insight.type || 'info']
+                  const config = insightConfig[insight.type ?? 'info'] ?? insightConfig.info
                   return (
                     <div key={i} style={{
                       background: colors.surface,
@@ -433,122 +580,94 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         <div style={{ overflowY: 'auto', padding: `${spacing.md} ${spacing['2xl']} ${spacing['2xl']}`, borderLeft: `1px solid ${colors.borderLight}`, display: 'flex', flexDirection: 'column', gap: spacing.lg, background: colors.surface }}>
           {/* Notes */}
           <div>
-            <SectionLabel>Notes</SectionLabel>
+            <SectionLabel style={sectionHeaderStyle}>Notes</SectionLabel>
             <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Staff and parent communications</div>
 
-            {!showStudentNoteInput && studentNotesHistory.length === 0 ? (
-              <div style={{
-                border: `1px dashed ${colors.border}`,
-                borderRadius: radius.md,
-                padding: `${spacing.xl} ${spacing['2xl']}`,
-                textAlign: 'center',
-              }}>
-                <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, marginBottom: spacing.sm }}>No notes yet</p>
-                <Button size="sm" variant="secondary" onClick={() => setShowStudentNoteInput(true)}>Add note</Button>
-              </div>
+            {!showStudentInput ? (
+              <Button
+                variant="ghost"
+                onClick={() => setShowStudentInput(true)}
+                style={{ width: '100%', justifyContent: 'flex-start', border: '1px dashed #E8E8E4' }}
+              >
+                + Add a note...
+              </Button>
             ) : (
-              <>
-                {studentNotesHistory.length > 0 && !showStudentNoteInput && (
-                  <div style={{ marginBottom: spacing.sm }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginBottom: spacing.sm }}>
-                      {studentNotesHistory.map((entry, i) => (
-                        <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, display: 'flex', gap: spacing.sm }}>
-                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: colors.crimson, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: 'white', flexShrink: 0, marginTop: '1px' }}>S</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                              {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
-                          </div>
-                        </div>
-                      ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Textarea
+                  value={studentNoteInput}
+                  onChange={e => setStudentNoteInput(e.target.value)}
+                  placeholder="Add a note..."
+                  style={{ minHeight: '80px' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button variant="primary" size="sm" onClick={saveStudentNote} disabled={studentNotesSaving}>
+                    {studentNotesSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowStudentInput(false); setStudentNoteInput('') }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+            {studentNotesHistory.length > 0 && !showStudentInput && (
+              <div style={{ marginTop: spacing.sm, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+                {studentNotesHistory.map((entry, i) => (
+                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, display: 'flex', gap: spacing.sm }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: colors.crimson, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: 'white', flexShrink: 0, marginTop: '1px' }}>S</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
+                        {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => setShowStudentNoteInput(true)}>Add note</Button>
                   </div>
-                )}
-
-                {(showStudentNoteInput || (studentNotesHistory.length === 0 && showStudentNoteInput)) && (
-                  <>
-                    <Textarea
-                      value={studentNoteInput}
-                      onChange={e => setStudentNoteInput(e.target.value)}
-                      placeholder="Add a note..."
-                      style={{ minHeight: '72px' }}
-                    />
-                    <div style={{ display: 'flex', gap: spacing.sm, marginTop: spacing.sm }}>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={saveStudentNote}
-                        disabled={studentNotesSaving || !studentNoteInput.trim()}
-                        style={{ background: studentNoteInput.trim() ? colors.espresso : undefined, color: studentNoteInput.trim() ? 'white' : undefined }}
-                      >
-                        {studentNotesSaving ? 'Saving...' : 'Save note'}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setShowStudentNoteInput(false); setStudentNoteInput('') }}>Cancel</Button>
-                    </div>
-                  </>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
 
           {/* Internal notes */}
           <div>
-            <SectionLabel>Internal notes</SectionLabel>
+            <SectionLabel style={sectionHeaderStyle}>Internal notes</SectionLabel>
             <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>Visible to your team only</div>
 
-            {!showInternalNoteInput && notesHistory.length === 0 ? (
-              <div style={{
-                border: `1px dashed ${colors.borderLight}`,
-                borderRadius: radius.md,
-                padding: `${spacing.xl} ${spacing['2xl']}`,
-                textAlign: 'center',
-              }}>
-                <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, marginBottom: spacing.sm }}>No notes yet</p>
-                <Button size="sm" variant="secondary" onClick={() => setShowInternalNoteInput(true)}>Add note</Button>
-              </div>
+            {!showInternalInput ? (
+              <Button
+                variant="ghost"
+                onClick={() => setShowInternalInput(true)}
+                style={{ width: '100%', justifyContent: 'flex-start', border: '1px dashed #E8E8E4' }}
+              >
+                + Add a note...
+              </Button>
             ) : (
-              <>
-                {notesHistory.length > 0 && !showInternalNoteInput && (
-                  <div style={{ marginBottom: spacing.sm }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginBottom: spacing.sm }}>
-                      {notesHistory.map((entry, i) => (
-                        <div key={i} style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
-                          <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                            {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
-                        </div>
-                      ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Textarea
+                  value={internalNoteInput}
+                  onChange={e => setInternalNoteInput(e.target.value)}
+                  placeholder="Add a note..."
+                  style={{ minHeight: '80px' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button variant="primary" size="sm" onClick={saveInternalNote} disabled={internalNotesSaving}>
+                    {internalNotesSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowInternalInput(false); setInternalNoteInput('') }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+            {notesHistory.length > 0 && !showInternalInput && (
+              <div style={{ marginTop: spacing.sm, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+                {notesHistory.map((entry, i) => (
+                  <div key={i} style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}` }}>
+                    <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
+                      {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => setShowInternalNoteInput(true)}>Add note</Button>
+                    <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
                   </div>
-                )}
-
-                {(showInternalNoteInput || (notesHistory.length === 0 && showInternalNoteInput)) && (
-                  <>
-                    <Textarea
-                      value={internalNoteInput}
-                      onChange={e => setInternalNoteInput(e.target.value)}
-                      placeholder="Add a note..."
-                      style={{ minHeight: '72px' }}
-                    />
-                    <div style={{ display: 'flex', gap: spacing.sm, marginTop: spacing.sm }}>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={saveInternalNote}
-                        disabled={internalNotesSaving || !internalNoteInput.trim()}
-                        style={{ background: internalNoteInput.trim() ? colors.espresso : undefined, color: internalNoteInput.trim() ? 'white' : undefined }}
-                      >
-                        {internalNotesSaving ? 'Saving...' : 'Save note'}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setShowInternalNoteInput(false); setInternalNoteInput('') }}>Cancel</Button>
-                    </div>
-                  </>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -559,57 +678,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         <span />
         {isEditing ? (
           <div style={{ display: 'flex', gap: spacing.sm }}>
-            <Button variant="secondary" onClick={() => setIsEditing(false)}>Cancel</Button>
-            <Button variant="primary" onClick={() => setIsEditing(false)}>Save changes</Button>
+            <Button variant="secondary" onClick={handleCancelEditing}>Cancel</Button>
+            <Button variant="primary" onClick={handleSaveEdits} disabled={saving}>{saving ? 'Saving...' : 'Done'}</Button>
           </div>
         ) : (
-          <div ref={actionsRef} style={{ position: 'relative' }}>
-            <Button
-              variant="secondary"
-              onClick={() => setShowActions(!showActions)}
-              style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}
-            >
-              Actions
-              <span style={{ fontSize: '10px', marginLeft: '2px' }}>▾</span>
-            </Button>
-            {showActions && (
-              <div style={{
-                position: 'absolute', bottom: '100%', right: 0, marginBottom: spacing.xs,
-                background: colors.surface,
-                border: `1px solid ${colors.border}`,
-                borderRadius: radius.md,
-                boxShadow: shadows.elevated,
-                minWidth: '160px',
-                zIndex: 60,
-                overflow: 'hidden',
-              }}>
-                <button
-                  onClick={() => { setIsEditing(true); setShowActions(false) }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: `${spacing.sm} ${spacing.md}`,
-                    background: 'transparent', border: 'none',
-                    fontSize: typography.sizeBase, color: colors.text,
-                    cursor: 'pointer', fontFamily: typography.fontSans,
-                  }}
-                >
-                  Edit contact
-                </button>
-                <button
-                  onClick={() => { onCompose?.([contact.id]); setShowActions(false) }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: `${spacing.sm} ${spacing.md}`,
-                    background: 'transparent', border: 'none',
-                    borderTop: `1px solid ${colors.borderLight}`,
-                    fontSize: typography.sizeBase, color: colors.text,
-                    cursor: 'pointer', fontFamily: typography.fontSans,
-                  }}
-                >
-                  Send a message
-                </button>
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            <Button variant="secondary" size="sm" onClick={handleStartEditing}>Edit</Button>
+            <Button variant="primary" size="sm" onClick={() => onCompose?.([contact.id])}>Send a message</Button>
           </div>
         )}
       </div>

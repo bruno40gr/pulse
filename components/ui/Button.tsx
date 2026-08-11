@@ -8,7 +8,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<string, React.CSSProperties> = {
-  primary: { background: colors.crimson, color: 'white', border: 'none' },
+  primary: { background: colors.espresso, color: 'white', border: 'none' },
   secondary: { background: 'transparent', color: colors.text, border: `1px solid ${colors.border}` },
   ghost: { background: 'transparent', color: colors.textSecondary, border: 'none' },
   destructive: { background: colors.error, color: 'white', border: 'none' },

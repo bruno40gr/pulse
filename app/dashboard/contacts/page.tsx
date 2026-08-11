@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect, useRef, memo } from 'react'
 import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, Send, House } from 'lucide-react'
+import { SlidersHorizontal, X, Send, House, RefreshCw } from 'lucide-react'
+import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
+import BulkEditPanel from '@/components/contacts/BulkEditPanel'
 import { Button, Badge, Avatar, SlidePanel } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
@@ -47,11 +49,32 @@ export default function ContactsPage() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [singleComposeContact, setSingleComposeContact] = useState<any>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [lastSynced, setLastSynced] = useState<string | null>(null)
+  const [showStaleBanner, setShowStaleBanner] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [placeholderIndex, setPlaceholderIndex] = useState(0)
+  const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const tenantId = getActiveTenantId()
+
+  const placeholderMessages = [
+    "Find students who haven't attended in 3 weeks...",
+    'Show me all drum students...',
+    'Who are the active piano students?',
+    'Find contacts with no email...',
+    'Show band students without a band name...',
+  ]
+
+  const aiLoadingMessages = [
+    'Analyzing your request...',
+    'Searching through contacts...',
+    'Finding the best matches...',
+    'Almost there...',
+  ]
 
   useEffect(() => {
     const stored = localStorage.getItem(`pulse_last_sync_${tenantId}`)
@@ -89,6 +112,42 @@ export default function ContactsPage() {
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => {
+    fetch(`/api/tenant/sync-status?tenant=${tenantId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.last_synced_at) {
+          setLastSynced(data.last_synced_at)
+          const daysSince = Math.floor(
+            (Date.now() - new Date(data.last_synced_at).getTime()) / (1000 * 60 * 60 * 24)
+          )
+          if (daysSince > 14) setShowStaleBanner(true)
+        } else {
+          setShowStaleBanner(true)
+        }
+      })
+      .catch(() => {})
+  }, [tenantId])
+
+  // Cycle placeholder prompts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex(prev => (prev + 1) % placeholderMessages.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Cycle AI loading messages
+  useEffect(() => {
+    if (!aiLoading) return
+    let i = 0
+    const interval = setInterval(() => {
+      i = (i + 1) % aiLoadingMessages.length
+      setAiMessageIndex(i)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [aiLoading])
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -168,19 +227,7 @@ export default function ContactsPage() {
     return true
   })
 
-  // Live text search (name, phone, email)
-  const textFiltered = (displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered)
-    .filter(c => {
-      if (!query.trim() || aiLoading || displayIds !== null) return true
-      const q = query.toLowerCase()
-      return (
-        `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) ||
-        c.phone?.includes(q) ||
-        c.email?.toLowerCase().includes(q)
-      )
-    })
-
-  const displayed = textFiltered
+  const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
 
   // Unique filter options from contacts
   const filterOptions: Record<string, string[]> = {}
@@ -207,7 +254,6 @@ export default function ContactsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
-          <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
           {!loading && (
             <button
               onClick={handleSync}
@@ -221,51 +267,68 @@ export default function ContactsPage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {syncing ? 'Syncing...' : lastSync ? `Last synced ${lastSync}` : 'Sync now'}
+              {syncing ? (
+                'Syncing...'
+              ) : lastSynced ? (
+                `Last synced ${Math.floor((Date.now() - new Date(lastSynced).getTime()) / (1000 * 60 * 60 * 24))} days ago`
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <RefreshCw size={12} />
+                  Sync now
+                </span>
+              )}
             </button>
           )}
+          <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
           <Button variant="secondary" onClick={() => {}}>+ Add contact</Button>
-          <button
-            onClick={() => {
-              if (selectedIds.size === 1) {
-                const contact = contacts.find(c => c.id === [...selectedIds][0])
-                setSingleComposeContact(contact || null)
-              } else {
-                setSingleComposeContact(null)
-              }
-              setIsComposeOpen(true)
-            }}
-            disabled={selectedIds.size === 0}
-            style={{
-              display: 'flex', alignItems: 'center', gap: spacing.sm,
-              background: selectedIds.size > 0 ? colors.crimson : colors.borderLight,
-              color: selectedIds.size > 0 ? 'white' : colors.textMuted,
-              border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
-              fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
-              cursor: selectedIds.size > 0 ? 'pointer' : 'default',
-              fontFamily: typography.fontSans, transition: 'all 0.15s',
-            }}
-          >
-            <Send size={14} />
-            {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
-          </button>
         </div>
       </div>
 
+      {/* Stale data banner */}
+      {showStaleBanner && !bannerDismissed && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: colors.warningLight,
+          border: `1px solid ${colors.warningBorder}`,
+          borderRadius: radius.md,
+          padding: `${spacing.sm} ${spacing.lg}`,
+          marginBottom: spacing.lg,
+        }}>
+          <span style={{
+            fontSize: typography.sizeBase,
+            color: colors.warning,
+            fontFamily: typography.fontSans,
+          }}>
+            Your contact data is from {lastSynced
+              ? new Date(lastSynced).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+              : 'a while ago'}. Attendance and enrollment info may have changed.
+          </span>
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexShrink: 0 }}>
+            <Button variant="secondary" size="sm" onClick={() => setIsImporterOpen(true)}>
+              Sync now
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setBannerDismissed(true)}>
+              ✕
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Search bar + Filters row */}
       <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
+        <div style={{ maxWidth: '75%', flex: 1, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
           <input
             type="text"
             value={query}
             onChange={e => {
               setQuery(e.target.value)
-              if (displayIds !== null && e.target.value === '') clearSearch()
             }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="Find students who haven't attended in 3 weeks..."
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent' }}
+            placeholder={placeholderMessages[placeholderIndex]}
+            style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
+            onFocus={e => { e.target.style.opacity = '1' }}
+            onBlur={e => { e.target.style.opacity = '1' }}
           />
           {query && (
             <button onClick={clearSearch} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
@@ -285,6 +348,33 @@ export default function ContactsPage() {
           style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, background: showFilters ? colors.espresso : colors.surface, color: showFilters ? 'white' : colors.textSecondary, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, fontSize: typography.sizeBase, cursor: 'pointer', fontFamily: typography.fontSans }}
         >
           <SlidersHorizontal size={14} /> Filters
+        </button>
+        {selectedIds.size >= 2 && (
+          <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)}>Edit Contacts ({selectedIds.size})</Button>
+        )}
+        <button
+          onClick={() => {
+            if (selectedIds.size === 1) {
+              const contact = contacts.find(c => c.id === [...selectedIds][0])
+              setSingleComposeContact(contact || null)
+            } else {
+              setSingleComposeContact(null)
+            }
+            setIsComposeOpen(true)
+          }}
+          disabled={selectedIds.size === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: spacing.sm,
+            background: selectedIds.size > 0 ? colors.crimson : colors.borderLight,
+            color: selectedIds.size > 0 ? 'white' : colors.textMuted,
+            border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
+            fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
+            cursor: selectedIds.size > 0 ? 'pointer' : 'default',
+            fontFamily: typography.fontSans, transition: 'all 0.15s',
+          }}
+        >
+          <Send size={14} />
+          {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
         </button>
       </div>
 
@@ -318,7 +408,29 @@ export default function ContactsPage() {
       )}
 
 
+      {/* AI loading state */}
+      {aiLoading && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', gap: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
+          <div style={{
+            width: '28px', height: '28px', border: `2px solid ${colors.borderLight}`,
+            borderTop: `2px solid ${colors.crimson}`, borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite'
+          }} />
+          <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, fontFamily: typography.fontSans, transition: 'opacity 0.3s' }}>
+            {aiLoadingMessages[aiMessageIndex]}
+          </p>
+        </div>
+      )}
+
+      {/* Viewing counter */}
+      {!aiLoading && !loading && (
+        <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, marginBottom: spacing.sm, fontFamily: typography.fontSans }}>
+          Viewing {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'}
+        </p>
+      )}
+
       {/* Contact table */}
+      {!aiLoading && (
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '48px', textAlign: 'center', color: '#A0A0A0', fontSize: '14px' }}>Loading contacts...</div>
@@ -358,6 +470,7 @@ export default function ContactsPage() {
           </table>
         )}
       </div>
+      )}
 
       {/* Contact slide panel */}
       {selectedContact && (
@@ -386,14 +499,15 @@ export default function ContactsPage() {
 
       {/* Compose slide panel */}
       <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)}>
-        <div style={{ padding: `${spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, margin: 0 }}>
-            {singleComposeContact
-              ? `Message to ${singleComposeContact.first_name}`
-              : 'New Message'}
-          </h2>
-          <button onClick={() => setIsComposeOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: colors.textSecondary }}>×</button>
-        </div>
+        <SlidePanelHeader
+          title={singleComposeContact
+            ? `Message to ${singleComposeContact.first_name}`
+            : 'New Message'}
+          onClose={() => {
+            setIsComposeOpen(false)
+            setSingleComposeContact(null)
+          }}
+        />
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ComposePanel
             recipientCount={singleComposeContact ? 1 : selectedIds.size}
@@ -414,7 +528,36 @@ export default function ContactsPage() {
             }}
           />
         </div>
+        {singleComposeContact && (
+          <div style={{ padding: `${spacing.lg} ${spacing['2xl']}`, borderTop: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'center', flexShrink: 0, background: colors.surface }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsComposeOpen(false)
+                setSelectedContact(singleComposeContact)
+              }}
+            >
+              ← View student details
+            </Button>
+          </div>
+        )}
       </SlidePanel>
+
+      {/* Bulk edit panel */}
+      {isBulkEditOpen && (
+        <BulkEditPanel
+          selectedCount={selectedIds.size}
+          selectedIds={[...selectedIds]}
+          tenantFields={tenantFields}
+          onClose={() => setIsBulkEditOpen(false)}
+          onSaved={() => {
+            setIsBulkEditOpen(false)
+            setSelectedIds(new Set())
+            fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(data => setContacts(data))
+          }}
+        />
+      )}
 
       <CSVImporter
         isOpen={isImporterOpen}

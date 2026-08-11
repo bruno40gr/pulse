@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { isDemo } from '@/lib/demo'
 import twilio from 'twilio'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -15,6 +16,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { recipientIds } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
+
+    // Demo mode — simulate delivery without hitting Twilio
+    const demoMode = await isDemo(tenantId)
+    if (demoMode) {
+      const { data: contacts } = await supabaseAdmin
+        .from('people')
+        .select('id, first_name, last_name')
+        .in('id', recipientIds)
+        .eq('opted_out', false)
+
+      const { data: campaign } = await supabaseAdmin
+        .from('campaigns')
+        .select('message')
+        .eq('id', id)
+        .single()
+
+      const fakeMessages = (contacts || []).map(contact => ({
+        tenant_id: tenantId,
+        campaign_id: id,
+        contact_id: contact.id,
+        direction: 'outbound',
+        channel: 'sms',
+        body: (campaign?.message || '').replace(/\{first_name\}/gi, contact.first_name),
+        status: 'delivered',
+        twilio_sid: `DEMO_${Date.now()}_${contact.id}`,
+        to_phone: null,
+        from_phone: null,
+      }))
+
+      if (fakeMessages.length > 0) {
+        await supabaseAdmin.from('messages').insert(fakeMessages)
+      }
+
+      await supabaseAdmin
+        .from('campaigns')
+        .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: fakeMessages.length })
+        .eq('id', id)
+
+      return NextResponse.json({ sent: fakeMessages.length, failed: 0, demo: true })
+    }
 
     // Get campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -84,6 +125,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             media_url: campaign.media_url || null,
             status: msg.status,
             twilio_sid: msg.sid,
+            to_phone: toPhone,
+            from_phone: twilioConfig.phone_number,
           })
 
           await new Promise(r => setTimeout(r, 50))
