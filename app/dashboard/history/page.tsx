@@ -6,6 +6,7 @@ import { colors, typography, spacing, radius } from '@/lib/tokens'
 import { Badge } from '@/components/ui'
 import { EmptyState } from '@/components/ui'
 import { Button } from '@/components/ui'
+import { PageHeader } from '@/components/ui'
 
 interface CampaignStats {
   total: number
@@ -62,14 +63,10 @@ export default function HistoryPage() {
     <div style={{ padding: spacing['3xl'], maxWidth: '900px' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: spacing['2xl'] }}>
-        <h1 style={{ fontSize: typography.size2xl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0, fontFamily: typography.fontSans }}>
-          Campaigns
-        </h1>
-        <p style={{ fontSize: typography.sizeMd, color: colors.textMuted, marginTop: spacing.xs, fontFamily: typography.fontSans }}>
-          {loading ? 'Loading...' : `${campaigns.length} ${campaigns.length === 1 ? 'campaign' : 'campaigns'} sent`}
-        </p>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        subtitle={loading ? 'Loading...' : `${campaigns.length} ${campaigns.length === 1 ? 'campaign' : 'campaigns'} sent`}
+      />
 
       {/* Empty state */}
       {!loading && campaigns.length === 0 && (

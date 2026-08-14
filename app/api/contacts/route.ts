@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import { parseCSV } from '@/lib/csv-parser'
+import { resolveInstructor } from '@/lib/instructors'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -12,7 +12,9 @@ function getTenantId(request: Request): string {
 
 export async function GET(request: Request) {
   const tenantId = getTenantId(request)
+
   try {
+    // Actual schema: people → students → enrollments (instructor_person_id → people)
     const { data, error } = await supabaseAdmin
       .from('people')
       .select(`
@@ -22,7 +24,10 @@ export async function GET(request: Request) {
         students (
           id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( id, name, phone, email ),
-          enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
+          enrollments (
+            id, instrument, service_type, lesson_day, lesson_time,
+            plan_name, session_name, custom_fields, instructor_person_id
+          )
         )
       `)
       .eq('tenant_id', tenantId)
@@ -30,12 +35,64 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
-    // Flatten the joined data to match the old contacts shape
+    // Collect instructor person ids to resolve names + instructor records
+    const instructorPersonIds = new Set<string>()
+    for (const person of data || []) {
+      const enrollment = (person as any).students?.[0]?.enrollments?.[0]
+      const pid = enrollment?.instructor_person_id
+      if (pid) instructorPersonIds.add(pid)
+    }
+
+    // Resolve instructor people (name) and instructors table (id)
+    const personIdList = [...instructorPersonIds]
+    let instructorPeople: any[] = []
+    let instructorRecords: any[] = []
+
+    if (personIdList.length > 0) {
+      const { data: peopleData } = await supabaseAdmin
+        .from('people')
+        .select('id, first_name, last_name, phone, email')
+        .in('id', personIdList)
+      instructorPeople = peopleData || []
+
+      const { data: instrData } = await supabaseAdmin
+        .from('instructors')
+        .select('id, person_id')
+        .in('person_id', personIdList)
+      instructorRecords = instrData || []
+    }
+
+    const personById = new Map(instructorPeople.map(p => [p.id, p]))
+    const instructorIdByPersonId = new Map(instructorRecords.map(i => [i.person_id, i.id]))
+
+    // Flatten the joined data to match the contacts shape
     const flattened = (data || []).map((person: any) => {
-      const student = (person.students as any)?.[0] ?? {}
-      const account = (student as any).accounts ?? {}
-      const enrollment = (student as any).enrollments?.[0] ?? {}
-      const enrollmentFields = (enrollment as any).custom_fields ?? {}
+      const student = person.students?.[0] ?? {}
+      const account = student.accounts ?? {}
+      const enrollment = student.enrollments?.[0] ?? {}
+      const enrollmentFields = enrollment.custom_fields ?? {}
+
+      // Account holders (single account fallback — actual schema has no student_accounts)
+      const accountHolders = account.name
+        ? [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
+        : []
+
+      // Resolve instructor from instructor_person_id (actual schema)
+      const instructorPersonId = enrollment.instructor_person_id ?? null
+      const instructorPerson = instructorPersonId ? personById.get(instructorPersonId) : null
+      const instructorRecordId = instructorPersonId ? instructorIdByPersonId.get(instructorPersonId) : null
+
+      const instructorInfo = instructorPersonId
+        ? {
+            staff_id: instructorRecordId ?? instructorPersonId,
+            person_id: instructorPersonId,
+            name: instructorPerson
+              ? `${instructorPerson.first_name} ${instructorPerson.last_name}`
+              : (enrollmentFields.instructor || null),
+            phone: instructorPerson?.phone ?? null,
+            email: instructorPerson?.email ?? null,
+          }
+        : null
 
       return {
         id: person.id,
@@ -55,6 +112,8 @@ export async function GET(request: Request) {
         account_holder_phone: account.phone,
         account_holder_email: account.email,
         family_name: account.name,
+        account_holders: accountHolders,
+        instructor: instructorInfo,
         notes_history: person.notes_history || [],
         student_notes_history: person.student_notes_history || [],
         custom_fields: {
@@ -122,8 +181,11 @@ export async function POST(request: Request) {
         instructor, band_name,
       }
 
+      // Resolve instructor via shared helper (creates person + instructors record)
+      const resolvedInstructor = await resolveInstructor(tenantId, instructor)
+      const instructorPersonId = resolvedInstructor?.person_id ?? null
+
       if (existing) {
-        // Update existing person — only write fields that have a value
         const cleanBaseContact = Object.fromEntries(
           Object.entries(baseContact).filter(([, v]) => v !== null && v !== undefined && v !== '')
         )
@@ -133,7 +195,6 @@ export async function POST(request: Request) {
             .eq('id', existing.id)
         }
 
-        // Update their enrollment if it exists
         const { data: existingStudent } = await supabaseAdmin
           .from('students')
           .select('id')
@@ -153,6 +214,7 @@ export async function POST(request: Request) {
                 ...Object.fromEntries(
                   Object.entries(enrollmentFields).filter(([, v]) => v !== null && v !== undefined)
                 ),
+                ...(instructorPersonId ? { instructor_person_id: instructorPersonId } : {}),
                 custom_fields: {
                   ...existingEnrollment.custom_fields,
                   ...Object.fromEntries(
@@ -163,7 +225,6 @@ export async function POST(request: Request) {
               .eq('id', existingEnrollment.id)
           }
 
-          // Update student status
           if (client_status || last_attended) {
             await supabaseAdmin.from('students')
               .update({
@@ -176,14 +237,9 @@ export async function POST(request: Request) {
 
         updatedCount++
       } else {
-        // Create new person
         const { data: newPerson, error: personError } = await supabaseAdmin
           .from('people')
-          .insert({
-            ...baseContact,
-            tenant_id: tenantId,
-            custom_fields: {},
-          })
+          .insert({ ...baseContact, tenant_id: tenantId, custom_fields: {} })
           .select('id')
           .single()
 
@@ -192,32 +248,18 @@ export async function POST(request: Request) {
           continue
         }
 
-        // Create account
         const { data: newAccount } = await supabaseAdmin
           .from('accounts')
-          .insert({
-            tenant_id: tenantId,
-            name: `${contact.first_name} ${contact.last_name} (account)`,
-            email: contact.email,
-            phone: contact.phone,
-          })
+          .insert({ tenant_id: tenantId, name: `${contact.first_name} ${contact.last_name} (account)`, email: contact.email, phone: contact.phone })
           .select('id')
           .single()
 
-        // Create student
         const { data: newStudent } = await supabaseAdmin
           .from('students')
-          .insert({
-            tenant_id: tenantId,
-            person_id: newPerson.id,
-            account_id: newAccount?.id,
-            client_status: client_status || 'active',
-            last_attended: last_attended || null,
-          })
+          .insert({ tenant_id: tenantId, person_id: newPerson.id, account_id: newAccount?.id, client_status: client_status || 'active', last_attended: last_attended || null })
           .select('id')
           .single()
 
-        // Create enrollment
         if (newStudent) {
           await supabaseAdmin.from('enrollments').insert({
             tenant_id: tenantId,
@@ -225,6 +267,7 @@ export async function POST(request: Request) {
             ...Object.fromEntries(
               Object.entries(enrollmentFields).filter(([, v]) => v !== null && v !== undefined)
             ),
+            ...(instructorPersonId ? { instructor_person_id: instructorPersonId } : {}),
             custom_fields: enrollmentFields,
           })
         }
@@ -233,22 +276,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Run deduplication
-    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/api/contacts/deduplicate`, {
-      method: 'POST',
-    }).catch(() => {})
-
-    // Update tenant last_synced_at
     await supabaseAdmin
       .from('tenants')
       .update({ last_synced_at: new Date().toISOString() })
       .eq('id', tenantId)
 
-    return NextResponse.json({
-      message: 'Import successful',
-      created: createdCount,
-      updated: updatedCount,
-    })
+    return NextResponse.json({ message: 'Import successful', created: createdCount, updated: updatedCount })
   } catch (error) {
     console.error('Import failed:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

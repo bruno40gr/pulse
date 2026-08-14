@@ -239,11 +239,9 @@
   }
 
   .field-label-row .section-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #1A1A1A;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
 
   .field-group { margin-bottom: 18px; }
@@ -340,11 +338,9 @@
 
   .contacts-table th {
     text-align: left;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #9CA3AF;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     padding: 10px 14px;
     border-bottom: 1px solid #E5E7EB;
   }
@@ -381,6 +377,7 @@
   .pill-active { background: #F0FDF4; color: #16A34A; }
   .pill-inactive { background: #F3F4F6; color: #9CA3AF; }
   .pill-member { background: #EEF2FF; color: #4F46E5; }
+  .pill-minor { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
 
   .table-actions {
     display: flex;
@@ -487,11 +484,9 @@
   }
 
   .contact-field-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #9CA3AF;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin-bottom: 2px;
   }
 
@@ -506,6 +501,389 @@
     border-top: 1px solid #E5E7EB;
     display: flex;
     gap: 10px;
+  }
+
+  /* ── Account holders (guardians for minors) ── */
+  .account-holders-section {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #E5E7EB;
+  }
+
+  .account-holders-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9CA3AF;
+    margin-bottom: 10px;
+  }
+
+  .account-holder-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #f6f8f8;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .account-holder-row:last-child { margin-bottom: 0; }
+
+  .account-holder-avatar {
+    width: 32px; height: 32px;
+    background: #E5E7EB;
+    color: #6B7280;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .account-holder-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .account-holder-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  .account-holder-details {
+    font-size: 12px;
+    color: #6B7280;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .account-holder-details span {
+    white-space: nowrap;
+  }
+
+  .account-holder-relation {
+    font-size: 11px;
+    color: #9CA3AF;
+    font-weight: 500;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* ── AI Insights cards ── */
+  .insights-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .insight-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .insight-card.risk    { background: #FEF2F2; }
+  .insight-card.nudge   { background: #FFFBEB; }
+  .insight-card.milestone { background: #F0FDF4; }
+  .insight-card.opportunity { background: #EFF6FF; }
+
+  .insight-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+
+  .insight-dot.risk    { background: #DC2626; }
+  .insight-dot.nudge   { background: #D97706; }
+  .insight-dot.milestone { background: #16A34A; }
+  .insight-dot.opportunity { background: #2563EB; }
+
+  .insight-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .insight-label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .insight-label.risk    { color: #DC2626; }
+  .insight-label.nudge   { color: #D97706; }
+  .insight-label.milestone { color: #16A34A; }
+  .insight-label.opportunity { color: #2563EB; }
+
+  .insight-text {
+    font-size: 13px;
+    color: #1A1A1A;
+    line-height: 1.5;
+  }
+
+  /* ── Two-tier AI insights ── */
+  .action-insight {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 20px;
+    border-radius: 10px;
+  }
+
+  .action-insight.risk,
+  .action-insight.attention,
+  .action-insight.nudge { background: #FFFBEB; }
+  .action-insight.celebrate { background: #F0FDF4; }
+  .action-insight.opportunity { background: #EFF6FF; }
+
+  .action-insight-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .action-insight-tags {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .action-insight-source {
+    font-size: 10px;
+    font-weight: 600;
+    color: #6B7280;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 4px;
+    padding: 1px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .action-insight-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1A1A1A;
+    line-height: 1.4;
+  }
+
+  .action-insight-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  .action-insight.risk .action-insight-dot,
+  .action-insight.attention .action-insight-dot,
+  .action-insight.nudge .action-insight-dot { background: #D97706; }
+  .action-insight.celebrate .action-insight-dot { background: #16A34A; }
+  .action-insight.opportunity .action-insight-dot { background: #2563EB; }
+
+  .action-insight-detail {
+    font-size: 13px;
+    color: #6B7280;
+    line-height: 1.5;
+  }
+
+  .action-insight-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .action-insight.risk .action-insight-link,
+  .action-insight.attention .action-insight-link,
+  .action-insight.nudge .action-insight-link { color: #D97706; }
+  .action-insight.celebrate .action-insight-link { color: #16A34A; }
+  .action-insight.opportunity .action-insight-link { color: #2563EB; }
+
+  .also-noted { margin-top: 4px; }
+
+  .also-noted-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9CA3AF;
+    margin-bottom: 10px;
+  }
+
+  .also-noted-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .also-noted-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: #6B7280;
+    line-height: 1.5;
+  }
+
+  .also-noted-item::before {
+    content: '·';
+    color: #9CA3AF;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* ── Notes ── */
+  .notes-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .note-card {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+  }
+
+  .note-card.internal {
+    background: #f6f8f8;
+    border: 1px solid #E5E7EB;
+  }
+
+  .note-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .note-avatar.staff {
+    background: #1A130F;
+  }
+
+  .note-avatar.team {
+    background: #9CA3AF;
+  }
+
+  .note-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .note-timestamp {
+    font-size: 11px;
+    color: #9CA3AF;
+  }
+
+  .note-text {
+    font-size: 13px;
+    color: #1A1A1A;
+    line-height: 1.5;
+  }
+
+  .note-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #f6f8f8;
+    color: #6B7280;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .note-add:hover { background: #eef1f2; color: #1A1A1A; }
+
+  .note-add .plus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #E5E7EB;
+    color: #6B7280;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .note-add:hover .plus { background: #D1D5DB; }
+
+  /* ── AI banner ── */
+  .ai-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  .ai-banner-icon {
+    width: 28px; height: 28px;
+    background: #2563EB;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .ai-banner-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2563EB;
+    letter-spacing: 0;
+    margin-bottom: 2px;
+  }
+
+  .ai-banner-text {
+    font-size: 15px;
+    color: #1A1A1A;
+    line-height: 1.5;
+    font-weight: 400;
   }
 
   /* ── Comparison toggle ── */
@@ -547,6 +925,102 @@
     border: none;
     border-top: 1px solid #E5E7EB;
     margin: 48px 0;
+  }
+
+  /* ── Highlight sensitivity meter ── */
+  .sensitivity-meter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .sensitivity-meter .meter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  .sensitivity-control {
+    display: flex;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .sensitivity-control button {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    border: none;
+    background: transparent;
+    color: #6B7280;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .sensitivity-control button.active {
+    background: #FF0044;
+    color: white;
+  }
+
+  .urgency-hidden {
+    display: none !important;
+  }
+
+  .intensity-slider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+  }
+
+  .intensity-slider input[type="range"] {
+    flex: 1;
+    accent-color: #FF0044;
+    cursor: pointer;
+  }
+
+  .intensity-end {
+    font-size: 11px;
+    color: #9CA3AF;
+    white-space: nowrap;
+  }
+
+  .focus-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .focus-chip {
+    padding: 6px 14px;
+    border-radius: 9999px;
+    border: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    color: #6B7280;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .focus-chip.active {
+    background: #FF0044;
+    color: white;
+    border-color: #FF0044;
+  }
+
+  .count-line {
+    font-size: 12px;
+    color: #9CA3AF;
+    margin-bottom: 12px;
   }
 </style>
 </head>
@@ -764,6 +1238,14 @@
     <p class="section-sub">128 contacts imported from your CSV. Use the AI filter to find the right people for your message.</p>
   </div>
 
+  <div class="ai-banner">
+    <div class="ai-banner-icon">✦</div>
+    <div style="min-width: 0;">
+      <div class="ai-banner-label">AI result</div>
+      <div class="ai-banner-text">12 recipients · Filtered contacts with instructor 'David James' across all service types (private and group lessons)</div>
+    </div>
+  </div>
+
   <div class="card" style="box-shadow:none;">
     <div class="table-toolbar">
       <input type="text" class="search-input" placeholder="Filter contacts...">
@@ -881,8 +1363,36 @@
         <h3>Mia Chen</h3>
         <div class="meta">
           <span><span class="pill pill-active">Active</span></span>
-          <span>+1 (916) 555-0142</span>
-          <span>mia.chen@email.com</span>
+          <span><span class="pill pill-minor">Minor</span></span>
+          <span>Age 14</span>
+        </div>
+
+        <div class="account-holders-section">
+          <div class="account-holders-label">Account holders</div>
+
+          <div class="account-holder-row">
+            <div class="account-holder-avatar">LC</div>
+            <div class="account-holder-info">
+              <div class="account-holder-name">Lisa Chen</div>
+              <div class="account-holder-details">
+                <span>+1 (916) 555-0142</span>
+                <span>lisa.chen@email.com</span>
+              </div>
+            </div>
+            <div class="account-holder-relation">Mother</div>
+          </div>
+
+          <div class="account-holder-row">
+            <div class="account-holder-avatar">DC</div>
+            <div class="account-holder-info">
+              <div class="account-holder-name">David Chen</div>
+              <div class="account-holder-details">
+                <span>+1 (916) 555-0189</span>
+                <span>david.chen@email.com</span>
+              </div>
+            </div>
+            <div class="account-holder-relation">Father</div>
+          </div>
         </div>
       </div>
       <div class="contact-card-body">
@@ -960,6 +1470,383 @@
     </div>
   </div>
 
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: AI INSIGHTS (two-tier) ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">AI Insights</h2>
+    <p class="section-sub">Actionable alerts first, quieter observations below.</p>
+  </div>
+
+  <div class="sensitivity-meter">
+    <span class="meter-label">Highlight threshold</span>
+    <div class="intensity-slider">
+      <span class="intensity-end">Catch more</span>
+      <input type="range" id="intensity-range" min="1" max="5" value="3" oninput="applyFilters()">
+      <span class="intensity-end">Only clear signals</span>
+    </div>
+  </div>
+
+  <div class="focus-chips" id="focus-chips">
+    <button class="focus-chip active" onclick="toggleFocus('retention', this)">Retention</button>
+    <button class="focus-chip active" onclick="toggleFocus('billing', this)">Billing</button>
+    <button class="focus-chip active" onclick="toggleFocus('growth', this)">Growth</button>
+  </div>
+
+  <p class="count-line" id="highlight-count"></p>
+
+  <div class="card" style="box-shadow:none; padding: 24px 28px;">
+    <!-- Tier 1: actionable cards (scored by intensity, tagged by focus) -->
+    <div class="action-insight attention" data-score="5" data-focus="retention" style="margin-bottom: 12px;">
+      <div class="action-insight-head">
+        <div class="action-insight-title">Attendance gap</div>
+        <div class="action-insight-dot"></div>
+      </div>
+      <div class="action-insight-detail">
+        11 days since last lesson. Tyler usually attends Saturdays — he's now outside his normal attendance pattern.
+      </div>
+      <button class="action-insight-link">Check in →</button>
+    </div>
+
+    <div class="action-insight attention" data-score="4" data-focus="billing" style="margin-bottom: 12px;">
+      <div class="action-insight-head">
+        <div class="action-insight-title">Billing follow-up owed</div>
+        <div class="action-insight-dot"></div>
+      </div>
+      <div class="action-insight-detail">
+        Account is 60 days past due on tuition. Sent reminder email — no response yet.
+      </div>
+      <button class="action-insight-link">Send billing reminder →</button>
+    </div>
+
+    <div class="action-insight opportunity" data-score="3" data-focus="growth" style="margin-bottom: 12px;">
+      <div class="action-insight-head">
+        <div class="action-insight-title">Ensemble fit</div>
+        <div class="action-insight-dot"></div>
+      </div>
+      <div class="action-insight-detail">
+        Hasn't tried the ensemble program — could be a good fit this fall.
+      </div>
+      <button class="action-insight-link">Recommend program →</button>
+    </div>
+
+    <div class="action-insight celebrate" data-score="2" data-focus="retention" style="margin-bottom: 12px;">
+      <div class="action-insight-head">
+        <div class="action-insight-title">Recital nailed</div>
+        <div class="action-insight-dot"></div>
+      </div>
+      <div class="action-insight-detail">
+        Instructor noted Tyler nailed his recital piece.
+      </div>
+      <button class="action-insight-link">Send a congratulations →</button>
+    </div>
+
+    <div class="action-insight opportunity" data-score="1" data-focus="retention" style="margin-bottom: 20px;">
+      <div class="action-insight-head">
+        <div class="action-insight-title">Welcome kit follow-up</div>
+        <div class="action-insight-dot"></div>
+      </div>
+      <div class="action-insight-detail">
+        New student hasn't opened the welcome email yet — a gentle nudge could help onboarding.
+      </div>
+      <button class="action-insight-link">Send welcome nudge →</button>
+    </div>
+
+    <!-- Tier 2: informational notes -->
+    <div class="also-noted">
+      <div class="also-noted-label">Also noted</div>
+      <div class="also-noted-list">
+        <div class="also-noted-item">14-week attendance streak before the gap</div>
+        <div class="also-noted-item">Renewal date approaching on July 30</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: NOTES ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">Notes</h2>
+    <p class="section-sub">Staff and parent communications — visible to everyone on the account.</p>
+  </div>
+
+  <div class="card-row">
+    <!-- Notes (student-facing) — filled -->
+    <div class="card" style="box-shadow:none; padding: 24px 28px;">
+      <div class="notes-section">
+        <div class="note-card">
+          <div class="note-avatar staff">SK</div>
+          <div class="note-content">
+            <div class="note-timestamp">Aug 9, 2026 · 2:34 PM</div>
+            <div class="note-text">Called mom — she wants to switch Mia to Wednesdays starting next month. Will check availability with Sarah.</div>
+          </div>
+        </div>
+
+        <div class="note-card">
+          <div class="note-avatar staff">SK</div>
+          <div class="note-content">
+            <div class="note-timestamp">Aug 2, 2026 · 10:15 AM</div>
+            <div class="note-text">Mia has been practicing consistently. Recommend moving her to intermediate level next semester.</div>
+          </div>
+        </div>
+
+        <div class="note-card">
+          <div class="note-avatar staff">MT</div>
+          <div class="note-content">
+            <div class="note-timestamp">Jul 18, 2026 · 9:00 AM</div>
+            <div class="note-text">Parent asked about summer recital dates. Confirmed August 22nd at 4pm — shared the signup link.</div>
+          </div>
+        </div>
+
+        <button class="note-add"><span class="plus">+</span> Add a note</button>
+      </div>
+    </div>
+
+    <!-- Internal notes — filled -->
+    <div class="card" style="box-shadow:none; padding: 24px 28px;">
+      <div class="notes-section">
+        <div class="note-card internal">
+          <div class="note-avatar team">T</div>
+          <div class="note-content">
+            <div class="note-timestamp">Jul 28, 2026 · 4:02 PM</div>
+            <div class="note-text">Account is 60 days past due on tuition. Sent reminder email — no response yet. Flag for follow-up next week.</div>
+          </div>
+        </div>
+
+        <div class="note-card internal">
+          <div class="note-avatar team">T</div>
+          <div class="note-content">
+            <div class="note-timestamp">Jun 15, 2026 · 11:20 AM</div>
+            <div class="note-text">Dad called about billing — clarified that the June charge includes the recital fee. He's all set.</div>
+          </div>
+        </div>
+
+        <button class="note-add"><span class="plus">+</span> Add internal note</button>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: NOTES — EMPTY STATE ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">Notes — empty state</h2>
+    <p class="section-sub">How each section looks before any notes have been added.</p>
+  </div>
+
+  <div class="card-row">
+    <!-- Notes — empty -->
+    <div class="card" style="box-shadow:none; padding: 24px 28px;">
+      <div class="notes-section">
+        <button class="note-add"><span class="plus">+</span> Add a note</button>
+      </div>
+    </div>
+
+    <!-- Internal notes — empty -->
+    <div class="card" style="box-shadow:none; padding: 24px 28px;">
+      <div class="notes-section">
+        <button class="note-add"><span class="plus">+</span> Add internal note</button>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ═══════════ SECTION: BUSY TENURED ACCOUNT — TYLER BROOKS ═══════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 class="section-title">Busy tenured account</h2>
+    <p class="section-sub">Tyler Brooks — full contact detail at high density: two account holders, actionable insights, informational notes, and a populated notes history.</p>
+  </div>
+
+  <div class="card" style="box-shadow:none; padding: 0; overflow: hidden;">
+    <!-- Header -->
+    <div class="contact-card-top">
+      <div class="contact-avatar">TB</div>
+      <h3>Tyler Brooks</h3>
+      <div class="meta">
+        <span><span class="pill pill-active">Active</span></span>
+        <span><span class="pill pill-minor">Minor</span></span>
+        <span>Age 16</span>
+        <span>Born March 14, 2010</span>
+      </div>
+
+      <div class="account-holders-section">
+        <div class="account-holders-label">Account holders</div>
+        <div class="account-holder-row">
+          <div class="account-holder-avatar">LB</div>
+          <div class="account-holder-info">
+            <div class="account-holder-name">Lena Brooks</div>
+            <div class="account-holder-details">
+              <span>+1 (916) 555-0716</span>
+              <span>lena.brooks@email.com</span>
+            </div>
+          </div>
+          <div class="account-holder-relation">Mother</div>
+        </div>
+        <div class="account-holder-row" style="margin-bottom: 0;">
+          <div class="account-holder-avatar">MB</div>
+          <div class="account-holder-info">
+            <div class="account-holder-name">Marcus Brooks</div>
+            <div class="account-holder-details">
+              <span>+1 (916) 555-0828</span>
+              <span>marcus.brooks@email.com</span>
+            </div>
+          </div>
+          <div class="account-holder-relation">Father</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-column body -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr;">
+      <!-- Left column: details + insights -->
+      <div style="padding: 20px 28px; border-right: 1px solid #E5E7EB;">
+        <div class="contact-card-body" style="padding: 0; margin-bottom: 24px;">
+          <div>
+            <div class="contact-field-label">Instrument</div>
+            <div class="contact-field-value">Guitar</div>
+          </div>
+          <div>
+            <div class="contact-field-label">Instructor</div>
+            <div class="contact-field-value">Mike Torres</div>
+          </div>
+          <div>
+            <div class="contact-field-label">Lesson day</div>
+            <div class="contact-field-value">Saturday</div>
+          </div>
+          <div>
+            <div class="contact-field-label">Lesson time</div>
+            <div class="contact-field-value">11:00 AM</div>
+          </div>
+          <div>
+            <div class="contact-field-label">Service type</div>
+            <div class="contact-field-value">Private</div>
+          </div>
+          <div>
+            <div class="contact-field-label">Last attended</div>
+            <div class="contact-field-value">June 28, 2026</div>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #E5E7EB; padding-top: 20px;">
+          <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 12px; color: #1A1A1A;">AI Insights</h3>
+
+          <div class="action-insight attention" style="margin-bottom: 12px;">
+            <div class="action-insight-head">
+              <div class="action-insight-title">Attendance gap</div>
+              <div class="action-insight-dot"></div>
+            </div>
+            <div class="action-insight-detail">
+              11 days since last lesson. Tyler usually attends Saturdays — he's now outside his normal attendance pattern.
+            </div>
+            <button class="action-insight-link">Check in →</button>
+          </div>
+
+          <div class="action-insight celebrate" style="margin-bottom: 12px;">
+            <div class="action-insight-head">
+              <div class="action-insight-title">Recital nailed</div>
+              <div class="action-insight-dot"></div>
+            </div>
+            <div class="action-insight-detail">
+              Instructor noted Tyler nailed his recital piece.
+            </div>
+            <button class="action-insight-link">Send a congratulations →</button>
+          </div>
+
+          <div class="action-insight opportunity" style="margin-bottom: 12px;">
+            <div class="action-insight-head">
+              <div class="action-insight-title">Ensemble fit</div>
+              <div class="action-insight-dot"></div>
+            </div>
+            <div class="action-insight-detail">
+              Hasn't tried the ensemble program — could be a good fit this fall.
+            </div>
+            <button class="action-insight-link">Recommend program →</button>
+          </div>
+
+          <div class="action-insight attention" style="margin-bottom: 20px;">
+            <div class="action-insight-head">
+              <div class="action-insight-title">Billing follow-up owed</div>
+              <div class="action-insight-tags">
+                <span class="action-insight-source">🔒 team</span>
+                <div class="action-insight-dot"></div>
+              </div>
+            </div>
+            <div class="action-insight-detail">
+              Internal note flagged 60 days past due on tuition.
+            </div>
+            <button class="action-insight-link">Send billing reminder →</button>
+          </div>
+
+          <div class="also-noted">
+            <div class="also-noted-label">Also noted</div>
+            <div class="also-noted-list">
+              <div class="also-noted-item">14-week attendance streak before the gap</div>
+              <div class="also-noted-item">Renewal date approaching on July 30</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column: notes -->
+      <div style="padding: 20px 28px;">
+        <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 12px; color: #1A1A1A;">Notes</h3>
+
+        <div class="notes-section" style="margin-bottom: 20px;">
+          <div class="note-card">
+            <div class="note-avatar staff">SK</div>
+            <div class="note-content">
+              <div class="note-timestamp">Jul 2, 2026 · 3:15 PM</div>
+              <div class="note-text">Called Lena — she's traveling this week, asked to pause reminders until Monday.</div>
+            </div>
+          </div>
+          <div class="note-card">
+            <div class="note-avatar staff">MT</div>
+            <div class="note-content">
+              <div class="note-timestamp">Jun 28, 2026 · 1:40 PM</div>
+              <div class="note-text">Tyler nailed his recital piece. Recommended he try the summer ensemble.</div>
+            </div>
+          </div>
+          <div class="note-card">
+            <div class="note-avatar staff">SK</div>
+            <div class="note-content">
+              <div class="note-timestamp">Jun 14, 2026 · 9:20 AM</div>
+              <div class="note-text">Parent mentioned interest in songwriting. Shared the fall schedule.</div>
+            </div>
+          </div>
+          <button class="note-add"><span class="plus">+</span> Add a note</button>
+        </div>
+
+        <div style="border-top: 1px solid #E5E7EB; padding-top: 20px;">
+          <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 12px; color: #1A1A1A;">Internal notes</h3>
+          <div class="notes-section">
+            <div class="note-card internal">
+              <div class="note-avatar team">T</div>
+              <div class="note-content">
+                <div class="note-timestamp">Jul 1, 2026 · 5:02 PM</div>
+                <div class="note-text">Account is 60 days past due on tuition. Sent reminder email — no response yet.</div>
+              </div>
+            </div>
+            <div class="note-card internal">
+              <div class="note-avatar team">T</div>
+              <div class="note-content">
+                <div class="note-timestamp">Jun 20, 2026 · 10:45 AM</div>
+                <div class="note-text">Instructor requested a Saturday slot change. Approved.</div>
+              </div>
+            </div>
+            <button class="note-add"><span class="plus">+</span> Add internal note</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="contact-card-actions">
+      <button class="btn btn-primary">Send message</button>
+      <button class="btn btn-secondary">Edit contact</button>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -970,6 +1857,42 @@
     document.getElementById('view-' + view).classList.add('active');
     document.getElementById('btn-' + view).classList.add('active');
   }
+
+  const selectedFocus = new Set(['retention', 'billing', 'growth']);
+
+  function toggleFocus(focus, btn) {
+    if (selectedFocus.has(focus)) {
+      selectedFocus.delete(focus);
+    } else {
+      selectedFocus.add(focus);
+    }
+    btn.classList.toggle('active', selectedFocus.has(focus));
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const threshold = parseInt(document.getElementById('intensity-range').value, 10) || 3;
+    let visible = 0;
+    let total = 0;
+
+    document.querySelectorAll('.action-insight[data-score]').forEach(card => {
+      total++;
+      const score = parseInt(card.getAttribute('data-score'), 10) || 0;
+      const focus = (card.getAttribute('data-focus') || '').split(/\s+/).filter(Boolean);
+
+      const passScore = score >= threshold;
+      const passFocus = selectedFocus.size === 0 || focus.some(f => selectedFocus.has(f));
+
+      const show = passScore && passFocus;
+      card.classList.toggle('urgency-hidden', !show);
+      if (show) visible++;
+    });
+
+    const countEl = document.getElementById('highlight-count');
+    if (countEl) countEl.textContent = visible + ' of ' + total + ' highlights shown';
+  }
+
+  applyFilters();
 </script>
 
 </body>

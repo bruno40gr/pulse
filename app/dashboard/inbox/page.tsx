@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { Avatar, Button, Textarea } from '@/components/ui'
+import { Avatar, Button, Textarea, PageHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { colors, typography, spacing } from '@/lib/tokens'
 
@@ -154,14 +154,12 @@ function InboxPageInner() {
 
         {/* Header */}
         <div style={{ padding: spacing['2xl'], borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
-          <h1 style={{ fontSize: typography.size2xl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0, fontFamily: typography.fontSans }}>
-            Inbox
-          </h1>
-          <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginTop: spacing.xs, marginBottom: 0, fontFamily: typography.fontSans }}>
-            {loading ? 'Loading...' : unreadCount > 0
+          <PageHeader
+            title="Inbox"
+            subtitle={loading ? 'Loading...' : unreadCount > 0
               ? `${unreadCount} ${unreadCount === 1 ? 'conversation needs' : 'conversations need'} attention`
               : 'All caught up'}
-          </p>
+          />
         </div>
 
         {/* Thread list */}

@@ -80,13 +80,8 @@ export function SlidePanelHeader({
             color: colors.text,
             fontFamily: typography.fontSans,
             lineHeight: 1.2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: spacing.sm,
-            flexWrap: 'wrap',
           }}>
             {title}
-            {badge}
           </h2>
           {subtitle && (
             <div style={{
@@ -96,6 +91,17 @@ export function SlidePanelHeader({
               fontFamily: typography.fontSans,
             }}>
               {subtitle}
+            </div>
+          )}
+          {badge && (
+            <div style={{
+              marginTop: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}>
+              {badge}
             </div>
           )}
         </div>

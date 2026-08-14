@@ -156,7 +156,7 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                   {contact.first_name} {contact.last_name}
                 </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{instrument || '—'}</td>
-                <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6B6B6B' }}>
+                <td style={{ padding: '10px 16px', fontSize: '12px', color: '#6B6B6B' }}>
                   {(() => {
                     const phone = contact.phone || contact.account_holder_phone
                     const showIcon = contact.is_minor || contact.message_routing === 'account_holder'

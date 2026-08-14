@@ -1,27 +1,30 @@
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { typography, radius, spacing } from '@/lib/tokens'
 
 interface BadgeProps {
-  variant?: 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'minor'
+  variant?: 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'inactive' | 'member' | 'minor'
   children: React.ReactNode
   style?: React.CSSProperties
 }
 
+// Filled pill variants — identical shape, no borders, consistent across all types.
 const variantStyles: Record<string, React.CSSProperties> = {
-  success: { background: colors.surfaceMuted, color: colors.success },
-  warning: { background: colors.surfaceMuted, color: colors.warning },
-  error: { background: colors.surfaceMuted, color: colors.error },
-  info: { background: colors.surfaceMuted, color: colors.textSecondary },
-  neutral: { background: colors.surfaceMuted, color: colors.textSecondary },
-  minor: { background: colors.surfaceMuted, color: colors.textSecondary },
+  success: { background: '#F0FDF4', color: '#16A34A' },
+  warning: { background: '#FFFBEB', color: '#D97706' },
+  error: { background: '#FEF2F2', color: '#DC2626' },
+  info: { background: '#EEF2FF', color: '#4F46E5' },
+  neutral: { background: '#F3F4F6', color: '#9CA3AF' },
+  inactive: { background: '#F3F4F6', color: '#9CA3AF' },
+  member: { background: '#EEF2FF', color: '#4F46E5' },
+  minor: { background: '#FFFBEB', color: '#D97706' },
 }
 
 export function Badge({ variant = 'neutral', children, style }: BadgeProps) {
   return (
     <span style={{
       ...variantStyles[variant],
-      fontSize: typography.sizeXs,
+      fontSize: '14px',
       fontWeight: typography.weightMedium,
-      padding: `2px ${spacing.sm}`,
+      padding: `3px 12px`,
       borderRadius: radius.full,
       fontFamily: typography.fontSans,
       display: 'inline-block',

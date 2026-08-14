@@ -8,15 +8,27 @@ function getTenantId(request: Request): string {
   return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
 }
 
+function maskSid(sid: string | null | undefined): string {
+  if (!sid) return ''
+  return sid.length > 8 ? `${sid.slice(0, 2)}••••${sid.slice(-4)}` : '••••'
+}
+
 export async function GET(request: Request) {
   try {
     const { data, error } = await supabaseAdmin
       .from('twilio_config')
-      .select('id, phone_number, registration_status, created_at')
+      .select('id, account_sid, phone_number, registration_status, created_at')
       .eq('tenant_id', getTenantId(request))
       .single()
     if (error && error.code !== 'PGRST116') throw error
-    return NextResponse.json(data || null)
+    if (!data) return NextResponse.json(null)
+
+    // Mask the SID for display — never expose the full credential
+    return NextResponse.json({
+      ...data,
+      account_sid: maskSid(data.account_sid),
+      has_account_sid: !!data.account_sid,
+    })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
@@ -52,6 +64,19 @@ export async function POST(request: Request) {
       if (error) throw error
       return NextResponse.json(data)
     }
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('twilio_config')
+      .delete()
+      .eq('tenant_id', getTenantId(request))
+    if (error) throw error
+    return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

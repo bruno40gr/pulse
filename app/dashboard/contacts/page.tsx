@@ -1,13 +1,14 @@
 'use client'
 import { useState, useEffect, useRef, memo } from 'react'
 import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, Send, House, RefreshCw } from 'lucide-react'
+import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import StaffSlidePanel from '@/components/contacts/StaffSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel } from '@/components/ui'
+import { Button, Badge, Avatar, SlidePanel, PageHeader } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface Contact {
@@ -51,6 +52,7 @@ export default function ContactsPage() {
   const [isImporterOpen, setIsImporterOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [singleComposeContact, setSingleComposeContact] = useState<any>(null)
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -123,9 +125,8 @@ export default function ContactsPage() {
             (Date.now() - new Date(data.last_synced_at).getTime()) / (1000 * 60 * 60 * 24)
           )
           if (daysSince > 14) setShowStaleBanner(true)
-        } else {
-          setShowStaleBanner(true)
         }
+        // Don't show banner for tenants that have never synced
       })
       .catch(() => {})
   }, [tenantId])
@@ -246,43 +247,41 @@ export default function ContactsPage() {
   return (
     <div style={{ padding: spacing['3xl'] }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: spacing.xl }}>
-        <div>
-          <h1 style={{ fontSize: typography.size2xl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Contacts</h1>
-          <p style={{ color: colors.textSecondary, fontSize: typography.sizeMd, marginTop: spacing.xs }}>
-            {loading ? 'Loading...' : `${contacts.length} students`}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
-          {!loading && (
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              style={{
-                background: 'transparent', border: 'none', padding: 0,
-                color: colors.textSecondary, cursor: syncing ? 'default' : 'pointer',
-                fontSize: typography.sizeSm, fontFamily: typography.fontSans,
-                textDecoration: 'underline', textUnderlineOffset: '2px',
-                opacity: syncing ? 0.5 : 1,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {syncing ? (
-                'Syncing...'
-              ) : lastSynced ? (
-                `Last synced ${Math.floor((Date.now() - new Date(lastSynced).getTime()) / (1000 * 60 * 60 * 24))} days ago`
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <RefreshCw size={12} />
-                  Sync now
-                </span>
-              )}
-            </button>
-          )}
-          <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
-          <Button variant="secondary" onClick={() => {}}>+ Add contact</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Contacts"
+        subtitle={loading ? 'Loading...' : `${contacts.length} students`}
+        right={
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+            {!loading && (
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                style={{
+                  background: 'transparent', border: 'none', padding: 0,
+                  color: colors.textSecondary, cursor: syncing ? 'default' : 'pointer',
+                  fontSize: typography.sizeSm, fontFamily: typography.fontSans,
+                  textDecoration: 'underline', textUnderlineOffset: '2px',
+                  opacity: syncing ? 0.5 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {syncing ? (
+                  'Syncing...'
+                ) : lastSynced ? (
+                  `Last synced ${Math.floor((Date.now() - new Date(lastSynced).getTime()) / (1000 * 60 * 60 * 24))} days ago`
+                ) : (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <RefreshCw size={12} />
+                    Sync now
+                  </span>
+                )}
+              </button>
+            )}
+            <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
+            <Button variant="secondary" onClick={() => {}}>+ Add contact</Button>
+          </div>
+        }
+      />
 
       {/* Stale data banner */}
       {showStaleBanner && !bannerDismissed && (
@@ -398,11 +397,39 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* AI explanation */}
+      {/* AI filter banner */}
       {filterExplanation && (
-        <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, marginBottom: spacing.md, fontFamily: typography.fontSans }}>
-          {filterExplanation}
-        </p>
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
+          padding: '16px 20px',
+          background: '#EFF6FF',
+          border: '1px solid #BFDBFE',
+          borderRadius: '10px',
+          marginBottom: spacing.md,
+        }}>
+          <div style={{
+            width: '28px', height: '28px',
+            background: '#2563EB',
+            color: 'white',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Sparkles size={14} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: typography.sizeXs, fontWeight: 600, color: '#2563EB', marginBottom: '2px', fontFamily: typography.fontSans }}>
+              AI filter
+            </div>
+            <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5, fontFamily: typography.fontSans, fontWeight: 400 }}>
+              {displayIds ? `${displayIds.length} recipients · ` : ''}{filterExplanation}
+            </div>
+          </div>
+        </div>
       )}
 
 
@@ -490,6 +517,24 @@ export default function ContactsPage() {
               setSelectedIds(new Set(ids))
               setSelectedContact(null)
               setIsComposeOpen(true)
+            }
+          }}
+          onViewStaff={(staffId) => {
+            setSelectedStaffId(staffId)
+          }}
+        />
+      )}
+
+      {/* Staff slide panel */}
+      {selectedStaffId && (
+        <StaffSlidePanel
+          staffId={selectedStaffId}
+          onClose={() => setSelectedStaffId(null)}
+          onViewStudent={(personId) => {
+            const contact = contacts.find(c => c.id === personId)
+            if (contact) {
+              setSelectedStaffId(null)
+              setSelectedContact(contact)
             }
           }}
         />
@@ -612,7 +657,7 @@ const ContactRow = memo(function ContactRow({
           </span>
         </span>
       </td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '12px' }}>
+                  <td style={{ padding: '10px 16px', fontSize: '12px' }}>
                     {(() => {
                       const phone = contact.phone || contact.account_holder_phone
                       const showIcon = (contact as any).is_minor || (contact as any).message_routing === 'account_holder'

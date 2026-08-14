@@ -1,9 +1,25 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import { AlertCircle, TrendingDown, Clock, AlertTriangle, Star, CheckCircle, Info, Calendar } from 'lucide-react'
-import { Avatar, Badge, SectionLabel, FieldRow, Button, Textarea, SlidePanel, SlidePanelHeader } from '@/components/ui'
-import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
+import { useState, useEffect } from 'react'
+import { Star } from 'lucide-react'
+import { Button, Badge, Avatar, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
+
+interface AccountHolder {
+  name: string | null
+  phone: string | null
+  email: string | null
+  relationship: string | null
+  is_primary: boolean
+}
+
+interface InstructorInfo {
+  staff_id: string
+  person_id: string | null
+  name: string | null
+  phone: string | null
+  email: string | null
+}
 
 interface Contact {
   id: string
@@ -20,6 +36,8 @@ interface Contact {
   account_holder_name: string | null
   account_holder_phone: string | null
   account_holder_email: string | null
+  account_holders?: AccountHolder[]
+  instructor?: InstructorInfo | null
   custom_fields: Record<string, any>
   message_routing?: string
   is_minor?: boolean
@@ -35,16 +53,21 @@ interface TenantField {
 }
 
 interface Insight {
-  type?: 'risk' | 'milestone' | 'info' | 'nudge'
-  icon?: string
-  text: string
+  headline: string
+  detail?: string | null
+  action?: string | null
+  valence?: 'attention' | 'celebrate' | 'opportunity' | 'passive'
+  source?: 'profile' | 'student_note' | 'internal_note'
+  // backward-compat with old flat shape
+  type?: string
+  text?: string
 }
 
-const insightConfig: Record<string, { icon: React.ReactNode; borderColor: string; bg: string }> = {
-  risk: { icon: <AlertCircle size={14} />, borderColor: colors.error, bg: 'rgba(220,38,38,0.06)' },
-  milestone: { icon: <Star size={14} />, borderColor: colors.green, bg: 'rgba(61,139,95,0.06)' },
-  info: { icon: <Info size={14} />, borderColor: colors.teal, bg: 'rgba(0,168,200,0.06)' },
-  nudge: { icon: <Clock size={14} />, borderColor: colors.yellow, bg: 'rgba(245,166,35,0.06)' },
+const valenceConfig: Record<string, { dotColor: string; bg: string }> = {
+  attention: { dotColor: '#D97706', bg: '#FFFBEB' },
+  celebrate: { dotColor: '#16A34A', bg: '#F0FDF4' },
+  opportunity: { dotColor: '#2563EB', bg: '#EFF6FF' },
+  passive: { dotColor: '#9CA3AF', bg: '#FFFFFF' },
 }
 
 interface ContactSlidePanelProps {
@@ -53,6 +76,7 @@ interface ContactSlidePanelProps {
   onClose: () => void
   onUpdated: (updated: Contact) => void
   onCompose?: (contactIds: string[]) => void
+  onViewStaff?: (staffId: string) => void
 }
 
 const inputStyle: React.CSSProperties = {
@@ -74,76 +98,37 @@ const selectStyle: React.CSSProperties = {
   appearance: 'auto',
 }
 
-const fieldLabelStyle: React.CSSProperties = {
-  fontSize: typography.sizeBase,
-  fontWeight: typography.weightMedium,
-  color: colors.textMuted,
-  marginBottom: '2px',
-  fontFamily: typography.fontSans,
+const dividerStyle: React.CSSProperties = {
+  height: '1px',
+  background: colors.borderLight,
+  margin: '24px 0',
 }
 
-const fieldValueStyle: React.CSSProperties = {
-  ...typography.body,
-  fontWeight: typography.weightMedium,
-  color: colors.text,
-}
-
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
 
-  const hasDistinctAccountHolder = !!(
-    contact.account_holder_name &&
-    !contact.account_holder_name.includes('(account)') &&
-    (
-      contact.account_holder_phone !== contact.phone ||
-      contact.account_holder_email !== contact.email
-    )
-  )
-
-  const hasEnrollment = !!(
-    contact.custom_fields?.instrument ||
-    contact.custom_fields?.service_type ||
-    contact.custom_fields?.lesson_day ||
-    contact.custom_fields?.instructor ||
-    contact.custom_fields?.plan_name ||
-    contact.custom_fields?.band_name
-  )
-
-  const formatDate = (date: string | null | undefined) => {
+  const formatDOB = (date: string | null | undefined) => {
     if (!date) return null
     return new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
-  const sectionHeaderStyle: React.CSSProperties = {
-    fontSize: typography.sizeSm,
-    fontWeight: typography.weightSemibold,
-    color: colors.textMuted,
-    marginBottom: '12px',
-    fontFamily: typography.fontSans,
-  }
-
   const [insights, setInsights] = useState<Insight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
-  const [internalNoteInput, setInternalNoteInput] = useState('')
-  const [studentNoteInput, setStudentNoteInput] = useState('')
-  const [internalNotesSaving, setInternalNotesSaving] = useState(false)
   const [studentNotesSaving, setStudentNotesSaving] = useState(false)
-  const [notesHistory, setNotesHistory] = useState<{text: string, timestamp: string}[]>(
-    Array.isArray(contact.notes_history) ? contact.notes_history : []
-  )
+  const [internalNotesSaving, setInternalNotesSaving] = useState(false)
   const [studentNotesHistory, setStudentNotesHistory] = useState<{text: string, timestamp: string}[]>(
     Array.isArray(contact.student_notes_history) ? contact.student_notes_history : []
+  )
+  const [internalNotesHistory, setInternalNotesHistory] = useState<{text: string, timestamp: string}[]>(
+    Array.isArray(contact.notes_history) ? contact.notes_history : []
   )
   const [saving, setSaving] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [edits, setEdits] = useState<Record<string, any>>({})
-  const [showInternalInput, setShowInternalInput] = useState(false)
-  const [showStudentInput, setShowStudentInput] = useState(false)
-  const [showActions, setShowActions] = useState(false)
-      const actionsRef = useRef<HTMLDivElement>(null)
 
+  // ── Load insights with note context ──
   useEffect(() => {
     const cacheKey = `pulse_contact_insights_${contact.id}`
     const cacheTimeKey = `pulse_contact_insights_time_${contact.id}`
@@ -156,7 +141,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         if (age < 10 * 60 * 1000) {
           const parsed = JSON.parse(cached)
           if (Array.isArray(parsed)) {
-            setInsights(parsed)
+            setInsights(normalizeInsights(parsed))
             setInsightsLoading(false)
             return
           }
@@ -177,13 +162,18 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     fetch('/api/contact-insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact: contactSummary, notes: '' })
+      body: JSON.stringify({
+        contact: contactSummary,
+        student_notes: studentNotesHistory.map(n => n.text).join('\n'),
+        internal_notes: internalNotesHistory.map(n => n.text).join('\n'),
+      })
     })
       .then(r => r.json())
       .then(data => {
         if (data.insights) {
-          setInsights(data.insights)
-          localStorage.setItem(cacheKey, JSON.stringify(data.insights))
+          const normalized = normalizeInsights(data.insights)
+          setInsights(normalized)
+          localStorage.setItem(cacheKey, JSON.stringify(normalized))
           localStorage.setItem(cacheTimeKey, new Date().toISOString())
         }
         setInsightsLoading(false)
@@ -191,16 +181,26 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       .catch(() => setInsightsLoading(false))
   }, [contact.id])
 
-  useEffect(() => {
-    if (!showActions) return
-    const handler = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
-        setShowActions(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showActions])
+  // Normalize both new (headline/valence) and legacy (text/type) shapes
+  const normalizeInsights = (raw: any[]): Insight[] => {
+    return raw
+      .filter(i => i && (i.headline || i.text))
+      .map(i => {
+        const legacyValence =
+          i.type === 'risk' || i.type === 'nudge' ? 'attention' :
+          i.type === 'milestone' ? 'celebrate' :
+          i.type === 'opportunity' ? 'opportunity' :
+          i.type === 'info' ? 'passive' : undefined
+
+        return {
+          headline: i.headline || i.text,
+          detail: i.detail ?? null,
+          action: i.action ?? null,
+          valence: i.valence || legacyValence || 'passive',
+          source: i.source || 'profile',
+        }
+      })
+  }
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -222,34 +222,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     }
   }
 
-  const saveInternalNote = async () => {
-    if (!internalNoteInput.trim()) return
-    setInternalNotesSaving(true)
-    const newEntry = { text: internalNoteInput.trim(), timestamp: new Date().toISOString() }
-    const updated = [newEntry, ...notesHistory]
-    await patch({ notes_history: updated, notes: internalNoteInput.trim() }, true)
-    setNotesHistory(updated)
-    setInternalNoteInput('')
-    setInternalNotesSaving(false)
-    setShowInternalInput(false)
-    showToast('changes saved')
-  }
-
-  const saveStudentNote = async () => {
-    if (!studentNoteInput.trim()) return
-    setStudentNotesSaving(true)
-    const newEntry = { text: studentNoteInput.trim(), timestamp: new Date().toISOString() }
-    const updated = [newEntry, ...studentNotesHistory]
-    await patch({ student_notes_history: updated }, true)
-    setStudentNotesHistory(updated)
-    setStudentNoteInput('')
-    setStudentNotesSaving(false)
-    setShowStudentInput(false)
-    showToast('changes saved')
-  }
-
   const handleStartEditing = () => {
     const initial: Record<string, any> = {}
+    if (contact.first_name) initial.first_name = contact.first_name
+    if (contact.last_name) initial.last_name = contact.last_name
     if (contact.phone) initial.phone = contact.phone
     if (contact.email) initial.email = contact.email
     if (contact.date_of_birth) initial.date_of_birth = contact.date_of_birth
@@ -303,33 +279,161 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   const age = getAgeFromDOB(contact.date_of_birth)
   const computedIsMinor = age !== null ? age < 18 : contact.is_minor
-  const ageLabel = age !== null ? `${age} y.o` : null
+  const ageLabel = age !== null ? `Age ${age}` : null
   const statusLabel = contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)
-  const optedOutLabel = contact.opted_out ? 'Opted out' : null
 
-  const showAccountHolder = computedIsMinor
-    ? !!(contact.account_holder_name)
-    : hasDistinctAccountHolder
+  const statusVariant = contact.opted_out
+    ? 'error'
+    : contact.client_status === 'active'
+    ? 'success'
+    : contact.client_status === 'pending'
+    ? 'warning'
+    : contact.client_status === 'inactive'
+    ? 'inactive'
+    : contact.client_status === 'lead'
+    ? 'info'
+    : 'neutral'
 
-  const divider = <div style={{ height: '1px', background: colors.borderLight, margin: `${spacing.md} ${spacing['2xl']}` }} />
-  const sectionPad: React.CSSProperties = { padding: `0 ${spacing['2xl']}` }
+  const accountHolders: AccountHolder[] = contact.account_holders?.length
+    ? contact.account_holders
+    : (contact.account_holder_name
+      ? [{
+          name: contact.account_holder_name,
+          phone: contact.account_holder_phone,
+          email: contact.account_holder_email,
+          relationship: null,
+          is_primary: true,
+        }]
+      : [])
 
-  const noteAvatar = (initial: string, bg: string) => (
-    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: 'white', flexShrink: 0, marginTop: '1px' }}>
-      {initial}
-    </div>
-  )
+  const showAccountHolders = computedIsMinor
+    ? accountHolders.length > 0
+    : accountHolders.length > 0 && (
+        accountHolders[0].phone !== contact.phone ||
+        accountHolders[0].email !== contact.email
+      )
 
-  const formatNoteTimestamp = (ts: string) => {
-    const d = new Date(ts)
-    return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+  const getInitials = (name: string | null) => {
+    if (!name) return '?'
+    const parts = name.split(' ')
+    return parts.map(p => p[0]).join('').toUpperCase().slice(0, 2)
   }
 
+  const populatedFields = tenantFields.filter(f => {
+    const val = contact.custom_fields?.[f.field_key]
+    return val !== undefined && val !== null && val !== ''
+  })
+
+  const actionInsights = insights.filter(i => i.valence && i.valence !== 'passive')
+  const passiveInsights = insights.filter(i => !i.valence || i.valence === 'passive')
+
+  const instructorFirst = contact.instructor?.name?.split(' ')[0] || ''
+  const instructorLast = contact.instructor?.name?.split(' ').slice(1).join(' ') || ''
+
+  // ── Full-screen edit form ──
+  if (isEditing) {
+    const editFirstName = edits.first_name ?? contact.first_name
+    const editLastName = edits.last_name ?? contact.last_name
+
+    return (
+      <SlidePanel isOpen={true} onClose={onClose}>
+        <SlidePanelHeader
+          title="Edit contact"
+          onClose={onClose}
+          toast={toastMessage || undefined}
+        />
+
+        <div style={{ flex: 1, overflowY: 'auto', background: colors.surface, padding: '0 28px 24px' }}>
+          {/* Profile picture + name */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px 0 20px' }}>
+            <Avatar
+              firstName={editFirstName}
+              lastName={editLastName}
+              size={56}
+              src={shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(editFirstName, editLastName) : undefined}
+            />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
+                {editFirstName} {editLastName}
+              </div>
+              <div style={{ fontSize: '12px', color: colors.textMuted, marginTop: '2px' }}>
+                Profile picture upload coming soon
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+            <div>
+              <FieldLabel>First name</FieldLabel>
+              <input type="text" value={editFirstName} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" style={inputStyle} />
+            </div>
+            <div>
+              <FieldLabel>Last name</FieldLabel>
+              <input type="text" value={editLastName} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" style={inputStyle} />
+            </div>
+            <div>
+              <FieldLabel>Phone</FieldLabel>
+              <input type="text" value={edits.phone ?? contact.phone ?? ''} onChange={e => updateEdit('phone', e.target.value)} placeholder="Phone number" style={inputStyle} />
+            </div>
+            <div>
+              <FieldLabel>Email</FieldLabel>
+              <input type="email" value={edits.email ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" style={inputStyle} />
+            </div>
+            <div>
+              <FieldLabel>Date of birth</FieldLabel>
+              <input type="date" value={edits.date_of_birth ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: '160px' }} />
+            </div>
+          </div>
+
+          <div style={dividerStyle} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+            {tenantFields.map(f => {
+              const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
+              if (f.field_options?.length) {
+                return (
+                  <div key={f.field_key}>
+                    <FieldLabel>{f.field_label}</FieldLabel>
+                    <select value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} style={selectStyle}>
+                      <option value="">—</option>
+                      {f.field_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                )
+              }
+              return (
+                <div key={f.field_key}>
+                  <FieldLabel>{f.field_label}</FieldLabel>
+                  <input type="text" value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} placeholder={f.field_label} style={inputStyle} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Footer — Cancel/Done (matches normal-mode button size) */}
+        <div style={{
+          padding: `16px 28px`,
+          borderTop: `1px solid ${colors.borderLight}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          flexShrink: 0,
+          background: colors.surface,
+        }}>
+          <Button variant="secondary" onClick={handleCancelEditing}>Cancel</Button>
+          <Button variant="primary" onClick={handleSaveEdits} disabled={saving}>{saving ? 'Saving...' : 'Done'}</Button>
+        </div>
+      </SlidePanel>
+    )
+  }
+
+  // ── Normal view ──
   return (
     <SlidePanel isOpen={true} onClose={onClose}>
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
-        subtitle={[ageLabel, optedOutLabel].filter(Boolean).join(' \u2022 ') || undefined}
         avatar={{
           firstName: contact.first_name,
           lastName: contact.last_name,
@@ -337,337 +441,288 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined,
         }}
         titleSize={typography.size2xl}
-        badge={<Badge variant={
-          contact.opted_out ? 'error' :
-          contact.client_status === 'active' ? 'success' :
-          contact.client_status === 'pending' ? 'warning' :
-          contact.client_status === 'inactive' ? 'neutral' :
-          contact.client_status === 'lead' ? 'info' :
-          'neutral'
-        }>{statusLabel}</Badge>}
+        badge={
+          <>
+            <Badge variant={statusVariant as any}>{statusLabel}</Badge>
+            {computedIsMinor && <Badge variant="minor">Minor</Badge>}
+            {ageLabel && <span style={{ fontSize: '13px', color: colors.textMuted, fontWeight: 400 }}>{ageLabel}</span>}
+          </>
+        }
         onClose={onClose}
         toast={toastMessage || undefined}
       />
 
-      {/* Body */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 480px', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      {/* Body — 2 equal columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
-        <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
-          {/* Account holder — always first for minors, only if distinct for adults */}
-          {showAccountHolder && (
+        <div style={{ overflowY: 'auto', padding: '0 28px 24px', borderRight: `1px solid ${colors.borderLight}` }}>
+
+          {/* Account holders (conditional — no card space / divider when absent) */}
+          {showAccountHolders ? (
             <>
-              <div style={{ padding: `${spacing.xl} ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>Account holder</SectionLabel>
-              </div>
-              <div style={sectionPad}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
-                  {contact.account_holder_name && (
-                    <div>
-                      <div style={fieldLabelStyle}>Name</div>
-                      <div style={fieldValueStyle}>{cleanName(contact.account_holder_name)}</div>
+              <div style={{ padding: '24px 0 0' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: colors.textMuted, marginBottom: '10px' }}>
+                  Account holders
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {accountHolders.map((ah, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 14px',
+                      background: '#f6f8f8',
+                      borderRadius: '8px',
+                    }}>
+                      <div style={{
+                        width: '32px', height: '32px',
+                        background: '#E5E7EB',
+                        color: '#6B7280',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                        {getInitials(ah.name)}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
+                          {cleanName(ah.name) || '—'}
+                        </div>
+                        {(ah.phone || ah.email) && (
+                          <div style={{ fontSize: '12px', color: colors.textMuted, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            {ah.phone && <span>{displayPhone(ah.phone)}</span>}
+                            {ah.email && <span>{ah.email}</span>}
+                          </div>
+                        )}
+                      </div>
+                      {ah.relationship && (
+                        <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, marginLeft: 'auto', flexShrink: 0 }}>
+                          {ah.relationship}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {contact.family_name && (
-                    <div>
-                      <div style={fieldLabelStyle}>Family</div>
-                      <div style={fieldValueStyle}>{cleanName(contact.family_name)}</div>
-                    </div>
-                  )}
-                  {contact.account_holder_phone && (
-                    <div>
-                      <div style={fieldLabelStyle}>Phone</div>
-                      <div style={fieldValueStyle}>{displayPhone(contact.account_holder_phone)}</div>
-                    </div>
-                  )}
-                  {contact.account_holder_email && (
-                    <div>
-                      <div style={fieldLabelStyle}>Email</div>
-                      <div style={fieldValueStyle}>{contact.account_holder_email}</div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
+              <div style={dividerStyle} />
             </>
+          ) : (
+            <div style={{ height: '24px' }} />
           )}
 
-          {/* Student contact info — Phone, Email, DOB */}
-          <div style={{ padding: `${showAccountHolder ? spacing.md : spacing.xl} ${spacing['2xl']} 0` }}>
-            {isEditing ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                <div>
-                  <div style={fieldLabelStyle}>Phone</div>
-                  <input
-                    type="text"
-                    value={edits.phone ?? contact.phone ?? ''}
-                    onChange={e => updateEdit('phone', e.target.value)}
-                    placeholder="Phone number"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <div style={fieldLabelStyle}>Email</div>
-                  <input
-                    type="email"
-                    value={edits.email ?? contact.email ?? ''}
-                    onChange={e => updateEdit('email', e.target.value)}
-                    placeholder="Email address"
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <div style={fieldLabelStyle}>Date of birth</div>
-                  <input
-                    type="date"
-                    value={edits.date_of_birth ?? contact.date_of_birth ?? ''}
-                    onChange={e => updateEdit('date_of_birth', e.target.value || '')}
-                    style={{ ...inputStyle, width: '160px' }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg} ${spacing['3xl']}` }}>
-                {displayPhone(contact.phone) && (
-                  <div>
-                    <div style={fieldLabelStyle}>Phone</div>
-                    <div style={fieldValueStyle}>{displayPhone(contact.phone)}</div>
+          {/* AI Insights */}
+          <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Star size={16} fill="currentColor" /> AI Insights
+          </SectionTitle>
+          {insightsLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+              {[...Array(3)].map((_, i) => (
+                <div key={i} style={{ height: '36px', background: colors.borderLight, borderRadius: '10px', width: i === 2 ? '60%' : '100%' }} />
+              ))}
+            </div>
+          ) : actionInsights.length === 0 && passiveInsights.length === 0 ? (
+            <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
+              No insights available for this contact yet.
+            </p>
+          ) : (
+            <div style={{ marginTop: '10px' }}>
+              {/* Action cards — headline + detail only, no CTA */}
+              {actionInsights.map((insight, i) => {
+                const config = valenceConfig[insight.valence || 'passive']
+                return (
+                  <div key={i} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    padding: '18px 20px',
+                    borderRadius: '10px',
+                    background: config.bg,
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text, lineHeight: 1.4 }}>
+                        {insight.headline}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        {insight.source === 'internal_note' && (
+                          <span style={{
+                            fontSize: '10px', fontWeight: 600, color: '#6B7280',
+                            background: 'rgba(255,255,255,0.7)',
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            borderRadius: '4px', padding: '1px 6px',
+                            whiteSpace: 'nowrap',
+                          }}>🔒 team</span>
+                        )}
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: config.dotColor, marginTop: '5px' }} />
+                      </div>
+                    </div>
+                    {insight.detail && (
+                      <div style={{ fontSize: '14px', color: colors.text, lineHeight: 1.5 }}>
+                        {insight.detail}
+                      </div>
+                    )}
                   </div>
-                )}
-                {contact.email && (
-                  <div>
-                    <div style={fieldLabelStyle}>Email</div>
-                    <div style={fieldValueStyle}>{contact.email}</div>
-                  </div>
-                )}
+                )
+              })}
+
+              {/* Passive insights — normal body styling, no label */}
+              {passiveInsights.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {passiveInsights.map((insight, i) => (
+                    <div key={i} style={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      color: '#1A1A1A',
+                      fontFamily: 'var(--font-dm-sans), sans-serif',
+                      lineHeight: 1.5,
+                    }}>
+                      {insight.headline}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Details grid */}
+          {(populatedFields.length > 0 || contact.date_of_birth) && (
+            <>
+              <div style={dividerStyle} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {contact.date_of_birth && (
                   <div>
-                    <div style={fieldLabelStyle}>Date of birth</div>
-                    <div style={fieldValueStyle}>{formatDate(contact.date_of_birth)}</div>
+                    <FieldLabel>DOB</FieldLabel>
+                    <FieldValue>{formatDOB(contact.date_of_birth)}</FieldValue>
                   </div>
                 )}
-                {contact.custom_fields?.preferred_channel && (
-                  <div>
-                    <div style={fieldLabelStyle}>Preferred channel</div>
-                    <div style={fieldValueStyle}>{contact.custom_fields.preferred_channel}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                {populatedFields.map(f => {
+                  const val = contact.custom_fields?.[f.field_key]
 
-          {/* AI Insights — in left column, tinted backgrounds */}
-          {!showAccountHolder && divider}
-          <div style={{ padding: `${spacing.md} ${spacing['2xl']} ${spacing.xs}` }}>
-            <SectionLabel style={sectionHeaderStyle}>AI Insights</SectionLabel>
-          </div>
-          <div style={{ ...sectionPad, paddingBottom: spacing.sm }}>
-            {insightsLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} style={{ height: '36px', background: colors.borderLight, borderRadius: radius.md, width: i === 2 ? '60%' : '100%' }} />
-                ))}
-              </div>
-            ) : insights.length === 0 ? (
-              <p style={{ ...typography.bodySmall, color: colors.textMuted, margin: 0 }}>No insights yet.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {insights.map((insight, i) => {
-                  const config = insightConfig[insight.type ?? 'info'] ?? insightConfig.info
+                  if (f.field_key === 'instructor') {
+                    // Instructor name may come from instructor.name or custom_fields
+                    const instrName = contact.instructor?.name || String(val || '')
+                    const firstName = instrName.split(' ')[0] || ''
+                    const lastName = instrName.split(' ').slice(1).join(' ') || ''
+
+                    const content = (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Avatar
+                          firstName={firstName}
+                          lastName={lastName}
+                          size={28}
+                          src={shouldUseDiceBear(getActiveTenantId()) && contact.instructor?.person_id
+                            ? getDiceBearUrl(firstName, lastName)
+                            : undefined}
+                        />
+                        <span
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: contact.instructor?.staff_id ? '#2563EB' : colors.text,
+                            textDecoration: contact.instructor?.staff_id ? 'underline' : 'none',
+                          }}
+                        >
+                          {instrName || 'Unassigned'}
+                        </span>
+                      </div>
+                    )
+
+                    // Clickable only when a staff record exists to open
+                    if (contact.instructor?.staff_id) {
+                      return (
+                        <div key={f.field_key}>
+                          <FieldLabel>{f.field_label}</FieldLabel>
+                          <button
+                            onClick={() => onViewStaff?.(contact.instructor!.staff_id)}
+                            style={{
+                              background: 'none', border: 'none', padding: 0,
+                              cursor: 'pointer', fontFamily: typography.fontSans,
+                            }}
+                          >
+                            {content}
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div key={f.field_key}>
+                        <FieldLabel>{f.field_label}</FieldLabel>
+                        {content}
+                      </div>
+                    )
+                  }
+
                   return (
-                    <div key={i} style={{
-                      background: config.bg,
-                      borderLeft: `3px solid ${config.borderColor}`,
-                      borderRadius: radius.md,
-                      padding: `${spacing.sm} ${spacing.md}`,
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: spacing.sm,
-                    }}>
-                      <span style={{ color: config.borderColor, flexShrink: 0, marginTop: '2px' }}>{config.icon}</span>
-                      <span style={{ ...typography.bodySmall, color: colors.text, lineHeight: 1.5 }}>{insight.text}</span>
+                    <div key={f.field_key}>
+                      <FieldLabel>{f.field_label}</FieldLabel>
+                      <FieldValue>{String(val).charAt(0).toUpperCase() + String(val).slice(1)}</FieldValue>
                     </div>
                   )
                 })}
               </div>
-            )}
-          </div>
-
-          {/* More details */}
-          {tenantFields.length > 0 && (
-            <>
-              {divider}
-              <div style={{ padding: `0 ${spacing['2xl']} ${spacing.xs}` }}>
-                <SectionLabel style={sectionHeaderStyle}>More details</SectionLabel>
-              </div>
-              <div style={{ ...sectionPad, paddingBottom: spacing['2xl'] }}>
-                {!hasEnrollment && !isEditing ? (
-                  <p style={{ fontSize: typography.sizeSm, color: colors.textMuted, margin: 0, fontFamily: typography.fontSans }}>
-                    No classes scheduled.
-                  </p>
-                ) : isEditing ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                    {tenantFields.map(f => {
-                      const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
-                      if (f.field_options?.length) {
-                        return (
-                          <div key={f.field_key}>
-                            <div style={fieldLabelStyle}>{f.field_label}</div>
-                            <select
-                              value={String(currentVal)}
-                              onChange={e => updateEdit(f.field_key, e.target.value)}
-                              style={selectStyle}
-                            >
-                              <option value="">—</option>
-                              {f.field_options.map(opt => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )
-                      }
-                      return (
-                        <div key={f.field_key}>
-                          <div style={fieldLabelStyle}>{f.field_label}</div>
-                          <input
-                            type="text"
-                            value={String(currentVal)}
-                            onChange={e => updateEdit(f.field_key, e.target.value)}
-                            placeholder={f.field_label}
-                            style={inputStyle}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  tenantFields.map(f => {
-                    const val = contact.custom_fields?.[f.field_key]
-                    if (!val) return null
-                    return (
-                      <FieldRow key={f.field_key} label={f.field_label} value={String(val).charAt(0).toUpperCase() + String(val).slice(1)} />
-                    )
-                  })
-                )}
-              </div>
             </>
           )}
         </div>
 
-        {/* RIGHT COLUMN — wider, notes-focused */}
-        <div style={{ overflowY: 'auto', padding: `${spacing.xl} ${spacing['2xl']} ${spacing['2xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.xl, background: colors.surface }}>
-          {/* Notes */}
-          <div>
-            <SectionLabel style={sectionHeaderStyle}>Notes</SectionLabel>
-            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.md }}>Staff and parent communications</div>
+        {/* RIGHT COLUMN — Notes + Internal notes */}
+        <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
+          <NotesSection
+            title="Notes"
+            notes={studentNotesHistory}
+            avatarInitial="S"
+            avatarBg={colors.crimson}
+            cardBg="#FFFFFF"
+            addLabel="Add a note"
+            saving={studentNotesSaving}
+            onSave={(text) => {
+              const newEntry = { text, timestamp: new Date().toISOString() }
+              const updated = [newEntry, ...studentNotesHistory]
+              patch({ student_notes_history: updated }, true)
+              setStudentNotesHistory(updated)
+              showToast('changes saved')
+            }}
+          />
 
-            {!showStudentInput ? (
-              <Button
-                variant="secondary"
-                onClick={() => setShowStudentInput(true)}
-                style={{ width: '100%', justifyContent: 'flex-start' }}
-              >
-                + Add a note
-              </Button>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                <Textarea
-                  value={studentNoteInput}
-                  onChange={e => setStudentNoteInput(e.target.value)}
-                  placeholder="Write a note..."
-                  style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
-                />
-                <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-                  <Button variant="ghost" size="sm" onClick={() => { setShowStudentInput(false); setStudentNoteInput('') }}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={saveStudentNote} disabled={studentNotesSaving}>
-                    {studentNotesSaving ? 'Saving...' : 'Save note'}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {studentNotesHistory.length > 0 && !showStudentInput && (
-              <div style={{ marginTop: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {studentNotesHistory.map((entry, i) => (
-                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: `${spacing.md}`, display: 'flex', gap: spacing.md }}>
-                    {noteAvatar('S', colors.crimson)}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                        {formatNoteTimestamp(entry.timestamp)}
-                      </div>
-                      <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <div style={dividerStyle} />
 
-          {/* Internal notes */}
-          <div>
-            <SectionLabel style={sectionHeaderStyle}>Internal notes</SectionLabel>
-            <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.md }}>Visible to your team only</div>
-
-            {!showInternalInput ? (
-              <Button
-                variant="secondary"
-                onClick={() => setShowInternalInput(true)}
-                style={{ width: '100%', justifyContent: 'flex-start' }}
-              >
-                + Add internal note
-              </Button>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                <Textarea
-                  value={internalNoteInput}
-                  onChange={e => setInternalNoteInput(e.target.value)}
-                  placeholder="Write an internal note..."
-                  style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, background: colors.backgroundSecondary, resize: 'vertical' }}
-                />
-                <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-                  <Button variant="ghost" size="sm" onClick={() => { setShowInternalInput(false); setInternalNoteInput('') }}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={saveInternalNote} disabled={internalNotesSaving}>
-                    {internalNotesSaving ? 'Saving...' : 'Save note'}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {notesHistory.length > 0 && !showInternalInput && (
-              <div style={{ marginTop: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {notesHistory.map((entry, i) => (
-                  <div key={i} style={{ background: colors.backgroundSecondary, borderRadius: radius.md, padding: `${spacing.md}`, display: 'flex', gap: spacing.md }}>
-                    {noteAvatar('T', colors.textMuted)}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.xs }}>
-                        {formatNoteTimestamp(entry.timestamp)}
-                      </div>
-                      <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <NotesSection
+            title="Internal notes"
+            notes={internalNotesHistory}
+            avatarInitial="T"
+            avatarBg={colors.textMuted}
+            cardBg="#f6f8f8"
+            addLabel="Add internal note"
+            saving={internalNotesSaving}
+            onSave={(text) => {
+              const newEntry = { text, timestamp: new Date().toISOString() }
+              const updated = [newEntry, ...internalNotesHistory]
+              patch({ notes_history: updated, notes: text }, true)
+              setInternalNotesHistory(updated)
+              showToast('changes saved')
+            }}
+          />
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: `${spacing.lg} ${spacing['2xl']}`, borderTop: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: colors.surface }}>
-        <span />
-        {isEditing ? (
-          <div style={{ display: 'flex', gap: spacing.sm }}>
-            <Button variant="secondary" onClick={handleCancelEditing}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveEdits} disabled={saving}>{saving ? 'Saving...' : 'Done'}</Button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: spacing.sm }}>
-            <Button variant="secondary" size="sm" onClick={handleStartEditing}>Edit</Button>
-            <Button variant="primary" size="sm" onClick={() => onCompose?.([contact.id])}>Send a message</Button>
-          </div>
-        )}
+      {/* Footer — Edit contact + Send message (md size, matches edit mode) */}
+      <div style={{
+        padding: `16px 28px`,
+        borderTop: `1px solid ${colors.borderLight}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '10px',
+        flexShrink: 0,
+        background: colors.surface,
+      }}>
+        <Button variant="secondary" onClick={handleStartEditing}>Edit contact</Button>
+        <Button variant="primary" onClick={() => onCompose?.([contact.id])}>Send message</Button>
       </div>
-
     </SlidePanel>
   )
 }

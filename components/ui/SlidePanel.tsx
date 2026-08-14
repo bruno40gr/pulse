@@ -14,13 +14,14 @@ export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', childr
     <>
       <div
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${overlayOpacity})`, zIndex: 40 }}
+        style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${overlayOpacity})`, zIndex: 40, animation: 'fadeIn 0.2s ease-out' }}
       />
       <div style={{
         position: 'fixed', top: 0, right: 0, height: '100vh',
         width, background: colors.surface, zIndex: 50,
         boxShadow: shadows.panel,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        animation: 'slideInRight 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
       }}>
         {children}
       </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { ensureTenantSettingsTable } from '@/lib/ensure-tenant-settings'
 import Anthropic from '@anthropic-ai/sdk'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -33,6 +34,20 @@ export async function GET(request: Request) {
     }
 
     const today = new Date()
+
+    // Load tenant pulse settings (threshold + focus areas) to influence generation
+    await ensureTenantSettingsTable()
+    const { data: tenantSettings } = await supabaseAdmin
+      .from('tenant_settings')
+      .select('highlight_threshold, focus_areas, brand_voice, brand_markdown')
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+
+    const highlightThreshold = tenantSettings?.highlight_threshold ?? 3
+    const focusAreas: string[] = tenantSettings?.focus_areas?.length
+      ? tenantSettings.focus_areas
+      : ['retention', 'billing', 'growth']
+    const brandVoice = tenantSettings?.brand_voice || tenantSettings?.brand_markdown || ''
 
     const { data: contacts, error } = await supabaseAdmin
       .from('contacts')
@@ -74,13 +89,16 @@ Today is ${today.toLocaleDateString()}.
 
 The business has these custom fields: ${JSON.stringify(fields?.map(f => f.field_label))}.
 
+${brandVoice ? `Brand voice to match in tone and style:\n${brandVoice}\n` : ''}Focus areas to prioritize (only surface moments that directly serve these): ${focusAreas.join(', ')}.
+
+Quality threshold: ${highlightThreshold} on a 1-5 scale (1 = include weak/minor signals, 5 = only surface strong, clear, high-value moments). If a moment's importance is below this threshold, skip it.
+
 Here is a summary of their contacts: ${JSON.stringify(summary)}
 
-Generate 4 insight cards for their dashboard. Each card should represent a meaningful moment or opportunity — not just problems. Think about:
-- Relationships at risk (missed sessions, long absence, inactive status)
-- Milestones worth celebrating (belt level achievements, subject level completions, anniversaries)
-- Opportunities to delight (students ready to advance, classes with open spots, seasonal moments)
-- Operational nudges (overdue follow-ups, upcoming renewals)
+Generate up to 4 insight cards for their dashboard. Each card should represent a meaningful moment that matches the focus areas and clears the quality threshold. Think about:
+- Retention (missed sessions, long absence, inactive status, milestones, onboarding)
+- Billing (overdue follow-ups, upcoming renewals)
+- Growth (ready to advance, open spots, promotions, seasonal moments)
 
 Return ONLY valid JSON, no markdown, no backticks:
 {

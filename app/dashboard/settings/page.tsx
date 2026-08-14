@@ -1,42 +1,138 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
+import { Button, PageHeader } from '@/components/ui'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 
-interface CampaignCopy {
-  useCase: string
-  campaignDescription: string
-  sampleMessages: string[]
-  consentLanguage: string
-  messageAttributes: {
-    hasLinks: boolean
-    hasPhoneNumbers: boolean
-    hasLending: boolean
-    hasAgeGated: boolean
-  }
-}
+type Tab = 'account' | 'brand' | 'pulse'
+
+const FOCUS_OPTIONS = [
+  { value: 'retention', label: 'Retention' },
+  { value: 'billing', label: 'Billing' },
+  { value: 'growth', label: 'Growth' },
+]
 
 export default function SettingsPage() {
+  const tenantId = getActiveTenantId()
+  const [tab, setTab] = useState<Tab>('account')
+
+  // ── Shared styles ──
+  const inputS: React.CSSProperties = {
+    width: '100%',
+    padding: `${spacing.md} ${spacing.lg}`,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    fontSize: typography.sizeMd,
+    fontFamily: typography.fontSans,
+    boxSizing: 'border-box',
+    outline: 'none',
+    background: colors.surface,
+  }
+  const labelS: React.CSSProperties = {
+    fontSize: typography.sizeSm,
+    fontWeight: typography.weightMedium,
+    color: colors.text,
+    display: 'block',
+    marginTop: spacing.xl,
+  }
+  const hintS: React.CSSProperties = {
+    fontSize: typography.sizeXs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    display: 'block',
+  }
+  const cardS: React.CSSProperties = {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.xl,
+    padding: spacing['3xl'],
+    marginBottom: spacing.xl,
+  }
+  const sectionTitleS: React.CSSProperties = {
+    fontSize: typography.sizeLg,
+    fontWeight: typography.weightSemibold,
+    color: colors.text,
+    margin: '0 0 4px',
+  }
+  const sectionSubS: React.CSSProperties = {
+    fontSize: typography.sizeBase,
+    color: colors.textSecondary,
+    margin: 0,
+    lineHeight: 1.6,
+    maxWidth: '560px',
+  }
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'account', label: 'Account' },
+    { key: 'brand', label: 'Brand' },
+    { key: 'pulse', label: 'Pulse' },
+  ]
+
+  return (
+    <div style={{ padding: spacing['4xl'], maxWidth: '1100px' }}>
+      {/* Header */}
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your account integrations, brand voice, and Pulse preferences."
+      />
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing['3xl'] }}>
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: `${spacing.md} ${spacing.xl}`,
+              fontSize: typography.sizeMd,
+              fontWeight: tab === t.key ? typography.weightSemibold : typography.weightNormal,
+              color: tab === t.key ? colors.text : colors.textMuted,
+              cursor: 'pointer',
+              fontFamily: typography.fontSans,
+              borderBottom: `2px solid ${tab === t.key ? colors.crimson : 'transparent'}`,
+              marginBottom: '-1px',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'account' && <AccountTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+      {tab === 'brand' && <BrandTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+      {tab === 'pulse' && <PulseTab tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+    </div>
+  )
+}
+
+/* ───────────────────────── Account ───────────────────────── */
+
+interface SettingsStyles {
+  inputS: React.CSSProperties
+  labelS: React.CSSProperties
+  hintS: React.CSSProperties
+  cardS: React.CSSProperties
+  sectionTitleS: React.CSSProperties
+  sectionSubS: React.CSSProperties
+}
+
+function AccountTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string } & SettingsStyles) {
+  const [existing, setExisting] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [accountSid, setAccountSid] = useState('')
   const [authToken, setAuthToken] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-  const [existing, setExisting] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-  const tenantId = getActiveTenantId()
-
-  const [campaignCopy, setCampaignCopy] = useState<CampaignCopy | null>(null)
-  const [copyLoading, setCopyLoading] = useState(false)
-  const [copyError, setCopyError] = useState('')
-  const [editingField, setEditingField] = useState<string | null>(null)
-  const [editedCopy, setEditedCopy] = useState<CampaignCopy | null>(null)
+  const [showForm, setShowForm] = useState(false)
 
   useEffect(() => {
     fetch(`/api/twilio-config?tenant=${tenantId}`)
       .then(r => r.json())
-      .then(data => { setExisting(data); setLoading(false) })
+      .then(data => { setExisting(data); setLoading(false); setShowForm(!data) })
       .catch(() => setLoading(false))
   }, [tenantId])
 
@@ -52,7 +148,10 @@ export default function SettingsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setExisting(data)
+      // Re-fetch to get masked SID
+      const refreshed = await fetch(`/api/twilio-config?tenant=${tenantId}`).then(r => r.json())
+      setExisting(refreshed)
+      setShowForm(false)
       setSaved(true)
       setAccountSid('')
       setAuthToken('')
@@ -64,489 +163,352 @@ export default function SettingsPage() {
     }
   }
 
-  const generateCampaignCopy = async () => {
-    setCopyLoading(true)
-    setCopyError('')
+  const handleDisconnect = async () => {
+    if (!confirm('Disconnect Twilio? You will need to reconnect before sending messages.')) return
+    setSaving(true)
     try {
-      const res = await fetch(`/api/twilio/campaign-copy?tenant=${tenantId}`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setCampaignCopy(data)
-      setEditedCopy(data)
+      await fetch(`/api/twilio-config?tenant=${tenantId}`, { method: 'DELETE' })
+      setExisting(null)
+      setShowForm(true)
     } catch (e: any) {
-      setCopyError(e.message)
+      setError(e.message)
     } finally {
-      setCopyLoading(false)
+      setSaving(false)
     }
   }
 
-  const updateEditedField = (field: string, value: any) => {
-    if (!editedCopy) return
-    setEditedCopy({ ...editedCopy, [field]: value })
+  return (
+    <>
+      {/* Twilio */}
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Twilio</h2>
+        <p style={sectionSubS}>Connect your Twilio account to send SMS. When connected, your sending number is shown and messages appear in the Pulse inbox.</p>
+
+        {loading ? (
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        ) : existing && !showForm ? (
+          <div style={{ marginTop: spacing.xl }}>
+            <div style={{ background: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing['2xl'], display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              <div style={{ fontSize: typography.sizeMd, color: colors.success, fontWeight: typography.weightSemibold }}>✓ Twilio connected</div>
+              <div style={{ fontSize: typography.sizeBase, color: colors.text }}>
+                Account SID: <span style={{ fontFamily: 'monospace', fontWeight: typography.weightMedium }}>{existing.account_sid}</span>
+              </div>
+              {existing.phone_number && (
+                <div style={{ fontSize: typography.sizeBase, color: colors.text }}>
+                  Sending from: <span style={{ fontFamily: 'monospace', fontWeight: typography.weightMedium }}>{existing.phone_number}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: spacing.md, marginTop: spacing.xl }}>
+              <Button variant="secondary" onClick={() => setShowForm(true)}>Update credentials</Button>
+              <Button variant="destructive" onClick={handleDisconnect} disabled={saving}>Disconnect</Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: spacing.xl }}>
+            {existing && (
+              <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0 }}>
+                Updating credentials replaces your existing connection.
+              </p>
+            )}
+            <label style={labelS}>Account SID</label>
+            <input type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value={accountSid} onChange={e => setAccountSid(e.target.value)} style={inputS} />
+            <label style={labelS}>Auth Token</label>
+            <input type="password" placeholder="Your auth token" value={authToken} onChange={e => setAuthToken(e.target.value)} style={inputS} />
+            <label style={labelS}>Phone Number</label>
+            <input type="text" placeholder="+19168911212" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} style={inputS} />
+            <span style={hintS}>Use E.164 format (e.g. +19168911212).</span>
+
+            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{error}</p>}
+            {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>Saved</p>}
+
+            <div style={{ display: 'flex', gap: spacing.md, marginTop: spacing.xl }}>
+              <Button variant="primary" onClick={handleSave} disabled={saving || !accountSid || !authToken}>
+                {saving ? 'Saving...' : 'Connect Twilio'}
+              </Button>
+              {existing && <Button variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* EmailJS */}
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>EmailJS</h2>
+        <p style={sectionSubS}>Send transactional email from Pulse.</p>
+        <div style={{ marginTop: spacing.xl, padding: spacing['2xl'], border: `1px dashed ${colors.border}`, borderRadius: radius.lg, textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeBase }}>
+          Coming soon
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ───────────────────────── Brand ───────────────────────── */
+
+function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string } & SettingsStyles) {
+  const [logoUrl, setLogoUrl] = useState('')
+  const [brandVoice, setBrandVoice] = useState('')
+  const [brandMarkdown, setBrandMarkdown] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch(`/api/brand-settings?tenant=${tenantId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && !data.error) {
+          setLogoUrl(data.logo_url || '')
+          setBrandVoice(data.brand_voice || '')
+          setBrandMarkdown(data.brand_markdown || '')
+        }
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [tenantId])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/brand-settings?tenant=${tenantId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logo_url: logoUrl, brand_voice: brandVoice, brand_markdown: brandMarkdown }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const updateSampleMessage = (index: number, value: string) => {
-    if (!editedCopy) return
-    const newMessages = [...editedCopy.sampleMessages]
-    newMessages[index] = value
-    setEditedCopy({ ...editedCopy, sampleMessages: newMessages })
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-  }
-
-  // Shared styles using tokens
-  const inputS = {
-    width: '100%',
-    padding: `${spacing.md} ${spacing.lg}`,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radius.lg,
-    fontSize: typography.sizeMd,
-    fontFamily: typography.fontSans,
-    boxSizing: 'border-box' as const,
-    outline: 'none',
-    background: colors.surface,
-  }
-
-  const labelS = {
-    fontSize: typography.sizeSm,
-    fontWeight: typography.weightMedium,
-    color: colors.text,
-    display: 'block',
-    marginBottom: spacing.xs,
-    marginTop: spacing.lg,
-  }
-
-  const hintS = {
-    fontSize: typography.sizeXs,
-    color: colors.textMuted,
-    marginBottom: spacing.sm,
-    display: 'block',
-  }
-
-  const cardS = {
-    background: colors.surface,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radius.xl,
-    padding: spacing['3xl'],
-  }
-
-  const stepNumberS = {
-    width: '24px',
-    height: '24px',
-    background: colors.crimson,
-    color: 'white',
-    borderRadius: radius.full,
-    fontSize: typography.sizeSm,
-    fontWeight: typography.weightBold,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  }
-
-  const textareaS = {
-    ...inputS,
-    minHeight: '80px',
-    resize: 'vertical' as const,
-    lineHeight: 1.5,
-  }
-
-  const copyFieldS = {
-    background: colors.background,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radius.lg,
-    padding: `${spacing.md} ${spacing.lg}`,
-    fontSize: typography.sizeBase,
-    lineHeight: 1.6,
-    color: colors.text,
-    fontFamily: typography.fontSans,
-    whiteSpace: 'pre-wrap' as const,
-    wordBreak: 'break-word' as const,
-  }
-
-  const sectionLabelS = {
-    ...typography.label,
-    color: colors.textSecondary,
+  const handleMarkdownUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setBrandMarkdown(String(reader.result || ''))
+    reader.readAsText(file)
   }
 
   return (
-    <div style={{ padding: spacing['4xl'], maxWidth: '1100px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: spacing['4xl'] }}>
-        <h1 style={{
-          fontSize: typography.size2xl,
-          fontWeight: typography.weightSemibold,
-          color: colors.text,
-          margin: '0 0 6px',
-        }}>
-          Your campaign copy, ready to go
-        </h1>
-        <p style={{
-          color: colors.textSecondary,
-          fontSize: typography.sizeMd,
-          margin: 0,
-          lineHeight: 1.6,
-          maxWidth: '520px',
-        }}>
-          We analyzed your contacts, message history, and business type to generate the exact copy Twilio needs. Review it, tweak anything, then paste it in.
-        </p>
-      </div>
-
-      {/* Cards 1 & 2 — horizontally aligned */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.xl, marginBottom: spacing.xl }}>
-        {/* Card 1 — Twilio credentials */}
-        <div style={cardS}>
-          <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
-            <div style={stepNumberS}>1</div>
-            <div>
-              <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
-                Connect your Twilio account
-              </h2>
-              <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
-                Pulse uses Twilio to send text messages on your behalf.{' '}
-                <a href="https://www.twilio.com/try-twilio" target="_blank" style={{ color: colors.crimson, fontWeight: typography.weightMedium }}>
-                  Create a free Twilio account
-                </a>{' '}
-                if you do not have one yet.
-              </p>
-            </div>
-          </div>
-
-          {existing && (
-            <div style={{
-              ...typography.bodySmall,
-              color: colors.success,
-              fontWeight: typography.weightMedium,
-              marginBottom: spacing.xl,
-            }}>
-              Twilio connected
-            </div>
-          )}
-
-          <label style={labelS}>Account SID</label>
-          <input
-            type="text"
-            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            value={accountSid}
-            onChange={e => setAccountSid(e.target.value)}
-            style={inputS}
-          />
-
-          <label style={labelS}>Auth Token</label>
-          <input
-            type="password"
-            placeholder="Your auth token"
-            value={authToken}
-            onChange={e => setAuthToken(e.target.value)}
-            style={inputS}
-          />
-
-          {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, margin: `${spacing.md} 0 0` }}>{error}</p>}
-          {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, margin: `${spacing.md} 0 0` }}>Saved</p>}
-
-          <button
-            onClick={handleSave}
-            disabled={saving || !accountSid || !authToken}
-            style={{
-              background: saving || !accountSid || !authToken ? colors.borderLight : colors.action,
-              color: saving || !accountSid || !authToken ? colors.textMuted : 'white',
-              border: 'none',
-              borderRadius: radius.lg,
-              padding: `${spacing.md} ${spacing['2xl']}`,
-              fontSize: typography.sizeMd,
-              fontWeight: typography.weightMedium,
-              cursor: saving || !accountSid || !authToken ? 'not-allowed' : 'pointer',
-              fontFamily: typography.fontSans,
-              marginTop: spacing.xl,
-            }}
-          >
-            {saving ? 'Saving...' : existing ? 'Update credentials' : 'Connect Twilio'}
-          </button>
-        </div>
-
-        {/* Card 2 — Phone number */}
-        <div style={cardS}>
-          <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
-            <div style={stepNumberS}>2</div>
-            <div>
-              <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
-                Your sending number
-              </h2>
-              <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
-                This is the number your contacts will see messages from. When contacts reply, their messages appear in your Pulse inbox.
-              </p>
-            </div>
-          </div>
-
-          {existing?.phone_number && (
-            <div style={{
-              ...typography.bodySmall,
-              color: colors.success,
-              fontWeight: typography.weightMedium,
-              marginBottom: spacing.xl,
-            }}>
-              Sending from {existing.phone_number}
-            </div>
-          )}
-
-          <label style={labelS}>Phone Number</label>
-          <span style={hintS}>
-            Find this in your Twilio console under Phone Numbers. Use E.164 format (e.g. +19168911212).
-          </span>
-          <input
-            type="text"
-            placeholder="+19168911212"
-            value={phoneNumber}
-            onChange={e => setPhoneNumber(e.target.value)}
-            style={inputS}
-          />
-        </div>
-      </div>
-
-      {/* Card 3 — Campaign Registration (full width) */}
+    <>
+      {/* Brand voice */}
       <div style={cardS}>
-        <div style={{ display: 'flex', gap: spacing.md, alignItems: 'flex-start', marginBottom: spacing.xl }}>
-          <div style={stepNumberS}>3</div>
-          <div>
-            <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, margin: '0 0 4px' }}>
-              Register your campaign
-            </h2>
-            <p style={{ fontSize: typography.sizeBase, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
-              US carriers require businesses to register their messaging use case before sending texts. Without this, your messages may be filtered or blocked.
-            </p>
-          </div>
-        </div>
+        <h2 style={sectionTitleS}>Brand voice</h2>
+        <p style={sectionSubS}>Describe how your business sounds and what you care about. This shapes every AI-generated message across Pulse.</p>
 
-        {!campaignCopy && !copyLoading && (
-          <div style={{ textAlign: 'center', padding: `${spacing['4xl']} 0` }}>
-            <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, marginBottom: spacing.xl }}>
-              We will analyze your contacts and message history to generate the exact copy you need for Twilio registration.
-            </p>
-            <button
-              onClick={generateCampaignCopy}
-              style={{
-                background: colors.action,
-                color: 'white',
-                border: 'none',
-                borderRadius: radius.lg,
-                padding: `${spacing.md} ${spacing['3xl']}`,
-                fontSize: typography.size15,
-                fontWeight: typography.weightSemibold,
-                cursor: 'pointer',
-                fontFamily: typography.fontSans,
-              }}
-            >
-              Generate my campaign copy
-            </button>
-          </div>
-        )}
+        {loading ? (
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        ) : (
+          <div style={{ marginTop: spacing.xl }}>
+            <label style={labelS}>Descriptive text</label>
+            <textarea
+              value={brandVoice}
+              onChange={e => setBrandVoice(e.target.value)}
+              placeholder="e.g. We are a friendly neighborhood music school. Warm, encouraging, never pushy. We celebrate progress and use first names."
+              style={{ ...inputS, minHeight: '140px', resize: 'vertical', lineHeight: 1.6 }}
+            />
 
-        {copyLoading && (
-          <div style={{ textAlign: 'center', padding: `${spacing['4xl']} 0` }}>
-            <div style={{
-              width: '24px', height: '24px', border: `2px solid ${colors.borderLight}`,
-              borderTop: `2px solid ${colors.crimson}`, borderRadius: radius.full,
-              animation: 'spin 0.8s linear infinite', margin: `0 auto ${spacing.lg}`
-            }} />
-            <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0 }}>
-              Analyzing your business and writing your campaign...
-            </p>
-          </div>
-        )}
+            <label style={labelS}>Upload a file (.md or text)</label>
+            <input type="file" accept=".md,.markdown,.txt" onChange={handleMarkdownUpload} style={{ ...inputS, padding: spacing.sm }} />
+            <span style={hintS}>Paste or upload brand guidelines. Uploaded text is stored and combined with your description.</span>
 
-        {copyError && (
-          <div style={{
-            ...typography.bodySmall,
-            color: colors.error,
-            marginBottom: spacing.lg,
-          }}>
-            {copyError}
-            <button
-              onClick={generateCampaignCopy}
-              style={{
-                display: 'block',
-                marginTop: spacing.sm,
-                background: 'none',
-                border: 'none',
-                color: colors.crimson,
-                cursor: 'pointer',
-                fontSize: typography.sizeBase,
-                fontWeight: typography.weightMedium,
-                padding: 0,
-                textDecoration: 'underline',
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
+            {brandMarkdown && (
+              <textarea
+                value={brandMarkdown}
+                onChange={e => setBrandMarkdown(e.target.value)}
+                style={{ ...inputS, minHeight: '100px', resize: 'vertical', lineHeight: 1.6, marginTop: spacing.lg }}
+              />
+            )}
 
-        {editedCopy && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: `${spacing['2xl']} ${spacing['3xl']}`,
-            marginTop: spacing.xl,
-          }}>
-            {/* Left column */}
-            <div>
-              {/* Use case */}
-              <div style={{ marginBottom: spacing.xl }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-                  <label style={sectionLabelS}>Use case</label>
-                  <button onClick={() => copyToClipboard('Low Volume Mixed')} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
-                    Copy
-                  </button>
-                </div>
-                <div style={{ ...copyFieldS, fontWeight: typography.weightMedium }}>
-                  Low Volume Mixed
-                </div>
-                <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: spacing.xs, display: 'block' }}>
-                  Select this in the Twilio dropdown.
-                </span>
-              </div>
+            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{error}</p>}
+            {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>Saved</p>}
 
-              {/* Campaign description */}
-              <div style={{ marginBottom: spacing.xl }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-                  <label style={sectionLabelS}>Campaign description</label>
-                  <button onClick={() => copyToClipboard(editedCopy.campaignDescription)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
-                    Copy
-                  </button>
-                </div>
-                {editingField === 'campaignDescription' ? (
-                  <div>
-                    <textarea value={editedCopy.campaignDescription} onChange={e => updateEditedField('campaignDescription', e.target.value)} style={textareaS} />
-                    <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
-                      Done
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField('campaignDescription')}>
-                    {editedCopy.campaignDescription}
-                  </div>
-                )}
-              </div>
-
-              {/* Consent language */}
-              <div style={{ marginBottom: spacing.xl }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-                  <label style={sectionLabelS}>How users consent</label>
-                  <button onClick={() => copyToClipboard(editedCopy.consentLanguage)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
-                    Copy
-                  </button>
-                </div>
-                {editingField === 'consentLanguage' ? (
-                  <div>
-                    <textarea value={editedCopy.consentLanguage} onChange={e => updateEditedField('consentLanguage', e.target.value)} style={{ ...textareaS, minHeight: '100px' }} />
-                    <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
-                      Done
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField('consentLanguage')}>
-                    {editedCopy.consentLanguage}
-                  </div>
-                )}
-              </div>
-
-              {/* Message attributes */}
-              <div style={{ marginBottom: spacing.xl }}>
-                <label style={{ ...sectionLabelS, display: 'block', marginBottom: spacing.sm }}>Message contents</label>
-                <div style={{ ...copyFieldS, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
-                    <input type="checkbox" checked={editedCopy.messageAttributes.hasLinks} readOnly style={{ accentColor: colors.crimson }} />
-                    Messages will include embedded links
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
-                    <input type="checkbox" checked={editedCopy.messageAttributes.hasPhoneNumbers} readOnly style={{ accentColor: colors.crimson }} />
-                    Messages will include phone numbers
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
-                    <input type="checkbox" checked={editedCopy.messageAttributes.hasLending} readOnly style={{ accentColor: colors.crimson }} />
-                    Messages include content related to direct lending
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, fontSize: typography.sizeBase, cursor: 'pointer', color: colors.text }}>
-                    <input type="checkbox" checked={editedCopy.messageAttributes.hasAgeGated} readOnly style={{ accentColor: colors.crimson }} />
-                    Messages include age-gated content
-                  </label>
-                </div>
-              </div>
+            <div style={{ marginTop: spacing.xl }}>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save brand voice'}</Button>
             </div>
-
-            {/* Right column — Sample messages */}
-            <div>
-              <label style={{ ...sectionLabelS, display: 'block', marginBottom: spacing.sm }}>
-                Sample messages (5 required)
-              </label>
-              {editedCopy.sampleMessages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: spacing.md }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-                    <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontWeight: typography.weightMedium }}>Message {i + 1}</span>
-                    <button onClick={() => copyToClipboard(msg)} style={{ background: 'none', border: 'none', color: colors.crimson, fontSize: typography.sizeXs, cursor: 'pointer', fontWeight: typography.weightMedium }}>
-                      Copy
-                    </button>
-                  </div>
-                  {editingField === `sample-${i}` ? (
-                    <div>
-                      <textarea value={msg} onChange={e => updateSampleMessage(i, e.target.value)} style={textareaS} />
-                      <button onClick={() => setEditingField(null)} style={{ background: colors.text, color: 'white', border: 'none', borderRadius: radius.md, padding: `${spacing.xs} ${spacing.lg}`, fontSize: typography.sizeSm, cursor: 'pointer', marginTop: spacing.sm, fontFamily: typography.fontSans }}>
-                        Done
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ ...copyFieldS, cursor: 'pointer' }} onClick={() => setEditingField(`sample-${i}`)}>
-                      {msg}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Actions — only show after generation */}
-        {editedCopy && (
-          <div style={{ display: 'flex', gap: spacing.md, marginTop: spacing['2xl'], paddingTop: spacing.xl, borderTop: `1px solid ${colors.border}` }}>
-            <button
-              onClick={generateCampaignCopy}
-              disabled={copyLoading}
-              style={{
-                background: colors.surface,
-                color: colors.text,
-                border: `1px solid ${colors.border}`,
-                borderRadius: radius.lg,
-                padding: `${spacing.md} ${spacing.xl}`,
-                fontSize: typography.sizeBase,
-                fontWeight: typography.weightMedium,
-                cursor: copyLoading ? 'not-allowed' : 'pointer',
-                fontFamily: typography.fontSans,
-              }}
-            >
-              Regenerate
-            </button>
-            <a
-              href="https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc-overview"
-              target="_blank"
-              style={{
-                background: colors.action,
-                color: 'white',
-                padding: `${spacing.md} ${spacing.xl}`,
-                borderRadius: radius.lg,
-                fontSize: typography.sizeBase,
-                fontWeight: typography.weightMedium,
-                textDecoration: 'none',
-                fontFamily: typography.fontSans,
-                display: 'inline-block',
-              }}
-            >
-              Open Twilio A2P Console
-            </a>
           </div>
         )}
       </div>
-    </div>
+
+      {/* Logo */}
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Logo</h2>
+        <p style={sectionSubS}>Your logo appears across Pulse. Enter a URL for now — file upload is coming later.</p>
+        <div style={{ marginTop: spacing.xl }}>
+          <label style={labelS}>Logo URL</label>
+          <input type="text" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://yourbrand.com/logo.png" style={inputS} />
+          {logoUrl && (
+            <img src={logoUrl} alt="Logo preview" style={{ marginTop: spacing.md, maxHeight: '64px', borderRadius: radius.md, background: colors.surfaceMuted, padding: spacing.sm }} onError={e => (e.currentTarget.style.display = 'none')} />
+          )}
+          <div style={{ marginTop: spacing.xl }}>
+            <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save logo'}</Button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ───────────────────────── Pulse ───────────────────────── */
+
+function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties; sectionSubS: React.CSSProperties }) {
+  const [threshold, setThreshold] = useState(3)
+  const [focusAreas, setFocusAreas] = useState<string[]>(['retention', 'billing', 'growth'])
+  const [fontSize, setFontSize] = useState(16)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch(`/api/pulse-settings?tenant=${tenantId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && !data.error) {
+          setThreshold(data.highlight_threshold ?? 3)
+          setFocusAreas(data.focus_areas?.length ? data.focus_areas : ['retention', 'billing', 'growth'])
+          setFontSize(data.base_font_size ?? 16)
+        }
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [tenantId])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/pulse-settings?tenant=${tenantId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ highlight_threshold: threshold, focus_areas: focusAreas, base_font_size: fontSize }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleFocus = (value: string) => {
+    setFocusAreas(prev => prev.includes(value) ? prev.filter(f => f !== value) : [...prev, value])
+  }
+
+  return (
+    <>
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Highlights</h2>
+        <p style={sectionSubS}>Calibrate how many highlights Pulse surfaces on your dashboard, and which areas to prioritize. These apply across the whole platform.</p>
+
+        {loading ? (
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        ) : (
+          <div style={{ marginTop: spacing.xl }}>
+            {/* Threshold */}
+            <div style={{ marginBottom: spacing.xl }}>
+              <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text }}>
+                Highlight threshold: {threshold}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: '480px' }}>
+                <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, whiteSpace: 'nowrap' }}>Catch more</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  value={threshold}
+                  onChange={e => setThreshold(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, whiteSpace: 'nowrap' }}>Only clear signals</span>
+              </div>
+            </div>
+
+            {/* Focus areas */}
+            <div style={{ marginBottom: spacing.xl }}>
+              <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, marginBottom: spacing.sm }}>
+                Focus areas
+              </div>
+              <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+                {FOCUS_OPTIONS.map(f => {
+                  const active = focusAreas.includes(f.value)
+                  return (
+                    <button
+                      key={f.value}
+                      onClick={() => toggleFocus(f.value)}
+                      style={{
+                        padding: `${spacing.sm} ${spacing.lg}`,
+                        borderRadius: radius.full,
+                        border: `1px solid ${active ? colors.crimson : colors.border}`,
+                        background: active ? colors.crimson : colors.surface,
+                        color: active ? 'white' : colors.textSecondary,
+                        fontSize: typography.sizeSm,
+                        fontWeight: typography.weightMedium,
+                        cursor: 'pointer',
+                        fontFamily: typography.fontSans,
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase }}>{error}</p>}
+            {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase }}>Saved</p>}
+
+            <Button variant="primary" onClick={handleSave} disabled={saving || focusAreas.length === 0}>
+              {saving ? 'Saving...' : 'Save highlights'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Accessibility & display</h2>
+        <p style={sectionSubS}>Adjust the base font size and other display preferences.</p>
+
+        {loading ? (
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        ) : (
+          <div style={{ marginTop: spacing.xl }}>
+            <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text }}>
+              Base font size: {fontSize}px
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: '480px' }}>
+              <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>14px</span>
+              <input
+                type="range"
+                min={14}
+                max={20}
+                value={fontSize}
+                onChange={e => setFontSize(Number(e.target.value))}
+                style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>20px</span>
+            </div>
+
+            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase }}>{error}</p>}
+            <div style={{ marginTop: spacing.xl }}>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save display settings'}</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
