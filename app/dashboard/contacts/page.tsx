@@ -25,7 +25,7 @@ interface Contact {
   account_holder_name: string | null
   account_holder_phone: string | null
   account_holder_email: string | null
-  custom_fields: Record<string, any>
+  custom_fields: Record<string, unknown>
 }
 
 interface TenantField {
@@ -33,6 +33,42 @@ interface TenantField {
   field_label: string
   field_type: string
   field_options: string[] | null
+}
+
+interface SyncStatusResponse {
+  last_synced_at?: string | null
+}
+
+const PLACEHOLDER_MESSAGES = [
+  "Find students who haven't attended in 3 weeks...",
+  'Show me all drum students...',
+  'Who are the active piano students?',
+  'Find contacts with no email...',
+  'Show band students without a band name...',
+]
+
+const AI_LOADING_MESSAGES = [
+  'Analyzing your request...',
+  'Searching through contacts...',
+  'Finding the best matches...',
+  'Almost there...',
+]
+
+function formatFilterSummary(explanation: string, resultCount: number | null) {
+  const compactCount = resultCount !== null
+    ? `${resultCount} ${resultCount === 1 ? 'contact' : 'contacts'}`
+    : null
+
+  const normalized = explanation
+    .replace(/^filtered for\s*/i, '')
+    .replace(/\.?\s*found\s+\d+\s+contacts?:.*$/i, '')
+    .replace(/\bwho have\b/gi, 'with')
+    .replace(/\bin band classes\b/gi, 'Band')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) return compactCount || 'Filtered'
+  return compactCount ? `${compactCount} · ${normalized}` : normalized
 }
 
 export default function ContactsPage() {
@@ -51,36 +87,38 @@ export default function ContactsPage() {
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
-  const [singleComposeContact, setSingleComposeContact] = useState<any>(null)
+  const [singleComposeContact, setSingleComposeContact] = useState<Contact | null>(null)
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
-  const [lastSync, setLastSync] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
   const [showStaleBanner, setShowStaleBanner] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
+  const [showStickyActions, setShowStickyActions] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(12)
   const tenantId = getActiveTenantId()
+  const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
 
-  const placeholderMessages = [
-    "Find students who haven't attended in 3 weeks...",
-    'Show me all drum students...',
-    'Who are the active piano students?',
-    'Find contacts with no email...',
-    'Show band students without a band name...',
-  ]
+  // Apply standard filters
+  const standardFiltered = contacts.filter(c => {
+    for (const [key, val] of Object.entries(appliedFilters)) {
+      if (!val) continue
+      if (key === 'client_status' && c.client_status !== val) return false
+      if (c.custom_fields?.[key] !== val) return false
+    }
+    return true
+  })
 
-  const aiLoadingMessages = [
-    'Analyzing your request...',
-    'Searching through contacts...',
-    'Finding the best matches...',
-    'Almost there...',
-  ]
+  const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const visibleContacts = displayed.slice(0, visibleCount)
+  const filterSummary = filterExplanation
+    ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
+    : ''
 
   useEffect(() => {
-    const stored = localStorage.getItem(`pulse_last_sync_${tenantId}`)
-    if (stored) setLastSync(stored)
+    localStorage.getItem(`pulse_last_sync_${tenantId}`)
   }, [tenantId])
 
   const handleSync = async () => {
@@ -96,7 +134,6 @@ export default function ContactsPage() {
       setContacts(Array.isArray(data) ? data : [])
       const now = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       localStorage.setItem(`pulse_last_sync_${tenantId}`, now)
-      setLastSync(now)
     } catch (e) {
       console.error(e)
     } finally {
@@ -113,12 +150,46 @@ export default function ContactsPage() {
       setTenantFields(Array.isArray(fieldData) ? fieldData : [])
       setLoading(false)
     })
-  }, [])
+  }, [tenantId])
+
+  useEffect(() => {
+    if (loading) {
+      setVisibleCount(12)
+      return
+    }
+
+    if (displayed.length <= 12) {
+      setVisibleCount(displayed.length)
+      return
+    }
+
+    setVisibleCount(12)
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const revealMore = () => {
+      timeoutId = setTimeout(() => {
+        if (cancelled) return
+        setVisibleCount(prev => {
+          const next = Math.min(prev + 12, displayed.length)
+          if (next < displayed.length) revealMore()
+          return next
+        })
+      }, 45)
+    }
+
+    revealMore()
+
+    return () => {
+      cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [loading, displayed.length])
 
   useEffect(() => {
     fetch(`/api/tenant/sync-status?tenant=${tenantId}`)
       .then(r => r.json())
-      .then(data => {
+      .then((data: SyncStatusResponse) => {
         if (data.last_synced_at) {
           setLastSynced(data.last_synced_at)
           const daysSince = Math.floor(
@@ -134,7 +205,7 @@ export default function ContactsPage() {
   // Cycle placeholder prompts
   useEffect(() => {
     const interval = setInterval(() => {
-      setPlaceholderIndex(prev => (prev + 1) % placeholderMessages.length)
+      setPlaceholderIndex(prev => (prev + 1) % PLACEHOLDER_MESSAGES.length)
     }, 4000)
     return () => clearInterval(interval)
   }, [])
@@ -144,11 +215,28 @@ export default function ContactsPage() {
     if (!aiLoading) return
     let i = 0
     const interval = setInterval(() => {
-      i = (i + 1) % aiLoadingMessages.length
+      i = (i + 1) % AI_LOADING_MESSAGES.length
       setAiMessageIndex(i)
     }, 3000)
     return () => clearInterval(interval)
   }, [aiLoading])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const anchor = controlsAnchorRef.current
+      if (!anchor) return
+      const rect = anchor.getBoundingClientRect()
+      setShowStickyActions(rect.bottom < 0)
+    }
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [])
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -187,9 +275,26 @@ export default function ContactsPage() {
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
+  }
+
+  const handleCheckboxToggle = (contact: Contact, index: number, shiftKey: boolean) => {
+    if (shiftKey && lastSelectedIndex >= 0) {
+      const start = Math.min(lastSelectedIndex, index)
+      const end = Math.max(lastSelectedIndex, index)
+      const rangeIds = displayed.slice(start, end + 1).map(c => c.id)
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        rangeIds.forEach(id => next.add(id))
+        return next
+      })
+    } else {
+      toggleSelect(contact.id)
+      setLastSelectedIndex(index)
+    }
   }
 
   const handleRowClick = (contact: Contact, index: number, e: React.MouseEvent) => {
@@ -218,17 +323,10 @@ export default function ContactsPage() {
     else setSelectedIds(new Set(displayed.map(c => c.id)))
   }
 
-  // Apply standard filters
-  const standardFiltered = contacts.filter(c => {
-    for (const [key, val] of Object.entries(appliedFilters)) {
-      if (!val) continue
-      if (key === 'client_status' && c.client_status !== val) return false
-      if (c.custom_fields?.[key] !== val) return false
-    }
-    return true
-  })
-
-  const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setLastSelectedIndex(-1)
+  }
 
   // Unique filter options from contacts
   const filterOptions: Record<string, string[]> = {}
@@ -311,8 +409,10 @@ export default function ContactsPage() {
         </div>
       )}
 
+      <div ref={controlsAnchorRef} />
+
       {/* Search bar + Filters row */}
-      <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md }}>
+      <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md, alignItems: 'stretch' }}>
         <div style={{ maxWidth: '75%', flex: 1, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
           <input
@@ -322,7 +422,7 @@ export default function ContactsPage() {
               setQuery(e.target.value)
             }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder={placeholderMessages[placeholderIndex]}
+            placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]}
             style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
             onFocus={e => { e.target.style.opacity = '1' }}
             onBlur={e => { e.target.style.opacity = '1' }}
@@ -346,11 +446,12 @@ export default function ContactsPage() {
         >
           <SlidersHorizontal size={14} /> Filters
         </button>
-        {selectedIds.size >= 2 && (
-          <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)}>Edit Contacts ({selectedIds.size})</Button>
-        )}
+        <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
+          Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+        </Button>
         <button
           onClick={() => {
+            if (selectedIds.size === 0) return
             if (selectedIds.size === 1) {
               const contact = contacts.find(c => c.id === [...selectedIds][0])
               setSingleComposeContact(contact || null)
@@ -359,7 +460,6 @@ export default function ContactsPage() {
             }
             setIsComposeOpen(true)
           }}
-          disabled={selectedIds.size === 0}
           style={{
             display: 'flex', alignItems: 'center', gap: spacing.sm,
             background: selectedIds.size > 0 ? colors.action : colors.borderLight,
@@ -367,13 +467,93 @@ export default function ContactsPage() {
             border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
             fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
             cursor: selectedIds.size > 0 ? 'pointer' : 'default',
-            fontFamily: typography.fontSans, transition: 'all 0.15s',
+            fontFamily: typography.fontSans,
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
           }}
         >
           <Send size={14} />
           {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
         </button>
       </div>
+
+      {showStickyActions && selectedIds.size > 0 && (
+        <div style={{
+          position: 'sticky',
+          top: spacing.md,
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.md,
+          padding: `${spacing.sm} ${spacing.md}`,
+          marginBottom: spacing.md,
+          background: 'rgba(255,255,255,0.96)',
+          border: `1px solid ${colors.border}`,
+          borderRadius: radius.lg,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
+          backdropFilter: 'blur(10px)',
+          animation: 'stickyBarFadeIn 180ms ease-out',
+          transition: 'opacity 180ms ease-out, transform 180ms ease-out',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+            {selectedIds.size > 0 && (
+              <>
+                <span style={{ fontSize: typography.sizeSm, color: colors.text, fontFamily: typography.fontSans, fontWeight: typography.weightMedium }}>
+                  {selectedIds.size} out of {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'} selected
+                </span>
+                <button
+                  onClick={clearSelection}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    color: colors.textSecondary,
+                    fontSize: typography.sizeSm,
+                    fontFamily: typography.fontSans,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '2px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Unselect all
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
+              Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+            </Button>
+            <button
+              onClick={() => {
+                if (selectedIds.size === 0) return
+                if (selectedIds.size === 1) {
+                  const contact = contacts.find(c => c.id === [...selectedIds][0])
+                  setSingleComposeContact(contact || null)
+                } else {
+                  setSingleComposeContact(null)
+                }
+                setIsComposeOpen(true)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: spacing.sm,
+                background: selectedIds.size > 0 ? colors.action : colors.borderLight,
+                color: selectedIds.size > 0 ? 'white' : colors.textMuted,
+                border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
+                fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
+                cursor: selectedIds.size > 0 ? 'pointer' : 'default',
+                fontFamily: typography.fontSans,
+                transition: 'all 0.15s',
+              }}
+            >
+              <Send size={14} />
+              {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter dropdowns — collapsible */}
       {showFilters && (
@@ -397,38 +577,46 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* AI filter banner */}
+      {/* Active filter summary */}
       {filterExplanation && (
         <div style={{
           display: 'flex',
-          alignItems: 'flex-start',
-          gap: '12px',
-          padding: '16px 20px',
-          background: '#EFF6FF',
-          border: '1px solid #BFDBFE',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.md,
+          padding: `${spacing.sm} ${spacing.md}`,
+          background: colors.surfaceMuted,
+          border: `1px solid ${colors.border}`,
           borderRadius: '10px',
           marginBottom: spacing.md,
         }}>
-          <div style={{
-            width: '28px', height: '28px',
-            background: '#2563EB',
-            color: 'white',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Sparkles size={14} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: typography.sizeXs, fontWeight: 600, color: '#2563EB', marginBottom: '2px', fontFamily: typography.fontSans }}>
-              AI filter
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: colors.surface,
+              border: `1px solid ${colors.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              color: colors.textSecondary,
+            }}>
+              <Sparkles size={12} />
             </div>
-            <div style={{ fontSize: typography.sizeBase, color: colors.text, lineHeight: 1.5, fontFamily: typography.fontSans, fontWeight: 400 }}>
-              {displayIds ? `${displayIds.length} recipients · ` : ''}{filterExplanation}
+            <div style={{ fontSize: typography.sizeSm, color: colors.text, lineHeight: 1.4, fontFamily: typography.fontSans, minWidth: 0 }}>
+              {filterSummary}
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSearch}
+            style={{ flexShrink: 0 }}
+          >
+            Clear
+          </Button>
         </div>
       )}
 
@@ -442,23 +630,63 @@ export default function ContactsPage() {
             animation: 'spin 0.8s linear infinite'
           }} />
           <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, fontFamily: typography.fontSans, transition: 'opacity 0.3s' }}>
-            {aiLoadingMessages[aiMessageIndex]}
+            {AI_LOADING_MESSAGES[aiMessageIndex]}
           </p>
         </div>
       )}
 
       {/* Viewing counter */}
       {!aiLoading && !loading && (
-        <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, marginBottom: spacing.sm, fontFamily: typography.fontSans }}>
-          Viewing {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm, flexWrap: 'wrap' }}>
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
+            {selectedIds.size > 0
+              ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
+              : `Viewing ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
+          </p>
+          {visibleContacts.length > 0 && visibleContacts.length < displayed.length && (
+            <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
+              Showing {visibleContacts.length} of {displayed.length}
+            </p>
+          )}
+          {selectedIds.size > 0 && !showStickyActions && (
+            <button
+              onClick={clearSelection}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: colors.textSecondary,
+                fontSize: typography.sizeSm,
+                fontFamily: typography.fontSans,
+                textDecoration: 'underline',
+                textUnderlineOffset: '2px',
+                cursor: 'pointer',
+              }}
+            >
+              Unselect all
+            </button>
+          )}
+        </div>
       )}
 
       {/* Contact table */}
       {!aiLoading && (
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>Loading contacts...</div>
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 1fr repeat(3, 1fr) 100px', gap: 0, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} style={{ height: '42px', margin: '10px 16px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+              ))}
+            </div>
+            {Array.from({ length: 8 }).map((_, rowIdx) => (
+              <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 1fr repeat(3, 1fr) 100px', alignItems: 'center', borderBottom: rowIdx === 7 ? 'none' : `1px solid ${colors.borderLight}` }}>
+                {Array.from({ length: 8 }).map((__, cellIdx) => (
+                  <div key={cellIdx} style={{ margin: '14px 16px', height: cellIdx === 1 ? '24px' : '14px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+                ))}
+              </div>
+            ))}
+          </div>
         ) : displayed.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>No contacts found.</div>
         ) : (
@@ -478,7 +706,7 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((contact, index) => (
+              {visibleContacts.map((contact, index) => (
                 <ContactRow
                   key={contact.id}
                   contact={contact}
@@ -488,7 +716,7 @@ export default function ContactsPage() {
                   tenantId={tenantId}
                   onRowClick={handleRowClick}
                   onNameClick={handleNameClick}
-                  onToggleSelect={toggleSelect}
+                  onToggleSelect={handleCheckboxToggle}
                 />
               ))}
             </tbody>
@@ -559,6 +787,11 @@ export default function ContactsPage() {
             channel="sms"
             mode={singleComposeContact ? 'single' : 'bulk'}
             contactContext={singleComposeContact}
+            composeSource="scratch"
+            composeIntent="neutral"
+            recipientPreview={singleComposeContact
+              ? [{ id: singleComposeContact.id, first_name: singleComposeContact.first_name, last_name: singleComposeContact.last_name }]
+              : displayed.filter(contact => selectedIds.has(contact.id)).slice(0, 3).map(contact => ({ id: contact.id, first_name: contact.first_name, last_name: contact.last_name }))}
             onClose={() => {
               setIsComposeOpen(false)
               setSingleComposeContact(null)
@@ -610,7 +843,6 @@ export default function ContactsPage() {
           const now = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           localStorage.setItem(`pulse_last_sync_${tenantId}`, now)
           localStorage.setItem(`pulse_sync_method_${tenantId}`, 'csv')
-          setLastSync(now)
           fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(data => setContacts(data))
         }}
       />
@@ -636,7 +868,7 @@ const ContactRow = memo(function ContactRow({
   tenantId: string
   onRowClick: (contact: Contact, index: number, e: React.MouseEvent) => void
   onNameClick: (contact: Contact, e: React.MouseEvent) => void
-  onToggleSelect: (id: string) => void
+  onToggleSelect: (contact: Contact, index: number, shiftKey: boolean) => void
 }) {
   return (
     <tr
@@ -644,7 +876,12 @@ const ContactRow = memo(function ContactRow({
       style={{ borderBottom: `1px solid ${colors.borderLight}`, background: isSelected ? colors.surfaceMuted : colors.surface, cursor: 'pointer', transition: 'background 0.1s' }}
     >
       <td style={{ padding: '10px 16px' }} onClick={e => e.stopPropagation()}>
-        <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(contact.id)} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onToggleSelect(contact, index, (e.nativeEvent as MouseEvent).shiftKey)}
+          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+        />
       </td>
       <td style={{ padding: '10px 16px', fontWeight: 500 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
@@ -660,7 +897,7 @@ const ContactRow = memo(function ContactRow({
                   <td style={{ padding: '10px 16px', fontSize: '12px' }}>
                     {(() => {
                       const phone = contact.phone || contact.account_holder_phone
-                      const showIcon = (contact as any).is_minor || (contact as any).message_routing === 'account_holder'
+                      const showIcon = Boolean((contact.custom_fields as Record<string, unknown> | undefined)?.is_minor) || (contact.custom_fields?.message_routing === 'account_holder')
                       if (!phone) return <span style={{ color: colors.textMuted }}>—</span>
                       return (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -675,7 +912,7 @@ const ContactRow = memo(function ContactRow({
         <td key={f.field_key} style={{ padding: '10px 16px', color: colors.textSecondary }}>{contact.custom_fields?.[f.field_key] || '—'}</td>
       ))}
       <td style={{ padding: '10px 16px' }}>
-        <Badge variant={contact.client_status === 'active' ? 'success' : 'neutral'}>{contact.client_status}</Badge>
+        <Badge size="sm" variant={contact.client_status === 'active' ? 'success' : 'neutral'}>{contact.client_status}</Badge>
       </td>
     </tr>
   )

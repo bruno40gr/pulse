@@ -1,0 +1,18 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#F5F1E8"/>
+  <rect x="70" y="90" width="1060" height="620" rx="40" fill="#FFFDF8" stroke="#D7D0C3" stroke-width="4"/>
+  <rect x="120" y="540" width="960" height="110" rx="28" fill="#C99C67"/>
+  <rect x="180" y="220" width="440" height="250" rx="24" fill="#FFFFFF" stroke="#D7D0C3" stroke-width="3"/>
+  <rect x="210" y="260" width="240" height="18" rx="9" fill="#7E735F" opacity="0.16"/>
+  <rect x="210" y="305" width="360" height="12" rx="6" fill="#7E735F" opacity="0.12"/>
+  <rect x="210" y="338" width="300" height="12" rx="6" fill="#7E735F" opacity="0.12"/>
+  <rect x="210" y="371" width="330" height="12" rx="6" fill="#7E735F" opacity="0.12"/>
+  <circle cx="790" cy="285" r="88" fill="#6BAA75"/>
+  <circle cx="845" cy="255" r="20" fill="#F4E39A"/>
+  <circle cx="735" cy="255" r="20" fill="#F4E39A"/>
+  <path d="M740 340C772 378 809 378 841 340" stroke="#F8F5EC" stroke-width="16" stroke-linecap="round"/>
+  <rect x="680" y="405" width="220" height="110" rx="28" fill="#2E2A26"/>
+  <text x="720" y="474" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="48" font-weight="700">A+</text>
+  <text x="120" y="160" fill="#2E2A26" font-family="Arial, sans-serif" font-size="54" font-weight="700">Focused study session</text>
+  <text x="120" y="190" fill="#6B6259" font-family="Arial, sans-serif" font-size="28">A calm, tutoring-forward image for reminders and encouragement.</text>
+</svg>

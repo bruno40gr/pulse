@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/Avatar'
 
 interface SlidePanelHeaderProps {
   title: string
+  titleBadge?: React.ReactNode
   subtitle?: string
   avatar?: { firstName: string; lastName: string; size?: number; src?: string }
   onClose: () => void
@@ -21,6 +22,7 @@ const HEADER_PADDING: React.CSSProperties = {
 
 export function SlidePanelHeader({
   title,
+  titleBadge,
   subtitle,
   avatar,
   onClose,
@@ -73,16 +75,19 @@ export function SlidePanelHeader({
           />
         )}
         <div style={{ minWidth: 0 }}>
-          <h2 style={{
-            fontSize: titleSize || typography.sizeXl,
-            fontWeight: typography.weightSemibold,
-            margin: 0,
-            color: colors.text,
-            fontFamily: typography.fontSans,
-            lineHeight: 1.2,
-          }}>
-            {title}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h2 style={{
+              fontSize: titleSize || typography.sizeXl,
+              fontWeight: typography.weightSemibold,
+              margin: 0,
+              color: colors.text,
+              fontFamily: typography.fontSans,
+              lineHeight: 1.2,
+            }}>
+              {title}
+            </h2>
+            {titleBadge}
+          </div>
           {subtitle && (
             <div style={{
               fontSize: typography.sizeSm,

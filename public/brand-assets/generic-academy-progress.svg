@@ -1,0 +1,14 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#F6F2EA"/>
+  <rect x="84" y="84" width="1032" height="632" rx="40" fill="#FFFEFC" stroke="#D8D0C4" stroke-width="4"/>
+  <rect x="150" y="230" width="420" height="320" rx="28" fill="#EFE6D6"/>
+  <rect x="640" y="250" width="390" height="28" rx="14" fill="#2E2A26" opacity="0.12"/>
+  <rect x="640" y="306" width="310" height="18" rx="9" fill="#2E2A26" opacity="0.08"/>
+  <rect x="640" y="390" width="320" height="24" rx="12" fill="#6BAA75" opacity="0.8"/>
+  <rect x="640" y="438" width="240" height="24" rx="12" fill="#6BAA75" opacity="0.55"/>
+  <rect x="640" y="486" width="360" height="24" rx="12" fill="#6BAA75" opacity="0.35"/>
+  <circle cx="360" cy="390" r="90" fill="#6BAA75"/>
+  <path d="M320 392L348 420L404 360" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="640" y="170" fill="#2E2A26" font-family="Arial, sans-serif" font-size="54" font-weight="700">Calm brand-first progress image</text>
+  <text x="640" y="210" fill="#6B6259" font-family="Arial, sans-serif" font-size="28">A fallback asset when a tenant-specific gallery has not been curated yet.</text>
+</svg>

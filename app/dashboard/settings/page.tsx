@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { Button, PageHeader } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import type { MediaAsset } from '@/lib/media-catalog'
 
 type Tab = 'account' | 'brand' | 'pulse'
 
@@ -250,6 +251,7 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
   const [logoUrl, setLogoUrl] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
   const [brandMarkdown, setBrandMarkdown] = useState('')
+  const [approvedImages, setApprovedImages] = useState<MediaAsset[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -267,6 +269,11 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
         setLoading(false)
       })
       .catch(() => setLoading(false))
+
+    fetch(`/api/media-suggestions?tenant=${tenantId}&source=manual`)
+      .then(r => r.json())
+      .then(data => setApprovedImages(Array.isArray(data.approvedImages) ? data.approvedImages : []))
+      .catch(() => {})
   }, [tenantId])
 
   const handleSave = async () => {
@@ -351,6 +358,34 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
           )}
           <div style={{ marginTop: spacing.xl }}>
             <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save logo'}</Button>
+          </div>
+        </div>
+      </div>
+
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Media library</h2>
+        <p style={sectionSubS}>Brand-approved images that appear first in Compose. Use this library to keep media on-brand and easy to reuse across messages.</p>
+
+        <div style={{ marginTop: spacing.xl, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }}>
+          {approvedImages.map(asset => (
+            <div key={asset.id} style={{ border: `1px solid ${colors.border}`, borderRadius: radius.lg, padding: spacing.sm, background: colors.surfaceMuted }}>
+              <img src={asset.url} alt={asset.title} style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: radius.md, background: colors.surface }} />
+              <div style={{ marginTop: spacing.sm }}>
+                <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.text }}>{asset.title}</div>
+                <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: 2 }}>{asset.category}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: spacing.xl, padding: spacing.lg, border: `1px dashed ${colors.border}`, borderRadius: radius.lg, background: colors.surface }}>
+          <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.text }}>Manage your media</div>
+          <p style={{ fontSize: typography.sizeSm, color: colors.textSecondary, lineHeight: 1.6, margin: `${spacing.xs} 0 ${spacing.md}` }}>
+            Add, review, and retire approved images used across Compose.
+          </p>
+          <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <Button variant="secondary" disabled>Add approved image</Button>
+            <Button variant="ghost" disabled>Manage image links</Button>
           </div>
         </div>
       </div>

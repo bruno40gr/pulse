@@ -8,7 +8,7 @@ interface FieldValueProps {
 export function FieldValue({ children, style }: FieldValueProps) {
   return (
     <div style={{
-      fontSize: '16px',
+      fontSize: '14px',
       fontWeight: 500,
       color: colors.text,
       fontFamily: typography.fontSans,

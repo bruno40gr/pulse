@@ -1,3 +1,5 @@
+'use client'
+import { useEffect } from 'react'
 import { colors, shadows } from '@/lib/tokens'
 
 interface SlidePanelProps {
@@ -9,6 +11,17 @@ interface SlidePanelProps {
 }
 
 export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', children, overlayOpacity = 0.3 }: SlidePanelProps) {
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
   return (
     <>

@@ -1,0 +1,18 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#F7F4EA"/>
+  <rect x="80" y="80" width="1040" height="640" rx="40" fill="#FFFFFF" stroke="#D9D1C3" stroke-width="4"/>
+  <circle cx="220" cy="200" r="78" fill="#6BAA75"/>
+  <circle cx="980" cy="600" r="64" fill="#8B6F47" opacity="0.18"/>
+  <rect x="330" y="180" width="460" height="32" rx="16" fill="#2E2A26" opacity="0.12"/>
+  <rect x="330" y="236" width="340" height="20" rx="10" fill="#2E2A26" opacity="0.08"/>
+  <rect x="180" y="340" width="840" height="260" rx="28" fill="#F4F0E7"/>
+  <rect x="220" y="392" width="220" height="140" rx="20" fill="#FFF8D8" stroke="#E8D98A" stroke-width="3"/>
+  <rect x="490" y="392" width="220" height="140" rx="20" fill="#FFF8D8" stroke="#E8D98A" stroke-width="3"/>
+  <rect x="760" y="392" width="220" height="140" rx="20" fill="#FFF8D8" stroke="#E8D98A" stroke-width="3"/>
+  <path d="M220 148L233 176H263L239 193L248 222L220 204L192 222L201 193L177 176H207L220 148Z" fill="#FFF0A8"/>
+  <path d="M325 500L345 540L390 547L357 578L365 623L325 602L285 623L293 578L260 547L305 540L325 500Z" fill="#6BAA75"/>
+  <path d="M595 500L615 540L660 547L627 578L635 623L595 602L555 623L563 578L530 547L575 540L595 500Z" fill="#6BAA75"/>
+  <path d="M865 500L885 540L930 547L897 578L905 623L865 602L825 623L833 578L800 547L845 540L865 500Z" fill="#6BAA75"/>
+  <text x="330" y="142" fill="#2E2A26" font-family="Arial, sans-serif" font-size="54" font-weight="700">Math progress worth celebrating</text>
+  <text x="330" y="306" fill="#6B6259" font-family="Arial, sans-serif" font-size="28">Use this for warm wins, goal milestones, and study streaks.</text>
+</svg>

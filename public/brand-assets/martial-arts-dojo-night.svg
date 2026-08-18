@@ -1,0 +1,15 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#F2ECE4"/>
+  <rect x="72" y="72" width="1056" height="656" rx="40" fill="#FFFDFC" stroke="#D7CCBF" stroke-width="4"/>
+  <rect x="120" y="520" width="960" height="130" rx="30" fill="#B78A5C"/>
+  <rect x="160" y="212" width="320" height="240" rx="28" fill="#232323"/>
+  <rect x="520" y="212" width="520" height="240" rx="28" fill="#F5F0E6"/>
+  <rect x="560" y="260" width="240" height="18" rx="9" fill="#2E2A26" opacity="0.16"/>
+  <rect x="560" y="304" width="390" height="12" rx="6" fill="#2E2A26" opacity="0.12"/>
+  <rect x="560" y="337" width="350" height="12" rx="6" fill="#2E2A26" opacity="0.12"/>
+  <rect x="560" y="370" width="280" height="12" rx="6" fill="#2E2A26" opacity="0.12"/>
+  <path d="M245 246L330 336L245 426" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M395 246L310 336L395 426" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="120" y="160" fill="#2E2A26" font-family="Arial, sans-serif" font-size="54" font-weight="700">Dojo night energy</text>
+  <text x="120" y="190" fill="#6B6259" font-family="Arial, sans-serif" font-size="28">Best for class reminders, encouragement, and family follow-up.</text>
+</svg>

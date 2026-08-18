@@ -698,6 +698,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             cardBg="#f6f8f8"
             addLabel="Add internal note"
             saving={internalNotesSaving}
+            signifierLabel="Internal comms"
+            helperText="Visible to staff only. Use for coaching, coordination, and operational follow-up."
             onSave={(text) => {
               const newEntry = { text, timestamp: new Date().toISOString() }
               const updated = [newEntry, ...internalNotesHistory]
