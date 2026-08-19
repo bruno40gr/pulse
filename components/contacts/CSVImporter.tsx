@@ -259,7 +259,6 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
         <div style={{ padding: '24px' }}>
           {step === 'choose' && (
             <div style={{ padding: '8px 4px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>Import Contacts</h2>
               <p style={{ fontSize: '14px', color: '#6B6B6B', marginBottom: '28px' }}>
                 How would you like to bring in your contacts?
               </p>
@@ -344,7 +343,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
                 <thead>
                   <tr style={{ textAlign: 'left', color: '#6B6B6B', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Your column</th>
-                    <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Field in Pulse</th>
+                    <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Hey Cohen reads</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600, textAlign: 'center' }}>Include</th>
                   </tr>
                 </thead>

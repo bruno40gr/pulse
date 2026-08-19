@@ -94,6 +94,36 @@ const loadingMessages = [
   'Almost there...',
 ]
 
+const portfolioInsightCards = [
+  {
+    label: 'Risk',
+    accent: colors.error,
+    title: 'Attendance drift spotted before dropout risk climbs',
+    student: 'Maya Chen · Algebra Foundations',
+    stat: '2 absences in 10 days',
+    support: 'Billing current · Confidence 92%',
+    note: 'Teacher note: quieter in group work and missed last quiz review.',
+  },
+  {
+    label: 'Milestone',
+    accent: colors.success,
+    title: 'Consistency and mastery aligned into a recognition moment',
+    student: 'Jordan Alvarez · Reading Lab',
+    stat: '6-week streak · +18% fluency',
+    support: 'Family engaged · Confidence 88%',
+    note: 'Teacher note: reading aloud with more confidence and asking for harder passages.',
+  },
+  {
+    label: 'Opportunity',
+    accent: colors.teal,
+    title: 'Operational signal suggests a timely staff follow-up',
+    student: 'Nia Patel · Robotics Studio',
+    stat: 'Invoice retry pending · attends every Friday',
+    support: 'Upsell fit: Saturday lab add-on',
+    note: 'Teacher note: consistently finishes early and asks for extra build challenges.',
+  },
+] as const
+
 function getGreetingForTime(date = new Date()) {
   const hour = date.getHours()
   const morningGreetings = ['Good morning.', 'Morning.', 'Hope your morning is off to a smooth start.']
@@ -253,12 +283,12 @@ export default function DashboardPage() {
     return [...ids]
   }
 
-  const getRecipientPreview = (ids: string[]) => ids
-    .map(id => {
+  const getRecipientPreview = (ids: string[]): NonNullable<ComposeTarget['recipientPreview']> => ids
+    .flatMap(id => {
       const preview = contactPreviewMap[id]
-      if (!preview) return null
+      if (!preview) return []
       const details = contactDetailsMap[id]
-      return {
+      return [{
         ...preview,
         avatar_src: shouldUseDemoPhotos(getActiveTenantId()) && details
           ? getContactDemoAvatarUrl(getActiveTenantId(), {
@@ -267,9 +297,8 @@ export default function DashboardPage() {
               is_minor: details.is_minor,
             })
           : undefined,
-      }
+      }]
     })
-    .filter(Boolean)
     .slice(0, 3)
 
   const getContactContext = (ids: string[]) => ids.length === 1 ? contactDetailsMap[ids[0]] : undefined
@@ -321,6 +350,224 @@ export default function DashboardPage() {
           </Button>
         }
       />
+
+      <section
+        style={{
+          marginBottom: spacing['3xl'],
+          border: `1px solid ${colors.border}`,
+          borderRadius: radius['2xl'],
+          background: 'linear-gradient(180deg, #FFFFFF 0%, #FBFDFC 100%)',
+          boxShadow: '0 18px 60px rgba(26, 19, 15, 0.06)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: spacing['2xl'],
+            padding: spacing['3xl'],
+            borderBottom: `1px solid ${colors.borderLight}`,
+            background: 'linear-gradient(135deg, rgba(255,0,68,0.03) 0%, rgba(0,168,200,0.03) 100%)',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: typography.sizeSm,
+                  fontWeight: typography.weightSemibold,
+                  color: colors.text,
+                  padding: `${spacing.xs} ${spacing.md}`,
+                  borderRadius: radius.full,
+                  background: 'rgba(26, 19, 15, 0.06)',
+                }}
+              >
+                Hey Cohen
+              </span>
+              <span style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>
+                Staff insight snapshot
+              </span>
+            </div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: typography.size2xl,
+                fontWeight: typography.weightSemibold,
+                color: colors.text,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Signals, distilled into attention-worthy moments
+            </h2>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: spacing.sm,
+              minWidth: '320px',
+            }}
+          >
+            {[
+              { label: 'Risks', value: '08', tone: colors.error },
+              { label: 'Milestones', value: '14', tone: colors.success },
+              { label: 'Opportunities', value: '05', tone: colors.teal },
+            ].map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  padding: spacing.lg,
+                  borderRadius: radius.xl,
+                  background: colors.surface,
+                  border: `1px solid ${colors.borderLight}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: spacing.xs,
+                }}
+              >
+                <span style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>{item.label}</span>
+                <span style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: item.tone }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.2fr 1fr 1fr',
+            gap: spacing.lg,
+            padding: spacing['3xl'],
+          }}
+        >
+          {portfolioInsightCards.map((card, index) => (
+            <article
+              key={card.title}
+              style={{
+                position: 'relative',
+                minHeight: index === 0 ? '320px' : '280px',
+                padding: spacing['2xl'],
+                borderRadius: radius.xl,
+                background: index === 0
+                  ? 'linear-gradient(180deg, #FFFDFD 0%, #FFFFFF 100%)'
+                  : colors.surface,
+                border: `1px solid ${colors.border}`,
+                boxShadow: '0 10px 30px rgba(26, 19, 15, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: spacing.lg,
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: spacing.xl,
+                  bottom: spacing.xl,
+                  width: '3px',
+                  borderRadius: radius.full,
+                  background: card.accent,
+                }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+                <span
+                  style={{
+                    fontSize: typography.sizeSm,
+                    fontWeight: typography.weightSemibold,
+                    color: card.accent,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {card.label}
+                </span>
+                <span style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>
+                  {index === 0 ? 'Needs review' : index === 1 ? 'Worth celebrating' : 'Suggested follow-up'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: index === 0 ? typography.sizeXl : typography.sizeLg,
+                    lineHeight: 1.2,
+                    fontWeight: typography.weightSemibold,
+                    color: colors.text,
+                    maxWidth: '28ch',
+                  }}
+                >
+                  {card.title}
+                </h3>
+                <p style={{ margin: 0, fontSize: typography.sizeBase, color: colors.textSecondary }}>
+                  {card.student}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: spacing.sm,
+                }}
+              >
+                <div
+                  style={{
+                    padding: spacing.lg,
+                    borderRadius: radius.lg,
+                    background: colors.background,
+                    border: `1px solid ${colors.borderLight}`,
+                  }}
+                >
+                  <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginBottom: spacing.xs }}>Signal</div>
+                  <div style={{ fontSize: typography.sizeMd, color: colors.text, fontWeight: typography.weightMedium }}>{card.stat}</div>
+                </div>
+                <div
+                  style={{
+                    padding: spacing.lg,
+                    borderRadius: radius.lg,
+                    background: colors.background,
+                    border: `1px solid ${colors.borderLight}`,
+                  }}
+                >
+                  <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginBottom: spacing.xs }}>Context</div>
+                  <div style={{ fontSize: typography.sizeMd, color: colors.text, fontWeight: typography.weightMedium }}>{card.support}</div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 'auto',
+                  padding: spacing.lg,
+                  borderRadius: radius.lg,
+                  background: 'rgba(250, 246, 240, 0.65)',
+                  border: `1px solid ${colors.borderLight}`,
+                }}
+              >
+                <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, marginBottom: spacing.xs }}>Latest note</div>
+                <p style={{ margin: 0, fontSize: typography.sizeBase, lineHeight: 1.6, color: colors.textSecondary }}>
+                  {card.note}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <p
+        style={{
+          margin: `0 0 ${spacing['3xl']}`,
+          fontSize: typography.sizeMd,
+          color: colors.textMuted,
+          maxWidth: '780px',
+        }}
+      >
+        Dashboard insight cards exploring how operational signals can be distilled into clear staff priorities.
+      </p>
 
       {loading && (
         <>
