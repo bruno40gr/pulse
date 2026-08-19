@@ -372,21 +372,21 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         <div style={{ flex: 1, overflowY: 'auto', background: colors.surface, padding: '0 28px 24px' }}>
           {/* Profile picture + name */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px 0 20px' }}>
-            <Avatar
-              firstName={editFirstName}
-              lastName={editLastName}
-              size={56}
-              src={shouldUseDemoPhotos(tenantId)
-                ? getContactDemoAvatarUrl(tenantId, {
-                    first_name: editFirstName,
-                    last_name: editLastName,
-                    is_minor: contact.is_minor,
-                  })
-                : undefined}
-            />
+              <Avatar
+                firstName={editFirstName as string}
+                lastName={editLastName as string}
+                size={56}
+                src={shouldUseDemoPhotos(tenantId)
+                  ? getContactDemoAvatarUrl(tenantId, {
+                      first_name: editFirstName as string,
+                      last_name: editLastName as string,
+                      is_minor: contact.is_minor,
+                    })
+                  : undefined}
+              />
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
-                {editFirstName} {editLastName}
+                {editFirstName as string} {editLastName as string}
               </div>
               <div style={{ fontSize: '12px', color: colors.textMuted, marginTop: '2px' }}>
                 Profile picture upload coming soon
@@ -397,23 +397,23 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
             <div>
               <FieldLabel>First name</FieldLabel>
-              <input type="text" value={editFirstName} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" style={inputStyle} />
+              <input type="text" value={editFirstName as string} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" style={inputStyle} />
             </div>
             <div>
               <FieldLabel>Last name</FieldLabel>
-              <input type="text" value={editLastName} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" style={inputStyle} />
+              <input type="text" value={editLastName as string} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" style={inputStyle} />
             </div>
             <div>
               <FieldLabel>Phone</FieldLabel>
-              <input type="text" value={edits.phone ?? contact.phone ?? ''} onChange={e => updateEdit('phone', e.target.value)} placeholder="Phone number" style={inputStyle} />
+              <input type="text" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', e.target.value)} placeholder="Phone number" style={inputStyle} />
             </div>
             <div>
               <FieldLabel>Email</FieldLabel>
-              <input type="email" value={edits.email ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" style={inputStyle} />
+              <input type="email" value={(edits.email as string) ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" style={inputStyle} />
             </div>
             <div>
               <FieldLabel>Date of birth</FieldLabel>
-              <input type="date" value={edits.date_of_birth ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: '160px' }} />
+              <input type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: '160px' }} />
             </div>
           </div>
 
