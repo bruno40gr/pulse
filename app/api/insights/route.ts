@@ -7,7 +7,12 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 function getTenantId(request: Request): string {
   const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+  const tenant = url.searchParams.get('tenant')
+  // Return the default UUID if tenant is 'demo' or invalid uuid length
+  if (!tenant || tenant === 'demo' || tenant.length !== 36) {
+    return DEFAULT_TENANT_ID
+  }
+  return tenant
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
