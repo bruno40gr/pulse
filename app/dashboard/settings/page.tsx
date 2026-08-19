@@ -66,7 +66,7 @@ export default function SettingsPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'account', label: 'Account settings' },
     { key: 'brand', label: 'Your Brand' },
-    { key: 'pulse', label: 'Hey Cohen system settings' },
+    { key: 'pulse', label: 'Hey, Cohen system settings' },
   ]
 
   return (

@@ -27,6 +27,8 @@ export default function TenantSwitcher({ hideOnDashboard = false }: { hideOnDash
     window.location.reload()
   }
 
+  if (pathname.startsWith('/demo')) return null
+
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null
 
   if (!tenants.length) return null

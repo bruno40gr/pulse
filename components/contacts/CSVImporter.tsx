@@ -343,7 +343,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
                 <thead>
                   <tr style={{ textAlign: 'left', color: '#6B6B6B', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Your column</th>
-                    <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Hey Cohen reads</th>
+                    <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600 }}>Hey, Cohen reads</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1px solid #E8E8E4', fontWeight: 600, textAlign: 'center' }}>Include</th>
                   </tr>
                 </thead>

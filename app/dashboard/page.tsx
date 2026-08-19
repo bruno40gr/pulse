@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl } from '@/lib/tenant'
+import { trackDemoEvent } from '@/lib/demo-analytics'
 import { Button, Badge, SlidePanel, SlidePanelHeader, PageHeader } from '@/components/ui'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
@@ -153,6 +154,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setGreeting(getGreetingForTime())
+  }, [])
+
+  useEffect(() => {
+    const tenantId = getActiveTenantId()
+    const sessionKey = `pulse_demo_dashboard_viewed_${tenantId}`
+
+    if (typeof window !== 'undefined' && window.sessionStorage.getItem(sessionKey)) {
+      return
+    }
+
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(sessionKey, 'true')
+    }
+
+    trackDemoEvent({
+      eventType: 'demo_dashboard_viewed',
+      tenantId,
+      path: '/dashboard',
+      metadata: { source: 'dashboard_page' },
+    })
   }, [])
 
   useEffect(() => {

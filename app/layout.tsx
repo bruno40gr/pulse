@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Baloo_2 } from "next/font/google";
+import { DM_Sans, Baloo_2, Pridi } from "next/font/google";
 import "./globals.css";
 import TenantSwitcher from '@/components/layout/TenantSwitcher'
 
@@ -15,8 +15,14 @@ const baloo2 = Baloo_2({
   weight: ["600", "700"],
 });
 
+const pridi = Pridi({
+  variable: "--font-pridi",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "Hey Cohen",
+  title: "Hey, Cohen",
   description: "Smart SMS for small businesses",
 };
 
@@ -28,7 +34,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${baloo2.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${baloo2.variable} ${pridi.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <TenantSwitcher hideOnDashboard={true} />
