@@ -19,6 +19,7 @@ interface NotesSectionProps {
   saving?: boolean
   signifierLabel?: string
   helperText?: string
+  showHeader?: boolean
   onSave: (text: string) => void
 }
 
@@ -37,6 +38,7 @@ export function NotesSection({
   saving = false,
   signifierLabel,
   helperText,
+  showHeader = true,
   onSave,
 }: NotesSectionProps) {
   const [showInput, setShowInput] = useState(false)
@@ -51,43 +53,45 @@ export function NotesSection({
 
   return (
     <div>
-      <div style={{ marginBottom: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <h2 style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            color: colors.text,
-            margin: 0,
-            fontFamily: typography.fontSans,
-          }}>
-            {title}
-          </h2>
-          {signifierLabel && (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 10px',
-              borderRadius: radius.full,
-              background: '#E5EEF8',
-              border: '1px solid #B9D0EA',
-              color: '#1E3A5F',
-              fontSize: '11px',
-              fontWeight: 700,
-              letterSpacing: '0.03em',
+      {showHeader && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h2 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: colors.text,
+              margin: 0,
               fontFamily: typography.fontSans,
             }}>
-              <Shield size={12} strokeWidth={2} />
-              {signifierLabel}
-            </span>
+              {title}
+            </h2>
+            {signifierLabel && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 10px',
+                borderRadius: radius.full,
+                background: '#E5EEF8',
+                border: '1px solid #B9D0EA',
+                color: '#1E3A5F',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+                fontFamily: typography.fontSans,
+              }}>
+                <Shield size={12} strokeWidth={2} />
+                {signifierLabel}
+              </span>
+            )}
+          </div>
+          {helperText && (
+            <div style={{ marginTop: '4px', fontSize: '12px', color: colors.textMuted, fontFamily: typography.fontSans }}>
+              {helperText}
+            </div>
           )}
         </div>
-        {helperText && (
-          <div style={{ marginTop: '4px', fontSize: '12px', color: colors.textMuted, fontFamily: typography.fontSans }}>
-            {helperText}
-          </div>
-        )}
-      </div>
+      )}
 
       {notes.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
@@ -96,7 +100,7 @@ export function NotesSection({
               display: 'flex',
               gap: '12px',
               padding: '14px 16px',
-              borderRadius: '10px',
+              borderRadius: radius.lg,
               background: cardBg,
               border: `1px solid ${colors.borderLight}`,
             }}>
@@ -134,7 +138,7 @@ export function NotesSection({
             width: '100%',
             padding: '12px 16px',
             border: 'none',
-            borderRadius: '8px',
+            borderRadius: radius.lg,
             background: '#f6f8f8',
             color: colors.textMuted,
             fontSize: '13px',

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import TenantSwitcher from '@/components/layout/TenantSwitcher'
+import TenantBrand from '@/components/layout/TenantBrand'
 import DemoBanner from '@/components/ui/DemoBanner'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { colors, typography, radius } from '@/lib/tokens'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Sidebar */}
       <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh' }}>
         <div style={{ padding: '24px 20px 16px', borderBottom: `1px solid rgba(255,255,255,0.08)` }}>
-          <span style={{ color: colors.surface, fontSize: typography.sizeXl, fontWeight: typography.weightBold, letterSpacing: '0.02em' }}>Pulse</span>
+          <TenantBrand height={36} maxWidth="100%" width="100%" />
         </div>
         <TenantSwitcher />
         <nav style={{ flex: 1, padding: '12px 8px' }}>
@@ -18,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: '/dashboard/contacts', label: 'Contacts' },
             { href: '/dashboard/inbox', label: 'Inbox' },
             { href: '/dashboard/history', label: 'Campaigns' },
+            { href: '/dashboard/preview', label: 'Preview' },
           ].map(({ href, label }) => (
             <Link key={href} href={href} style={{ display: 'block', padding: '9px 12px', borderRadius: radius.lg, color: colors.textMuted, textDecoration: 'none', fontSize: typography.sizeMd, marginBottom: '2px' }}>
               {label}

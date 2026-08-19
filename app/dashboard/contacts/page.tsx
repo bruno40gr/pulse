@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, memo } from 'react'
-import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
+import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
 import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
@@ -25,6 +25,7 @@ interface Contact {
   account_holder_name: string | null
   account_holder_phone: string | null
   account_holder_email: string | null
+  is_minor?: boolean
   custom_fields: Record<string, unknown>
 }
 
@@ -328,13 +329,30 @@ export default function ContactsPage() {
     setLastSelectedIndex(-1)
   }
 
+  const openComposePanel = () => {
+    if (selectedIds.size === 0) return
+
+    if (selectedIds.size === 1) {
+      const contact = contacts.find(c => c.id === [...selectedIds][0])
+      setSingleComposeContact(contact || null)
+    } else {
+      setSingleComposeContact(null)
+    }
+
+    setIsComposeOpen(true)
+  }
+
   // Unique filter options from contacts
   const filterOptions: Record<string, string[]> = {}
   tenantFields.forEach(f => {
     if (f.field_options?.length) {
       filterOptions[f.field_key] = f.field_options
     } else {
-      const vals = [...new Set(contacts.map(c => c.custom_fields?.[f.field_key]).filter(Boolean))]
+      const vals = [...new Set(
+        contacts
+          .map(c => c.custom_fields?.[f.field_key])
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )]
       if (vals.length) filterOptions[f.field_key] = vals
     }
   })
@@ -449,32 +467,6 @@ export default function ContactsPage() {
         <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
-        <button
-          onClick={() => {
-            if (selectedIds.size === 0) return
-            if (selectedIds.size === 1) {
-              const contact = contacts.find(c => c.id === [...selectedIds][0])
-              setSingleComposeContact(contact || null)
-            } else {
-              setSingleComposeContact(null)
-            }
-            setIsComposeOpen(true)
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: spacing.sm,
-            background: selectedIds.size > 0 ? colors.action : colors.borderLight,
-            color: selectedIds.size > 0 ? 'white' : colors.textMuted,
-            border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
-            fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
-            cursor: selectedIds.size > 0 ? 'pointer' : 'default',
-            fontFamily: typography.fontSans,
-            transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <Send size={14} />
-          {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
-        </button>
       </div>
 
       {showStickyActions && selectedIds.size > 0 && (
@@ -526,31 +518,6 @@ export default function ContactsPage() {
             <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
               Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>
-            <button
-              onClick={() => {
-                if (selectedIds.size === 0) return
-                if (selectedIds.size === 1) {
-                  const contact = contacts.find(c => c.id === [...selectedIds][0])
-                  setSingleComposeContact(contact || null)
-                } else {
-                  setSingleComposeContact(null)
-                }
-                setIsComposeOpen(true)
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: spacing.sm,
-                background: selectedIds.size > 0 ? colors.action : colors.borderLight,
-                color: selectedIds.size > 0 ? 'white' : colors.textMuted,
-                border: 'none', borderRadius: radius.lg, padding: `${spacing.sm} ${spacing.xl}`,
-                fontSize: typography.sizeMd, fontWeight: typography.weightMedium,
-                cursor: selectedIds.size > 0 ? 'pointer' : 'default',
-                fontFamily: typography.fontSans,
-                transition: 'all 0.15s',
-              }}
-            >
-              <Send size={14} />
-              {selectedIds.size > 0 ? `Compose (${selectedIds.size})` : 'Compose'}
-            </button>
           </div>
         </div>
       )}
@@ -725,6 +692,35 @@ export default function ContactsPage() {
       </div>
       )}
 
+      {!selectedContact && selectedIds.size > 0 && (
+        <button
+          onClick={openComposePanel}
+          style={{
+            position: 'fixed',
+            right: spacing['2xl'],
+            bottom: spacing['2xl'],
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            gap: spacing.sm,
+            background: colors.action,
+            color: 'white',
+            border: 'none',
+            borderRadius: radius.lg,
+            padding: `${spacing.md} ${spacing.xl}`,
+            fontSize: typography.sizeMd,
+            fontWeight: typography.weightMedium,
+            cursor: 'pointer',
+            fontFamily: typography.fontSans,
+            boxShadow: '0 14px 36px rgba(0,0,0,0.16)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Send size={14} />
+          {selectedIds.size > 0 ? `compose (${selectedIds.size})` : 'compose'}
+        </button>
+      )}
+
       {/* Contact slide panel */}
       {selectedContact && (
         <ContactSlidePanel
@@ -786,12 +782,38 @@ export default function ContactsPage() {
             recipientIds={singleComposeContact ? [singleComposeContact.id] : [...selectedIds]}
             channel="sms"
             mode={singleComposeContact ? 'single' : 'bulk'}
-            contactContext={singleComposeContact}
+            contactContext={singleComposeContact || undefined}
             composeSource="scratch"
             composeIntent="neutral"
+            footerLeadingAction={singleComposeContact ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsComposeOpen(false)
+                  setSelectedContact(singleComposeContact)
+                }}
+              >
+                ← View student details
+              </Button>
+            ) : undefined}
             recipientPreview={singleComposeContact
-              ? [{ id: singleComposeContact.id, first_name: singleComposeContact.first_name, last_name: singleComposeContact.last_name }]
-              : displayed.filter(contact => selectedIds.has(contact.id)).slice(0, 3).map(contact => ({ id: contact.id, first_name: contact.first_name, last_name: contact.last_name }))}
+              ? [{
+                  id: singleComposeContact.id,
+                  first_name: singleComposeContact.first_name,
+                  last_name: singleComposeContact.last_name,
+                  avatar_src: shouldUseDemoPhotos(tenantId)
+                    ? getContactDemoAvatarUrl(tenantId, singleComposeContact)
+                    : undefined,
+                }]
+              : displayed.filter(contact => selectedIds.has(contact.id)).slice(0, 3).map(contact => ({
+                  id: contact.id,
+                  first_name: contact.first_name,
+                  last_name: contact.last_name,
+                  avatar_src: shouldUseDemoPhotos(tenantId)
+                    ? getContactDemoAvatarUrl(tenantId, contact)
+                    : undefined,
+                }))}
             onClose={() => {
               setIsComposeOpen(false)
               setSingleComposeContact(null)
@@ -804,20 +826,6 @@ export default function ContactsPage() {
             }}
           />
         </div>
-        {singleComposeContact && (
-          <div style={{ padding: `${spacing.lg} ${spacing['2xl']}`, borderTop: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'center', flexShrink: 0, background: colors.surface }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setIsComposeOpen(false)
-                setSelectedContact(singleComposeContact)
-              }}
-            >
-              ← View student details
-            </Button>
-          </div>
-        )}
       </SlidePanel>
 
       {/* Bulk edit panel */}
@@ -885,10 +893,17 @@ const ContactRow = memo(function ContactRow({
       </td>
       <td style={{ padding: '10px 16px', fontWeight: 500 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <Avatar firstName={contact.first_name} lastName={contact.last_name} size={24} src={shouldUseDiceBear(tenantId) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined} />
+                      <Avatar
+                        firstName={contact.first_name}
+                        lastName={contact.last_name}
+                        size={32}
+                        src={shouldUseDemoPhotos(tenantId)
+                          ? getContactDemoAvatarUrl(tenantId, contact)
+                          : undefined}
+                      />
           <span
             onClick={(e) => onNameClick(contact, e)}
-            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border }}
+            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border, fontWeight: typography.weightBold }}
           >
             {contact.first_name} {contact.last_name}
           </span>
@@ -908,9 +923,16 @@ const ContactRow = memo(function ContactRow({
                     })()}
                   </td>
       <td style={{ padding: '10px 16px' }}>{contact.email || '—'}</td>
-      {tenantFields.slice(0, 3).map(f => (
-        <td key={f.field_key} style={{ padding: '10px 16px', color: colors.textSecondary }}>{contact.custom_fields?.[f.field_key] || '—'}</td>
-      ))}
+      {tenantFields.slice(0, 3).map(f => {
+        const fieldValue = contact.custom_fields?.[f.field_key]
+        return (
+          <td key={f.field_key} style={{ padding: '10px 16px', color: colors.textSecondary }}>
+            {typeof fieldValue === 'string' || typeof fieldValue === 'number'
+              ? String(fieldValue)
+              : '—'}
+          </td>
+        )
+      })}
       <td style={{ padding: '10px 16px' }}>
         <Badge size="sm" variant={contact.client_status === 'active' ? 'success' : 'neutral'}>{contact.client_status}</Badge>
       </td>

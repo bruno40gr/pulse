@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Baloo_2 } from "next/font/google";
 import "./globals.css";
+import TenantSwitcher from '@/components/layout/TenantSwitcher'
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -15,7 +16,7 @@ const baloo2 = Baloo_2({
 });
 
 export const metadata: Metadata = {
-  title: "Pulse",
+  title: "Hey Cohen",
   description: "Smart SMS for small businesses",
 };
 
@@ -29,7 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`${dmSans.variable} ${baloo2.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <TenantSwitcher hideOnDashboard={true} />
+        {children}
+      </body>
     </html>
   );
 }

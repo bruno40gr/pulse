@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image'
 import { useState } from 'react'
 import { typography } from '@/lib/tokens'
 
@@ -19,22 +20,42 @@ export function getAvatarColor(firstName: string, lastName: string): string {
 export function Avatar({ firstName, lastName, size = 36, src, style }: AvatarProps) {
   const [imgError, setImgError] = useState(false)
   const color = getAvatarColor(firstName, lastName)
+  const isLocalSrc = Boolean(src && src.startsWith('/'))
 
   if (src && !imgError) {
     return (
-      <img
-        src={src}
-        alt={`${firstName} ${lastName}`}
-        width={size}
-        height={size}
+      <div
         style={{
+          width: size,
+          height: size,
           borderRadius: '50%',
-          objectFit: 'cover',
+          overflow: 'hidden',
+          position: 'relative',
           flexShrink: 0,
+          background: color,
           ...style,
         }}
-        onError={() => setImgError(true)}
-      />
+      >
+        {isLocalSrc ? (
+          <Image
+            src={src}
+            alt={`${firstName} ${lastName}`}
+            fill
+            sizes={`${size}px`}
+            style={{ objectFit: 'cover' }}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <img
+            src={src}
+            alt={`${firstName} ${lastName}`}
+            width={size}
+            height={size}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setImgError(true)}
+          />
+        )}
+      </div>
     )
   }
 

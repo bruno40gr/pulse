@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Star } from 'lucide-react'
-import { Button, Badge, Avatar, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
-import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
+import { Sparkles } from 'lucide-react'
+import { Button, Badge, Avatar, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection, SurfacePanel, Tabs } from '@/components/ui'
+import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
+import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
 
 interface AccountHolder {
   name: string | null
@@ -38,7 +38,7 @@ interface Contact {
   account_holder_email: string | null
   account_holders?: AccountHolder[]
   instructor?: InstructorInfo | null
-  custom_fields: Record<string, any>
+  custom_fields: Record<string, unknown>
   message_routing?: string
   is_minor?: boolean
   notes_history?: {text: string, timestamp: string}[]
@@ -63,11 +63,11 @@ interface Insight {
   text?: string
 }
 
-const valenceConfig: Record<string, { dotColor: string; bg: string }> = {
-  attention: { dotColor: '#D97706', bg: '#FFFBEB' },
-  celebrate: { dotColor: '#16A34A', bg: '#F0FDF4' },
-  opportunity: { dotColor: '#2563EB', bg: '#EFF6FF' },
-  passive: { dotColor: '#9CA3AF', bg: '#FFFFFF' },
+const valenceConfig: Record<string, { dotColor: string; bg: string; titleColor: string }> = {
+  attention: { dotColor: '#92400E', bg: '#FEF7E7', titleColor: '#92400E' },
+  celebrate: { dotColor: '#1F5C3A', bg: '#F3FBF6', titleColor: '#1F5C3A' },
+  opportunity: { dotColor: '#1D4ED8', bg: '#F2F7FF', titleColor: '#1D4ED8' },
+  passive: { dotColor: '#6B7280', bg: '#FFFFFF', titleColor: '#374151' },
 }
 
 interface ContactSlidePanelProps {
@@ -104,7 +104,17 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
+const editorialSectionTitleStyle: React.CSSProperties = {
+  fontSize: typography.sizeSm,
+  fontWeight: 400,
+  color: colors.textMuted,
+  letterSpacing: '0',
+  textTransform: 'none',
+  marginBottom: spacing.md,
+}
+
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
+  const tenantId = getActiveTenantId()
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
 
@@ -126,7 +136,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [saving, setSaving] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const [edits, setEdits] = useState<Record<string, any>>({})
+  const [edits, setEdits] = useState<Record<string, unknown>>({})
+  const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>('notes')
 
   // ── Load insights with note context ──
   useEffect(() => {
@@ -182,22 +193,23 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   }, [contact.id])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
-  const normalizeInsights = (raw: any[]): Insight[] => {
+  const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
     return raw
       .filter(i => i && (i.headline || i.text))
       .map(i => {
+        const type = typeof i.type === 'string' ? i.type : undefined
         const legacyValence =
-          i.type === 'risk' || i.type === 'nudge' ? 'attention' :
-          i.type === 'milestone' ? 'celebrate' :
-          i.type === 'opportunity' ? 'opportunity' :
-          i.type === 'info' ? 'passive' : undefined
+          type === 'risk' || type === 'nudge' ? 'attention' :
+          type === 'milestone' ? 'celebrate' :
+          type === 'opportunity' ? 'opportunity' :
+          type === 'info' ? 'passive' : undefined
 
         return {
-          headline: i.headline || i.text,
-          detail: i.detail ?? null,
-          action: i.action ?? null,
-          valence: i.valence || legacyValence || 'passive',
-          source: i.source || 'profile',
+          headline: (typeof i.headline === 'string' ? i.headline : typeof i.text === 'string' ? i.text : '') || '',
+          detail: typeof i.detail === 'string' ? i.detail : null,
+          action: typeof i.action === 'string' ? i.action : null,
+          valence: (i.valence === 'attention' || i.valence === 'celebrate' || i.valence === 'opportunity' || i.valence === 'passive' ? i.valence : legacyValence) || 'passive',
+          source: i.source === 'profile' || i.source === 'student_note' || i.source === 'internal_note' ? i.source : 'profile',
         }
       })
   }
@@ -223,7 +235,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   }
 
   const handleStartEditing = () => {
-    const initial: Record<string, any> = {}
+    const initial: Record<string, unknown> = {}
     if (contact.first_name) initial.first_name = contact.first_name
     if (contact.last_name) initial.last_name = contact.last_name
     if (contact.phone) initial.phone = contact.phone
@@ -327,8 +339,22 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const actionInsights = insights.filter(i => i.valence && i.valence !== 'passive')
   const passiveInsights = insights.filter(i => !i.valence || i.valence === 'passive')
 
-  const instructorFirst = contact.instructor?.name?.split(' ')[0] || ''
-  const instructorLast = contact.instructor?.name?.split(' ').slice(1).join(' ') || ''
+  const contactAvatarSrc = shouldUseDemoPhotos(tenantId)
+    ? getContactDemoAvatarUrl(tenantId, contact)
+    : undefined
+
+  const panelSkeleton = (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
+      <div style={{ padding: '24px 28px', borderRight: `1px solid ${colors.borderLight}` }}>
+        <div style={{ height: '120px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+        <div style={{ height: '220px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+        <div style={{ height: '180px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+      </div>
+      <div style={{ padding: '24px 28px' }}>
+        <div style={{ height: '520px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+      </div>
+    </div>
+  )
 
   // ── Full-screen edit form ──
   if (isEditing) {
@@ -350,7 +376,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
               firstName={editFirstName}
               lastName={editLastName}
               size={56}
-              src={shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(editFirstName, editLastName) : undefined}
+              src={shouldUseDemoPhotos(tenantId)
+                ? getContactDemoAvatarUrl(tenantId, {
+                    first_name: editFirstName,
+                    last_name: editLastName,
+                    is_minor: contact.is_minor,
+                  })
+                : undefined}
             />
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
@@ -431,19 +463,19 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   return (
-    <SlidePanel isOpen={true} onClose={onClose}>
+    <SlidePanel isOpen={true} onClose={onClose} width="min(86vw, 1180px)">
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
           firstName: contact.first_name,
           lastName: contact.last_name,
           size: 48,
-          src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(contact.first_name, contact.last_name) : undefined,
+          src: contactAvatarSrc,
         }}
         titleSize={typography.size2xl}
         badge={
           <>
-            <Badge variant={statusVariant as any}>{statusLabel}</Badge>
+            <Badge variant={statusVariant}>{statusLabel}</Badge>
             {computedIsMinor && <Badge variant="minor">Minor</Badge>}
             {ageLabel && <span style={{ fontSize: '13px', color: colors.textMuted, fontWeight: 400 }}>{ageLabel}</span>}
           </>
@@ -453,78 +485,79 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       />
 
       {/* Body — 2 equal columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      {insightsLoading ? panelSkeleton : (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
-        <div style={{ overflowY: 'auto', padding: '0 28px 24px', borderRight: `1px solid ${colors.borderLight}` }}>
+        <div style={{ overflowY: 'auto', padding: '24px 28px', borderRight: `1px solid ${colors.borderLight}` }}>
 
           {/* Account holders (conditional — no card space / divider when absent) */}
           {showAccountHolders ? (
-            <>
-              <div style={{ padding: '24px 0 0' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: colors.textMuted, marginBottom: '10px' }}>
-                  Account holders
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {accountHolders.map((ah, i) => (
-                    <div key={i} style={{
+            <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
+              <div style={editorialSectionTitleStyle}>Account holders</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {accountHolders.map((ah, i) => (
+                  <div
+                    key={i}
+                    style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 14px',
-                      background: '#f6f8f8',
-                      borderRadius: '8px',
-                    }}>
-                      <div style={{
-                        width: '32px', height: '32px',
-                        background: '#E5E7EB',
+                      alignItems: 'stretch',
+                      gap: spacing.md,
+                      padding: '12px 14px',
+                      background: colors.surface,
+                      borderRadius: radius.lg,
+                      border: `1px solid ${colors.borderLight}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '42px',
+                        minHeight: '72px',
+                        background: '#EEF1F1',
                         color: '#6B7280',
-                        borderRadius: '50%',
+                        borderRadius: radius.lg,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '12px',
                         fontWeight: 600,
                         flexShrink: 0,
-                      }}>
-                        {getInitials(ah.name)}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
+                      }}
+                    >
+                      {getInitials(ah.name)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, minWidth: 0 }}>
                           {cleanName(ah.name) || '—'}
                         </div>
-                        {(ah.phone || ah.email) && (
-                          <div style={{ fontSize: '12px', color: colors.textMuted, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                            {ah.phone && <span>{displayPhone(ah.phone)}</span>}
-                            {ah.email && <span>{ah.email}</span>}
+                        {ah.relationship && (
+                          <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, flexShrink: 0 }}>
+                            {ah.relationship}
                           </div>
                         )}
                       </div>
-                      {ah.relationship && (
-                        <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, marginLeft: 'auto', flexShrink: 0 }}>
-                          {ah.relationship}
+                      <div style={{ fontSize: '12px', color: colors.textMuted }}>
+                        {ah.is_primary ? 'Primary account holder' : 'Additional account holder'}
+                      </div>
+                      {(ah.phone || ah.email) && (
+                        <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
+                          {ah.phone ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhone(ah.phone)}</span> : <span style={{ color: colors.textMuted }}>—</span>}
+                          {ah.email ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-              <div style={dividerStyle} />
-            </>
-          ) : (
-            <div style={{ height: '24px' }} />
-          )}
+            </SurfacePanel>
+          ) : null}
 
           {/* AI Insights */}
-          <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Star size={16} fill="currentColor" /> AI Insights
-          </SectionTitle>
-          {insightsLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-              {[...Array(3)].map((_, i) => (
-                <div key={i} style={{ height: '36px', background: colors.borderLight, borderRadius: '10px', width: i === 2 ? '60%' : '100%' }} />
-              ))}
+          <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
+            <div style={{ ...editorialSectionTitleStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={15} /> AI highlights
             </div>
-          ) : actionInsights.length === 0 && passiveInsights.length === 0 ? (
+          {actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
               No insights available for this contact yet.
             </p>
@@ -538,13 +571,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
-                    padding: '18px 20px',
+                    padding: '14px 16px',
                     borderRadius: '10px',
                     background: config.bg,
                     marginBottom: '12px',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text, lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: config.titleColor, lineHeight: 1.4 }}>
                         {insight.headline}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -561,7 +594,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       </div>
                     </div>
                     {insight.detail && (
-                      <div style={{ fontSize: '14px', color: colors.text, lineHeight: 1.5 }}>
+                      <div style={{ fontSize: '13px', color: colors.text, lineHeight: 1.5 }}>
                         {insight.detail}
                       </div>
                     )}
@@ -569,29 +602,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 )
               })}
 
-              {/* Passive insights — normal body styling, no label */}
-              {passiveInsights.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {passiveInsights.map((insight, i) => (
-                    <div key={i} style={{
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      color: '#1A1A1A',
-                      fontFamily: 'var(--font-dm-sans), sans-serif',
-                      lineHeight: 1.5,
-                    }}>
-                      {insight.headline}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
+          </SurfacePanel>
 
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
-            <>
-              <div style={dividerStyle} />
+            <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
+              <div style={editorialSectionTitleStyle}>Details</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {contact.date_of_birth && (
                   <div>
@@ -614,8 +632,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                           firstName={firstName}
                           lastName={lastName}
                           size={28}
-                          src={shouldUseDiceBear(getActiveTenantId()) && contact.instructor?.person_id
-                            ? getDiceBearUrl(firstName, lastName)
+                          src={shouldUseDemoPhotos(tenantId) && contact.instructor?.person_id
+                            ? getDemoAvatarUrl(tenantId, firstName, lastName, { isMinor: false })
                             : undefined}
                         />
                         <span
@@ -665,51 +683,66 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   )
                 })}
               </div>
-            </>
+            </SurfacePanel>
           )}
         </div>
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
         <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
-          <NotesSection
-            title="Notes"
-            notes={studentNotesHistory}
-            avatarInitial="S"
-            avatarBg={colors.crimson}
-            cardBg="#FFFFFF"
-            addLabel="Add a note"
-            saving={studentNotesSaving}
-            onSave={(text) => {
-              const newEntry = { text, timestamp: new Date().toISOString() }
-              const updated = [newEntry, ...studentNotesHistory]
-              patch({ student_notes_history: updated }, true)
-              setStudentNotesHistory(updated)
-              showToast('changes saved')
-            }}
-          />
+          <SurfacePanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
+            <Tabs
+              items={[
+                { key: 'notes', label: 'Notes' },
+                { key: 'internal', label: 'Internal notes' },
+              ]}
+              activeKey={activeNotesTab}
+              onChange={setActiveNotesTab}
+              style={{ marginBottom: spacing.lg }}
+            />
 
-          <div style={dividerStyle} />
-
-          <NotesSection
-            title="Internal notes"
-            notes={internalNotesHistory}
-            avatarInitial="T"
-            avatarBg={colors.textMuted}
-            cardBg="#f6f8f8"
-            addLabel="Add internal note"
-            saving={internalNotesSaving}
-            signifierLabel="Internal comms"
-            helperText="Visible to staff only. Use for coaching, coordination, and operational follow-up."
-            onSave={(text) => {
-              const newEntry = { text, timestamp: new Date().toISOString() }
-              const updated = [newEntry, ...internalNotesHistory]
-              patch({ notes_history: updated, notes: text }, true)
-              setInternalNotesHistory(updated)
-              showToast('changes saved')
-            }}
-          />
+            {activeNotesTab === 'notes' ? (
+              <NotesSection
+                title="Notes"
+                notes={studentNotesHistory}
+                avatarInitial="S"
+                avatarBg={colors.crimson}
+                cardBg="#FFFFFF"
+                addLabel="Add a note"
+                saving={studentNotesSaving}
+                showHeader={false}
+                onSave={(text) => {
+                  const newEntry = { text, timestamp: new Date().toISOString() }
+                  const updated = [newEntry, ...studentNotesHistory]
+                  patch({ student_notes_history: updated }, true)
+                  setStudentNotesHistory(updated)
+                  showToast('changes saved')
+                }}
+              />
+            ) : (
+              <NotesSection
+                title="Internal notes"
+                notes={internalNotesHistory}
+                avatarInitial="T"
+                avatarBg={colors.textMuted}
+                cardBg="#f6f8f8"
+                addLabel="Add internal note"
+                saving={internalNotesSaving}
+                signifierLabel="Internal comms"
+                helperText="Visible to staff only. Use for coaching, coordination, and operational follow-up."
+                showHeader={false}
+                onSave={(text) => {
+                  const newEntry = { text, timestamp: new Date().toISOString() }
+                  const updated = [newEntry, ...internalNotesHistory]
+                  patch({ notes_history: updated, notes: text }, true)
+                  setInternalNotesHistory(updated)
+                  showToast('changes saved')
+                }}
+              />
+            )}
+          </SurfacePanel>
         </div>
       </div>
+      )}
 
       {/* Footer — Edit contact + Send message (md size, matches edit mode) */}
       <div style={{

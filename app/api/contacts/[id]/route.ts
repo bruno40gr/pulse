@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -96,7 +97,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       email: instructor.person?.email ?? null,
     } : null
 
-    return NextResponse.json({
+    return NextResponse.json(enrichDemoContact({
       id: person.id,
       tenant_id: person.tenant_id,
       first_name: person.first_name,
@@ -128,7 +129,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         session_name: enrollment.session_name,
         band_name: enrollment.custom_fields?.band_name || person.custom_fields?.band_name,
       },
-    })
+    }))
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
@@ -268,7 +269,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       email: instructor.person?.email ?? null,
     } : null
 
-    return NextResponse.json({
+    return NextResponse.json(enrichDemoContact({
       id: person.id,
       tenant_id: person.tenant_id,
       first_name: person.first_name,
@@ -300,7 +301,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         session_name: enrollment.session_name,
         band_name: enrollment.custom_fields?.band_name || person.custom_fields?.band_name,
       },
-    })
+    }))
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

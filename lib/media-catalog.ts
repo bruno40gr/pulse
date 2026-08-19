@@ -31,57 +31,79 @@ const KUMON = '00000000-0000-0000-0000-000000000003'
 
 const APPROVED_IMAGES: MediaAsset[] = [
   {
-    id: 'kumon-achievement-stars',
+    id: 'kumon-classroom-progress',
     tenantId: KUMON,
     kind: 'approved_image',
-    title: 'Achievement stars',
-    url: '/brand-assets/kumon-achievement-stars.svg',
-    category: 'achievement',
-    tags: ['math', 'achievement', 'celebration', 'student'],
+    title: 'Worksheet progress moment',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090428/Screenshot_2026-08-18_at_2.58.08_PM_cspt5h.png',
+    category: 'progress',
+    tags: ['kumon', 'progress', 'worksheet', 'student'],
     source: 'seeded',
     schoolAppropriate: true,
   },
   {
-    id: 'kumon-study-session',
+    id: 'kumon-study-table',
     tenantId: KUMON,
     kind: 'approved_image',
-    title: 'Study session',
-    url: '/brand-assets/kumon-study-session.svg',
+    title: 'Focused study session',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090428/Screenshot_2026-08-18_at_2.58.19_PM_b4bwcx.png',
     category: 'study',
     tags: ['math', 'study', 'worksheet', 'progress'],
     source: 'seeded',
     schoolAppropriate: true,
   },
   {
-    id: 'martial-arts-belt-pride',
+    id: 'martial-arts-mat-lineup',
     tenantId: SACRAMENTO_MARTIAL_ARTS,
     kind: 'approved_image',
-    title: 'Belt pride',
-    url: '/brand-assets/martial-arts-belt-pride.svg',
+    title: 'Mat lineup',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090429/Screenshot_2026-08-18_at_2.57.24_PM_cciacq.png',
     category: 'milestone',
     tags: ['karate', 'belt', 'celebration', 'discipline'],
     source: 'seeded',
     schoolAppropriate: true,
   },
   {
-    id: 'martial-arts-dojo-night',
+    id: 'martial-arts-training-floor',
     tenantId: SACRAMENTO_MARTIAL_ARTS,
     kind: 'approved_image',
-    title: 'Dojo night',
-    url: '/brand-assets/martial-arts-dojo-night.svg',
+    title: 'Training floor',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090428/Screenshot_2026-08-18_at_2.57.36_PM_gj6gie.png',
     category: 'training',
     tags: ['karate', 'dojo', 'training', 'encouragement'],
     source: 'seeded',
     schoolAppropriate: true,
   },
   {
-    id: 'generic-academy-progress',
+    id: 'martial-arts-belt-focus',
+    tenantId: SACRAMENTO_MARTIAL_ARTS,
+    kind: 'approved_image',
+    title: 'Belt focus',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090428/Screenshot_2026-08-18_at_2.57.51_PM_l0bnpl.png',
+    category: 'achievement',
+    tags: ['karate', 'belt', 'promotion', 'student'],
+    source: 'seeded',
+    schoolAppropriate: true,
+  },
+  {
+    id: 'headliner-recital-stage',
     tenantId: DEFAULT_TENANT,
     kind: 'approved_image',
-    title: 'Student progress moment',
-    url: '/brand-assets/generic-academy-progress.svg',
+    title: 'Recital stage moment',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090429/Screenshot_2026-08-18_at_2.59.41_PM_exk6f3.png',
     category: 'progress',
-    tags: ['school', 'progress', 'student', 'encouragement'],
+    tags: ['headliner', 'music', 'recital', 'progress'],
+    source: 'seeded',
+    schoolAppropriate: true,
+  },
+  {
+    id: 'headliner-lesson-moment',
+    tenantId: DEFAULT_TENANT,
+    kind: 'approved_image',
+    title: 'Lesson room moment',
+    url: 'https://res.cloudinary.com/diy08lj9x/image/upload/v1787090428/Screenshot_2026-08-18_at_2.59.10_PM_l6lvnz.png',
+    category: 'encouragement',
+    tags: ['headliner', 'music', 'lesson', 'student'],
     source: 'seeded',
     schoolAppropriate: true,
   },
@@ -170,20 +192,16 @@ export function getMediaSuggestions(params: {
   const shouldAutoShowMedia = intent === 'milestone' || intent === 'opportunity'
   const shouldShowThumbnails = shouldAutoShowMedia
 
-  const approvedImages = shouldShowThumbnails
-    ? getApprovedImagesForTenant(params.tenantId)
-        .sort((a, b) => scoreAsset(b, combined) - scoreAsset(a, combined))
-    : []
+  const approvedImages = getApprovedImagesForTenant(params.tenantId)
+    .sort((a, b) => scoreAsset(b, combined) - scoreAsset(a, combined))
 
-  const suggestedGifs = shouldShowThumbnails
-    ? GIFS
-        .filter(asset => asset.schoolAppropriate && asset.lightweight)
-        .sort((a, b) => {
-          const vibeBoostA = detectedVibes.includes(a.category) ? 4 : 0
-          const vibeBoostB = detectedVibes.includes(b.category) ? 4 : 0
-          return scoreAsset(b, combined) + vibeBoostB - scoreAsset(a, combined) - vibeBoostA
-        })
-    : []
+  const suggestedGifs = GIFS
+    .filter(asset => asset.schoolAppropriate && asset.lightweight)
+    .sort((a, b) => {
+      const vibeBoostA = detectedVibes.includes(a.category) ? 4 : 0
+      const vibeBoostB = detectedVibes.includes(b.category) ? 4 : 0
+      return scoreAsset(b, combined) + vibeBoostB - scoreAsset(a, combined) - vibeBoostA
+    })
 
   return {
     approvedImages,

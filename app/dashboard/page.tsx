@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { getActiveTenantId } from '@/lib/tenant'
+import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl } from '@/lib/tenant'
 import { Button, Badge, SlidePanel, SlidePanelHeader, PageHeader } from '@/components/ui'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
@@ -27,6 +27,7 @@ interface ComposeTarget {
     id: string
     first_name: string
     last_name: string
+    avatar_src?: string
   }>
 }
 
@@ -96,8 +97,8 @@ const loadingMessages = [
 function getGreetingForTime(date = new Date()) {
   const hour = date.getHours()
   const morningGreetings = ['Good morning.', 'Morning.', 'Hope your morning is off to a smooth start.']
-  const afternoonGreetings = ['Good afternoon.', 'Hope your day is going well.', 'Afternoon — here’s what stands out right now.']
-  const eveningGreetings = ['Good evening.', 'Hope your evening is going smoothly.', 'Evening — here’s what still deserves attention today.']
+  const afternoonGreetings = ['Good afternoon.', 'Hope your day is going well.', 'Here’s what stands out right now.']
+  const eveningGreetings = ['Good evening.', 'Hope your evening is going smoothly.', 'Here’s what still deserves attention today.']
 
   if (hour < 12) return morningGreetings[Math.floor(hour % morningGreetings.length)]
   if (hour < 17) return afternoonGreetings[Math.floor(hour % afternoonGreetings.length)]
@@ -253,7 +254,21 @@ export default function DashboardPage() {
   }
 
   const getRecipientPreview = (ids: string[]) => ids
-    .map(id => contactPreviewMap[id])
+    .map(id => {
+      const preview = contactPreviewMap[id]
+      if (!preview) return null
+      const details = contactDetailsMap[id]
+      return {
+        ...preview,
+        avatar_src: shouldUseDemoPhotos(getActiveTenantId()) && details
+          ? getContactDemoAvatarUrl(getActiveTenantId(), {
+              first_name: preview.first_name,
+              last_name: preview.last_name,
+              is_minor: details.is_minor,
+            })
+          : undefined,
+      }
+    })
     .filter(Boolean)
     .slice(0, 3)
 
@@ -397,7 +412,21 @@ export default function DashboardPage() {
                           context: `Instructors of the students flagged in: ${insight.title}`,
                           helperPrompt: buildHelperPrompt(insight, 'instructor'),
                           intent: insight.type,
-                          recipientPreview: instructorIds.map(id => staffPreviewMap[id]).filter(Boolean).slice(0, 3),
+                          recipientPreview: instructorIds
+                            .flatMap(id => {
+                              const preview = staffPreviewMap[id]
+                              if (!preview) return []
+                              return [{
+                                ...preview,
+                                avatar_src: shouldUseDemoPhotos(getActiveTenantId())
+                                  ? getStaffDemoAvatarUrl(getActiveTenantId(), {
+                                      first_name: preview.first_name,
+                                      last_name: preview.last_name,
+                                    })
+                                  : undefined,
+                              }]
+                            })
+                            .slice(0, 3),
                         })}
                       >
                         Check in with instructor

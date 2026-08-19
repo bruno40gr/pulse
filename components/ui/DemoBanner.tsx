@@ -23,12 +23,13 @@ export default function DemoBanner() {
       display: 'flex',
       alignItems: 'center',
       gap: spacing.md,
-      background: colors.action,
+      background: colors.backgroundSecondary,
+      borderBottom: `1px solid ${colors.border}`,
       padding: `${spacing.sm} ${spacing['2xl']}`,
     }}>
       <span style={{
         ...typography.bodySmall,
-        color: colors.surface,
+        color: colors.teal,
       }}>
         Demo mode — messages are simulated and no SMS will be sent.
       </span>

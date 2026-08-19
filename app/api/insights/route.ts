@@ -12,6 +12,43 @@ function getTenantId(request: Request): string {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+function sanitizeInsightText(text: string | null | undefined) {
+  return (text || '').replace(/—/g, ', ').replace(/\s+/g, ' ').trim()
+}
+
+function shortenActionLabel(label: string | null | undefined) {
+  const cleaned = sanitizeInsightText(label)
+  if (!cleaned) return 'Reach out'
+
+  const cannedRewrites: Array<[RegExp, string]> = [
+    [/send progress update or feedback request/i, 'Send update'],
+    [/send progress update/i, 'Send update'],
+    [/send a progress update/i, 'Send update'],
+    [/feedback request/i, 'Request feedback'],
+    [/check in with student or family/i, 'Check in'],
+    [/reach out to (the )?family/i, 'Reach out'],
+  ]
+
+  for (const [pattern, replacement] of cannedRewrites) {
+    if (pattern.test(cleaned)) return replacement
+  }
+
+  if (cleaned.length <= 22) return cleaned
+
+  const compact = cleaned
+    .replace(/^send\s+/i, '')
+    .replace(/^reach out\s+/i, '')
+    .replace(/^check in\s+/i, '')
+    .replace(/^follow up\s+/i, '')
+    .trim()
+
+  if (compact.length > 0 && compact.length <= 18) {
+    return compact.charAt(0).toUpperCase() + compact.slice(1)
+  }
+
+  return 'Reach out'
+}
+
 export async function GET(request: Request) {
   try {
     const tenantId = getTenantId(request)
@@ -120,13 +157,21 @@ Return ONLY valid JSON, no markdown, no backticks:
     const match = raw.match(/\{[\s\S]*\}/)
     const result = JSON.parse(match ? match[0] : raw)
 
+    const normalizedInsights = Array.isArray(result.insights)
+      ? result.insights.map((insight: Record<string, unknown>) => ({
+          ...insight,
+          description: sanitizeInsightText(typeof insight.description === 'string' ? insight.description : ''),
+          action_label: shortenActionLabel(typeof insight.action_label === 'string' ? insight.action_label : ''),
+        }))
+      : []
+
     // Save to cache
     await supabaseAdmin
       .from('insights_cache')
-      .upsert({ tenant_id: tenantId, insights: result.insights, generated_at: new Date().toISOString() },
+      .upsert({ tenant_id: tenantId, insights: normalizedInsights, generated_at: new Date().toISOString() },
         { onConflict: 'tenant_id' })
 
-    return NextResponse.json({ ...result, cached: false })
+    return NextResponse.json({ ...result, insights: normalizedInsights, cached: false })
   } catch (error) {
     console.error('Insights error:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

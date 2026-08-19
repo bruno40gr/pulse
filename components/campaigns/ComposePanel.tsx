@@ -1,10 +1,13 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
-import { Button, Avatar, Textarea, Input, Badge } from '@/components/ui'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
-import { getActiveTenantId } from '@/lib/tenant'
+import { Button, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
+import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
+import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
+
+const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
+const KUMON = '00000000-0000-0000-0000-000000000003'
 
 interface ComposePanelProps {
   recipientCount: number
@@ -32,12 +35,21 @@ interface ComposePanelProps {
     id: string
     first_name: string
     last_name: string
+    avatar_src?: string
   }>
+  footerLeadingAction?: React.ReactNode
+}
+
+interface ResolvedPreviewRecipient {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_src?: string
 }
 
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = []
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const [brandVoice, setBrandVoice] = useState('')
@@ -59,6 +71,7 @@ export default function ComposePanel({
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
   const [sent, setSent] = useState(false)
   const [sentResult, setSentResult] = useState<{ sent: number, failed: number } | null>(null)
+  const [resolvedRecipientPreview, setResolvedRecipientPreview] = useState<ResolvedPreviewRecipient[]>(recipientPreview)
   const prePolishMessage = useRef<string>('')
 
   const isMMS = !!mediaUrl
@@ -67,8 +80,9 @@ export default function ComposePanel({
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
   const effectiveCount = effectiveRecipientIds.length
   const effectiveSendCount = effectiveCount
-  const tenantId = getActiveTenantId()
-  const recipientSummary = recipientPreview.slice(0, 3)
+  const [tenantId, setTenantId] = useState(DEFAULT_TENANT)
+  const tenantBrand = getTenantBrand(tenantId)
+  const recipientSummary = resolvedRecipientPreview.slice(0, 3)
   const remainingRecipientCount = Math.max(effectiveCount - recipientSummary.length, 0)
   const showComposeBootSkeleton = !sent && (
     (initialMessage.trim() && (!brandVoiceLoaded || !initialDraftReady)) ||
@@ -87,6 +101,81 @@ export default function ComposePanel({
     flagged: Array.isArray(sensitiveCheck?.flagged) ? sensitiveCheck!.flagged : [],
     opted_out: Array.isArray(sensitiveCheck?.opted_out) ? sensitiveCheck!.opted_out : [],
   }
+
+  useEffect(() => {
+    setTenantId(getActiveTenantId())
+  }, [])
+
+  useEffect(() => {
+    setResolvedRecipientPreview(recipientPreview)
+  }, [recipientPreview])
+
+  useEffect(() => {
+    const seededPreview = recipientPreview.slice(0, 3)
+    const previewNeedsHydration = seededPreview.length === 0 || seededPreview.some(recipient => !recipient.avatar_src)
+    if (!previewNeedsHydration || recipientIds.length === 0) return
+
+    let cancelled = false
+
+    const hydrateRecipientPreview = async () => {
+      try {
+        const [contactsRes, staffRes] = await Promise.all([
+          fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
+          fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
+        ])
+
+        const contacts = Array.isArray(contactsRes) ? contactsRes : []
+        const staff = Array.isArray(staffRes) ? staffRes : []
+
+        const contactsById = new Map(contacts.map(contact => [contact.id, contact]))
+        const staffByPersonId = new Map(staff.map(member => [member.person_id, member]))
+
+        const hydrated = recipientIds.slice(0, 3).map(id => {
+          const seeded = seededPreview.find(recipient => recipient.id === id)
+          const contact = contactsById.get(id)
+          if (contact) {
+            return {
+              id,
+              first_name: contact.first_name,
+              last_name: contact.last_name,
+              avatar_src: shouldUseDemoPhotos(tenantId)
+                ? getContactDemoAvatarUrl(tenantId, contact)
+                : seeded?.avatar_src,
+            }
+          }
+
+          const staffMember = staffByPersonId.get(id)
+          if (staffMember) {
+            return {
+              id,
+              first_name: staffMember.first_name || seeded?.first_name || '',
+              last_name: staffMember.last_name || seeded?.last_name || '',
+              avatar_src: shouldUseDemoPhotos(tenantId)
+                ? getStaffDemoAvatarUrl(tenantId, {
+                    first_name: staffMember.first_name || '',
+                    last_name: staffMember.last_name || '',
+                  })
+                : seeded?.avatar_src,
+            }
+          }
+
+          return seeded
+        }).filter(Boolean) as ResolvedPreviewRecipient[]
+
+        if (!cancelled && hydrated.length > 0) {
+          setResolvedRecipientPreview(hydrated)
+        }
+      } catch {
+        // Keep seeded preview if hydration fails
+      }
+    }
+
+    hydrateRecipientPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [recipientIds, recipientPreview, tenantId])
 
   useEffect(() => {
     fetch(`/api/brand-settings?tenant=${tenantId}`)
@@ -340,9 +429,10 @@ export default function ComposePanel({
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
       {/* Left column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['2xl'], overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['3xl'], overflowY: 'auto' }}>
         {showComposeBootSkeleton ? (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
@@ -385,11 +475,11 @@ export default function ComposePanel({
                   <div style={{ display: 'flex', alignItems: 'center', marginRight: spacing.xs }}>
                     {recipientSummary.map((recipient, index) => (
                       <div key={recipient.id} style={{ marginLeft: index === 0 ? 0 : '-8px' }}>
-                        <Avatar firstName={recipient.first_name} lastName={recipient.last_name} size={26} />
+                        <Avatar firstName={recipient.first_name} lastName={recipient.last_name} size={26} src={recipient.avatar_src} />
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: '16px', fontWeight: typography.weightNormal, color: colors.text, fontFamily: typography.fontSans }}>
+                  <div style={{ fontSize: '16px', fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
                     {recipientSummary.map(person => `${person.first_name} ${person.last_name}`).join(', ')}
                     {remainingRecipientCount > 0 ? `, and ${remainingRecipientCount} more` : ''}
                   </div>
@@ -466,22 +556,7 @@ export default function ComposePanel({
           )
         )}
 
-        {/* Message textarea with AI assist */}
-        <div>
-          {brandVoiceLoaded && !brandVoice && (
-            <div style={{
-              marginBottom: spacing.sm,
-              padding: `${spacing.sm} ${spacing.md}`,
-              borderRadius: radius.md,
-              background: '#F8FAFC',
-              border: `1px solid ${colors.border}`,
-              fontSize: typography.sizeSm,
-              color: colors.textSecondary,
-              fontFamily: typography.fontSans,
-            }}>
-              <strong>Tip:</strong> Set up your brand voice so AI can write more like your business.
-            </div>
-          )}
+        <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
           {composeBadgeVariant && (
             <div style={{ marginBottom: spacing.xs }}>
               <Badge variant={composeBadgeVariant} size="md">
@@ -498,15 +573,34 @@ export default function ComposePanel({
             }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.xs, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => {
+                setShowMediaInput(!showMediaInput)
+                if (!showMediaInput && mediaSuggestions.approvedImages.length === 0 && mediaSuggestions.suggestedGifs.length === 0) {
+                  loadMediaSuggestions(message)
+                }
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: spacing.xs,
+                background: showMediaInput || isMMS ? colors.surfaceMuted : colors.surface,
+                color: showMediaInput || isMMS ? colors.text : colors.textSecondary,
+                border: `1px solid ${colors.border}`, borderRadius: radius.md,
+                padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, minHeight: '36px', cursor: 'pointer',
+                fontFamily: typography.fontSans,
+              }}
+            >
+              <Paperclip size={13} />
+              {isMMS ? 'Media attached' : 'Attach image'}
+            </button>
             <button
               onClick={handleAiDraft}
               disabled={aiLoading}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: spacing.xs,
-                background: aiLoading ? colors.borderLight : message.trim() ? colors.espresso : colors.borderLight,
-                color: aiLoading ? colors.textMuted : message.trim() ? 'white' : colors.textSecondary,
-                border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`,
+                background: aiLoading ? colors.borderLight : colors.surface,
+                color: aiLoading ? colors.textMuted : colors.textSecondary,
+                border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`,
                 fontSize: typography.sizeBase, minHeight: '36px', cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans,
               }}
             >
@@ -531,86 +625,49 @@ export default function ComposePanel({
             </button>
           </div>
 
-          {/* Char count + media */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: spacing.xs, fontSize: typography.sizeSm, color: colors.textMuted }}>
-            <button
-              onClick={() => {
-                setShowMediaInput(!showMediaInput)
-                if (!showMediaInput && mediaSuggestions.approvedImages.length === 0 && mediaSuggestions.suggestedGifs.length === 0) {
-                  loadMediaSuggestions(message)
-                }
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: spacing.xs,
-                background: showMediaInput || isMMS ? colors.espresso : colors.surface,
-                color: showMediaInput || isMMS ? 'white' : colors.textSecondary,
-                border: `1px solid ${colors.border}`, borderRadius: radius.md,
-                padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, minHeight: '36px', cursor: 'pointer',
-                fontFamily: typography.fontSans,
-              }}
-            >
-              <Paperclip size={13} />
-              {isMMS ? 'Media attached' : 'Attach image or GIF'}
-            </button>
+          {/* Char count */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: spacing.xs, fontSize: typography.sizeSm, color: colors.textMuted }}>
             <span>{isMMS ? 'MMS' : `${message.length} / 160`}</span>
           </div>
-        </div>
+        </SurfacePanel>
 
         {/* Brand-first media picker */}
         {showMediaInput && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: radius.xl, background: colors.surfaceMuted }}>
-            <div style={{ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border}` }}>
-              {[
-                { key: 'approved', label: 'Headliner images', count: mediaSuggestions.approvedImages.length },
+          <SurfacePanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
+            <Tabs
+              items={[
+                { key: 'approved', label: 'Images', count: mediaSuggestions.approvedImages.length },
                 { key: 'gifs', label: 'GIFs', count: mediaSuggestions.suggestedGifs.length },
-              ].map(tab => {
-                const active = activeMediaTab === tab.key
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveMediaTab(tab.key as 'approved' | 'gifs')}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: `2px solid ${active ? colors.crimson : 'transparent'}`,
-                      marginBottom: '-1px',
-                      padding: `${spacing.sm} ${spacing.md}`,
-                      fontSize: typography.sizeSm,
-                      fontWeight: active ? typography.weightSemibold : typography.weightMedium,
-                      color: active ? colors.text : colors.textMuted,
-                      cursor: 'pointer',
-                      fontFamily: typography.fontSans,
-                    }}
-                  >
-                    {tab.label} <span style={{ color: colors.textMuted }}>({tab.count})</span>
-                  </button>
-                )
-              })}
-            </div>
+              ]}
+              activeKey={activeMediaTab}
+              onChange={(key) => setActiveMediaTab(key as 'approved' | 'gifs')}
+              style={{ marginBottom: spacing.md }}
+            />
 
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
-                <div>
-                  <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.text }}>
-                    {activeMediaTab === 'approved' ? 'Headliner images' : 'Suggested GIFs'}
-                  </div>
-                  <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: 2 }}>
-                    {activeMediaTab === 'approved'
-                      ? (mediaSuggestions.shouldShowThumbnails
-                        ? 'Smart suggestions for celebratory, milestone, and nurturing opportunity messages.'
-                        : 'Brand-safe images are always available when you explicitly attach media.')
-                      : (mediaSuggestions.shouldShowThumbnails
-                        ? 'School-appropriate animated options for upbeat moments only.'
-                        : 'GIFs are available on demand when you explicitly choose to attach media.')}
-                  </div>
+              {loadingSuggestions && (
+                <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: spacing.sm }}>
+                  Refreshing…
                 </div>
-                <div style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>{loadingSuggestions ? 'Refreshing…' : mediaUrl ? '1 selected' : 'No image selected'}</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: spacing.sm }}>
-                {(activeMediaTab === 'approved' ? mediaSuggestions.approvedImages : mediaSuggestions.suggestedGifs).map(asset => (
-                  <AssetCard key={asset.id} asset={asset} selected={mediaUrl === asset.url} onClick={() => selectMedia(asset)} />
-                ))}
-              </div>
+              )}
+              {((activeMediaTab === 'approved' ? mediaSuggestions.approvedImages : mediaSuggestions.suggestedGifs).length > 0) ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: spacing.sm }}>
+                  {(activeMediaTab === 'approved' ? mediaSuggestions.approvedImages : mediaSuggestions.suggestedGifs).map(asset => (
+                    <AssetCard key={asset.id} asset={asset} selected={mediaUrl === asset.url} onClick={() => selectMedia(asset)} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  padding: `${spacing.md} ${spacing.sm}`,
+                  borderRadius: radius.lg,
+                  background: colors.surface,
+                  fontSize: typography.sizeSm,
+                  color: colors.textSecondary,
+                  fontFamily: typography.fontSans,
+                }}>
+                  No media is available for this tab yet. Try the other tab or paste a URL manually.
+                </div>
+              )}
             </div>
 
             <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: spacing.md }}>
@@ -631,7 +688,7 @@ export default function ComposePanel({
                 )}
               </div>
             </div>
-          </div>
+          </SurfacePanel>
         )}
 
         {/* Cost line */}
@@ -641,16 +698,6 @@ export default function ComposePanel({
           </div>
         )}
 
-        {/* Send button */}
-        <Button
-          variant="primary"
-          onClick={handleSend}
-          disabled={!message.trim() || effectiveCount === 0 || isSending}
-          size="lg"
-          style={{ background: !message.trim() || effectiveCount === 0 || isSending ? undefined : colors.crimson }}
-        >
-          {isSending ? 'Sending...' : 'Send message'}
-        </Button>
           </>
         )}
       </div>
@@ -690,8 +737,7 @@ export default function ComposePanel({
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-                  <div style={{ width: '36px', height: '36px', background: colors.crimson, borderRadius: '50%', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: 'white', fontWeight: 600 }}>H</div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>Headliner</div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>{tenantBrand.name}</div>
                   <div style={{ fontSize: '10px', color: '#8E8E93' }}>text message</div>
                 </div>
                 <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '4px', overflow: 'hidden' }}>
@@ -727,6 +773,28 @@ export default function ComposePanel({
           </div>
         </div>
         )}
+      </div>
+      </div>
+      <div style={{
+        padding: `${spacing.lg} ${spacing['3xl']}`,
+        borderTop: `1px solid ${colors.borderLight}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '10px',
+        flexShrink: 0,
+        background: colors.surface,
+      }}>
+        {footerLeadingAction ? <div style={{ marginRight: 'auto' }}>{footerLeadingAction}</div> : null}
+        <Button
+          variant="primary"
+          onClick={handleSend}
+          disabled={!message.trim() || effectiveCount === 0 || isSending}
+          size="lg"
+          style={{ background: !message.trim() || effectiveCount === 0 || isSending ? undefined : colors.crimson }}
+        >
+          {isSending ? 'Sending...' : 'Send message'}
+        </Button>
       </div>
     </div>
   )

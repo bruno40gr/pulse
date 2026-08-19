@@ -14,12 +14,25 @@ export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', childr
   useEffect(() => {
     if (!isOpen) return
 
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    const previousBodyOverflow = document.body.style.overflow
+    const previousBodyOverscroll = document.body.style.overscrollBehavior
+
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.documentElement.style.overflow = previousHtmlOverflow
+      document.body.style.overflow = previousBodyOverflow
+      document.body.style.overscrollBehavior = previousBodyOverscroll
+    }
   }, [isOpen, onClose])
 
   if (!isOpen) return null
@@ -33,7 +46,8 @@ export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', childr
         position: 'fixed', top: 0, right: 0, height: '100vh',
         width, background: colors.surface, zIndex: 50,
         boxShadow: shadows.panel,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', overscrollBehavior: 'contain',
+        touchAction: 'pan-y',
         animation: 'slideInRight 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
       }}>
         {children}

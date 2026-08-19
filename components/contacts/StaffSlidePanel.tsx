@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Avatar, Badge, Button, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
+import { Badge, Button, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
 import { colors, typography, spacing } from '@/lib/tokens'
-import { getActiveTenantId, shouldUseDiceBear, getDiceBearUrl } from '@/lib/tenant'
+import { getActiveTenantId, shouldUseDemoPhotos, getDemoAvatarUrl } from '@/lib/tenant'
 
 interface StaffStudent {
   enrollment_id: string
@@ -40,6 +40,7 @@ interface StaffSlidePanelProps {
 export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: StaffSlidePanelProps) {
   const [staff, setStaff] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
+  const tenantId = getActiveTenantId()
 
   useEffect(() => {
     fetch(`/api/staff/${staffId}`)
@@ -108,7 +109,9 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
           firstName: staff.first_name || '',
           lastName: staff.last_name || '',
           size: 48,
-          src: shouldUseDiceBear(getActiveTenantId()) ? getDiceBearUrl(staff.first_name || '', staff.last_name || '') : undefined,
+          src: shouldUseDemoPhotos(tenantId)
+            ? getDemoAvatarUrl(tenantId, staff.first_name || '', staff.last_name || '', { isMinor: false })
+            : undefined,
         }}
         titleSize={typography.size2xl}
         badge={

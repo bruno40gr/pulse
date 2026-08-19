@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { setActiveTenantId, getActiveTenantId } from '@/lib/tenant'
 
 interface Tenant {
@@ -8,9 +9,10 @@ interface Tenant {
   is_demo: boolean
 }
 
-export default function TenantSwitcher() {
+export default function TenantSwitcher({ hideOnDashboard = false }: { hideOnDashboard?: boolean }) {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [active, setActive] = useState<string>('')
+  const pathname = usePathname()
 
   useEffect(() => {
     setActive(getActiveTenantId())
@@ -25,9 +27,9 @@ export default function TenantSwitcher() {
     window.location.reload()
   }
 
-  if (!tenants.length) return null
+  if (hideOnDashboard && pathname.startsWith('/dashboard')) return null
 
-  const activeTenant = tenants.find(t => t.id === active)
+  if (!tenants.length) return null
 
   return (
     <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2A2A' }}>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { parseCSV } from '@/lib/csv-parser'
 import { resolveInstructor } from '@/lib/instructors'
+import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -94,7 +95,7 @@ export async function GET(request: Request) {
           }
         : null
 
-      return {
+      return enrichDemoContact({
         id: person.id,
         tenant_id: person.tenant_id,
         first_name: person.first_name,
@@ -129,7 +130,7 @@ export async function GET(request: Request) {
           band_name: enrollmentFields.band_name || person.custom_fields?.band_name,
         },
         tags: person.custom_fields?.tags || [],
-      }
+      })
     })
 
     return NextResponse.json(flattened)
