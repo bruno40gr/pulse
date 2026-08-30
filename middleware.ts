@@ -2,6 +2,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const host = request.headers.get('host')?.split(':')[0]?.toLowerCase()
+  const pathname = request.nextUrl.pathname
+
+  if (host === 'heycohen.headlinerma.com' && pathname === '/') {
+    return NextResponse.rewrite(new URL('/hey-cohen', request.url))
+  }
+
+  if (host === 'leads.headlinerma.com' && pathname === '/') {
+    return NextResponse.rewrite(new URL('/leads', request.url))
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

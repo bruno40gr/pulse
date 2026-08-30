@@ -30,8 +30,8 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style }: Ta
               border: 'none',
               borderBottom: `2px solid ${active ? colors.crimson : 'transparent'}`,
               marginBottom: '-1px',
-              padding: `${spacing.sm} ${spacing.md}`,
-              fontSize: typography.sizeSm,
+              padding: `${spacing.md} ${spacing.lg}`,
+              fontSize: typography.sizeMd,
               fontWeight: active ? typography.weightSemibold : typography.weightMedium,
               color: active ? colors.text : colors.textMuted,
               cursor: 'pointer',
@@ -43,7 +43,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style }: Ta
           >
             <span>{tab.label}</span>
             {typeof tab.count === 'number' && (
-              <span style={{ color: active ? colors.textSecondary : colors.textMuted }}>{tab.count}</span>
+              <span style={{ color: active ? colors.textSecondary : colors.textMuted, fontSize: typography.sizeMd }}>{tab.count}</span>
             )}
           </button>
         )

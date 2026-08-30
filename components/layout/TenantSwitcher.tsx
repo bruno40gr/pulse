@@ -29,7 +29,7 @@ export default function TenantSwitcher({ hideOnDashboard = false }: { hideOnDash
 
   if (pathname.startsWith('/demo')) return null
 
-  if (hideOnDashboard && pathname.startsWith('/dashboard')) return null
+  if (hideOnDashboard && (pathname.startsWith('/dashboard') || pathname.startsWith('/leads'))) return null
 
   if (!tenants.length) return null
 

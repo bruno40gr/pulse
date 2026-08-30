@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Baloo_2, Pridi } from "next/font/google";
 import "./globals.css";
-import TenantSwitcher from '@/components/layout/TenantSwitcher'
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -37,7 +36,6 @@ export default function RootLayout({
       className={`${dmSans.variable} ${baloo2.variable} ${pridi.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TenantSwitcher hideOnDashboard={true} />
         {children}
       </body>
     </html>

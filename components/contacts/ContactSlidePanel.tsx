@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection, SurfacePanel, Tabs } from '@/components/ui'
+import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
 
@@ -92,25 +92,10 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  cursor: 'pointer',
-  appearance: 'auto',
-}
-
 const dividerStyle: React.CSSProperties = {
   height: '1px',
   background: colors.borderLight,
   margin: '24px 0',
-}
-
-const editorialSectionTitleStyle: React.CSSProperties = {
-  fontSize: typography.sizeSm,
-  fontWeight: 400,
-  color: colors.textMuted,
-  letterSpacing: '0',
-  textTransform: 'none',
-  marginBottom: spacing.md,
 }
 
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
@@ -125,8 +110,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   const [insights, setInsights] = useState<Insight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
-  const [studentNotesSaving, setStudentNotesSaving] = useState(false)
-  const [internalNotesSaving, setInternalNotesSaving] = useState(false)
+  const [studentNotesSaving] = useState(false)
+  const [internalNotesSaving] = useState(false)
   const [studentNotesHistory, setStudentNotesHistory] = useState<{text: string, timestamp: string}[]>(
     Array.isArray(contact.student_notes_history) ? contact.student_notes_history : []
   )
@@ -190,7 +175,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, studentNotesHistory])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -426,10 +411,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 return (
                   <div key={f.field_key}>
                     <FieldLabel>{f.field_label}</FieldLabel>
-                    <select value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} style={selectStyle}>
+                    <Select value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)}>
                       <option value="">—</option>
                       {f.field_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
+                    </Select>
                   </div>
                 )
               }
@@ -492,8 +477,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {/* Account holders (conditional — no card space / divider when absent) */}
           {showAccountHolders ? (
-            <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
-              <div style={editorialSectionTitleStyle}>Account holders</div>
+            <DenseSectionPanel
+              title="Account holders"
+              style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+              contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
+            >
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {accountHolders.map((ah, i) => (
                   <div
@@ -549,14 +537,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   </div>
                 ))}
               </div>
-            </SurfacePanel>
+            </DenseSectionPanel>
           ) : null}
 
           {/* AI Insights */}
-          <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
-            <div style={{ ...editorialSectionTitleStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={15} /> AI highlights
-            </div>
+          <DenseSectionPanel
+            title={<div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: typography.sizeSm, fontWeight: 400, color: colors.textMuted }}><Sparkles size={15} /> AI highlights</div>}
+            style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+          >
           {actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
               No insights available for this contact yet.
@@ -604,12 +592,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
             </div>
           )}
-          </SurfacePanel>
+          </DenseSectionPanel>
 
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
-            <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
-              <div style={editorialSectionTitleStyle}>Details</div>
+            <DenseSectionPanel title="Details" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {contact.date_of_birth && (
                   <div>
@@ -683,13 +670,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   )
                 })}
               </div>
-            </SurfacePanel>
+            </DenseSectionPanel>
           )}
         </div>
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
         <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
-          <SurfacePanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
+          <DenseSectionPanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
             <Tabs
               items={[
                 { key: 'notes', label: 'Notes' },
@@ -739,7 +726,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 }}
               />
             )}
-          </SurfacePanel>
+          </DenseSectionPanel>
         </div>
       </div>
       )}
