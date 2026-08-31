@@ -2,10 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy } from 'lucide-react'
-import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, Tabs } from '@/components/ui'
+import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
-type LeadTabKey = 'lesson_inquiry' | 'job_application' | 'service_inquiry'
+type LeadTabKey = 'lesson_inquiry' | 'service_inquiry'
+
+type ManualLeadFormState = {
+  fullName: string
+  email: string
+  phone: string
+  intakeType: 'lesson_inquiry' | 'service_inquiry'
+  sourceForm: 'manual-phone-call' | 'manual-walk-in' | 'manual-traffic-visitor' | 'manual-referral' | 'manual-other'
+  programLabel: string
+  serviceLabel: string
+  familyInterestedCount: number
+  referrer: string
+  message: string
+}
 
 type LeadRecord = {
   id: string
@@ -66,15 +79,38 @@ type LessonOpportunityState = {
   siblings: LessonSiblingEntry[]
 }
 
-const STATUS_OPTIONS = ['all', 'new', 'contacted', 'qualified', 'booked', 'won', 'lost', 'spam', 'never_picked_up']
-const DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'qualified', 'booked', 'won', 'lost', 'spam', 'never_picked_up']
+const STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
 const DEFAULT_LESSON_BASE_VALUE = 160
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
+const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_INSTRUMENT_OPTIONS
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
-  { key: 'job_application', label: 'Teacher applications' },
   { key: 'service_inquiry', label: 'Service inquiries' },
 ]
+
+const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm'], label: string }> = [
+  { value: 'manual-phone-call', label: 'Phone call' },
+  { value: 'manual-walk-in', label: 'Walk-in' },
+  { value: 'manual-traffic-visitor', label: 'Website visitor' },
+  { value: 'manual-referral', label: 'Referral' },
+  { value: 'manual-other', label: 'Other' },
+]
+
+function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState {
+  return {
+    fullName: '',
+    email: '',
+    phone: '',
+    intakeType: activeTab === 'service_inquiry' ? 'service_inquiry' : 'lesson_inquiry',
+    sourceForm: 'manual-phone-call',
+    programLabel: '',
+    serviceLabel: '',
+    familyInterestedCount: 1,
+    referrer: '',
+    message: '',
+  }
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-US', {
@@ -217,39 +253,93 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function getStartOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+}
+
+function isWeekendDay(value: Date) {
+  const day = value.getDay()
+  return day === 0 || day === 6
+}
+
+function getBusinessDaysBetween(start: Date, end: Date) {
+  const startDay = getStartOfLocalDay(start)
+  const endDay = getStartOfLocalDay(end)
+
+  if (endDay.getTime() <= startDay.getTime()) return 0
+
+  const cursor = new Date(startDay)
+  let businessDays = 0
+
+  while (cursor.getTime() < endDay.getTime()) {
+    cursor.setDate(cursor.getDate() + 1)
+    if (!isWeekendDay(cursor)) businessDays += 1
+  }
+
+  return businessDays
+}
+
 function getLeadSignal(lead: LeadRecord) {
   const createdAt = new Date(lead.created_at)
-  const ageMs = Date.now() - createdAt.getTime()
+  const updatedAt = new Date(lead.updated_at)
+  const createdAtMs = createdAt.getTime()
+  const updatedAtMs = updatedAt.getTime()
+  const now = new Date()
+  const nowMs = Date.now()
   const dayMs = 24 * 60 * 60 * 1000
+  const ageMs = nowMs - createdAtMs
+  const contactLagMs = Math.max(0, updatedAtMs - createdAtMs)
+  const sinceLastUpdateMs = Math.max(0, nowMs - updatedAtMs)
+  const firstFollowUpBusinessDays = getBusinessDaysBetween(createdAt, updatedAt)
+  const businessDaysSinceLastUpdate = getBusinessDaysBetween(updatedAt, now)
 
-  if (lead.status === 'never_picked_up') {
-    return { emoji: '👻', label: 'Never picked up' }
+  if (lead.status === 'won') {
+    return { emoji: '🏆', label: 'Won' }
   }
 
-  if (lead.temperature === 'hot' && lead.status === 'new') {
-    return { emoji: '🔥🔥🔥', label: 'Hot, very new' }
+  if (lead.status === 'lost') {
+    return { emoji: '💀', label: 'Lost' }
   }
 
-  if (lead.status === 'new' && ageMs <= dayMs) {
-    return { emoji: '🔥🔥', label: 'New today' }
+  if (lead.status === 'ghosted_us') {
+    return { emoji: '👻', label: 'Ghosted us' }
   }
 
-  if (lead.status === 'new' && ageMs <= 3 * dayMs) {
-    return { emoji: '🔥🧊', label: 'A few days old' }
+  if (lead.status === 'booked') {
+    return { emoji: '🔥🔥', label: 'Booked and close to converting' }
+  }
+
+  if (lead.status === 'contacted') {
+    const contactedQuickly = contactLagMs <= dayMs || firstFollowUpBusinessDays <= 1
+    if (contactedQuickly && businessDaysSinceLastUpdate <= 2) {
+      return { emoji: '🔥🧊', label: 'Contacted quickly and still moving' }
+    }
+    return { emoji: '🧊🧊', label: 'Contacted but stale' }
   }
 
   if (lead.status === 'new') {
-    return { emoji: '🧊🧊🧊', label: 'Still uncontacted' }
+    if (lead.temperature === 'hot' || ageMs <= dayMs) {
+      return { emoji: '🔥🔥', label: 'New and needs fast follow-up' }
+    }
+    if (ageMs <= 3 * dayMs) {
+      return { emoji: '🔥🧊', label: 'New, but cooling' }
+    }
+    return { emoji: '🧊🧊', label: 'Still uncontacted' }
   }
 
-  return { emoji: '—', label: 'In progress' }
+  if (lead.status === 'spam') {
+    return { emoji: '🧊🧊', label: 'Not a real opportunity' }
+  }
+
+  return sinceLastUpdateMs <= 7 * dayMs
+    ? { emoji: '🔥🧊', label: 'Active lead' }
+    : { emoji: '🧊🧊', label: 'Cold lead' }
 }
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [tabCounts, setTabCounts] = useState<Record<LeadTabKey, number>>({
     lesson_inquiry: 0,
-    job_application: 0,
     service_inquiry: 0,
   })
   const [loading, setLoading] = useState(true)
@@ -258,12 +348,21 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
+  const [manualLeadForm, setManualLeadForm] = useState<ManualLeadFormState>(() => createInitialManualLeadForm('lesson_inquiry'))
+  const [manualLeadError, setManualLeadError] = useState('')
+  const [manualLeadSaving, setManualLeadSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailSaving, setDetailSaving] = useState(false)
   const [detailError, setDetailError] = useState('')
   const [statusValue, setStatusValue] = useState('new')
   const [notesValue, setNotesValue] = useState('')
   const [showStatusEditor, setShowStatusEditor] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const [lessonOpportunity, setLessonOpportunity] = useState<LessonOpportunityState>({
     familyLabel: '',
     baseValue: String(DEFAULT_LESSON_BASE_VALUE),
@@ -307,18 +406,79 @@ export default function LeadsPage() {
 
       setTabCounts({
         lesson_inquiry: 0,
-        job_application: 0,
         service_inquiry: 0,
         ...Object.fromEntries(counts),
       })
     } catch {
       setTabCounts({
         lesson_inquiry: 0,
-        job_application: 0,
         service_inquiry: 0,
       })
     }
   }, [statusFilter])
+
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(leadId)) next.delete(leadId)
+      else next.add(leadId)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds((current) => {
+      const visibleIds = leads.map((lead) => lead.id)
+      const allSelected = visibleIds.every((id) => current.has(id))
+      const next = new Set(current)
+
+      if (allSelected) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+
+      return next
+    })
+  }
+
+  const openDeleteModal = () => {
+    setDeleteError('')
+    setDeletePassword('')
+    setIsDeleteOpen(true)
+  }
+
+  const closeDeleteModal = () => {
+    if (deleteLoading) return
+    setIsDeleteOpen(false)
+    setDeleteError('')
+    setDeletePassword('')
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+
+    setDeleteLoading(true)
+    setDeleteError('')
+
+    try {
+      await fetchJsonWithTimeout<{ success: true }>(`/api/leads`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), password: deletePassword }),
+      })
+
+      if (selectedLeadId && selectedIds.has(selectedLeadId)) closeLead()
+      setSelectedIds(new Set())
+      setIsDeleteOpen(false)
+      setDeletePassword('')
+      await Promise.all([fetchLeads(), fetchTabCounts()])
+    } catch (error: unknown) {
+      setDeleteError(getErrorMessage(error, 'Could not delete leads'))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   const fetchLeadDetail = async (leadId: string) => {
     setDetailLoading(true)
@@ -340,6 +500,74 @@ export default function LeadsPage() {
   const openLead = async (leadId: string) => {
     setSelectedLeadId(leadId)
     await fetchLeadDetail(leadId)
+  }
+
+  const openAddLead = () => {
+    setManualLeadError('')
+    setManualLeadForm(createInitialManualLeadForm(activeTab))
+    setIsAddLeadOpen(true)
+  }
+
+  const closeAddLead = () => {
+    if (manualLeadSaving) return
+    setIsAddLeadOpen(false)
+    setManualLeadError('')
+  }
+
+  const updateManualLeadField = <K extends keyof ManualLeadFormState>(field: K, value: ManualLeadFormState[K]) => {
+    setManualLeadForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'intakeType'
+        ? {
+            programLabel: value === 'lesson_inquiry' ? current.programLabel : '',
+            serviceLabel: value === 'service_inquiry' ? current.serviceLabel : '',
+          }
+        : null),
+    }))
+  }
+
+  const handleCreateLead = async () => {
+    setManualLeadSaving(true)
+    setManualLeadError('')
+
+    try {
+      const payload: Record<string, unknown> = {}
+      const trimmedMessage = manualLeadForm.message.trim()
+      if (trimmedMessage) payload.message = trimmedMessage
+      if (manualLeadForm.intakeType === 'lesson_inquiry') payload.family_members_interested = manualLeadForm.familyInterestedCount
+
+      const response = await fetchJsonWithTimeout<{ lead_intake_id?: string }>(`/api/intake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intake_type: manualLeadForm.intakeType,
+          source_system: 'pulse-manual',
+          source_form: manualLeadForm.sourceForm,
+          source_page: null,
+          full_name: manualLeadForm.fullName.trim(),
+          email: manualLeadForm.email.trim() || null,
+          phone: manualLeadForm.phone.trim() || null,
+          program_label: manualLeadForm.intakeType === 'lesson_inquiry' ? manualLeadForm.programLabel.trim() || null : null,
+          service_label: manualLeadForm.intakeType === 'service_inquiry' ? manualLeadForm.serviceLabel.trim() || null : null,
+          referrer: manualLeadForm.referrer.trim() || null,
+          payload,
+        }),
+      })
+
+      await Promise.all([fetchLeads(), fetchTabCounts()])
+      setIsAddLeadOpen(false)
+      setManualLeadForm(createInitialManualLeadForm(activeTab))
+
+      if (response.lead_intake_id) {
+        if (manualLeadForm.intakeType !== activeTab) setActiveTab(manualLeadForm.intakeType)
+        await openLead(response.lead_intake_id)
+      }
+    } catch (error: unknown) {
+      setManualLeadError(getErrorMessage(error, 'Could not create lead'))
+    } finally {
+      setManualLeadSaving(false)
+    }
   }
 
   const handleInlineStatusChange = async (nextStatus: string) => {
@@ -425,6 +653,10 @@ export default function LeadsPage() {
     }
   }, [activeTab, selectedLead])
 
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [activeTab, statusFilter])
+
   const leadTabItems = useMemo(
     () => LEAD_TABS.map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0 })),
     [tabCounts],
@@ -434,6 +666,8 @@ export default function LeadsPage() {
     if (loading) return 'Loading leads...'
     return `${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}`
   }, [loading, leads.length])
+  const selectedCount = selectedIds.size
+  const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id))
 
   const selectedLeadType = selectedLead ? formatLabel(selectedLead.intake_type) : 'Loading lead...'
   const selectedProgram = selectedLead ? formatSourcePage(selectedLead.source_page, selectedLead.program_label || selectedLead.service_label) : 'Loading...'
@@ -484,7 +718,15 @@ export default function LeadsPage() {
   return (
     <>
       <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%' }}>
-        <PageHeader title="Leads" subtitle={subtitle} />
+        <PageHeader
+          title="Leads"
+          subtitle={subtitle}
+          right={(
+            <Button type="button" onClick={openAddLead}>
+              + Add Lead
+            </Button>
+          )}
+        />
 
         <Tabs
           items={leadTabItems}
@@ -505,6 +747,14 @@ export default function LeadsPage() {
               <option key={option} value={option}>Status: {option}</option>
             ))}
           </Select>
+          {selectedCount > 0 && (
+            <div style={bulkActionBarStyle}>
+              <span style={bulkActionTextStyle}>{selectedCount} selected</span>
+              <Button type="button" variant="destructive" size="sm" onClick={openDeleteModal}>
+                Delete leads
+              </Button>
+            </div>
+          )}
         </div>
 
         {error && <MessageBox>{error}</MessageBox>}
@@ -520,12 +770,20 @@ export default function LeadsPage() {
             style={tableWrapStyle}
             header={(
               <>
+                <div>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Select all visible leads"
+                  />
+                </div>
                 <div>Temp</div>
                 <div>Status</div>
                 <div>Name</div>
                 <div>Email</div>
                 <div>Phone</div>
-                <div>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Role details' : 'Service details'}</div>
+                <div>{activeTab === 'lesson_inquiry' ? 'Program' : 'Service details'}</div>
                 <div>Created</div>
               </>
             )}
@@ -533,6 +791,7 @@ export default function LeadsPage() {
             {leads.map((lead) => {
               const signal = getLeadSignal(lead)
               const isBold = lead.temperature === 'hot' && lead.status === 'new'
+              const isSelected = selectedIds.has(lead.id)
 
               return (
                 <DataGridRow
@@ -543,12 +802,21 @@ export default function LeadsPage() {
                   style={{
                     ...tableRowStyle,
                     fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,
-                    background: selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
+                    background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
                   }}
                 >
+                  <div>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleLeadSelection(lead.id)}
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
+                    />
+                  </div>
                   <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
                   <div>
-                    <Badge variant={lead.status === 'new' ? 'info' : lead.status === 'contacted' ? 'warning' : lead.status === 'never_picked_up' ? 'error' : 'neutral'}>
+                    <Badge variant={lead.status === 'new' ? 'info' : lead.status === 'contacted' ? 'warning' : lead.status === 'ghosted_us' || lead.status === 'lost' ? 'error' : lead.status === 'won' ? 'success' : 'neutral'}>
                       {formatLabel(lead.status)}
                     </Badge>
                   </div>
@@ -572,6 +840,164 @@ export default function LeadsPage() {
           </DataGridTable>
         )}
       </div>
+
+      <SlidePanel isOpen={isAddLeadOpen} onClose={closeAddLead} width="min(92vw, 640px)">
+        <SlidePanelHeader
+          title="Add lead"
+          onClose={closeAddLead}
+        />
+        <div style={manualLeadPanelBodyStyle}>
+          {manualLeadError && <MessageBox>{manualLeadError}</MessageBox>}
+
+          <div style={manualLeadFormGridStyle}>
+            <Input
+              label="Full name"
+              value={manualLeadForm.fullName}
+              onChange={(event) => updateManualLeadField('fullName', event.target.value)}
+              placeholder="Jane Smith"
+              error={!manualLeadForm.fullName.trim() ? 'Required' : undefined}
+            />
+            <Select
+              label="Lead type"
+              value={manualLeadForm.intakeType}
+              onChange={(event) => updateManualLeadField('intakeType', event.target.value as ManualLeadFormState['intakeType'])}
+            >
+              <option value="lesson_inquiry">Lesson inquiry</option>
+              <option value="service_inquiry">Service inquiry</option>
+            </Select>
+            <Input
+              label="Email"
+              type="email"
+              value={manualLeadForm.email}
+              onChange={(event) => updateManualLeadField('email', event.target.value)}
+              placeholder="name@example.com"
+              hint="Email or phone is required for matching."
+            />
+            <Input
+              label="Phone"
+              type="tel"
+              value={manualLeadForm.phone}
+              onChange={(event) => updateManualLeadField('phone', event.target.value)}
+              placeholder="(555) 123-4567"
+              error={!manualLeadForm.email.trim() && !manualLeadForm.phone.trim() ? 'Email or phone is required' : undefined}
+            />
+            <Select
+              label="Source"
+              value={manualLeadForm.sourceForm}
+              onChange={(event) => updateManualLeadField('sourceForm', event.target.value as ManualLeadFormState['sourceForm'])}
+            >
+              {MANUAL_LEAD_SOURCE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+            {manualLeadForm.intakeType === 'lesson_inquiry' ? (
+              <>
+                <Select
+                  label="Program or instrument"
+                  value={manualLeadForm.programLabel}
+                  onChange={(event) => updateManualLeadField('programLabel', event.target.value)}
+                >
+                  <option value="">Select program or instrument</option>
+                  {MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </Select>
+                <div style={manualLeadStepperWrapStyle}>
+                  <FieldLabel style={manualLeadStepperLabelStyle}>Family members interested</FieldLabel>
+                  <div style={manualLeadStepperRowStyle}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => updateManualLeadField('familyInterestedCount', Math.max(1, manualLeadForm.familyInterestedCount - 1))}
+                      disabled={manualLeadSaving || manualLeadForm.familyInterestedCount <= 1}
+                    >
+                      −
+                    </Button>
+                    <div style={manualLeadStepperValueStyle}>{manualLeadForm.familyInterestedCount}</div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => updateManualLeadField('familyInterestedCount', manualLeadForm.familyInterestedCount + 1)}
+                      disabled={manualLeadSaving}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <Input
+                label="Service"
+                value={manualLeadForm.serviceLabel}
+                onChange={(event) => updateManualLeadField('serviceLabel', event.target.value)}
+                placeholder="Birthday party"
+              />
+            )}
+            <Input
+              label="How did they find us"
+              value={manualLeadForm.referrer}
+              onChange={(event) => updateManualLeadField('referrer', event.target.value)}
+              placeholder="Google, parent referral, flyer…"
+            />
+          </div>
+
+          <Textarea
+            label="Notes"
+            value={manualLeadForm.message}
+            onChange={(event) => updateManualLeadField('message', event.target.value)}
+            placeholder="What did they ask for? Any timing, instrument, budget, or callback notes?"
+            rows={6}
+          />
+
+          <div style={manualLeadFooterStyle}>
+            <Button type="button" variant="secondary" onClick={closeAddLead} disabled={manualLeadSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleCreateLead()}
+              disabled={manualLeadSaving || !manualLeadForm.fullName.trim() || (!manualLeadForm.email.trim() && !manualLeadForm.phone.trim())}
+            >
+              {manualLeadSaving ? 'Saving…' : 'Create lead'}
+            </Button>
+          </div>
+        </div>
+      </SlidePanel>
+
+      <SlidePanel isOpen={isDeleteOpen} onClose={closeDeleteModal} width="min(92vw, 520px)">
+        <SlidePanelHeader
+          title="Delete leads"
+          onClose={closeDeleteModal}
+        />
+        <div style={deletePanelBodyStyle}>
+          <div style={deleteCopyStyle}>
+            Enter the delete password to permanently remove {selectedCount} {selectedCount === 1 ? 'lead' : 'leads'}.
+          </div>
+          {deleteError && <MessageBox>{deleteError}</MessageBox>}
+          <Input
+            label="Password"
+            type="password"
+            value={deletePassword}
+            onChange={(event) => setDeletePassword(event.target.value)}
+            placeholder="Enter password"
+          />
+          <div style={manualLeadFooterStyle}>
+            <Button type="button" variant="secondary" onClick={closeDeleteModal} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDeleteSelected()}
+              disabled={deleteLoading || deletePassword.trim().length === 0}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete leads'}
+            </Button>
+          </div>
+        </div>
+      </SlidePanel>
 
       <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width="min(88vw, 1180px)">
         <div style={leadPanelBodyStyle}>
@@ -609,7 +1035,7 @@ export default function LeadsPage() {
                             </Select>
                           ) : (
                             <>
-                              <Badge variant={selectedLead.status === 'new' ? 'info' : selectedLead.status === 'contacted' ? 'warning' : selectedLead.status === 'never_picked_up' ? 'error' : 'neutral'}>
+                              <Badge variant={selectedLead.status === 'new' ? 'info' : selectedLead.status === 'contacted' ? 'warning' : selectedLead.status === 'ghosted_us' || selectedLead.status === 'lost' ? 'error' : selectedLead.status === 'won' ? 'success' : 'neutral'}>
                                 {formatLabel(statusValue)}
                               </Badge>
                               <button type="button" onClick={() => setShowStatusEditor(true)} style={statusInlineActionStyle}>
@@ -812,7 +1238,7 @@ export default function LeadsPage() {
                             <div style={editorialDetailsGridStyle}>
                               <Detail label="Service" value={selectedLead.service_label || '—'} />
                               <Detail label="Source" value={formatLabel(selectedLead.source_form)} />
-                              <Detail label="Landing page" value={selectedProgram} />
+                              <Detail label="Source / channel" value={selectedProgram} />
                               <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
                             </div>
                           </DenseSectionPanel>
@@ -946,7 +1372,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '72px minmax(120px, 0.95fr) minmax(220px, 1.55fr) minmax(230px, 1.45fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) minmax(170px, 1fr)'
+const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(220px, 1.55fr) minmax(230px, 1.45fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) minmax(170px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -991,7 +1417,7 @@ const leadPanelBodyStyle: React.CSSProperties = {
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: spacing.md,
+  gap: spacing.lg,
   background: colors.background,
   minHeight: 0,
 }
@@ -1373,9 +1799,84 @@ const selectStyle: React.CSSProperties = {
   appearance: 'auto',
 }
 
+const manualLeadPanelBodyStyle: React.CSSProperties = {
+  padding: spacing['2xl'],
+  display: 'flex',
+  flexDirection: 'column',
+  gap: spacing.lg,
+  overflowY: 'auto',
+}
+
+const manualLeadFormGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: spacing.lg,
+  alignItems: 'start',
+}
+
+const manualLeadFooterStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: spacing.sm,
+}
+
+const deletePanelBodyStyle: React.CSSProperties = {
+  padding: spacing['2xl'],
+  display: 'flex',
+  flexDirection: 'column',
+  gap: spacing.lg,
+}
+
+const deleteCopyStyle: React.CSSProperties = {
+  fontSize: typography.sizeSm,
+  color: colors.textSecondary,
+  lineHeight: 1.6,
+}
+
+const manualLeadStepperWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: spacing.xs,
+}
+
+const manualLeadStepperLabelStyle: React.CSSProperties = {
+  marginBottom: 0,
+  fontSize: typography.sizeSm,
+  fontWeight: typography.weightMedium,
+  color: colors.text,
+  fontFamily: typography.fontSans,
+}
+
+const manualLeadStepperRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: spacing.sm,
+}
+
+const manualLeadStepperValueStyle: React.CSSProperties = {
+  minWidth: '32px',
+  textAlign: 'center',
+  fontSize: typography.sizeBase,
+  color: colors.text,
+  fontFamily: typography.fontSans,
+}
+
 const filterSelectWrapStyle: React.CSSProperties = {
   width: 'auto',
   flex: '0 0 auto',
+}
+
+const bulkActionBarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: spacing.sm,
+  marginLeft: 'auto',
+}
+
+const bulkActionTextStyle: React.CSSProperties = {
+  fontSize: typography.sizeSm,
+  color: colors.textSecondary,
+  fontFamily: typography.fontSans,
 }
 
 const emptyActivityStyle: React.CSSProperties = {
