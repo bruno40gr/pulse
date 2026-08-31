@@ -6,14 +6,16 @@ import { colors, radius, spacing, typography } from '@/lib/tokens'
 interface CompactMetaCardProps {
   children: ReactNode
   style?: CSSProperties
+  fullWidth?: boolean
+  align?: 'center' | 'start'
 }
 
-export function CompactMetaCard({ children, style }: CompactMetaCardProps) {
+export function CompactMetaCard({ children, style, fullWidth = false, align = 'center' }: CompactMetaCardProps) {
   return (
     <div
       style={{
         display: 'inline-flex',
-        alignItems: 'center',
+        alignItems: align === 'start' ? 'flex-start' : 'center',
         minHeight: `calc(${typography.sizeSm} * 2 + ${spacing.sm})`,
         padding: `${spacing.xs} ${spacing.sm}`,
         borderRadius: radius.lg,
@@ -24,6 +26,9 @@ export function CompactMetaCard({ children, style }: CompactMetaCardProps) {
         fontWeight: typography.weightSemibold,
         lineHeight: 1.2,
         fontFamily: typography.fontSans,
+        width: fullWidth ? '100%' : undefined,
+        maxWidth: fullWidth ? '100%' : undefined,
+        boxSizing: 'border-box',
         ...style,
       }}
     >

@@ -6,6 +6,7 @@ import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectio
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry'
+type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 
 type ManualLeadFormState = {
   fullName: string
@@ -95,6 +96,12 @@ const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm
   { value: 'manual-traffic-visitor', label: 'Website visitor' },
   { value: 'manual-referral', label: 'Referral' },
   { value: 'manual-other', label: 'Other' },
+]
+
+const MOBILE_BREAKPOINT_PX = 960
+const LEAD_DETAIL_PANEL_TABS: Array<{ key: LeadDetailPanelTabKey, label: string }> = [
+  { key: 'details', label: 'Details' },
+  { key: 'notes_activity', label: 'Notes & activity' },
 ]
 
 function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState {
@@ -363,6 +370,8 @@ export default function LeadsPage() {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [isMobileLayout, setIsMobileLayout] = useState(false)
+  const [detailPanelTab, setDetailPanelTab] = useState<LeadDetailPanelTabKey>('details')
   const [lessonOpportunity, setLessonOpportunity] = useState<LessonOpportunityState>({
     familyLabel: '',
     baseValue: String(DEFAULT_LESSON_BASE_VALUE),
@@ -588,6 +597,7 @@ export default function LeadsPage() {
     setSelectedLead(null)
     setDetailError('')
     setShowStatusEditor(false)
+    setDetailPanelTab('details')
     setLessonOpportunity({
       familyLabel: '',
       baseValue: String(DEFAULT_LESSON_BASE_VALUE),
@@ -648,10 +658,33 @@ export default function LeadsPage() {
   }, [fetchTabCounts])
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`)
+
+    const syncLayout = (matches: boolean) => {
+      setIsMobileLayout(matches)
+    }
+
+    syncLayout(mediaQuery.matches)
+
+    const handleChange = (event: MediaQueryListEvent) => syncLayout(event.matches)
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+
+    mediaQuery.addListener(handleChange)
+    return () => mediaQuery.removeListener(handleChange)
+  }, [])
+
+  useEffect(() => {
     if (selectedLead && selectedLead.intake_type !== activeTab) {
       closeLead()
     }
   }, [activeTab, selectedLead])
+
+  useEffect(() => {
+    if (!isMobileLayout) setDetailPanelTab('details')
+  }, [isMobileLayout])
 
   useEffect(() => {
     setSelectedIds(new Set())
@@ -714,6 +747,263 @@ export default function LeadsPage() {
       0,
     )
   const lessonSiblingDiscountLabel = lessonOpportunity.siblingDiscountEnabled ? '10% sibling offer applied' : 'No sibling offer applied'
+  const detailPanelTabItems = useMemo(() => LEAD_DETAIL_PANEL_TABS, [])
+
+  const leadDetailPrimaryContent = selectedLead ? (
+    <div style={isMobileLayout ? mobileLeadDetailSectionStyle : leadDetailLeftColumnStyle}>
+      <div style={isMobileLayout ? quickActionStackStyle : quickActionRowStyle}>
+        {selectedLead.contact?.email && (
+          <QuickChip
+            label={selectedLead.contact.email}
+            width="wide"
+            href={`mailto:${selectedLead.contact.email}`}
+            action={(
+              <button
+                type="button"
+                aria-label="Copy email address"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void handleCopyEmail(selectedLead.contact!.email!)
+                }}
+                style={quickChipIconButtonStyle}
+              >
+                <Copy size={16} />
+              </button>
+            )}
+            fullWidth={isMobileLayout}
+            align={isMobileLayout ? 'start' : 'center'}
+          />
+        )}
+        {selectedLead.contact?.phone && (
+          <QuickChip
+            label={selectedLead.contact.phone}
+            width="wide"
+            href={`tel:${selectedLead.contact.phone}`}
+            fullWidth={isMobileLayout}
+            align={isMobileLayout ? 'start' : 'center'}
+          />
+        )}
+        {selectedLead.intake_type === 'lesson_inquiry' && (
+          <QuickChip
+            label={prospectAge}
+            width="narrow"
+            fullWidth={isMobileLayout}
+            align={isMobileLayout ? 'start' : 'center'}
+          />
+        )}
+      </div>
+
+      {selectedLead.intake_type === 'lesson_inquiry' && (
+        <>
+          <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Lesson details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+            <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
+              <Detail label="Instrument" value={lessonInstrument} />
+              <Detail label="Experience" value={typeof selectedLead.payload?.experience === 'string' ? selectedLead.payload.experience : '—'} />
+              <Detail label="Preferred days" value={lessonDays} />
+              <Detail label="Preferred times" value={lessonTimes} />
+            </div>
+          </DenseSectionPanel>
+
+          <DenseSectionPanel
+            title={(
+              <div>
+                <SectionTitle style={sectionTitleMiniStyle}>Family members</SectionTitle>
+                <label style={checkboxRowStyle}>
+                  <input
+                    type="checkbox"
+                    checked={lessonOpportunity.siblingDiscountEnabled}
+                    onChange={(e) => setLessonOpportunity((current) => ({ ...current, siblingDiscountEnabled: e.target.checked }))}
+                  />
+                  Apply 10% sibling offer
+                </label>
+              </div>
+            )}
+            actions={(
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setLessonOpportunity((current) => ({
+                  ...current,
+                  siblings: [...current.siblings, { name: '', age: '', instrument_interest: '' }],
+                }))}
+              >
+                Add family member
+              </Button>
+            )}
+            style={editorialSectionPanelStyle}
+            contentStyle={sectionContentStyle}
+          >
+            <div style={siblingsWrapStyle}>
+              {lessonOpportunity.siblings.length === 0 && (
+                <div style={emptySiblingStateStyle}>No siblings added yet.</div>
+              )}
+
+              {lessonOpportunity.siblings.map((sibling, index) => {
+                const siblingInstrumentOptions = sibling.instrument_interest && !LESSON_INSTRUMENT_OPTIONS.includes(sibling.instrument_interest)
+                  ? [sibling.instrument_interest, ...LESSON_INSTRUMENT_OPTIONS]
+                  : LESSON_INSTRUMENT_OPTIONS
+
+                return (
+                  <div key={index} style={siblingCardStyle}>
+                    <div style={siblingCardHeaderStyle}>
+                      <div style={siblingLabelStyle}>Sibling {index + 1}</div>
+                      <button
+                        type="button"
+                        onClick={() => setLessonOpportunity((current) => ({
+                          ...current,
+                          siblings: current.siblings.filter((_, siblingIndex) => siblingIndex !== index),
+                        }))}
+                        style={removeSiblingButtonStyle}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div style={isMobileLayout ? siblingGridMobileStyle : siblingGridStyle}>
+                      <div style={{ minWidth: 0 }}>
+                        <FieldLabel style={detailFieldLabelStyle}>Name</FieldLabel>
+                        <input
+                          value={sibling.name}
+                          onChange={(e) => setLessonOpportunity((current) => ({
+                            ...current,
+                            siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, name: e.target.value } : entry),
+                          }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <FieldLabel style={detailFieldLabelStyle}>Age</FieldLabel>
+                        <input
+                          value={sibling.age}
+                          onChange={(e) => setLessonOpportunity((current) => ({
+                            ...current,
+                            siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, age: e.target.value } : entry),
+                          }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <FieldLabel style={detailFieldLabelStyle}>Instrument interest</FieldLabel>
+                        <Select
+                          value={sibling.instrument_interest}
+                          onChange={(e) => setLessonOpportunity((current) => ({
+                            ...current,
+                            siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, instrument_interest: e.target.value } : entry),
+                          }))}
+                          style={inputStyle}
+                        >
+                          <option value="">Select instrument</option>
+                          {siblingInstrumentOptions.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={sectionFooterActionsStyle}>
+              <Button
+                variant="secondary"
+                onClick={() => saveDetail({
+                  payload: {
+                    potential_value_base: lessonBaseValue,
+                    potential_value_total: Math.round(lessonOpportunityTotal),
+                    discount_offer_applied: lessonOpportunity.siblingDiscountEnabled,
+                    sibling_count: lessonSiblingCount,
+                    siblings: lessonOpportunity.siblings,
+                  },
+                })}
+                disabled={detailSaving}
+              >
+                {detailSaving ? 'Saving…' : 'Save family member'}
+              </Button>
+            </div>
+          </DenseSectionPanel>
+        </>
+      )}
+
+      {selectedLead.intake_type !== 'lesson_inquiry' && (
+        <>
+          {selectedLead.intake_type === 'service_inquiry' && (
+            <>
+              <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Service details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+                <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
+                  <Detail label="Service" value={selectedLead.service_label || '—'} />
+                  <Detail label="Source" value={formatLabel(selectedLead.source_form)} />
+                  <Detail label="Source / channel" value={selectedProgram} />
+                  <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
+                </div>
+              </DenseSectionPanel>
+
+              <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Message</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+                <div style={messageCardBodyStyle}>{serviceMessage}</div>
+              </DenseSectionPanel>
+            </>
+          )}
+
+          {selectedLead.intake_type === 'job_application' && (
+            <>
+              <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Application details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+                <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
+                  <Detail label="Positions" value={applicationPositions} />
+                  <Detail label="Experience" value={applicationExperience} />
+                  <Detail label="Sight reading" value={applicationSightReading} />
+                  <Detail label="Availability" value={applicationAvailability} />
+                  <Detail label="Resume link" value={applicationResume} />
+                  <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
+                </div>
+              </DenseSectionPanel>
+
+              <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Candidate message</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+                <div style={messageCardBodyStyle}>{applicationMessage}</div>
+              </DenseSectionPanel>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  ) : null
+
+  const leadDetailSecondaryContent = selectedLead ? (
+    <div style={isMobileLayout ? mobileLeadDetailSectionStyle : leadDetailRightColumnStyle}>
+      <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Notes</SectionTitle>} style={rightRailPanelStyle} contentStyle={sectionContentStyle}>
+        <NotesSection
+          title="Notes"
+          notes={selectedLead.notes_history || []}
+          avatarInitial={selectedInitial}
+          avatarBg={colors.crimson}
+          cardBg={colors.surfaceMuted}
+          addLabel="Add note"
+          saving={detailSaving}
+          helperText="Use notes for call attempts, context, and follow-up details."
+          showHeader={false}
+          onSave={(text) => saveDetail({ add_note: text })}
+        />
+      </DenseSectionPanel>
+
+      <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Activity</SectionTitle>} tone="muted" style={rightRailPanelStyle} contentStyle={sectionContentStyle}>
+        <div style={activityTableStyle}>
+          {selectedLead.events.length === 0 && (
+            <div style={emptyActivityStyle}>No activity yet beyond the current lead record.</div>
+          )}
+
+          {selectedLead.events.map((event) => (
+            <div key={event.id} style={activityRowStyle}>
+              <div style={activityTitleCellStyle}>
+                <span style={activityBulletStyle} aria-hidden="true" />
+                <span style={activityTitleStyle}>{formatActivity(event.event_type, event.event_label)}</span>
+              </div>
+              <div style={activityTimeStyle}>{formatDateTime(event.created_at)}</div>
+            </div>
+          ))}
+        </div>
+      </DenseSectionPanel>
+    </div>
+  ) : null
 
   return (
     <>
@@ -765,79 +1055,81 @@ export default function LeadsPage() {
             description="New website inquiries will show up here once your forms start posting to the intake API."
           />
         ) : (
-          <DataGridTable
-            columns={tableColumns}
-            style={tableWrapStyle}
-            header={(
-              <>
-                <div>
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                    aria-label="Select all visible leads"
-                  />
-                </div>
-                <div>Temp</div>
-                <div>Status</div>
-                <div>Name</div>
-                <div>Email</div>
-                <div>Phone</div>
-                <div>{activeTab === 'lesson_inquiry' ? 'Program' : 'Service details'}</div>
-                <div>Created</div>
-              </>
-            )}
-          >
-            {leads.map((lead) => {
-              const signal = getLeadSignal(lead)
-              const isBold = lead.temperature === 'hot' && lead.status === 'new'
-              const isSelected = selectedIds.has(lead.id)
-
-              return (
-                <DataGridRow
-                  key={lead.id}
-                  as="button"
-                  columns={tableColumns}
-                  onClick={() => openLead(lead.id)}
-                  style={{
-                    ...tableRowStyle,
-                    fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,
-                    background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
-                  }}
-                >
+          <div style={tableScrollWrapStyle}>
+            <DataGridTable
+              columns={tableColumns}
+              style={tableWrapStyle}
+              header={(
+                <>
                   <div>
                     <input
                       type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleLeadSelection(lead.id)}
-                      onClick={(event) => event.stopPropagation()}
-                      aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                      aria-label="Select all visible leads"
                     />
                   </div>
-                  <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
-                  <div>
-                    <Badge variant={lead.status === 'new' ? 'info' : lead.status === 'contacted' ? 'warning' : lead.status === 'ghosted_us' || lead.status === 'lost' ? 'error' : lead.status === 'won' ? 'success' : 'neutral'}>
-                      {formatLabel(lead.status)}
-                    </Badge>
-                  </div>
-                  <div style={nameCellStyle}>
-                    <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={cellTextStyle}>{lead.contact?.email || 'No email'}</div>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={cellTextStyle}>{lead.contact?.phone || 'No phone'}</div>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
-                    <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
-                  </div>
-                  <div style={cellTextStyle}>{formatDateTime(lead.created_at)}</div>
-                </DataGridRow>
-              )
-            })}
-          </DataGridTable>
+                  <div>Temp</div>
+                  <div>Status</div>
+                  <div>Name</div>
+                  <div>Email</div>
+                  <div>Phone</div>
+                  <div>{activeTab === 'lesson_inquiry' ? 'Program' : 'Service details'}</div>
+                  <div>Created</div>
+                </>
+              )}
+            >
+              {leads.map((lead) => {
+                const signal = getLeadSignal(lead)
+                const isBold = lead.temperature === 'hot' && lead.status === 'new'
+                const isSelected = selectedIds.has(lead.id)
+
+                return (
+                  <DataGridRow
+                    key={lead.id}
+                    as="button"
+                    columns={tableColumns}
+                    onClick={() => openLead(lead.id)}
+                    style={{
+                      ...tableRowStyle,
+                      fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,
+                      background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
+                    }}
+                  >
+                    <div>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleLeadSelection(lead.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
+                      />
+                    </div>
+                    <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
+                    <div>
+                      <Badge variant={lead.status === 'new' ? 'info' : lead.status === 'contacted' ? 'warning' : lead.status === 'ghosted_us' || lead.status === 'lost' ? 'error' : lead.status === 'won' ? 'success' : 'neutral'}>
+                        {formatLabel(lead.status)}
+                      </Badge>
+                    </div>
+                    <div style={nameCellStyle}>
+                      <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={cellTextStyle}>{lead.contact?.email || 'No email'}</div>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={cellTextStyle}>{lead.contact?.phone || 'No phone'}</div>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
+                      <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
+                    </div>
+                    <div style={cellTextStyle}>{formatDateTime(lead.created_at)}</div>
+                  </DataGridRow>
+                )
+              })}
+            </DataGridTable>
+          </div>
         )}
       </div>
 
@@ -1070,241 +1362,24 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              <div style={leadDetailContentGridStyle}>
-                <div style={leadDetailLeftColumnStyle}>
-                  <div style={quickActionRowStyle}>
-                    {selectedLead.contact?.email && (
-                      <QuickChip
-                        label={selectedLead.contact.email}
-                        width="wide"
-                        href={`mailto:${selectedLead.contact.email}`}
-                        action={(
-                          <button
-                            type="button"
-                            aria-label="Copy email address"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleCopyEmail(selectedLead.contact!.email!)
-                            }}
-                            style={quickChipIconButtonStyle}
-                          >
-                            <Copy size={16} />
-                          </button>
-                        )}
-                      />
-                    )}
-                    {selectedLead.contact?.phone && <QuickChip label={selectedLead.contact.phone} width="wide" />}
-                    {selectedLead.intake_type === 'lesson_inquiry' && <QuickChip label={prospectAge} width="narrow" />}
-                  </div>
+              {isMobileLayout && (
+                <Tabs
+                  items={detailPanelTabItems}
+                  activeKey={detailPanelTab}
+                  onChange={setDetailPanelTab}
+                  style={mobileDetailTabsStyle}
+                />
+              )}
 
-                  {selectedLead.intake_type === 'lesson_inquiry' && (
-                    <>
-                      <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Lesson details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
-                        <div style={editorialDetailsGridStyle}>
-                          <Detail label="Instrument" value={lessonInstrument} />
-                          <Detail label="Experience" value={typeof selectedLead.payload?.experience === 'string' ? selectedLead.payload.experience : '—'} />
-                          <Detail label="Preferred days" value={lessonDays} />
-                          <Detail label="Preferred times" value={lessonTimes} />
-                        </div>
-                      </DenseSectionPanel>
-
-                      <DenseSectionPanel
-                        title={(
-                          <div>
-                            <SectionTitle style={sectionTitleMiniStyle}>Family members</SectionTitle>
-                            <label style={checkboxRowStyle}>
-                              <input
-                                type="checkbox"
-                                checked={lessonOpportunity.siblingDiscountEnabled}
-                                onChange={(e) => setLessonOpportunity((current) => ({ ...current, siblingDiscountEnabled: e.target.checked }))}
-                              />
-                              Apply 10% sibling offer
-                            </label>
-                          </div>
-                        )}
-                        actions={(
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setLessonOpportunity((current) => ({
-                              ...current,
-                              siblings: [...current.siblings, { name: '', age: '', instrument_interest: '' }],
-                            }))}
-                          >
-                            Add family member
-                          </Button>
-                        )}
-                        style={editorialSectionPanelStyle}
-                        contentStyle={sectionContentStyle}
-                      >
-                        <div style={siblingsWrapStyle}>
-                          {lessonOpportunity.siblings.length === 0 && (
-                            <div style={emptySiblingStateStyle}>No siblings added yet.</div>
-                          )}
-
-                          {lessonOpportunity.siblings.map((sibling, index) => {
-                            const siblingInstrumentOptions = sibling.instrument_interest && !LESSON_INSTRUMENT_OPTIONS.includes(sibling.instrument_interest)
-                              ? [sibling.instrument_interest, ...LESSON_INSTRUMENT_OPTIONS]
-                              : LESSON_INSTRUMENT_OPTIONS
-
-                            return (
-                              <div key={index} style={siblingCardStyle}>
-                                <div style={siblingCardHeaderStyle}>
-                                  <div style={siblingLabelStyle}>Sibling {index + 1}</div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setLessonOpportunity((current) => ({
-                                      ...current,
-                                      siblings: current.siblings.filter((_, siblingIndex) => siblingIndex !== index),
-                                    }))}
-                                    style={removeSiblingButtonStyle}
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-
-                                <div style={siblingGridStyle}>
-                                  <div style={{ minWidth: 0 }}>
-                                    <FieldLabel style={detailFieldLabelStyle}>Name</FieldLabel>
-                                    <input
-                                      value={sibling.name}
-                                      onChange={(e) => setLessonOpportunity((current) => ({
-                                        ...current,
-                                        siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, name: e.target.value } : entry),
-                                      }))}
-                                      style={inputStyle}
-                                    />
-                                  </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <FieldLabel style={detailFieldLabelStyle}>Age</FieldLabel>
-                                    <input
-                                      value={sibling.age}
-                                      onChange={(e) => setLessonOpportunity((current) => ({
-                                        ...current,
-                                        siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, age: e.target.value } : entry),
-                                      }))}
-                                      style={inputStyle}
-                                    />
-                                  </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <FieldLabel style={detailFieldLabelStyle}>Instrument interest</FieldLabel>
-                                    <Select
-                                      value={sibling.instrument_interest}
-                                      onChange={(e) => setLessonOpportunity((current) => ({
-                                        ...current,
-                                        siblings: current.siblings.map((entry, siblingIndex) => siblingIndex === index ? { ...entry, instrument_interest: e.target.value } : entry),
-                                      }))}
-                                      style={inputStyle}
-                                    >
-                                      <option value="">Select instrument</option>
-                                      {siblingInstrumentOptions.map((option) => (
-                                        <option key={option} value={option}>{option}</option>
-                                      ))}
-                                    </Select>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        <div style={sectionFooterActionsStyle}>
-                          <Button
-                            variant="secondary"
-                            onClick={() => saveDetail({
-                              payload: {
-                                potential_value_base: lessonBaseValue,
-                                potential_value_total: Math.round(lessonOpportunityTotal),
-                                discount_offer_applied: lessonOpportunity.siblingDiscountEnabled,
-                                sibling_count: lessonSiblingCount,
-                                siblings: lessonOpportunity.siblings,
-                              },
-                            })}
-                            disabled={detailSaving}
-                          >
-                            {detailSaving ? 'Saving…' : 'Save family member'}
-                          </Button>
-                        </div>
-                      </DenseSectionPanel>
-                    </>
-                  )}
-
-                  {selectedLead.intake_type !== 'lesson_inquiry' && (
-                    <>
-                      {selectedLead.intake_type === 'service_inquiry' && (
-                        <>
-                          <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Service details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
-                            <div style={editorialDetailsGridStyle}>
-                              <Detail label="Service" value={selectedLead.service_label || '—'} />
-                              <Detail label="Source" value={formatLabel(selectedLead.source_form)} />
-                              <Detail label="Source / channel" value={selectedProgram} />
-                              <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
-                            </div>
-                          </DenseSectionPanel>
-
-                          <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Message</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
-                            <div style={messageCardBodyStyle}>{serviceMessage}</div>
-                          </DenseSectionPanel>
-                        </>
-                      )}
-
-                      {selectedLead.intake_type === 'job_application' && (
-                        <>
-                          <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Application details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
-                            <div style={editorialDetailsGridStyle}>
-                              <Detail label="Positions" value={applicationPositions} />
-                              <Detail label="Experience" value={applicationExperience} />
-                              <Detail label="Sight reading" value={applicationSightReading} />
-                              <Detail label="Availability" value={applicationAvailability} />
-                              <Detail label="Resume link" value={applicationResume} />
-                              <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
-                            </div>
-                          </DenseSectionPanel>
-
-                          <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Candidate message</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
-                            <div style={messageCardBodyStyle}>{applicationMessage}</div>
-                          </DenseSectionPanel>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div style={leadDetailRightColumnStyle}>
-                  <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Notes</SectionTitle>} style={rightRailPanelStyle} contentStyle={sectionContentStyle}>
-                    <NotesSection
-                      title="Notes"
-                      notes={selectedLead.notes_history || []}
-                      avatarInitial={selectedInitial}
-                      avatarBg={colors.crimson}
-                      cardBg={colors.surfaceMuted}
-                      addLabel="Add note"
-                      saving={detailSaving}
-                      helperText="Use notes for call attempts, context, and follow-up details."
-                      showHeader={false}
-                      onSave={(text) => saveDetail({ add_note: text })}
-                    />
-                  </DenseSectionPanel>
-
-                  <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Activity</SectionTitle>} tone="muted" style={rightRailPanelStyle} contentStyle={sectionContentStyle}>
-                    <div style={activityTableStyle}>
-                      {selectedLead.events.length === 0 && (
-                        <div style={emptyActivityStyle}>No activity yet beyond the current lead record.</div>
-                      )}
-
-                      {selectedLead.events.map((event) => (
-                        <div key={event.id} style={activityRowStyle}>
-                          <div style={activityTitleCellStyle}>
-                            <span style={activityBulletStyle} aria-hidden="true" />
-                            <span style={activityTitleStyle}>{formatActivity(event.event_type, event.event_label)}</span>
-                          </div>
-                          <div style={activityTimeStyle}>{formatDateTime(event.created_at)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </DenseSectionPanel>
-                </div>
+              <div style={isMobileLayout ? leadDetailContentStackStyle : leadDetailContentGridStyle}>
+                {isMobileLayout ? (
+                  detailPanelTab === 'details' ? leadDetailPrimaryContent : leadDetailSecondaryContent
+                ) : (
+                  <>
+                    {leadDetailPrimaryContent}
+                    {leadDetailSecondaryContent}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1325,14 +1400,18 @@ function QuickChip({
   width,
   href,
   action,
+  fullWidth = false,
+  align = 'center',
 }: {
   label: string
   width: 'wide' | 'narrow'
   href?: string
   action?: React.ReactNode
+  fullWidth?: boolean
+  align?: 'center' | 'start'
 }) {
   const content = (
-    <CompactMetaCard style={{ ...quickChipStyle, ...quickChipWidthStyles[width], ...quickChipToneStyle }}>
+    <CompactMetaCard fullWidth={fullWidth} align={align} style={{ ...quickChipStyle, ...quickChipWidthStyles[width], ...quickChipToneStyle }}>
       <span style={quickChipLabelStyle}>{label}</span>
       {action ? <span style={quickChipActionWrapStyle}>{action}</span> : null}
     </CompactMetaCard>
@@ -1376,6 +1455,14 @@ const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(220px, 1.55fr) minm
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
+  minWidth: '1246px',
+}
+
+const tableScrollWrapStyle: React.CSSProperties = {
+  width: '100%',
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  WebkitOverflowScrolling: 'touch',
 }
 
 const tableHeaderStyle: React.CSSProperties = {
@@ -1440,6 +1527,11 @@ const leadDetailContentGridStyle: React.CSSProperties = {
   minHeight: 0,
 }
 
+const leadDetailContentStackStyle: React.CSSProperties = {
+  display: 'block',
+  minHeight: 0,
+}
+
 const panelColumnStyle: React.CSSProperties = {
   padding: '18px 22px 24px',
   display: 'flex',
@@ -1482,6 +1574,11 @@ const leadHeroTopStyle: React.CSSProperties = {
   alignItems: 'flex-start',
   justifyContent: 'space-between',
   gap: spacing.lg,
+}
+
+const mobileDetailTabsStyle: React.CSSProperties = {
+  paddingInline: spacing.md,
+  background: colors.surface,
 }
 
 const leadHeroActionsStyle: React.CSSProperties = {
@@ -1613,6 +1710,13 @@ const quickActionRowStyle: React.CSSProperties = {
   alignItems: 'stretch',
 }
 
+const quickActionStackStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  gap: spacing.md,
+  alignItems: 'stretch',
+}
+
 const quickChipStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: '100%',
@@ -1680,6 +1784,12 @@ const editorialSectionPanelStyle: React.CSSProperties = {
 const editorialDetailsGridStyle: React.CSSProperties = {
   ...gridSmStyle,
   gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  rowGap: spacing.md,
+}
+
+const editorialDetailsGridMobileStyle: React.CSSProperties = {
+  ...gridSmStyle,
+  gridTemplateColumns: 'minmax(0, 1fr)',
   rowGap: spacing.md,
 }
 
@@ -1784,6 +1894,19 @@ const siblingGridStyle: React.CSSProperties = {
   ...gridSmStyle,
   gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
   alignItems: 'start',
+}
+
+const siblingGridMobileStyle: React.CSSProperties = {
+  ...gridSmStyle,
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  alignItems: 'start',
+}
+
+const mobileLeadDetailSectionStyle: React.CSSProperties = {
+  padding: `${spacing.md} ${spacing.md} ${spacing.xl}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: spacing.lg,
 }
 
 const inputStyle: React.CSSProperties = {
