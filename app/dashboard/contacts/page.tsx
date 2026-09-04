@@ -27,6 +27,13 @@ interface Contact {
   account_holder_email: string | null
   is_minor?: boolean
   custom_fields: Record<string, unknown>
+  instructor?: {
+    staff_id: string
+    person_id: string | null
+    name: string | null
+    phone: string | null
+    email: string | null
+  } | null
 }
 
 interface TenantField {
@@ -666,6 +673,7 @@ export default function ContactsPage() {
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Name</th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Phone</th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Email</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Instructor</th>
                 {tenantFields.slice(0, 3).map(f => (
                   <th key={f.field_key} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>{f.field_label}</th>
                 ))}
@@ -923,6 +931,7 @@ const ContactRow = memo(function ContactRow({
                     })()}
                   </td>
       <td style={{ padding: '10px 16px' }}>{contact.email || '—'}</td>
+      <td style={{ padding: '10px 16px', color: colors.textSecondary }}>{contact.instructor?.name || '—'}</td>
       {tenantFields.slice(0, 3).map(f => {
         const fieldValue = contact.custom_fields?.[f.field_key]
         return (

@@ -41,11 +41,21 @@ Return ONLY valid JSON, no markdown, no backticks:
   ]
 }
 
-Core fields (is_core true): first_name, last_name, phone, email, client_status, opted_out.
-Custom fields (is_core false): anything business-specific like instrument, instructor, class type, belt level, membership tier, lesson day, schedule, program etc.
-For day fields: if sample values are day names use field_type day.
-For date fields: if sample values look like dates use field_type date.
-Skip columns with no clear contact meaning like IDs, invoice numbers, payment amounts.`
+Use these canonical field_key values (snake_case only):
+Core (is_core true): first_name, last_name, full_name, email, phone, client_status, opted_out, external_id, date_of_birth.
+Attendance (is_core false): session_date, attendance_status.
+Business (is_core false): instructor, instrument, program, service_type, plan_name, session_name, band_name, lesson_day, lesson_time, tag.
+
+Mapping rules:
+- A single name column (e.g. "Client Name", "Student Name", "Member Name") -> full_name. If the sheet has separate first/last columns, use first_name and last_name.
+- A stable client/customer/member id -> external_id.
+- A column holding the class/session date -> session_date (field_type date).
+- A column holding an attendance mark (values like Attended, Absent, Late, No Show) -> attendance_status (field_type dropdown).
+- The teacher/staff/coach column -> instructor. The account-manager, parent, primary-contact, or payer name columns are the ACCOUNT HOLDER, not staff — never map those to instructor.
+- The service/class/program name column -> program.
+- Day-of-week columns -> lesson_day (field_type day). Time columns -> lesson_time.
+- Tag columns (e.g. "Client Tags 1", "Instrument", "Genre") -> tag.
+Skip columns with no clear contact meaning like invoice numbers or payment amounts (but a client id column IS meaningful -> external_id).`
       }]
     })
 
@@ -53,6 +63,24 @@ Skip columns with no clear contact meaning like IDs, invoice numbers, payment am
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     try {
       const result = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
+
+      // Ensure unique field_keys — multiple columns can map to the same field
+      // (e.g. several "Client Tags" columns → "tag"), which would otherwise break
+      // React keys and collapse in the importer.
+      if (Array.isArray(result.mappings)) {
+        const seen = new Set<string>()
+        for (const m of result.mappings) {
+          if (!m || typeof m.field_key !== 'string' || !m.field_key) continue
+          let key = m.field_key
+          let n = 2
+          while (seen.has(key)) {
+            key = `${m.field_key}_${n++}`
+          }
+          m.field_key = key
+          seen.add(key)
+        }
+      }
+
       return NextResponse.json(result)
     } catch {
       // Fallback: map core fields from headers so the import can still proceed.

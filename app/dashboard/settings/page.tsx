@@ -241,6 +241,8 @@ function AccountTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sec
           Coming soon
         </div>
       </div>
+
+      <DangerZone tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
     </>
   )
 }
@@ -545,5 +547,72 @@ function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: s
         )}
       </div>
     </>
+  )
+}
+// Danger zone: reset contact data
+function DangerZone({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties; sectionSubS: React.CSSProperties }) {
+  const [confirmText, setConfirmText] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState('')
+
+  const handleReset = async () => {
+    if (confirmText !== 'RESET') return
+    setResetting(true)
+    setError('')
+    setDone('')
+    try {
+      const res = await fetch(`/api/contacts/reset?tenant=${tenantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Reset failed')
+      setDone('Contact data has been reset. You can now re-import fresh data.')
+      setConfirmText('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  return (
+    <div style={{ ...cardS, border: '1px solid #FECACA', background: '#FEF2F2' }}>
+      <h2 style={{ ...sectionTitleS, color: '#991B1B' }}>Danger zone</h2>
+      <p style={sectionSubS}>
+        Reset all contact data for this workspace. This permanently deletes all contacts, students, enrollments, instructors, custom fields, and message/campaign history. This cannot be undone.
+      </p>
+      <div style={{ marginTop: spacing.xl }}>
+        <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: '#991B1B', display: 'block' }}>Type RESET to confirm</label>
+        <input
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder="RESET"
+          style={{
+            width: '100%',
+            maxWidth: '280px',
+            padding: `${spacing.md} ${spacing.lg}`,
+            border: '1px solid #FECACA',
+            borderRadius: radius.lg,
+            fontSize: typography.sizeMd,
+            fontFamily: typography.fontSans,
+            boxSizing: 'border-box',
+            outline: 'none',
+            background: colors.surface,
+            marginTop: spacing.sm,
+          }}
+        />
+        {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{error}</p>}
+        {done && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>{done}</p>}
+        <div style={{ marginTop: spacing.lg }}>
+          <Button variant="destructive" onClick={handleReset} disabled={resetting || confirmText !== 'RESET'}>
+            {resetting ? 'Resetting…' : 'Reset contact data'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

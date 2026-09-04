@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { ensureTenantSettingsTable } from '@/lib/ensure-tenant-settings'
 import Anthropic from '@anthropic-ai/sdk'
+import { isNonStudentBooking } from '@/lib/contact-kind'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -54,6 +55,79 @@ function shortenActionLabel(label: string | null | undefined) {
   return 'Reach out'
 }
 
+type InsightPersonRow = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  opted_out: boolean
+  custom_fields: Record<string, unknown> | null
+  students: Array<{
+    id: string
+    client_status: string | null
+    last_attended: string | null
+    enrollments: Array<{
+      instrument: string | null
+      service_type: string | null
+      lesson_day: string | null
+      lesson_time: string | null
+      plan_name: string | null
+      session_name: string | null
+      custom_fields: Record<string, unknown> | null
+    }> | null
+  }> | null
+}
+
+type AttendanceRecordRow = {
+  session_date: string
+  status: string
+}
+
+function computeAttendanceSignals(value: unknown) {
+  const records: AttendanceRecordRow[] = (Array.isArray(value) ? value : []).flatMap((r) => {
+    if (!r || typeof r !== 'object') return []
+    const rec = r as Record<string, unknown>
+    if (typeof rec.session_date === 'string' && typeof rec.status === 'string') {
+      return [{ session_date: rec.session_date, status: rec.status }]
+    }
+    return []
+  })
+
+  const now = Date.now()
+  const fourWeeksAgo = now - 28 * 24 * 60 * 60 * 1000
+  const isAttended = (s: string) => s === 'attended' || s === 'late'
+
+  const sorted = [...records].sort((a, b) => (a.session_date < b.session_date ? 1 : -1))
+
+  let attended4 = 0
+  let sessions4 = 0
+  for (const r of sorted) {
+    const t = new Date(r.session_date).getTime()
+    if (t >= fourWeeksAgo) {
+      sessions4++
+      if (isAttended(r.status)) attended4++
+    }
+  }
+
+  let consecutiveMissed = 0
+  for (const r of sorted) {
+    if (isAttended(r.status)) break
+    consecutiveMissed++
+  }
+
+  let streak = 0
+  for (const r of sorted) {
+    if (isAttended(r.status)) streak++
+    else break
+  }
+
+  return {
+    last_4_weeks: sessions4 > 0 ? `${attended4}/${sessions4}` : null,
+    rate_percent: sessions4 > 0 ? Math.round((attended4 / sessions4) * 100) : null,
+    consecutive_missed: consecutiveMissed,
+    streak,
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const tenantId = getTenantId(request)
@@ -91,12 +165,24 @@ export async function GET(request: Request) {
       : ['retention', 'billing', 'growth']
     const brandVoice = tenantSettings?.brand_voice || tenantSettings?.brand_markdown || ''
 
-    const { data: contacts, error } = await supabaseAdmin
-      .from('contacts')
-      .select('id, first_name, last_name, client_status, last_attended, custom_fields, opted_out')
+    const { data, error } = await supabaseAdmin
+      .from('people')
+      .select(`
+        id, first_name, last_name, opted_out, custom_fields,
+        students (
+          id, client_status, last_attended,
+          enrollments (
+            instrument, service_type, lesson_day, lesson_time,
+            plan_name, session_name, custom_fields
+          )
+        )
+      `)
       .eq('tenant_id', tenantId)
+      .eq('opted_out', false)
 
     if (error) throw error
+
+    const people = (data || []) as InsightPersonRow[]
 
     const { data: tenant } = await supabaseAdmin
       .from('tenants')
@@ -109,16 +195,36 @@ export async function GET(request: Request) {
       .select('field_key, field_label')
       .eq('tenant_id', tenantId)
 
-    const summary = contacts.map(c => ({
-      id: c.id,
-      name: `${c.first_name} ${c.last_name}`,
-      status: c.client_status,
-      last_attended: c.last_attended,
-      days_since_attended: c.last_attended
-        ? Math.floor((today.getTime() - new Date(c.last_attended).getTime()) / (1000 * 60 * 60 * 24))
-        : null,
-      ...c.custom_fields
-    }))
+    const summary = people.map((person) => {
+      const student = person.students?.[0]
+      const enrollment = student?.enrollments?.[0]
+      const nonStudentBooking = isNonStudentBooking(enrollment)
+      const personFields = (person.custom_fields || {}) as Record<string, unknown>
+      const enrollmentFields = (enrollment?.custom_fields || {}) as Record<string, unknown>
+      const { attendance: rawAttendance, ...enrollmentFieldsRest } = enrollmentFields
+      const lastAttended = student?.last_attended || null
+      const attendanceSignals = nonStudentBooking ? null : computeAttendanceSignals(rawAttendance)
+
+      return {
+        id: person.id,
+        name: `${person.first_name} ${person.last_name}`,
+        status: nonStudentBooking ? 'booking' : (student?.client_status || 'active'),
+        last_attended: nonStudentBooking ? null : lastAttended,
+        days_since_attended: !nonStudentBooking && lastAttended
+          ? Math.floor((today.getTime() - new Date(lastAttended).getTime()) / (1000 * 60 * 60 * 24))
+          : null,
+        ...personFields,
+        ...enrollmentFieldsRest,
+        contact_kind: nonStudentBooking ? 'booking' : 'student',
+        attendance: attendanceSignals,
+        instrument: enrollment?.instrument || personFields.instrument || null,
+        service_type: enrollment?.service_type || personFields.service_type || null,
+        lesson_day: enrollment?.lesson_day || personFields.lesson_day || null,
+        lesson_time: enrollment?.lesson_time || personFields.lesson_time || null,
+        plan_name: enrollment?.plan_name || personFields.plan_name || null,
+        session_name: enrollment?.session_name || personFields.session_name || null,
+      }
+    })
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -134,6 +240,8 @@ The business has these custom fields: ${JSON.stringify(fields?.map(f => f.field_
 ${brandVoice ? `Brand voice to match in tone and style:\n${brandVoice}\n` : ''}Focus areas to prioritize (only surface moments that directly serve these): ${focusAreas.join(', ')}.
 
 Quality threshold: ${highlightThreshold} on a 1-5 scale (1 = include weak/minor signals, 5 = only surface strong, clear, high-value moments). If a moment's importance is below this threshold, skip it.
+
+Each contact may have an "attendance" object: last_4_weeks (e.g. "2/4" = attended 2 of 4 recent sessions), rate_percent, consecutive_missed, and streak. Use it to detect drift — a contact still attending but at a declining rate (e.g. "2/4") is a nudge, not churn. Do NOT claim a contact "hasn't attended in months" if their attendance object shows recent sessions.
 
 Here is a summary of their contacts: ${JSON.stringify(summary)}
 
@@ -158,7 +266,8 @@ Return ONLY valid JSON, no markdown, no backticks:
       }]
     })
 
-    const raw = (response.content[0] as any).text
+    const firstBlock = response.content[0]
+    const raw = firstBlock && firstBlock.type === 'text' ? firstBlock.text : ''
     const match = raw.match(/\{[\s\S]*\}/)
     const result = JSON.parse(match ? match[0] : raw)
 

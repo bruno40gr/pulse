@@ -5,7 +5,7 @@ import { Copy } from 'lucide-react'
 import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
-type LeadTabKey = 'lesson_inquiry' | 'service_inquiry'
+type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 
 type ManualLeadFormState = {
@@ -80,14 +80,17 @@ type LessonOpportunityState = {
   siblings: LessonSiblingEntry[]
 }
 
-const STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
-const DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
+const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const DEFAULT_LESSON_BASE_VALUE = 160
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
 const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_INSTRUMENT_OPTIONS
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
   { key: 'service_inquiry', label: 'Service inquiries' },
+  { key: 'job_application', label: 'Teacher applications' },
 ]
 
 const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm'], label: string }> = [
@@ -96,6 +99,18 @@ const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm
   { value: 'manual-traffic-visitor', label: 'Website visitor' },
   { value: 'manual-referral', label: 'Referral' },
   { value: 'manual-other', label: 'Other' },
+]
+
+const NET_NEW_WINDOW_MS = 24 * 60 * 60 * 1000
+const NET_NEW_ROW_BACKGROUND = '#EAF2FF'
+
+const SERVICE_TYPE_OPTIONS: Array<{ value: string, label: string, fee: number | null, keywords: string[] }> = [
+  { value: 'rehearsal-room', label: 'Rehearsal room', fee: 50, keywords: ['rehearsal'] },
+  { value: 'recording-studio', label: 'Recording studio', fee: 240, keywords: ['recording', 'recording session', 'studio session'] },
+  { value: 'private-events-parties', label: 'Private events & parties', fee: 350, keywords: ['private event', 'private events', 'birthday', 'party', 'parties', 'event', 'events'] },
+  { value: 'pa-rental', label: 'PA rental', fee: 500, keywords: ['pa rental', 'pa system', 'rental', 'sound'] },
+  { value: 'instrument-setup', label: 'Instrument setup', fee: 70, keywords: ['instrument setup', 'instrument', 'setup', 'gear'] },
+  { value: 'other', label: 'Other', fee: null, keywords: [] },
 ]
 
 const MOBILE_BREAKPOINT_PX = 960
@@ -161,6 +176,22 @@ function formatActivity(eventType: string, eventLabel: string | null) {
   if (eventType === 'contact_updated') return 'Contact updated'
   if (eventType === 'note_added') return 'Note added'
   return eventLabel || formatLabel(eventType)
+}
+
+function getStatusOptionsForTab(tab: LeadTabKey) {
+  return tab === 'job_application' ? JOB_APPLICATION_STATUS_OPTIONS : LEAD_STATUS_OPTIONS
+}
+
+function getDetailStatusOptions(intakeType: string | null | undefined) {
+  return intakeType === 'job_application' ? JOB_APPLICATION_DETAIL_STATUS_OPTIONS : LEAD_DETAIL_STATUS_OPTIONS
+}
+
+function getStatusBadgeVariant(status: string) {
+  if (status === 'new') return 'info'
+  if (status === 'contacted' || status === 'audition_scheduled' || status === 'offer_sent') return 'warning'
+  if (status === 'hired' || status === 'won') return 'success'
+  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'error'
+  return 'neutral'
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -260,6 +291,38 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function normalizeServiceLabel(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function getServiceTypeByLabel(label: string) {
+  const normalized = normalizeServiceLabel(label)
+  if (!normalized) return null
+
+  const exact = SERVICE_TYPE_OPTIONS.find((option) => normalizeServiceLabel(option.label) === normalized)
+  if (exact) return exact
+
+  return SERVICE_TYPE_OPTIONS.find((option) =>
+    option.keywords.some((keyword) => normalized.includes(keyword)),
+  ) || null
+}
+
+function getServiceSessionValue(lead: LeadDetail | null): number | null {
+  if (!lead) return null
+
+  const payload = lead.payload
+  if (payload && typeof payload.session_value === 'number' && Number.isFinite(payload.session_value)) {
+    return payload.session_value
+  }
+  if (payload && typeof payload.session_value === 'string' && payload.session_value.trim()) {
+    const parsed = Number(payload.session_value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+
+  const match = lead.service_label ? getServiceTypeByLabel(lead.service_label) : null
+  return match && match.fee != null ? match.fee : null
+}
+
 function getStartOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
 }
@@ -308,7 +371,7 @@ function getLeadSignal(lead: LeadRecord) {
     return { emoji: '💀', label: 'Lost' }
   }
 
-  if (lead.status === 'ghosted_us') {
+  if (lead.status === 'ghosted_us' || lead.status === 'ghosted') {
     return { emoji: '👻', label: 'Ghosted us' }
   }
 
@@ -348,6 +411,7 @@ export default function LeadsPage() {
   const [tabCounts, setTabCounts] = useState<Record<LeadTabKey, number>>({
     lesson_inquiry: 0,
     service_inquiry: 0,
+    job_application: 0,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -416,12 +480,14 @@ export default function LeadsPage() {
       setTabCounts({
         lesson_inquiry: 0,
         service_inquiry: 0,
+        job_application: 0,
         ...Object.fromEntries(counts),
       })
     } catch {
       setTabCounts({
         lesson_inquiry: 0,
         service_inquiry: 0,
+        job_application: 0,
       })
     }
   }, [statusFilter])
@@ -545,6 +611,13 @@ export default function LeadsPage() {
       const trimmedMessage = manualLeadForm.message.trim()
       if (trimmedMessage) payload.message = trimmedMessage
       if (manualLeadForm.intakeType === 'lesson_inquiry') payload.family_members_interested = manualLeadForm.familyInterestedCount
+      if (manualLeadForm.intakeType === 'service_inquiry') {
+        const serviceType = getServiceTypeByLabel(manualLeadForm.serviceLabel)
+        if (serviceType) {
+          payload.service_type = serviceType.value
+          if (serviceType.fee != null) payload.session_value = serviceType.fee
+        }
+      }
 
       const response = await fetchJsonWithTimeout<{ lead_intake_id?: string }>(`/api/intake`, {
         method: 'POST',
@@ -747,6 +820,10 @@ export default function LeadsPage() {
       0,
     )
   const lessonSiblingDiscountLabel = lessonOpportunity.siblingDiscountEnabled ? '10% sibling offer applied' : 'No sibling offer applied'
+  const serviceSessionValue = selectedLead?.intake_type === 'service_inquiry'
+    ? getServiceSessionValue(selectedLead)
+    : null
+  const manualServiceType = getServiceTypeByLabel(manualLeadForm.serviceLabel)
   const detailPanelTabItems = useMemo(() => LEAD_DETAIL_PANEL_TABS, [])
 
   const leadDetailPrimaryContent = selectedLead ? (
@@ -1033,7 +1110,7 @@ export default function LeadsPage() {
             fullWidth={false}
             wrapperStyle={filterSelectWrapStyle}
           >
-            {STATUS_OPTIONS.map((option) => (
+            {getStatusOptionsForTab(activeTab).map((option) => (
               <option key={option} value={option}>Status: {option}</option>
             ))}
           </Select>
@@ -1074,14 +1151,14 @@ export default function LeadsPage() {
                   <div>Name</div>
                   <div>Email</div>
                   <div>Phone</div>
-                  <div>{activeTab === 'lesson_inquiry' ? 'Program' : 'Service details'}</div>
+                  <div>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'}</div>
                   <div>Created</div>
                 </>
               )}
             >
               {leads.map((lead) => {
                 const signal = getLeadSignal(lead)
-                const isBold = lead.temperature === 'hot' && lead.status === 'new'
+                const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                 const isSelected = selectedIds.has(lead.id)
 
                 return (
@@ -1093,7 +1170,13 @@ export default function LeadsPage() {
                     style={{
                       ...tableRowStyle,
                       fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,
-                      background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
+                      background: isSelected
+                        ? '#F5F8FF'
+                        : selectedLeadId === lead.id
+                          ? '#FBFCFF'
+                          : isBold
+                            ? NET_NEW_ROW_BACKGROUND
+                            : colors.surface,
                     }}
                   >
                     <div>
@@ -1107,7 +1190,7 @@ export default function LeadsPage() {
                     </div>
                     <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
                     <div>
-                      <Badge variant={lead.status === 'new' ? 'info' : lead.status === 'contacted' ? 'warning' : lead.status === 'ghosted_us' || lead.status === 'lost' ? 'error' : lead.status === 'won' ? 'success' : 'neutral'}>
+                      <Badge variant={getStatusBadgeVariant(lead.status)}>
                         {formatLabel(lead.status)}
                       </Badge>
                     </div>
@@ -1220,12 +1303,25 @@ export default function LeadsPage() {
                 </div>
               </>
             ) : (
-              <Input
-                label="Service"
-                value={manualLeadForm.serviceLabel}
-                onChange={(event) => updateManualLeadField('serviceLabel', event.target.value)}
-                placeholder="Birthday party"
-              />
+              <>
+                <Select
+                  label="Service type"
+                  value={manualLeadForm.serviceLabel}
+                  onChange={(event) => updateManualLeadField('serviceLabel', event.target.value)}
+                >
+                  <option value="">Select service type</option>
+                  {SERVICE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.label}>{option.label}</option>
+                  ))}
+                </Select>
+                <div style={manualLeadSessionValueWrapStyle}>
+                  <FieldLabel style={manualLeadStepperLabelStyle}>Session</FieldLabel>
+                  <div style={manualLeadSessionValueStyle}>
+                    {manualServiceType && manualServiceType.fee != null ? formatCurrency(manualServiceType.fee) : '—'}
+                  </div>
+                  <div style={manualLeadSessionHintStyle}>Fixed one-time fee</div>
+                </div>
+              </>
             )}
             <Input
               label="How did they find us"
@@ -1321,13 +1417,13 @@ export default function LeadsPage() {
                               wrapperStyle={statusInlineSelectWrapStyle}
                               disabled={detailSaving}
                             >
-                              {DETAIL_STATUS_OPTIONS.map((option) => (
+                              {getDetailStatusOptions(selectedLead.intake_type).map((option) => (
                                 <option key={option} value={option}>{formatLabel(option)}</option>
                               ))}
                             </Select>
                           ) : (
                             <>
-                              <Badge variant={selectedLead.status === 'new' ? 'info' : selectedLead.status === 'contacted' ? 'warning' : selectedLead.status === 'ghosted_us' || selectedLead.status === 'lost' ? 'error' : selectedLead.status === 'won' ? 'success' : 'neutral'}>
+                              <Badge variant={getStatusBadgeVariant(selectedLead.status)}>
                                 {formatLabel(statusValue)}
                               </Badge>
                               <button type="button" onClick={() => setShowStatusEditor(true)} style={statusInlineActionStyle}>
@@ -1342,14 +1438,20 @@ export default function LeadsPage() {
                     <div style={leadHeroActionsStyle}>
                       {selectedLead.intake_type !== 'job_application' && (
                         <div style={valueCardStyle}>
-                          <div style={valueCardLabelStyle}>Opportunity value</div>
+                          <div style={valueCardLabelStyle}>
+                            {selectedLead.intake_type === 'lesson_inquiry' ? 'Opportunity value' : 'Session'}
+                          </div>
                           <div style={valueCardAmountStyle}>
-                            {selectedLead.intake_type === 'lesson_inquiry' ? formatCurrency(Math.round(lessonOpportunityTotal)) : 'OFF'}
+                            {selectedLead.intake_type === 'lesson_inquiry'
+                              ? formatCurrency(Math.round(lessonOpportunityTotal))
+                              : serviceSessionValue != null
+                                ? formatCurrency(serviceSessionValue)
+                                : '—'}
                           </div>
                           <div style={valueCardMetaStyle}>
                             {selectedLead.intake_type === 'lesson_inquiry'
                               ? `${lessonSiblingCount + 1} student${lessonSiblingCount === 0 ? '' : 's'} · ${lessonSiblingDiscountLabel}`
-                              : 'Pricing not configured yet'}
+                              : 'Fixed one-time fee'}
                           </div>
                         </div>
                       )}
@@ -1981,6 +2083,26 @@ const manualLeadStepperValueStyle: React.CSSProperties = {
   textAlign: 'center',
   fontSize: typography.sizeBase,
   color: colors.text,
+  fontFamily: typography.fontSans,
+}
+
+const manualLeadSessionValueWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: spacing.xs,
+}
+
+const manualLeadSessionValueStyle: React.CSSProperties = {
+  fontSize: typography.sizeXl,
+  color: colors.text,
+  fontWeight: typography.weightSemibold,
+  lineHeight: 1.15,
+  fontFamily: typography.fontSans,
+}
+
+const manualLeadSessionHintStyle: React.CSSProperties = {
+  fontSize: typography.sizeXs,
+  color: colors.textSecondary,
   fontFamily: typography.fontSans,
 }
 

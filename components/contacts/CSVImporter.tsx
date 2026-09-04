@@ -18,14 +18,26 @@ interface Mapping {
   confidence: string
 }
 
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}m ${s}s`
+}
+
 export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVImporterProps) {
   const [step, setStep] = useState<'choose' | 'upload' | 'confirm' | 'importing' | 'done'>('choose')
   const [files, setFiles] = useState<File[]>([])
   const [csvTexts, setCsvTexts] = useState<string[]>([])
   const [mappings, setMappings] = useState<Mapping[]>([])
+  const [fullMappings, setFullMappings] = useState<Mapping[]>([])
+  const [statusValues, setStatusValues] = useState<string[]>([])
+  const [activeStatuses, setActiveStatuses] = useState<string[]>([])
+  const [snapshotMonth, setSnapshotMonth] = useState<string>('')
   const [inferring, setInferring] = useState(false)
   const [result, setResult] = useState<{ created: number; updated: number } | null>(null)
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState<{ processed: number; total: number; etaSeconds: number | null }>({ processed: 0, total: 0, etaSeconds: null })
   const [included, setIncluded] = useState<Record<string, boolean>>({})
   const [isFirstImport, setIsFirstImport] = useState(true)
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -39,9 +51,14 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
     setFiles([])
     setCsvTexts([])
     setMappings([])
+    setFullMappings([])
     setInferring(false)
     setResult(null)
     setError('')
+    setProgress({ processed: 0, total: 0, etaSeconds: null })
+    setStatusValues([])
+    setActiveStatuses([])
+    setSnapshotMonth('')
     setIncluded({})
     setIsFirstImport(true)
     setEditingKey(null)
@@ -104,6 +121,50 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
 
       const inferred: Mapping[] = data.mappings || []
       setCsvTexts(texts)
+      setFullMappings(inferred)
+
+      // Detect the status column + distinct values so we can ask which mean "active".
+      const statusMapping = inferred.find((m: Mapping) => m.field_key === 'client_status' || m.field_key === 'status')
+      let detectedStatusValues: string[] = []
+      if (statusMapping) {
+        const col = statusMapping.csv_column
+        const seen = new Set<string>()
+        for (const text of texts) {
+          const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
+          for (const row of parsed.data) {
+            const v = row[col]
+            if (v && v.trim() && v.trim() !== '-' && v.trim() !== '—') seen.add(v.trim().toLowerCase())
+          }
+        }
+        detectedStatusValues = [...seen].sort()
+      }
+      setStatusValues(detectedStatusValues)
+      const activeLooking = new Set(['active', 'member', 'enrolled', 'current'])
+      const defaultActive = detectedStatusValues.filter((v) => activeLooking.has(v))
+      setActiveStatuses(defaultActive.length > 0 ? defaultActive : detectedStatusValues)
+
+      // Infer the data month from the session dates.
+      const dateMapping = inferred.find((m: Mapping) => m.field_key === 'session_date' || m.field_key === 'start_date')
+      let inferredMonth: string | null = null
+      if (dateMapping) {
+        const col = dateMapping.csv_column
+        let max: Date | null = null
+        for (const text of texts) {
+          const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
+          for (const row of parsed.data) {
+            const v = row[col]
+            if (!v) continue
+            const slash = String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+            const iso = String(v).match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
+            let d: Date | null = null
+            if (slash) d = new Date(`${slash[3]}-${slash[1].padStart(2, '0')}-${slash[2].padStart(2, '0')}`)
+            else if (iso) d = new Date(`${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`)
+            if (d && !Number.isNaN(d.getTime()) && (!max || d > max)) max = d
+          }
+        }
+        if (max) inferredMonth = `${max.getFullYear()}-${String(max.getMonth() + 1).padStart(2, '0')}`
+      }
+      setSnapshotMonth(inferredMonth || new Date().toISOString().slice(0, 7))
 
       // Fetch existing tenant fields and compare against inferred field_keys
       const fieldsRes = await fetch(`/api/tenant-fields?tenant=${getActiveTenantId()}`)
@@ -117,7 +178,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
         setMappings(inferred)
         setIncluded(Object.fromEntries(inferred.map((m: Mapping) => [m.field_key, true])))
         setIsFirstImport(false)
-        await runImport([], texts)
+        await runImport([], texts, inferred)
       } else if (hasExisting && newFields.length > 0) {
         // Existing fields found but new ones detected — show only the new fields
         setMappings(newFields)
@@ -142,7 +203,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
     setMappings(prev => prev.map(m => (m.field_key === key ? { ...m, field_label: label } : m)))
   }
 
-  const runImport = async (fieldsToSave: Mapping[], textsToImport: string[]) => {
+  const runImport = async (fieldsToSave: Mapping[], textsToImport: string[], importMappings: Mapping[] = []) => {
     setStep('importing')
     setError('')
     try {
@@ -168,19 +229,46 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
         }
       }
 
-      // Import each CSV
+      // Import each CSV in batches so we can show progress
+      const BATCH_SIZE = 100
+      const batches: Array<{ csv: string; count: number }> = []
+      let totalRows = 0
+      for (const csv of textsToImport) {
+        const rows = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data
+        totalRows += rows.length
+        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+          const chunk = rows.slice(i, i + BATCH_SIZE)
+          batches.push({ csv: Papa.unparse(chunk, { header: true }), count: chunk.length })
+        }
+      }
+
+      setProgress({ processed: 0, total: totalRows, etaSeconds: null })
       let created = 0
       let updated = 0
-      for (const csv of textsToImport) {
+      let processed = 0
+      const startTime = Date.now()
+
+      for (const batch of batches) {
         const res = await fetch('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ csv }),
+          body: JSON.stringify({
+            csv: batch.csv,
+            mappings: importMappings.length > 0 ? importMappings : fieldsToSave,
+            snapshot_month: snapshotMonth || undefined,
+            profile: statusValues.length > 0
+              ? { active_statuses: activeStatuses, inactive_statuses: statusValues.filter((v) => !activeStatuses.includes(v)) }
+              : undefined,
+          }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Import failed')
         created += data.created ?? 0
         updated += data.updated ?? 0
+        processed += batch.count
+        const elapsedSeconds = (Date.now() - startTime) / 1000
+        const etaSeconds = processed > 0 ? Math.round((elapsedSeconds / processed) * (totalRows - processed)) : null
+        setProgress({ processed, total: totalRows, etaSeconds })
       }
 
       setResult({ created, updated })
@@ -192,7 +280,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
   }
 
   const handleConfirm = () => {
-    runImport(mappings, csvTexts)
+    runImport(mappings, csvTexts, fullMappings)
   }
 
   const handleDone = () => {
@@ -339,6 +427,38 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
                 {buildSubheading()}
               </p>
 
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A', display: 'block', marginBottom: '4px', fontFamily: 'sans-serif' }}>
+                  Which month is this data for?
+                </label>
+                <input
+                  type="month"
+                  value={snapshotMonth}
+                  onChange={(e) => setSnapshotMonth(e.target.value)}
+                  style={{ padding: '8px 12px', border: '1px solid #E8E8E4', borderRadius: '8px', fontSize: '13px', fontFamily: 'sans-serif' }}
+                />
+              </div>
+
+              {statusValues.length > 0 && (
+                <div style={{ border: '1px solid #E8E8E4', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: 600, color: '#1A1A1A', margin: '0 0 4px', fontFamily: 'sans-serif' }}>How should we track active vs. cancelled?</p>
+                  <p style={{ fontSize: '12px', color: '#6B6B6B', margin: '0 0 12px', fontFamily: 'sans-serif' }}>
+                    We found these status values. Check the ones that mean &quot;currently active&quot;:
+                  </p>
+                  {statusValues.map((v) => (
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontSize: '13px', fontFamily: 'sans-serif', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={activeStatuses.includes(v)}
+                        onChange={(e) => setActiveStatuses((prev) => (e.target.checked ? [...prev, v] : prev.filter((x) => x !== v)))}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      {v}
+                    </label>
+                  ))}
+                </div>
+              )}
+
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', color: '#6B6B6B', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -349,7 +469,7 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
                 </thead>
                 <tbody>
                   {mappings.map((mapping) => (
-                    <tr key={mapping.field_key} style={{ borderBottom: '1px solid #F5F5F4', color: '#1A1A1A' }}>
+                    <tr key={mapping.csv_column || mapping.field_key} style={{ borderBottom: '1px solid #F5F5F4', color: '#1A1A1A' }}>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {mapping.confidence === 'low' && (
@@ -453,8 +573,12 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
 
           {step === 'importing' && (
             <div style={{ textAlign: 'center', padding: '48px 0' }}>
-              <div style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#C8392B', animation: 'pulse 1s infinite' }} />
-              <p style={{ color: '#1A1A1A', fontSize: '15px', fontWeight: 500, margin: '16px 0 0', fontFamily: 'sans-serif' }}>Importing your contacts...</p>
+              <div style={{ width: '100%', height: '10px', background: '#F0F0EC', borderRadius: '9999px', overflow: 'hidden' }}>
+                <div style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%`, height: '100%', background: '#C8392B', transition: 'width 0.2s' }} />
+              </div>
+              <p style={{ color: '#1A1A1A', fontSize: '15px', fontWeight: 500, margin: '16px 0 0', fontFamily: 'sans-serif' }}>
+                Importing {progress.processed} of {progress.total} contacts{progress.etaSeconds != null ? ` · about ${formatEta(progress.etaSeconds)} remaining` : ''}
+              </p>
             </div>
           )}
 

@@ -23,6 +23,9 @@ const pridi = Pridi({
 export const metadata: Metadata = {
   title: "Hey, Cohen",
   description: "Smart SMS for small businesses",
+  icons: {
+    icon: "https://res.cloudinary.com/diy08lj9x/image/upload/v1788457911/favicon_ajrnub.png",
+  },
 };
 
 export default function RootLayout({

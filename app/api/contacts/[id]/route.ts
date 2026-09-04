@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
+import { isNonStudentBooking } from '@/lib/contact-kind'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -87,6 +88,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     // Build instructor info from staff join
     const instructor = enrollment.instructor
+    const nonStudentBooking = isNonStudentBooking(enrollment)
     const instructorInfo = instructor ? {
       staff_id: instructor.id,
       person_id: instructor.person?.id ?? null,
@@ -108,19 +110,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       opted_out: person.opted_out,
       client_status: student.client_status || 'active',
       last_attended: student.last_attended,
-      message_routing: student.message_routing || 'account_holder',
-      is_minor: student.is_minor ?? true,
-      account_holder_name: account.name,
-      account_holder_phone: account.phone,
-      account_holder_email: account.email,
-      family_name: account.name,
-      account_holders: accountHolders,
+      message_routing: nonStudentBooking ? 'student' : (student.message_routing || 'student'),
+      is_minor: nonStudentBooking ? false : (student.is_minor ?? false),
+      account_holder_name: nonStudentBooking ? null : account.name,
+      account_holder_phone: nonStudentBooking ? null : account.phone,
+      account_holder_email: nonStudentBooking ? null : account.email,
+      family_name: nonStudentBooking ? null : account.name,
+      account_holders: nonStudentBooking ? [] : accountHolders,
       instructor: instructorInfo,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,
+        contact_kind: nonStudentBooking ? 'booking' : 'student',
         instrument: enrollment.instrument,
         service_type: enrollment.service_type,
         lesson_day: enrollment.lesson_day,
@@ -259,6 +262,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const instructor = enrollment.instructor
+    const nonStudentBooking = isNonStudentBooking(enrollment)
     const instructorInfo = instructor ? {
       staff_id: instructor.id,
       person_id: instructor.person?.id ?? null,
@@ -280,19 +284,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       opted_out: person.opted_out,
       client_status: student.client_status || 'active',
       last_attended: student.last_attended,
-      message_routing: student.message_routing || 'account_holder',
-      is_minor: student.is_minor ?? true,
-      account_holder_name: account.name,
-      account_holder_phone: account.phone,
-      account_holder_email: account.email,
-      family_name: account.name,
-      account_holders: accountHolders,
+      message_routing: nonStudentBooking ? 'student' : (student.message_routing || 'student'),
+      is_minor: nonStudentBooking ? false : (student.is_minor ?? false),
+      account_holder_name: nonStudentBooking ? null : account.name,
+      account_holder_phone: nonStudentBooking ? null : account.phone,
+      account_holder_email: nonStudentBooking ? null : account.email,
+      family_name: nonStudentBooking ? null : account.name,
+      account_holders: nonStudentBooking ? [] : accountHolders,
       instructor: instructorInfo,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,
+        contact_kind: nonStudentBooking ? 'booking' : 'student',
         instrument: enrollment.instrument,
         service_type: enrollment.service_type,
         lesson_day: enrollment.lesson_day,
