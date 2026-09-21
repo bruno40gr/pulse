@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy } from 'lucide-react'
+import { Copy, Pencil } from 'lucide-react'
 import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
@@ -29,12 +29,17 @@ type LeadRecord = {
   source_system: string
   source_form: string
   source_page: string | null
+  utm_source?: string | null
+  utm_medium?: string | null
+  utm_campaign?: string | null
+  referrer?: string | null
   program_label: string | null
   service_label: string | null
   category: string
   status: string
   priority: string
   temperature: string
+  source?: string
   created_at: string
   updated_at: string
   contact?: {
@@ -64,6 +69,7 @@ type LeadDetail = LeadRecord & {
   notes_history?: Array<{
     text: string
     timestamp: string
+    actor_name?: string | null
   }>
 }
 
@@ -78,6 +84,20 @@ type LessonOpportunityState = {
   baseValue: string
   siblingDiscountEnabled: boolean
   siblings: LessonSiblingEntry[]
+}
+
+type LeadEditFormState = {
+  fullName: string
+  email: string
+  phone: string
+  status: string
+  programLabel: string
+  serviceLabel: string
+  source: 'website' | 'event' | 'landing_page' | 'foot_traffic' | 'phone_call' | 'family'
+  sourceForm: string
+  sourcePage: string
+  campaign: string
+  referrer: string
 }
 
 const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
@@ -95,10 +115,19 @@ const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
 
 const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm'], label: string }> = [
   { value: 'manual-phone-call', label: 'Phone call' },
-  { value: 'manual-walk-in', label: 'Walk-in' },
-  { value: 'manual-traffic-visitor', label: 'Website visitor' },
-  { value: 'manual-referral', label: 'Referral' },
-  { value: 'manual-other', label: 'Other' },
+  { value: 'manual-walk-in', label: 'Foot traffic' },
+  { value: 'manual-traffic-visitor', label: 'Website' },
+  { value: 'manual-referral', label: 'Family' },
+  { value: 'manual-other', label: 'Landing page' },
+]
+
+const LEAD_SOURCE_OPTIONS: Array<{ value: LeadEditFormState['source'], label: string }> = [
+  { value: 'website', label: 'Website' },
+  { value: 'event', label: 'Event' },
+  { value: 'landing_page', label: 'Landing page' },
+  { value: 'foot_traffic', label: 'Foot traffic' },
+  { value: 'phone_call', label: 'Phone call' },
+  { value: 'family', label: 'Family' },
 ]
 
 const NET_NEW_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -134,6 +163,27 @@ function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState
   }
 }
 
+function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
+  const rawSource = typeof lead.payload?.source === 'string' ? lead.payload.source : lead.source
+  const source = LEAD_SOURCE_OPTIONS.some((option) => option.value === rawSource)
+    ? rawSource as LeadEditFormState['source']
+    : 'website'
+
+  return {
+    fullName: lead.contact?.full_name || '',
+    email: lead.contact?.email || '',
+    phone: lead.contact?.phone || '',
+    status: lead.status,
+    programLabel: lead.program_label || '',
+    serviceLabel: lead.service_label || '',
+    source,
+    sourceForm: lead.source_form || '',
+    sourcePage: lead.source_page || '',
+    campaign: lead.utm_campaign || '',
+    referrer: lead.referrer || '',
+  }
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-US', {
     month: 'short',
@@ -159,6 +209,25 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function getLeadSource(lead: Pick<LeadRecord, 'source' | 'source_form' | 'source_page'>, payload?: Record<string, unknown>) {
+  const value = typeof payload?.source === 'string' ? payload.source : lead.source
+  if (value) return formatLabel(value)
+  if (lead.source_form === 'manual-phone-call') return 'Phone Call'
+  if (lead.source_form === 'manual-walk-in') return 'Foot Traffic'
+  if (lead.source_form === 'manual-referral') return 'Family'
+  if (lead.source_form.includes('event') || lead.source_form.includes('hot_chili')) return 'Event'
+  if (lead.source_form.includes('landing') || lead.source_page?.includes('landing')) return 'Landing Page'
+  return 'Website'
+}
+
+function getManualLeadSource(sourceForm: ManualLeadFormState['sourceForm']) {
+  if (sourceForm === 'manual-phone-call') return 'phone_call'
+  if (sourceForm === 'manual-walk-in') return 'foot_traffic'
+  if (sourceForm === 'manual-referral') return 'family'
+  if (sourceForm === 'manual-other') return 'landing_page'
+  return 'website'
+}
+
 function formatSourcePage(value: string | null | undefined, fallback?: string | null) {
   if (fallback) return fallback
   if (!value) return '—'
@@ -176,6 +245,13 @@ function formatActivity(eventType: string, eventLabel: string | null) {
   if (eventType === 'contact_updated') return 'Contact updated'
   if (eventType === 'note_added') return 'Note added'
   return eventLabel || formatLabel(eventType)
+}
+
+function getActivityActor(event: { payload?: Record<string, unknown> | null }) {
+  const actor = event.payload?.actor
+  return actor && typeof actor === 'object' && typeof (actor as Record<string, unknown>).displayName === 'string'
+    ? (actor as Record<string, string>).displayName
+    : null
 }
 
 function getStatusOptionsForTab(tab: LeadTabKey) {
@@ -419,6 +495,9 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const [isEditLeadOpen, setIsEditLeadOpen] = useState(false)
+  const [leadEditForm, setLeadEditForm] = useState<LeadEditFormState | null>(null)
+  const [leadEditError, setLeadEditError] = useState('')
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
   const [manualLeadForm, setManualLeadForm] = useState<ManualLeadFormState>(() => createInitialManualLeadForm('lesson_inquiry'))
   const [manualLeadError, setManualLeadError] = useState('')
@@ -607,7 +686,9 @@ export default function LeadsPage() {
     setManualLeadError('')
 
     try {
-      const payload: Record<string, unknown> = {}
+      const payload: Record<string, unknown> = {
+        source: getManualLeadSource(manualLeadForm.sourceForm),
+      }
       const trimmedMessage = manualLeadForm.message.trim()
       if (trimmedMessage) payload.message = trimmedMessage
       if (manualLeadForm.intakeType === 'lesson_inquiry') payload.family_members_interested = manualLeadForm.familyInterestedCount
@@ -670,6 +751,9 @@ export default function LeadsPage() {
     setSelectedLead(null)
     setDetailError('')
     setShowStatusEditor(false)
+    setIsEditLeadOpen(false)
+    setLeadEditForm(null)
+    setLeadEditError('')
     setDetailPanelTab('details')
     setLessonOpportunity({
       familyLabel: '',
@@ -717,6 +801,71 @@ export default function LeadsPage() {
       )))
     } catch (error: unknown) {
       setDetailError(getErrorMessage(error, 'Could not save lead'))
+    } finally {
+      setDetailSaving(false)
+    }
+  }
+
+  const openLeadEditor = () => {
+    if (!selectedLead) return
+    setLeadEditForm(createLeadEditForm(selectedLead))
+    setLeadEditError('')
+    setIsEditLeadOpen(true)
+  }
+
+  const updateLeadEditField = <K extends keyof LeadEditFormState>(field: K, value: LeadEditFormState[K]) => {
+    setLeadEditForm((current) => current ? { ...current, [field]: value } : current)
+  }
+
+  const saveLeadEditor = async () => {
+    if (!selectedLeadId || !leadEditForm || !leadEditForm.fullName.trim()) return
+    setDetailSaving(true)
+    setLeadEditError('')
+
+    try {
+      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: leadEditForm.fullName,
+          email: leadEditForm.email,
+          phone: leadEditForm.phone,
+          status: leadEditForm.status,
+          program_label: leadEditForm.programLabel,
+          service_label: leadEditForm.serviceLabel,
+          source_form: leadEditForm.sourceForm,
+          source_page: leadEditForm.sourcePage,
+          utm_campaign: leadEditForm.campaign,
+          referrer: leadEditForm.referrer,
+          payload: { source: leadEditForm.source },
+        }),
+      })
+
+      setSelectedLead(data)
+      setStatusValue(data.status)
+      setNotesValue(data.contact?.notes || '')
+      setLessonOpportunity(getLessonOpportunityState(data))
+      setLeads((current) => current.map((lead) => lead.id === data.id ? {
+        ...lead,
+        status: data.status,
+        source: typeof data.payload?.source === 'string' ? data.payload.source : lead.source,
+        source_form: data.source_form,
+        source_page: data.source_page,
+        program_label: data.program_label,
+        service_label: data.service_label,
+        utm_campaign: data.utm_campaign,
+        referrer: data.referrer,
+        updated_at: data.updated_at,
+        contact: data.contact ? {
+          id: data.contact.id,
+          full_name: data.contact.full_name,
+          email: data.contact.email,
+          phone: data.contact.phone,
+        } : lead.contact,
+      } : lead))
+      setIsEditLeadOpen(false)
+    } catch (error: unknown) {
+      setLeadEditError(getErrorMessage(error, 'Could not save lead changes'))
     } finally {
       setDetailSaving(false)
     }
@@ -777,6 +926,9 @@ export default function LeadsPage() {
 
   const selectedLeadType = selectedLead ? formatLabel(selectedLead.intake_type) : 'Loading lead...'
   const selectedProgram = selectedLead ? formatSourcePage(selectedLead.source_page, selectedLead.program_label || selectedLead.service_label) : 'Loading...'
+  const selectedSource = selectedLead ? getLeadSource(selectedLead, selectedLead.payload) : 'Loading...'
+  const selectedCampaign = selectedLead?.utm_campaign || '—'
+  const selectedReferrer = selectedLead?.referrer || '—'
   const selectedInitial = (selectedLead?.contact?.full_name || 'L').charAt(0).toUpperCase()
   const selectedLeadSignal = selectedLead ? getLeadSignal(selectedLead) : null
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
@@ -828,6 +980,30 @@ export default function LeadsPage() {
 
   const leadDetailPrimaryContent = selectedLead ? (
     <div style={isMobileLayout ? mobileLeadDetailSectionStyle : leadDetailLeftColumnStyle}>
+      <div style={leadStatusSectionStyle}>
+        <div style={leadStatusControlStyle}>
+          {showStatusEditor ? (
+            <Select
+              id="lead-status-select"
+              value={statusValue}
+              onChange={(event) => void handleInlineStatusChange(event.target.value)}
+              fullWidth={false}
+              style={leadStatusSelectStyle}
+              wrapperStyle={statusInlineSelectWrapStyle}
+              disabled={detailSaving}
+            >
+              {getDetailStatusOptions(selectedLead.intake_type).map((option) => (
+                <option key={option} value={option}>{formatLabel(option)}</option>
+              ))}
+            </Select>
+          ) : (
+            <>
+              <Badge variant={getStatusBadgeVariant(selectedLead.status)} style={leadStatusBadgeStyle}>{formatLabel(statusValue)}</Badge>
+              <button type="button" onClick={() => setShowStatusEditor(true)} style={leadStatusActionStyle}>Update</button>
+            </>
+          )}
+        </div>
+      </div>
       <div style={isMobileLayout ? quickActionStackStyle : quickActionRowStyle}>
         {selectedLead.contact?.email && (
           <QuickChip
@@ -869,6 +1045,16 @@ export default function LeadsPage() {
           />
         )}
       </div>
+
+      <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Source & attribution</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
+        <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
+          <Detail label="Source" value={selectedSource} />
+          <Detail label="Source form" value={formatLabel(selectedLead.source_form)} />
+          <Detail label="Campaign" value={formatLabel(selectedCampaign)} />
+          <Detail label="Landing page" value={formatSourcePage(selectedLead.source_page)} />
+          <Detail label="Referrer" value={selectedReferrer} />
+        </div>
+      </DenseSectionPanel>
 
       {selectedLead.intake_type === 'lesson_inquiry' && (
         <>
@@ -1010,8 +1196,7 @@ export default function LeadsPage() {
               <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Service details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
                 <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
                   <Detail label="Service" value={selectedLead.service_label || '—'} />
-                  <Detail label="Source" value={formatLabel(selectedLead.source_form)} />
-                  <Detail label="Source / channel" value={selectedProgram} />
+                  <Detail label="Request context" value={selectedProgram} />
                   <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
                 </div>
               </DenseSectionPanel>
@@ -1072,7 +1257,7 @@ export default function LeadsPage() {
             <div key={event.id} style={activityRowStyle}>
               <div style={activityTitleCellStyle}>
                 <span style={activityBulletStyle} aria-hidden="true" />
-                <span style={activityTitleStyle}>{formatActivity(event.event_type, event.event_label)}</span>
+                <span style={activityTitleStyle}>{getActivityActor(event) ? `${getActivityActor(event)} · ${formatActivity(event.event_type, event.event_label)}` : formatActivity(event.event_type, event.event_label)}</span>
               </div>
               <div style={activityTimeStyle}>{formatDateTime(event.created_at)}</div>
             </div>
@@ -1148,6 +1333,7 @@ export default function LeadsPage() {
                   </div>
                   <div>Temp</div>
                   <div>Status</div>
+                  <div>Source</div>
                   <div>Name</div>
                   <div>Email</div>
                   <div>Phone</div>
@@ -1194,6 +1380,7 @@ export default function LeadsPage() {
                         {formatLabel(lead.status)}
                       </Badge>
                     </div>
+                    <div style={cellTextStyle}>{getLeadSource(lead)}</div>
                     <div style={nameCellStyle}>
                       <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
                     </div>
@@ -1399,37 +1586,16 @@ export default function LeadsPage() {
                   <div style={leadHeroTopStyle}>
                     <div style={leadHeroIdentityStyle}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <h2 style={leadHeroNameStyle}>{selectedLead.contact?.full_name || 'Unknown lead'}</h2>
+                        <div style={leadHeroNameRowStyle}>
+                          <h2 style={leadHeroNameStyle}>{selectedLead.contact?.full_name || 'Unknown lead'}</h2>
+                          <button type="button" aria-label="Edit contact" onClick={openLeadEditor} style={editContactIconButtonStyle}>
+                            <Pencil size={15} strokeWidth={2.25} />
+                          </button>
+                        </div>
                         <div style={leadHeroMetaRowStyle}>
                           <span>{selectedLeadType} · {formatDateTime(selectedLead.created_at)}</span>
                           {selectedLeadSignal && (
                             <span style={leadInlineSignalStyle} title={selectedLeadSignal.label}>{selectedLeadSignal.emoji}</span>
-                          )}
-                        </div>
-                        <div style={statusInlineWrapStyle}>
-                          {showStatusEditor ? (
-                            <Select
-                              id="lead-status-select"
-                              value={statusValue}
-                              onChange={(event) => void handleInlineStatusChange(event.target.value)}
-                              fullWidth={false}
-                              style={statusInlineSelectStyle}
-                              wrapperStyle={statusInlineSelectWrapStyle}
-                              disabled={detailSaving}
-                            >
-                              {getDetailStatusOptions(selectedLead.intake_type).map((option) => (
-                                <option key={option} value={option}>{formatLabel(option)}</option>
-                              ))}
-                            </Select>
-                          ) : (
-                            <>
-                              <Badge variant={getStatusBadgeVariant(selectedLead.status)}>
-                                {formatLabel(statusValue)}
-                              </Badge>
-                              <button type="button" onClick={() => setShowStatusEditor(true)} style={statusInlineActionStyle}>
-                                Edit status
-                              </button>
-                            </>
                           )}
                         </div>
                       </div>
@@ -1486,6 +1652,39 @@ export default function LeadsPage() {
             </div>
           )}
         </div>
+      </SlidePanel>
+
+      <SlidePanel isOpen={isEditLeadOpen} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">
+        <SlidePanelHeader title="Edit lead" subtitle="Update contact details, request context, and attribution." onClose={() => setIsEditLeadOpen(false)} />
+        {leadEditForm && (
+          <div style={manualLeadPanelBodyStyle}>
+            {leadEditError && <MessageBox>{leadEditError}</MessageBox>}
+            <div style={manualLeadFormGridStyle}>
+              <Input label="Full name" value={leadEditForm.fullName} onChange={(event) => updateLeadEditField('fullName', event.target.value)} error={!leadEditForm.fullName.trim() ? 'Required' : undefined} />
+              <Input label="Email" type="email" value={leadEditForm.email} onChange={(event) => updateLeadEditField('email', event.target.value)} />
+              <Input label="Phone" type="tel" value={leadEditForm.phone} onChange={(event) => updateLeadEditField('phone', event.target.value)} />
+              <Select label="Status" value={leadEditForm.status} onChange={(event) => updateLeadEditField('status', event.target.value)}>
+                {getDetailStatusOptions(selectedLead?.intake_type || 'lesson_inquiry').map((value) => <option key={value} value={value}>{formatLabel(value)}</option>)}
+              </Select>
+              {selectedLead?.intake_type === 'service_inquiry' ? (
+                <Input label="Service" value={leadEditForm.serviceLabel} onChange={(event) => updateLeadEditField('serviceLabel', event.target.value)} />
+              ) : (
+                <Input label="Program or instrument" value={leadEditForm.programLabel} onChange={(event) => updateLeadEditField('programLabel', event.target.value)} />
+              )}
+              <Select label="Source" value={leadEditForm.source} onChange={(event) => updateLeadEditField('source', event.target.value as LeadEditFormState['source'])}>
+                {LEAD_SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Input label="Source form" value={leadEditForm.sourceForm} onChange={(event) => updateLeadEditField('sourceForm', event.target.value)} placeholder="hot_chili_cool_cars_offer_form" />
+              <Input label="Landing page" value={leadEditForm.sourcePage} onChange={(event) => updateLeadEditField('sourcePage', event.target.value)} placeholder="/special-offer" />
+              <Input label="Campaign" value={leadEditForm.campaign} onChange={(event) => updateLeadEditField('campaign', event.target.value)} placeholder="campaign_name" />
+              <Input label="Referrer" value={leadEditForm.referrer} onChange={(event) => updateLeadEditField('referrer', event.target.value)} placeholder="Google, event booth, family referral…" />
+            </div>
+            <div style={manualLeadFooterStyle}>
+              <Button type="button" variant="secondary" onClick={() => setIsEditLeadOpen(false)} disabled={detailSaving}>Cancel</Button>
+              <Button type="button" onClick={() => void saveLeadEditor()} disabled={detailSaving || !leadEditForm.fullName.trim()}>{detailSaving ? 'Saving…' : 'Save changes'}</Button>
+            </div>
+          </div>
+        )}
       </SlidePanel>
     </>
   )
@@ -1553,7 +1752,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(220px, 1.55fr) minmax(230px, 1.45fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) minmax(170px, 1fr)'
+const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(130px, 0.9fr) minmax(190px, 1.35fr) minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(220px, 1.3fr) minmax(170px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -1673,7 +1872,7 @@ const leadHeroPanelStyle: React.CSSProperties = {
 
 const leadHeroTopStyle: React.CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-start',
+  alignItems: 'center',
   justifyContent: 'space-between',
   gap: spacing.lg,
 }
@@ -1685,7 +1884,7 @@ const mobileDetailTabsStyle: React.CSSProperties = {
 
 const leadHeroActionsStyle: React.CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-start',
+  alignItems: 'center',
   gap: spacing.sm,
   flexShrink: 0,
 }
@@ -1703,6 +1902,13 @@ const leadHeroNameStyle: React.CSSProperties = {
   lineHeight: 1.1,
   color: colors.text,
   fontWeight: typography.weightSemibold,
+}
+
+const leadHeroNameRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: spacing.sm,
+  flexWrap: 'wrap',
 }
 
 const leadHeroMetaRowStyle: React.CSSProperties = {
@@ -1760,13 +1966,35 @@ const drawerCloseButtonStyle: React.CSSProperties = {
   marginTop: 4,
 }
 
-const statusInlineWrapStyle: React.CSSProperties = {
-  ...inlineRowStyle,
-  flexWrap: 'wrap',
-  marginTop: spacing.sm,
+const leadStatusSectionStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  padding: `${spacing.md} 0`,
+  borderBottom: `1px solid ${colors.borderLight}`,
 }
 
-const statusInlineSelectStyle: React.CSSProperties = {
+const leadStatusControlStyle: React.CSSProperties = {
+  ...inlineRowStyle,
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+}
+
+const editContactIconButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 30,
+  height: 30,
+  padding: 0,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.md,
+  background: colors.surface,
+  color: colors.textSecondary,
+  cursor: 'pointer',
+}
+
+const leadStatusSelectStyle: React.CSSProperties = {
   width: 'auto',
   border: `1px solid ${colors.textSecondary}`,
   borderRadius: radius.md,
@@ -1775,8 +2003,9 @@ const statusInlineSelectStyle: React.CSSProperties = {
   outline: `2px solid ${colors.borderLight}`,
   outlineOffset: '0',
   boxShadow: 'none',
-  padding: `${spacing.xs} ${spacing.md}`,
-  fontSize: typography.sizeSm,
+  padding: `${spacing.sm} ${spacing.md}`,
+  fontSize: '16px',
+  fontWeight: typography.weightSemibold,
   fontFamily: typography.fontSans,
   lineHeight: 1.2,
   appearance: 'auto',
@@ -1794,15 +2023,23 @@ const nameCellStyle: React.CSSProperties = {
   minWidth: 0,
 }
 
-const statusInlineActionStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: colors.textSecondary,
+const leadStatusBadgeStyle: React.CSSProperties = {
+  fontSize: '18px',
+  fontWeight: typography.weightSemibold,
+  lineHeight: 1.1,
+  padding: '7px 14px',
+}
+
+const leadStatusActionStyle: React.CSSProperties = {
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.md,
+  color: colors.text,
   fontSize: typography.sizeSm,
+  fontWeight: typography.weightMedium,
   fontFamily: typography.fontSans,
-  textDecoration: 'underline',
   cursor: 'pointer',
-  padding: 0,
+  padding: '7px 10px',
 }
 
 const quickActionRowStyle: React.CSSProperties = {

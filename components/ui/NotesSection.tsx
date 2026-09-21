@@ -7,6 +7,7 @@ import { colors, typography, radius, spacing } from '@/lib/tokens'
 interface NoteEntry {
   text: string
   timestamp: string
+  actor_name?: string | null
 }
 
 interface NotesSectionProps {
@@ -119,7 +120,7 @@ export function NotesSection({
               }}>{avatarInitial}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
-                  {formatNoteTimestamp(entry.timestamp)}
+                  {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
                 </div>
                 <div style={{ fontSize: '13px', color: colors.text, lineHeight: 1.5 }}>{entry.text}</div>
               </div>

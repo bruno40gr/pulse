@@ -28,6 +28,7 @@ function jsonWithCors(request: Request, body: unknown, init?: ResponseInit) {
 type IntakeBody = {
   tenant_id?: string
   intake_type?: string
+  source?: string
   source_system?: string
   source_form?: string
   source_page?: string | null
@@ -62,6 +63,22 @@ function normalizeText(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed ? trimmed : null
+}
+
+const LEAD_SOURCES = ['website', 'event', 'landing_page', 'foot_traffic', 'phone_call', 'family'] as const
+
+function normalizeLeadSource(value: unknown, sourceForm: string | null, sourcePage: string | null): typeof LEAD_SOURCES[number] {
+  const normalized = normalizeText(value)?.toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized && LEAD_SOURCES.includes(normalized as typeof LEAD_SOURCES[number])) {
+    return normalized as typeof LEAD_SOURCES[number]
+  }
+
+  if (sourceForm === 'manual-phone-call') return 'phone_call'
+  if (sourceForm === 'manual-walk-in') return 'foot_traffic'
+  if (sourceForm === 'manual-referral') return 'family'
+  if (sourceForm?.includes('event') || sourceForm?.includes('hot_chili')) return 'event'
+  if (sourceForm?.includes('landing') || sourcePage?.includes('landing')) return 'landing_page'
+  return 'website'
 }
 
 async function findOrCreateContact({ tenantId, fullName, email, phone }: { tenantId: string, fullName: string, email: string | null, phone: string | null }) {
@@ -140,13 +157,17 @@ export async function POST(request: Request) {
     const phone = normalizeText(body.phone)
     const sourceSystem = normalizeText(body.source_system) || 'headliner-website'
     const sourcePage = normalizeText(body.source_page)
+    const source = normalizeLeadSource(body.source, sourceForm, sourcePage)
     const programLabel = normalizeText(body.program_label)
     const serviceLabel = normalizeText(body.service_label)
     const utmSource = normalizeText(body.utm_source)
     const utmMedium = normalizeText(body.utm_medium)
     const utmCampaign = normalizeText(body.utm_campaign)
     const referrer = normalizeText(body.referrer)
-    const payload = body.payload && typeof body.payload === 'object' ? body.payload : {}
+    const payload: Record<string, unknown> = {
+      ...(body.payload && typeof body.payload === 'object' ? body.payload : {}),
+      source,
+    }
 
     if (!intakeType) return jsonWithCors(request, { error: 'intake_type is required' }, { status: 400 })
     if (!sourceForm) return jsonWithCors(request, { error: 'source_form is required' }, { status: 400 })

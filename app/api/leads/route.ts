@@ -21,12 +21,17 @@ type LeadListRow = {
   source_system: string
   source_form: string
   source_page: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  referrer: string | null
   program_label: string | null
   service_label: string | null
   category: string
   status: string
   priority: string
   temperature: string
+  payload: Record<string, unknown> | null
   created_at: string
   updated_at: string
   crm_contacts: LeadContact | LeadContact[] | null
@@ -39,6 +44,7 @@ type JobApplicationListRow = {
   status: string
   priority: string
   positions: string[] | null
+  payload: Record<string, unknown> | null
   created_at: string
   updated_at: string
   crm_contacts: LeadContact | LeadContact[] | null
@@ -62,12 +68,17 @@ function formatLeadRow(row: LeadListRow) {
     source_system: row.source_system,
     source_form: row.source_form,
     source_page: row.source_page,
+    utm_source: row.utm_source,
+    utm_medium: row.utm_medium,
+    utm_campaign: row.utm_campaign,
+    referrer: row.referrer,
     program_label: row.program_label,
     service_label: row.service_label,
     category: row.category,
     status: row.status,
     priority: row.priority,
     temperature: row.temperature,
+    source: typeof row.payload?.source === 'string' ? row.payload.source : 'website',
     created_at: row.created_at,
     updated_at: row.updated_at,
     contact: Array.isArray(row.crm_contacts) ? row.crm_contacts[0] : row.crm_contacts,
@@ -144,12 +155,17 @@ export async function GET(request: Request) {
         source_system: 'headliner-website',
         source_form: 'careers-teacher-form',
         source_page: '/careers',
+        utm_source: null,
+        utm_medium: null,
+        utm_campaign: null,
+        referrer: null,
         program_label: Array.isArray(row.positions) ? row.positions.join(', ') : null,
         service_label: null,
         category: 'teachers',
         status: row.status,
         priority: row.priority,
         temperature: 'warm',
+        payload: row.payload,
         created_at: row.created_at,
         updated_at: row.updated_at,
         crm_contacts: row.crm_contacts,
@@ -168,12 +184,17 @@ export async function GET(request: Request) {
         source_system,
         source_form,
         source_page,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        referrer,
         program_label,
         service_label,
         category,
         status,
         priority,
         temperature,
+        payload,
         created_at,
         updated_at,
         crm_contacts (

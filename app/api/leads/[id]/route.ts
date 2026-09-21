@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
+import { getRequestActor } from '@/lib/access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -36,6 +37,10 @@ type LeadRecord = {
   source_system: string
   source_form: string
   source_page: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  referrer: string | null
   program_label: string | null
   service_label: string | null
   category: string
@@ -74,12 +79,28 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown error'
 }
 
+function splitName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  return {
+    first_name: parts[0] || null,
+    last_name: parts.length > 1 ? parts.slice(1).join(' ') : null,
+  }
+}
+
+function getEventActorName(payload: Record<string, unknown> | null) {
+  const actor = payload?.actor
+  return actor && typeof actor === 'object' && typeof (actor as Record<string, unknown>).displayName === 'string'
+    ? (actor as Record<string, string>).displayName
+    : null
+}
+
 function normalizeNotesHistory(events: LeadEvent[]) {
   return (events || [])
     .filter((event) => event.event_type === 'note_added')
     .map((event) => ({
       text: typeof event.payload?.text === 'string' ? event.payload.text : '',
       timestamp: event.created_at,
+      actor_name: getEventActorName(event.payload),
     }))
 }
 
@@ -198,6 +219,10 @@ export async function GET(
           source_system,
           source_form,
           source_page,
+          utm_source,
+          utm_medium,
+          utm_campaign,
+          referrer,
           program_label,
           service_label,
           category,
@@ -285,6 +310,13 @@ export async function PATCH(
     const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
     const { id } = await params
     const body = await request.json()
+    const actor = await getRequestActor(request)
+    if (!actor) return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
+    const actorPayload = {
+      instructorId: actor.instructorId,
+      personId: actor.personId,
+      displayName: actor.displayName,
+    }
 
     const existingJobApplication = await getJobApplicationDetail(tenantId, id)
     if (existingJobApplication) {
@@ -345,7 +377,20 @@ export async function PATCH(
     if (typeof body.status === 'string' && body.status.trim()) leadUpdates.status = body.status.trim()
     if (typeof body.priority === 'string' && body.priority.trim()) leadUpdates.priority = body.priority.trim()
     if (typeof body.category === 'string' && body.category.trim()) leadUpdates.category = body.category.trim()
+    if (typeof body.program_label === 'string') leadUpdates.program_label = body.program_label.trim() || null
+    if (typeof body.service_label === 'string') leadUpdates.service_label = body.service_label.trim() || null
+    if (typeof body.source_form === 'string') leadUpdates.source_form = body.source_form.trim() || 'manual-other'
+    if (typeof body.source_page === 'string') leadUpdates.source_page = body.source_page.trim() || null
+    if (typeof body.utm_campaign === 'string') leadUpdates.utm_campaign = body.utm_campaign.trim() || null
+    if (typeof body.referrer === 'string') leadUpdates.referrer = body.referrer.trim() || null
     if (typeof body.notes === 'string') contactUpdates.notes = body.notes
+
+    if (typeof body.full_name === 'string' && body.full_name.trim()) {
+      const full_name = body.full_name.trim()
+      Object.assign(contactUpdates, { full_name, ...splitName(full_name) })
+    }
+    if (typeof body.email === 'string') contactUpdates.email = body.email.trim().toLowerCase() || null
+    if (typeof body.phone === 'string') contactUpdates.phone = body.phone.trim() || null
 
     if (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)) {
       const existingPayloadResult = await withTimeout<any>(
@@ -429,7 +474,7 @@ export async function PATCH(
             contact_id: existingLead.contact_id,
             event_type: 'note_added',
             event_label: 'Note added',
-            payload: { text: addNote },
+            payload: { text: addNote, actor: actorPayload },
           }),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead note insert',
@@ -448,7 +493,7 @@ export async function PATCH(
             contact_id: existingLead.contact_id,
             event_type: 'updated',
             event_label: 'Lead updated',
-            payload: { updates: leadUpdates },
+            payload: { updates: leadUpdates, actor: actorPayload },
           }),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead update event insert',
@@ -467,7 +512,7 @@ export async function PATCH(
             contact_id: existingLead.contact_id,
             event_type: 'contact_updated',
             event_label: 'Contact updated',
-            payload: { updates: contactUpdates },
+            payload: { updates: contactUpdates, actor: actorPayload },
           }),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead contact update event insert',
@@ -487,6 +532,10 @@ export async function PATCH(
           source_system,
           source_form,
           source_page,
+          utm_source,
+          utm_medium,
+          utm_campaign,
+          referrer,
           program_label,
           service_label,
           category,
