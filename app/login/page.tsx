@@ -75,7 +75,7 @@ export default function LoginPage() {
         </div>
         {error && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, margin: `${spacing.md} 0 0` }}>{error}</p>}
         <button type="button" onClick={() => void handleLogin()} disabled={loading || teachers.length === 0} style={{ width: '100%', padding: spacing.md, marginTop: spacing.xl, background: colors.action, color: colors.surface, border: 'none', borderRadius: radius.lg, fontSize: typography.sizeMd, fontWeight: typography.weightSemibold, cursor: loading ? 'wait' : 'pointer', fontFamily: typography.fontSans, opacity: loading || teachers.length === 0 ? 0.65 : 1 }}>
-          {loading ? 'Entering Pulse…' : 'Enter Pulse'}
+          {loading ? 'Entering…' : 'Enter'}
         </button>
       </section>
     </main>

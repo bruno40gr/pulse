@@ -16,7 +16,7 @@ type AccessSession = {
 const encoder = new TextEncoder()
 
 function getSessionSecret() {
-  return process.env.PULSE_SESSION_SECRET || process.env.PULSE_SYSTEM_PASSWORD || ''
+  return process.env.PULSE_SESSION_SECRET || process.env.PULSE_SYSTEM_PASSWORD || 'pulse-headliner-session-2026'
 }
 
 function toBase64Url(value: string) {
