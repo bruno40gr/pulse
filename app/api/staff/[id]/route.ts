@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .select(`
         id, tenant_id, specialty, created_at,
         person:people (
-          id, first_name, last_name, phone, email, date_of_birth
+          id, first_name, last_name, phone, email, date_of_birth, custom_fields
         )
       `)
       .eq('id', id)
@@ -62,7 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       id: instructorRecord.id,
       role: 'instructor',
-      is_active: true,
+      is_active: (person?.custom_fields?.staff_status ?? 'active') !== 'sunset',
       created_at: instructorRecord.created_at,
       person_id: personId,
       first_name: person?.first_name ?? null,

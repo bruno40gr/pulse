@@ -8,7 +8,7 @@ import StaffSlidePanel from '@/components/contacts/StaffSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader } from '@/components/ui'
+import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface Contact {
@@ -34,6 +34,8 @@ interface Contact {
     phone: string | null
     email: string | null
   } | null
+  staff_id?: string | null
+  is_active?: boolean
 }
 
 interface TenantField {
@@ -95,6 +97,9 @@ export default function ContactsPage() {
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [savingContact, setSavingContact] = useState(false)
+  const [newContact, setNewContact] = useState({ first_name: '', last_name: '', phone: '', email: '' })
   const [singleComposeContact, setSingleComposeContact] = useState<Contact | null>(null)
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
@@ -349,6 +354,30 @@ export default function ContactsPage() {
     setIsComposeOpen(true)
   }
 
+  const handleAddContact = async () => {
+    if (!newContact.first_name.trim() || !newContact.last_name.trim()) return
+    setSavingContact(true)
+    try {
+      const res = await fetch(`/api/contacts/create?tenant=${tenantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newContact),
+      })
+      const data = await res.json()
+      if (data && data.error) throw new Error(data.error)
+
+      setIsAddOpen(false)
+      setNewContact({ first_name: '', last_name: '', phone: '', email: '' })
+      fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(d => {
+        if (Array.isArray(d)) setContacts(d)
+      })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
   // Unique filter options from contacts
   const filterOptions: Record<string, string[]> = {}
   tenantFields.forEach(f => {
@@ -366,6 +395,8 @@ export default function ContactsPage() {
   filterOptions['client_status'] = ['active', 'inactive', 'member']
 
   const sel = { border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
+
+  const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
   return (
     <div style={{ padding: spacing['3xl'] }}>
@@ -401,7 +432,7 @@ export default function ContactsPage() {
               </button>
             )}
             <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
-            <Button variant="secondary" onClick={() => {}}>+ Add contact</Button>
+            <Button variant="secondary" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
           </div>
         }
       />
@@ -836,6 +867,67 @@ export default function ContactsPage() {
         </div>
       </SlidePanel>
 
+      {/* Add contact slide panel */}
+      {isAddOpen && (
+        <SlidePanel isOpen={true} onClose={() => setIsAddOpen(false)}>
+          <SlidePanelHeader title="Add contact" onClose={() => setIsAddOpen(false)} />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: colors.surface }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, maxWidth: 420 }}>
+              <div>
+                <FieldLabel>First name</FieldLabel>
+                <input
+                  type="text"
+                  value={newContact.first_name}
+                  onChange={e => setNewContact(prev => ({ ...prev, first_name: e.target.value }))}
+                  placeholder="First name"
+                  style={addInputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Last name</FieldLabel>
+                <input
+                  type="text"
+                  value={newContact.last_name}
+                  onChange={e => setNewContact(prev => ({ ...prev, last_name: e.target.value }))}
+                  placeholder="Last name"
+                  style={addInputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Phone</FieldLabel>
+                <input
+                  type="text"
+                  value={newContact.phone}
+                  onChange={e => setNewContact(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Phone number"
+                  style={addInputStyle}
+                />
+              </div>
+              <div>
+                <FieldLabel>Email</FieldLabel>
+                <input
+                  type="email"
+                  value={newContact.email}
+                  onChange={e => setNewContact(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="Email address"
+                  style={addInputStyle}
+                />
+              </div>
+            </div>
+          </div>
+          <div style={{ padding: '16px 28px', borderTop: `1px solid ${colors.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '10px', background: colors.surface }}>
+            <Button variant="secondary" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={handleAddContact}
+              disabled={savingContact || !newContact.first_name.trim() || !newContact.last_name.trim()}
+            >
+              {savingContact ? 'Adding...' : 'Add contact'}
+            </Button>
+          </div>
+        </SlidePanel>
+      )}
+
       {/* Bulk edit panel */}
       {isBulkEditOpen && (
         <BulkEditPanel
@@ -915,6 +1007,8 @@ const ContactRow = memo(function ContactRow({
           >
             {contact.first_name} {contact.last_name}
           </span>
+          {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
+          {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
       </td>
                   <td style={{ padding: '10px 16px', fontSize: '12px' }}>

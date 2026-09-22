@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       .select(`
         id, specialty, created_at,
         person:people (
-          id, first_name, last_name, phone, email, date_of_birth
+          id, first_name, last_name, phone, email, date_of_birth, custom_fields
         )
       `)
       .eq('tenant_id', tenantId)
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       return {
         id: s.id,
         role: 'instructor',
-        is_active: true,
+        is_active: (person?.custom_fields?.staff_status ?? 'active') !== 'sunset',
         created_at: s.created_at,
         person_id: person?.id ?? null,
         first_name: person?.first_name ?? null,

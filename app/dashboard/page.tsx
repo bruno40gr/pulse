@@ -227,17 +227,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const tenant = getActiveTenantId()
 
-    // Staff name → person_id map for fallback resolution
+    // Staff name → person_id map for fallback resolution (exclude sunset instructors)
     fetch(`/api/staff?tenant=${tenant}`)
       .then(r => r.json())
       .then(staffData => {
         const nameMap: Record<string, string> = {}
         const previewMap: Record<string, { id: string, first_name: string, last_name: string }> = {}
+        const activeStaffIds = new Set<string>()
         if (Array.isArray(staffData)) {
           for (const s of staffData) {
+            if (s.is_active === false) continue
             const key = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase()
-            if (s.person_id && key) nameMap[key] = s.person_id
             if (s.person_id) {
+              activeStaffIds.add(s.person_id)
+              if (key) nameMap[key] = s.person_id
               previewMap[s.person_id] = {
                 id: s.person_id,
                 first_name: s.first_name || '',
@@ -247,10 +250,10 @@ export default function DashboardPage() {
           }
         }
         setStaffPreviewMap(previewMap)
-        return nameMap
+        return { nameMap, activeStaffIds }
       })
-      .catch(() => ({} as Record<string, string>))
-      .then(nameMap => {
+      .catch(() => ({ nameMap: {} as Record<string, string>, activeStaffIds: new Set<string>() }))
+      .then(({ nameMap, activeStaffIds }) => {
         return fetch(`/api/contacts?tenant=${tenant}`)
           .then(r => r.json())
           .then(contacts => {
@@ -265,16 +268,17 @@ export default function DashboardPage() {
                   last_name: c.last_name,
                 }
                 detailsMap[c.id] = c
-                // Prefer explicit person_id from enrollment staff join
+                // Prefer explicit person_id from enrollment staff join (only if still active)
                 const personId = c.instructor?.person_id ?? null
-                if (personId) {
+                if (personId && activeStaffIds.has(personId)) {
                   map[c.id] = personId
                   continue
                 }
                 // Fall back to matching instructor name against staff roster
                 const instrName = (c.instructor?.name || c.custom_fields?.instructor || '')
                   .toString().trim().toLowerCase()
-                map[c.id] = instrName ? (nameMap[instrName] || null) : null
+                const resolved = instrName ? (nameMap[instrName] || null) : null
+                map[c.id] = resolved && activeStaffIds.has(resolved) ? resolved : null
               }
               setContactPreviewMap(previewMap)
               setContactDetailsMap(detailsMap)

@@ -65,6 +65,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const account = student.accounts || {}
     const enrollment = student.enrollments?.[0] || {}
 
+    // Detect if this person is an instructor (staff) so they can be edited and sunset like a contact.
+    const { data: ownInstructor } = await supabaseAdmin
+      .from('instructors')
+      .select('id')
+      .eq('person_id', person.id)
+      .eq('tenant_id', person.tenant_id)
+      .maybeSingle()
+    const staffId = ownInstructor?.id ?? null
+    const isInstructor = !!staffId
+    const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
+
     // Build account_holders array from student_accounts
     const studentAccounts = student.student_accounts ?? []
     const accountHolders = studentAccounts.map((sa: any) => ({
@@ -118,12 +129,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       family_name: nonStudentBooking ? null : account.name,
       account_holders: nonStudentBooking ? [] : accountHolders,
       instructor: instructorInfo,
+      staff_id: staffId,
+      is_active: isActive,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,
-        contact_kind: nonStudentBooking ? 'booking' : 'student',
+        contact_kind: isInstructor ? 'instructor' : (nonStudentBooking ? 'booking' : 'student'),
         instrument: enrollment.instrument,
         service_type: enrollment.service_type,
         lesson_day: enrollment.lesson_day,
@@ -160,6 +173,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const enrollmentUpdate = Object.fromEntries(
       Object.entries(body).filter(([k]) => enrollmentFields.includes(k))
     )
+
+    // Sunset/offboard support for instructors: persist staff_status on the person's custom_fields.
+    if (typeof body.is_active === 'boolean') {
+      const { data: existingPerson } = await supabaseAdmin
+        .from('people')
+        .select('custom_fields')
+        .eq('id', id)
+        .maybeSingle()
+      const existingCustom = (existingPerson?.custom_fields as Record<string, any>) || {}
+      personUpdate.custom_fields = {
+        ...existingCustom,
+        ...(personUpdate.custom_fields || {}),
+        staff_status: body.is_active ? 'active' : 'sunset',
+      }
+    }
 
     // Update person
     if (Object.keys(personUpdate).length > 0) {
@@ -209,7 +237,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    // Return updated flattened record
+    // Return updated flattened record (legacy joins — student_accounts/staff tables do not exist in prod yet)
     const { data: person } = await supabaseAdmin
       .from('people')
       .select(`
@@ -217,19 +245,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         students (
           client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
-          student_accounts (
-            relationship,
-            is_primary,
-            accounts ( id, name, phone, email )
-          ),
-          enrollments (
-            instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields,
-            instructor_id,
-            instructor:staff (
-              id,
-              person:people ( id, first_name, last_name, phone, email )
-            )
-          )
+          enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
         )
       `)
       .eq('id', id)
@@ -240,6 +256,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const student = (person as any).students?.[0] || {}
     const account = student.accounts || {}
     const enrollment = student.enrollments?.[0] || {}
+
+    // Detect if this person is an instructor (staff) so they can be edited and sunset like a contact.
+    const { data: ownInstructor } = await supabaseAdmin
+      .from('instructors')
+      .select('id')
+      .eq('person_id', person.id)
+      .eq('tenant_id', person.tenant_id)
+      .maybeSingle()
+    const staffId = ownInstructor?.id ?? null
+    const isInstructor = !!staffId
+    const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
 
     // Build account_holders array
     const studentAccounts = student.student_accounts ?? []
@@ -292,12 +319,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       family_name: nonStudentBooking ? null : account.name,
       account_holders: nonStudentBooking ? [] : accountHolders,
       instructor: instructorInfo,
+      staff_id: staffId,
+      is_active: isActive,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,
-        contact_kind: nonStudentBooking ? 'booking' : 'student',
+        contact_kind: isInstructor ? 'instructor' : (nonStudentBooking ? 'booking' : 'student'),
         instrument: enrollment.instrument,
         service_type: enrollment.service_type,
         lesson_day: enrollment.lesson_day,

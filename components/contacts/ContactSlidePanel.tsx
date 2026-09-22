@@ -38,6 +38,8 @@ interface Contact {
   account_holder_email: string | null
   account_holders?: AccountHolder[]
   instructor?: InstructorInfo | null
+  staff_id?: string | null
+  is_active?: boolean
   custom_fields: Record<string, unknown>
   message_routing?: string
   is_minor?: boolean
@@ -212,6 +214,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields)
       }).then(r => r.json())
+      if (updated && typeof updated.error === 'string') {
+        if (!silent) showToast(updated.error)
+        return
+      }
       onUpdated(updated)
       if (!silent) showToast('changes saved')
     } finally {
@@ -277,7 +283,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const age = getAgeFromDOB(contact.date_of_birth)
   const computedIsMinor = age !== null ? age < 18 : contact.is_minor
   const ageLabel = age !== null ? `Age ${age}` : null
-  const statusLabel = contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)
+  const statusLabel = (contact.client_status || 'active').charAt(0).toUpperCase() + (contact.client_status || 'active').slice(1)
+  const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
+  const isInstructorActive = contact.is_active !== false
 
   const statusVariant = contact.opted_out
     ? 'error'
@@ -461,6 +469,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         badge={
           <>
             <Badge variant={statusVariant}>{statusLabel}</Badge>
+            {isInstructor && <Badge variant="info">Instructor</Badge>}
+            {isInstructor && !isInstructorActive && <Badge variant="inactive">Sunset</Badge>}
             {computedIsMinor && <Badge variant="minor">Minor</Badge>}
             {ageLabel && <span style={{ fontSize: '13px', color: colors.textMuted, fontWeight: 400 }}>{ageLabel}</span>}
           </>
@@ -742,6 +752,22 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         flexShrink: 0,
         background: colors.surface,
       }}>
+        {isInstructor && (
+          <Button
+            variant="secondary"
+            style={{ marginRight: 'auto' }}
+            onClick={() => {
+              if (isInstructorActive) {
+                if (!window.confirm('Sunset this instructor? They will no longer be able to sign in or be messaged.')) return
+                patch({ is_active: false })
+              } else {
+                patch({ is_active: true })
+              }
+            }}
+          >
+            {isInstructorActive ? 'Sunset / offboard' : 'Reactivate instructor'}
+          </Button>
+        )}
         <Button variant="secondary" onClick={handleStartEditing}>Edit contact</Button>
         <Button variant="primary" onClick={() => onCompose?.([contact.id])}>Send message</Button>
       </div>

@@ -70,7 +70,8 @@ export default function ComposePanel({
   } | null>(null)
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
   const [sent, setSent] = useState(false)
-  const [sentResult, setSentResult] = useState<{ sent: number, failed: number } | null>(null)
+  const [sentResult, setSentResult] = useState<{ sent: number, failed: number, missing_phone?: number } | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [resolvedRecipientPreview, setResolvedRecipientPreview] = useState<ResolvedPreviewRecipient[]>(recipientPreview)
   const prePolishMessage = useRef<string>('')
 
@@ -377,6 +378,7 @@ export default function ComposePanel({
   const handleSend = async () => {
     if (!message.trim() || effectiveCount === 0) return
     setIsSending(true)
+    setSendError(null)
     try {
       const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
@@ -398,11 +400,23 @@ export default function ComposePanel({
         body: JSON.stringify({ recipientIds: effectiveRecipientIds })
       })
       const result = await sendRes.json()
+
+      if (!result.ok || result.error) {
+        setSendError(result.error || 'The message could not be sent. Please try again.')
+        return
+      }
+
+      if (result.sent === 0) {
+        setSendError('Nothing was sent. The selected recipients are missing a phone number.')
+        return
+      }
+
       setSentResult(result)
       setSent(true)
       onSent?.()
     } catch (e) {
       console.error(e)
+      setSendError('The message could not be sent. Please try again.')
     } finally {
       setIsSending(false)
     }
@@ -423,6 +437,25 @@ export default function ComposePanel({
           style={{ marginTop: spacing.sm }}
         >
           Send another
+        </Button>
+      </div>
+    )
+  }
+
+  if (sendError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: spacing.lg, padding: spacing['4xl'] }}>
+        <div style={{ width: '48px', height: '48px', background: colors.surfaceMuted, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: colors.crimson }}>!</div>
+        <h3 style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Couldn't send</h3>
+        <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, textAlign: 'center', maxWidth: '420px' }}>
+          {sendError}
+        </p>
+        <Button
+          variant="secondary"
+          onClick={() => setSendError(null)}
+          style={{ marginTop: spacing.sm }}
+        >
+          Back to message
         </Button>
       </div>
     )

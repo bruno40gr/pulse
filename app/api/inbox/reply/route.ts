@@ -50,17 +50,36 @@ export async function POST(request: Request) {
       to: to_phone,
     })
 
-    await supabaseAdmin.from('messages').insert({
+    const failedStatus = msg.status === 'undelivered' || msg.status === 'failed'
+    const errorMessage = [msg.errorCode, msg.errorMessage].filter(Boolean).join(' ') || null
+
+    const messageRow = {
       tenant_id: tenantId,
       contact_id,
       direction: 'outbound',
       channel: 'sms',
       body,
-      status: msg.status,
+      status: msg.status || 'sent',
+      error_message: errorMessage,
       twilio_sid: msg.sid,
       to_phone: to_phone,
       from_phone: twilioConfig.phone_number,
-    })
+    }
+
+    // messages.contact_id still has an FK to the legacy `contacts` table; fall back to null
+    // when the person isn't present there so the message is still recorded.
+    const { error: insertError } = await supabaseAdmin.from('messages').insert(messageRow)
+    if (insertError) {
+      await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+    }
+
+    if (failedStatus) {
+      return NextResponse.json({
+        error: errorMessage
+          ? `Message not delivered: ${errorMessage}`
+          : 'Message could not be delivered. Check your Twilio number registration (A2P 10DLC).',
+      }, { status: 502 })
+    }
 
     return NextResponse.json({ success: true, sid: msg.sid })
   } catch (error) {

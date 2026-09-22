@@ -166,6 +166,13 @@ export async function GET(request: Request) {
     const personById = new Map(instructorPeople.map(p => [p.id, p]))
     const instructorIdByPersonId = new Map(instructorRecords.map(i => [i.person_id, i.id]))
 
+    // Identify all instructors (staff) for this tenant so they can be surfaced as editable contacts.
+    const { data: allInstructorRows } = await supabaseAdmin
+      .from('instructors')
+      .select('id, person_id')
+      .eq('tenant_id', tenantId)
+    const instructorIdByAllPersonIds = new Map((allInstructorRows || []).map((i: any) => [i.person_id, i.id]))
+
     // Flatten the joined data to match the contacts shape
     const flattened = (data || []).map((person: any) => {
       const student = person.students?.[0] ?? {}
@@ -173,6 +180,9 @@ export async function GET(request: Request) {
       const enrollment = student.enrollments?.[0] ?? {}
       const enrollmentFields = enrollment.custom_fields ?? {}
       const nonStudentBooking = isNonStudentBooking(enrollment)
+      const staffId = instructorIdByAllPersonIds.get(person.id) ?? null
+      const isInstructor = !!staffId
+      const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
 
       // Account holders (single account fallback — actual schema has no student_accounts)
       const accountHolders = account.name
@@ -210,6 +220,8 @@ export async function GET(request: Request) {
         message_routing: nonStudentBooking ? 'student' : (student.message_routing || 'student'),
         is_minor: nonStudentBooking ? false : (student.is_minor ?? false),
         account_id: student.account_id,
+        staff_id: staffId,
+        is_active: isActive,
         account_holder_name: nonStudentBooking ? null : account.name,
         account_holder_phone: nonStudentBooking ? null : account.phone,
         account_holder_email: nonStudentBooking ? null : account.email,
@@ -221,7 +233,7 @@ export async function GET(request: Request) {
         custom_fields: {
           ...person.custom_fields,
           ...enrollmentFields,
-          contact_kind: nonStudentBooking ? 'booking' : 'student',
+          contact_kind: isInstructor ? 'instructor' : (nonStudentBooking ? 'booking' : 'student'),
           instrument: enrollment.instrument || person.custom_fields?.instrument,
           service_type: enrollment.service_type || person.custom_fields?.service_type,
           lesson_day: enrollment.lesson_day || person.custom_fields?.lesson_day,

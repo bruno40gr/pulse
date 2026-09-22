@@ -27,13 +27,13 @@ const activeTeacherKeys = new Set(ACTIVE_TEACHERS.map(([firstName, lastName]) =>
 type InstructorRow = {
   id: string
   person_id: string
-  person: { id: string, first_name: string | null, last_name: string | null } | Array<{ id: string, first_name: string | null, last_name: string | null }> | null
+  person: { id: string, first_name: string | null, last_name: string | null, custom_fields?: Record<string, unknown> | null } | Array<{ id: string, first_name: string | null, last_name: string | null, custom_fields?: Record<string, unknown> | null }> | null
 }
 
 export async function getActiveTeachers(): Promise<PulseActor[]> {
   const { data, error } = await supabaseAdmin
     .from('instructors')
-    .select('id, person_id, person:people(id, first_name, last_name)')
+    .select('id, person_id, person:people(id, first_name, last_name, custom_fields)')
     .eq('tenant_id', HEADLINER_TENANT_ID)
 
   if (error) throw error
@@ -49,9 +49,10 @@ export async function getActiveTeachers(): Promise<PulseActor[]> {
         fullName: `${firstName} ${lastName}`.trim(),
         displayName: formatTeacherDisplayName(firstName, lastName),
         key: `${firstName.toLowerCase()}|${lastName.toLowerCase()}`,
+        isActive: (person?.custom_fields?.staff_status ?? 'active') !== 'sunset',
       }
     })
-    .filter((teacher) => activeTeacherKeys.has(teacher.key))
-    .map(({ key, ...teacher }) => teacher)
+    .filter((teacher) => activeTeacherKeys.has(teacher.key) && teacher.isActive)
+    .map(({ key, isActive, ...teacher }) => teacher)
     .sort((left, right) => left.fullName.localeCompare(right.fullName))
 }

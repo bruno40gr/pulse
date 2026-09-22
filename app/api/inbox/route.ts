@@ -58,48 +58,51 @@ export async function GET(request: Request) {
       personMap.set(p.id, p)
     }
 
-    // Step 3: Thread messages by contact_id + other_phone
+    // Step 3: Thread messages by contact_id + other_phone. Unknown senders (no contact_id)
+    // are threaded by phone number so they still show up in the inbox.
     const threads = new Map<string, any>()
 
     for (const msg of messages) {
-      const contactId = msg.contact_id
-      if (!contactId) continue
-
+      const contactId = msg.contact_id || null
       const otherPhone = msg.direction === 'outbound'
         ? msg.to_phone
         : msg.from_phone
       if (!otherPhone) continue
 
-      const threadKey = `${contactId}::${otherPhone}`
+      const threadKey = contactId ? `${contactId}::${otherPhone}` : `phone::${otherPhone}`
 
       if (!threads.has(threadKey)) {
-        const person = personMap.get(contactId)
+        const person = contactId ? personMap.get(contactId) : undefined
         const student = person?.students?.[0] || {}
         const account = student?.accounts || {}
 
         // Determine who we're talking to on this phone number
         let displayName: string | null = null
 
-        // 1. Check if the other phone matches the account phone (parent/guardian)
-        if (account.phone && account.phone === otherPhone && account.name) {
-          displayName = account.name.replace(' (account)', '').trim() || null
-        }
-        // 2. If otherPhone matches the student's own phone, display the student name
-        if (!displayName && person?.phone === otherPhone) {
-          displayName = `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || null
-        }
-        // 3. Fallback to student name
-        if (!displayName) {
-          displayName = `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || 'Unknown'
+        if (person) {
+          // 1. Check if the other phone matches the account phone (parent/guardian)
+          if (account.phone && account.phone === otherPhone && account.name) {
+            displayName = account.name.replace(' (account)', '').trim() || null
+          }
+          // 2. If otherPhone matches the student's own phone, display the student name
+          if (!displayName && person.phone === otherPhone) {
+            displayName = `${person.first_name || ''} ${person.last_name || ''}`.trim() || null
+          }
+          // 3. Fallback to student name
+          if (!displayName) {
+            displayName = `${person.first_name || ''} ${person.last_name || ''}`.trim() || null
+          }
         }
 
-        const studentName = `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || 'Unknown'
+        const studentName = person
+          ? `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown'
+          : otherPhone
 
         threads.set(threadKey, {
           thread_key: threadKey,
           contact_id: contactId,
           other_phone: otherPhone,
-          first_name: person?.first_name || 'Unknown',
+          first_name: person?.first_name || (contactId ? 'Unknown' : ''),
           last_name: person?.last_name || '',
           student_name: studentName,
           display_name: displayName || studentName,
