@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, SquarePen } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { Avatar, Button, Textarea, PageHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
 
 interface Message {
@@ -44,6 +45,7 @@ function InboxPageInner() {
   const [tenantFields, setTenantFields] = useState<any[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [campaignContext, setCampaignContext] = useState<string | null>(null)
+  const [isComposeOpen, setIsComposeOpen] = useState(false)
   const tenantId = getActiveTenantId()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
@@ -155,10 +157,30 @@ function InboxPageInner() {
         {/* Header */}
         <div style={{ padding: spacing['2xl'], borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <PageHeader
-            title="Inbox"
+            title="Conversations"
             subtitle={loading ? 'Loading...' : unreadCount > 0
               ? `${unreadCount} ${unreadCount === 1 ? 'conversation needs' : 'conversations need'} attention`
               : 'All caught up'}
+            right={
+              <button
+                onClick={() => setIsComposeOpen(true)}
+                title="New message"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  border: `1px solid ${colors.border}`,
+                  background: colors.surface,
+                  color: colors.text,
+                  cursor: 'pointer',
+                }}
+              >
+                <SquarePen size={18} />
+              </button>
+            }
           />
         </div>
 
@@ -383,6 +405,11 @@ function InboxPageInner() {
             setTimeout(() => replyInputRef.current?.focus(), 150)
           }}
         />
+      )}
+
+      {/* Compose modal */}
+      {isComposeOpen && (
+        <ComposeModal onClose={() => setIsComposeOpen(false)} />
       )}
     </div>
   )
