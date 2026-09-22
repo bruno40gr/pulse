@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function POST(request: Request) {
-  const twiml = () => new NextResponse('<Response></Response>', { headers: { 'Content-Type': 'text/xml' } })
+  const twiml = () => new NextResponse('<Response><!-- pulse-webhook-v2 --></Response>', { headers: { 'Content-Type': 'text/xml' } })
 
   try {
     const formData = await request.formData()
@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     const to = (formData.get('To') as string) || ''
     const body = (formData.get('Body') as string) || ''
     const messageSid = (formData.get('MessageSid') as string) || ''
+
+    console.log('[twilio-webhook] hit', { from, to, body, messageSid })
 
     if (!from || !body) return twiml()
 
@@ -71,12 +73,15 @@ export async function POST(request: Request) {
     }
     const { error: insertError } = await supabaseAdmin.from('messages').insert(messageRow)
     if (insertError) {
+      console.error('[twilio-webhook] insert error', insertError)
       await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+    } else {
+      console.log('[twilio-webhook] stored', messageSid)
     }
 
     return twiml()
   } catch (error) {
-    console.error('Webhook error:', error)
+    console.error('[twilio-webhook] error', error)
     return twiml()
   }
 }
