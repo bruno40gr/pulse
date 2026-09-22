@@ -73,7 +73,7 @@ function InboxPageInner() {
   }, [activeThread?.thread_key, activeThread?.messages?.length])
 
   const handleViewProfile = async () => {
-    if (!activeThread) return
+    if (!activeThread?.contact_id) return
     const data = await fetch(`/api/contacts/${activeThread.contact_id}`).then(r => r.json())
     if (data && !data.error) setSelectedContact(data)
   }
@@ -248,20 +248,22 @@ function InboxPageInner() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={handleViewProfile}
-              style={{
-                fontSize: typography.sizeSm,
-                color: colors.teal,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: typography.fontSans,
-                padding: 0,
-              }}
-            >
-              View profile →
-            </button>
+            {activeThread.contact_id && (
+              <button
+                onClick={handleViewProfile}
+                style={{
+                  fontSize: typography.sizeSm,
+                  color: colors.teal,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: typography.fontSans,
+                  padding: 0,
+                }}
+              >
+                View profile →
+              </button>
+            )}
           </div>
 
           {/* Messages */}
