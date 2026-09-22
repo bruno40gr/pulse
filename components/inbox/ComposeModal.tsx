@@ -33,35 +33,38 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState<Recipient[]>([])
   const [searching, setSearching] = useState(false)
   const [composing, setComposing] = useState(false)
+  const [staffOnly, setStaffOnly] = useState(false)
 
-  // Load everyone on open so the full database is browsable.
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setSearching(true)
-      try {
-        const data = await fetch('/api/recipient-search').then(r => r.json())
-        if (!cancelled) setResults(Array.isArray(data) ? data : [])
-      } catch {
-        if (!cancelled) setResults([])
-      } finally {
-        if (!cancelled) setSearching(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [])
-
-  const handleSearch = async (value: string) => {
-    setQuery(value)
+  const loadContacts = async (q: string, staff: boolean) => {
     setSearching(true)
     try {
-      const data = await fetch(`/api/recipient-search?q=${encodeURIComponent(value)}`).then(r => r.json())
+      const params = new URLSearchParams()
+      if (q.trim()) params.set('q', q.trim())
+      if (staff) params.set('staff', '1')
+      const qs = params.toString()
+      const data = await fetch(`/api/recipient-search${qs ? `?${qs}` : ''}`).then(r => r.json())
       setResults(Array.isArray(data) ? data : [])
     } catch {
       setResults([])
     } finally {
       setSearching(false)
     }
+  }
+
+  // Load everyone on open so the full database is browsable.
+  useEffect(() => {
+    loadContacts('', false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleSearch = (value: string) => {
+    setQuery(value)
+    loadContacts(value, staffOnly)
+  }
+
+  const toggleStaff = (staff: boolean) => {
+    setStaffOnly(staff)
+    loadContacts(query, staff)
   }
 
   const toggleRecipient = (r: Recipient) => {
@@ -173,6 +176,42 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
               placeholder="Search everyone…"
               style={inputStyle}
             />
+          </div>
+        </div>
+
+        {/* Staff filter */}
+        <div style={{ padding: `0 ${spacing['2xl']} ${spacing.md}`, flexShrink: 0 }}>
+          <div style={{
+            display: 'flex',
+            background: colors.surfaceMuted,
+            borderRadius: radius.md,
+            padding: 3,
+            gap: 2,
+          }}>
+            {[{ key: false, label: 'Everyone' }, { key: true, label: 'Staff only' }].map(opt => {
+              const active = staffOnly === opt.key
+              return (
+                <button
+                  key={String(opt.key)}
+                  onClick={() => toggleStaff(opt.key)}
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    borderRadius: radius.sm,
+                    padding: `${spacing.xs} ${spacing.sm}`,
+                    fontSize: typography.sizeSm,
+                    fontFamily: typography.fontSans,
+                    fontWeight: active ? typography.weightSemibold : typography.weightNormal,
+                    background: active ? colors.surface : 'transparent',
+                    color: active ? colors.text : colors.textMuted,
+                    cursor: 'pointer',
+                    boxShadow: active ? shadows.sm : 'none',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
           </div>
         </div>
 

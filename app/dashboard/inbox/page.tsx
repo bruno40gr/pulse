@@ -16,6 +16,7 @@ interface Message {
   created_at: string
   to_phone: string | null
   from_phone: string | null
+  media_url: string | null
 }
 
 interface Thread {
@@ -310,7 +311,7 @@ function InboxPageInner() {
                   <div>
                     <div style={{
                       maxWidth: '360px',
-                      padding: `${spacing.sm} ${spacing.md}`,
+                      padding: msg.media_url ? '6px' : `${spacing.sm} ${spacing.md}`,
                       borderRadius: msg.direction === 'outbound' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                       background: msg.direction === 'outbound' ? '#007AFF' : colors.surface,
                       color: msg.direction === 'outbound' ? 'white' : colors.text,
@@ -320,7 +321,24 @@ function InboxPageInner() {
                       border: msg.direction === 'inbound' ? `1px solid ${colors.border}` : 'none',
                       wordBreak: 'break-word',
                     }}>
-                      {msg.body}
+                      {msg.media_url && (
+                        <img
+                          src={msg.media_url}
+                          alt="Attachment"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            maxHeight: 260,
+                            objectFit: 'cover',
+                            borderRadius: 10,
+                          }}
+                        />
+                      )}
+                      {msg.body ? (
+                        <div style={{ padding: msg.media_url ? `${spacing.sm} ${spacing.md} 2px` : 0 }}>
+                          {msg.body}
+                        </div>
+                      ) : null}
                     </div>
                     <div style={{
                       fontSize: typography.sizeXs,

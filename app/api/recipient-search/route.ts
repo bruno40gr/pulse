@@ -7,12 +7,24 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
   const q = (url.searchParams.get('q') || '').trim()
+  const staffOnly = url.searchParams.get('staff') === '1' || url.searchParams.get('staff') === 'true'
 
   try {
     let query = supabaseAdmin
       .from('people')
       .select('id, first_name, last_name, phone, email')
       .eq('tenant_id', tenantId)
+
+    if (staffOnly) {
+      // Instructors are `people` rows linked via the `instructors` table.
+      const { data: instructorRows } = await supabaseAdmin
+        .from('instructors')
+        .select('person_id')
+        .eq('tenant_id', tenantId)
+      const personIds = (instructorRows || []).map((i: any) => i.person_id).filter(Boolean)
+      if (personIds.length === 0) return NextResponse.json([])
+      query = query.in('id', personIds)
+    }
 
     if (q) {
       query = query

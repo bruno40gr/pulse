@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const campaignId = getCampaignId(request)
     let query = supabaseAdmin
       .from('messages')
-      .select('id, body, direction, status, created_at, contact_id, to_phone, from_phone, campaign_id')
+      .select('id, body, direction, status, created_at, contact_id, to_phone, from_phone, campaign_id, media_url')
       .eq('tenant_id', tenantId)
 
     if (campaignId) {
@@ -125,6 +125,7 @@ export async function GET(request: Request) {
         created_at: msg.created_at,
         to_phone: msg.to_phone,
         from_phone: msg.from_phone,
+        media_url: msg.media_url,
       })
 
       if (!thread.last_message_at || msg.created_at > thread.last_message_at) {
