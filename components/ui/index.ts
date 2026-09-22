@@ -1,4 +1,5 @@
 export { Button } from './Button'
+export { LoadingButton, type LoadingFill } from './LoadingButton'
 export { Badge } from './Badge'
 export { Avatar, getAvatarColor } from './Avatar'
 export { Input } from './Input'

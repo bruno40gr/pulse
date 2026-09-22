@@ -6,7 +6,10 @@ export type LoadingFill = 1 | 2 | 3 | 4 | 5
 
 interface LoadingButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
+  /** Indeterminate fill style (looping). Used when `progress` is not provided. */
   fill?: LoadingFill
+  /** 0–100. When provided, drives a determinate fill that matches real progress. */
+  progress?: number
 }
 
 const fillClasses: Record<LoadingFill, string> = {
@@ -20,12 +23,15 @@ const fillClasses: Record<LoadingFill, string> = {
 export function LoadingButton({
   loading = false,
   fill = 1,
+  progress,
   children,
   style,
   disabled,
   ...props
 }: LoadingButtonProps) {
   const isDisabled = disabled || loading
+  const determinate = loading && progress != null
+  const pct = determinate ? Math.max(0, Math.min(100, progress!)) : 0
 
   return (
     <button
@@ -53,7 +59,19 @@ export function LoadingButton({
       }}
       {...props}
     >
-      {loading && <span className={fillClasses[fill]} aria-hidden />}
+      {loading && !determinate && <span className={fillClasses[fill]} aria-hidden />}
+      {determinate && (
+        <span
+          aria-hidden
+          className="lb-fill"
+          style={{
+            right: 'auto',
+            width: `${pct}%`,
+            background: 'rgba(0, 0, 0, 0.26)',
+            transition: 'width 0.15s linear',
+          }}
+        />
+      )}
       <span style={{ position: 'relative', zIndex: 1 }}>{children}</span>
     </button>
   )

@@ -8,16 +8,21 @@ export async function GET(request: Request) {
   const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
   const q = (url.searchParams.get('q') || '').trim()
 
-  if (!q) return NextResponse.json([])
-
   try {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('people')
       .select('id, first_name, last_name, phone, email')
       .eq('tenant_id', tenantId)
-      .or(`first_name.ilike.*${q}*,last_name.ilike.*${q}*,phone.ilike.*${q}*,email.ilike.*${q}*`)
-      .order('last_name', { ascending: true })
-      .limit(25)
+
+    if (q) {
+      query = query
+        .or(`first_name.ilike.*${q}*,last_name.ilike.*${q}*,phone.ilike.*${q}*,email.ilike.*${q}*`)
+        .limit(50)
+    } else {
+      query = query.order('last_name', { ascending: true }).limit(500)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
 

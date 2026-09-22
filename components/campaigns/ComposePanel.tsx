@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { CheckSquare, Image as ImageIcon, Loader2, Paperclip, Sparkles, Square, X } from 'lucide-react'
-import { Button, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
+import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
+import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
@@ -60,6 +60,8 @@ export default function ComposePanel({
   const [activeMediaTab, setActiveMediaTab] = useState<'approved' | 'gifs'>('approved')
   const [aiLoading, setAiLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [sendProgress, setSendProgress] = useState(0)
+  const sendProgressTimer = useRef<number | null>(null)
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [initialDraftReady, setInitialDraftReady] = useState(!initialMessage.trim())
   const [initialMediaReady, setInitialMediaReady] = useState(!isInsightCompose)
@@ -375,10 +377,35 @@ export default function ComposePanel({
     }
   }
 
+  const startSendProgress = () => {
+    setSendProgress(6)
+    if (sendProgressTimer.current) clearInterval(sendProgressTimer.current)
+    const start = Date.now()
+    sendProgressTimer.current = window.setInterval(() => {
+      const elapsed = Date.now() - start
+      // Decelerating creep toward 92% so the bar fills in lockstep with real send time.
+      const pct = 6 + 86 * (1 - Math.exp(-elapsed / 1100))
+      setSendProgress(Math.min(pct, 92))
+    }, 80)
+  }
+
+  const finishSendProgress = () => {
+    if (sendProgressTimer.current) {
+      clearInterval(sendProgressTimer.current)
+      sendProgressTimer.current = null
+    }
+    setSendProgress(100)
+    setTimeout(() => {
+      setSendProgress(0)
+      setIsSending(false)
+    }, 240)
+  }
+
   const handleSend = async () => {
     if (!message.trim() || effectiveCount === 0) return
     setIsSending(true)
     setSendError(null)
+    startSendProgress()
     try {
       const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
@@ -422,7 +449,7 @@ export default function ComposePanel({
       console.error(e)
       setSendError('The message could not be sent. Please try again.')
     } finally {
-      setIsSending(false)
+      finishSendProgress()
     }
   }
 
@@ -795,22 +822,20 @@ export default function ComposePanel({
         background: colors.surface,
       }}>
         {footerLeadingAction ? <div style={{ marginRight: 'auto' }}>{footerLeadingAction}</div> : null}
-        <Button
-          variant="primary"
+        <LoadingButton
+          loading={isSending}
+          fill={2}
+          progress={sendProgress}
           onClick={handleSend}
-          disabled={!message.trim() || effectiveCount === 0 || isSending}
-          size="lg"
-          style={{ background: !message.trim() || effectiveCount === 0 || isSending ? undefined : colors.crimson }}
+          disabled={!message.trim() || effectiveCount === 0}
+          style={{
+            padding: `${spacing.md} ${spacing['3xl']}`,
+            fontSize: typography.sizeMd,
+            background: !message.trim() || effectiveCount === 0 ? colors.border : colors.crimson,
+          }}
         >
-          {isSending ? (
-            <>
-              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-              Sending…
-            </>
-          ) : (
-            'Send message'
-          )}
-        </Button>
+          {isSending ? 'Sending…' : 'Send message'}
+        </LoadingButton>
       </div>
     </div>
   )

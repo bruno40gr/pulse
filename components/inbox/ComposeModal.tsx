@@ -1,9 +1,9 @@
 'use client'
-import { useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Search, X, Check } from 'lucide-react'
 import { SlidePanel, SlidePanelHeader, Button, Avatar } from '@/components/ui'
 import ComposePanel from '@/components/campaigns/ComposePanel'
-import { colors, typography, spacing, radius } from '@/lib/tokens'
+import { colors, typography, spacing, radius, shadows } from '@/lib/tokens'
 
 interface Recipient {
   id: string
@@ -23,6 +23,10 @@ const inputStyle: React.CSSProperties = {
   color: colors.text,
 }
 
+function displayName(r: Recipient) {
+  return `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Unnamed'
+}
+
 export default function ComposeModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Recipient[]>([])
@@ -30,9 +34,25 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
   const [searching, setSearching] = useState(false)
   const [composing, setComposing] = useState(false)
 
+  // Load everyone on open so the full database is browsable.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setSearching(true)
+      try {
+        const data = await fetch('/api/recipient-search').then(r => r.json())
+        if (!cancelled) setResults(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   const handleSearch = async (value: string) => {
     setQuery(value)
-    if (!value.trim()) { setResults([]); return }
     setSearching(true)
     try {
       const data = await fetch(`/api/recipient-search?q=${encodeURIComponent(value)}`).then(r => r.json())
@@ -65,7 +85,7 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ComposePanel
             recipientCount={selected.length}
-            filterExplanation={`To ${selected.map(s => `${s.first_name || ''} ${s.last_name || ''}`.trim()).join(', ')}`}
+            filterExplanation={`To ${selected.map(displayName).join(', ')}`}
             recipientIds={selected.map(s => s.id)}
             channel="sms"
             mode={selected.length === 1 ? 'single' : 'bulk'}
@@ -84,67 +104,123 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
     )
   }
 
-  // Stage 1 — pick recipients
+  // Stage 1 — pick recipients (narrow, tall modal)
   return (
-    <SlidePanel isOpen={true} onClose={onClose}>
-      <SlidePanelHeader title="New message" onClose={onClose} />
-      <div style={{ flex: 1, overflow: 'auto', padding: spacing['2xl'] }}>
-        {/* Selected recipients */}
-        {selected.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg }}>
-            {selected.map(s => (
-              <span
-                key={s.id}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: colors.surfaceMuted,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: radius.lg,
-                  padding: '4px 10px',
-                  fontSize: typography.sizeSm,
-                  fontFamily: typography.fontSans,
-                  color: colors.text,
-                }}
-              >
-                {s.first_name} {s.last_name}
-                <button
-                  onClick={() => toggleRecipient(s)}
-                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: colors.textMuted, padding: 0, display: 'flex' }}
-                >
-                  <X size={14} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Search */}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.42)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: spacing['2xl'],
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: 400,
+          maxWidth: '100%',
+          height: 'min(78vh, 680px)',
+          display: 'flex',
+          flexDirection: 'column',
+          background: colors.surface,
+          borderRadius: radius.xl,
+          boxShadow: shadows.xl,
+          overflow: 'hidden',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: spacing.sm,
-          border: `1px solid ${colors.border}`,
-          borderRadius: radius.md,
-          padding: `${spacing.sm} ${spacing.md}`,
-          background: colors.surface,
+          justifyContent: 'space-between',
+          padding: `${spacing.lg} ${spacing['2xl']}`,
+          borderBottom: `1px solid ${colors.borderLight}`,
+          flexShrink: 0,
         }}>
-          <Search size={16} color={colors.textMuted} />
-          <input
-            autoFocus
-            value={query}
-            onChange={e => handleSearch(e.target.value)}
-            placeholder="Search contacts by name or phone…"
-            style={inputStyle}
-          />
+          <span style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
+            New message
+          </span>
+          <button
+            onClick={onClose}
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: colors.textMuted, padding: 0, display: 'flex' }}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Results */}
-        <div style={{ marginTop: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-          {searching && <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>Searching…</p>}
-          {!searching && query.trim() && results.length === 0 && (
-            <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>No contacts found.</p>
+        {/* Search */}
+        <div style={{ padding: `${spacing.md} ${spacing['2xl']}`, flexShrink: 0 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: spacing.sm,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radius.md,
+            padding: `${spacing.sm} ${spacing.md}`,
+            background: colors.surface,
+          }}>
+            <Search size={16} color={colors.textMuted} />
+            <input
+              autoFocus
+              value={query}
+              onChange={e => handleSearch(e.target.value)}
+              placeholder="Search everyone…"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        {/* Selected recipients (append as you select) */}
+        {selected.length > 0 && (
+          <div style={{ padding: `0 ${spacing['2xl']} ${spacing.md}`, flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}>
+              {selected.map(s => (
+                <span
+                  key={s.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: colors.crimson,
+                    color: colors.surface,
+                    borderRadius: radius.full,
+                    padding: '3px 8px 3px 10px',
+                    fontSize: typography.sizeSm,
+                    fontFamily: typography.fontSans,
+                    fontWeight: typography.weightMedium,
+                  }}
+                >
+                  {displayName(s)}
+                  <button
+                    onClick={() => toggleRecipient(s)}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 0, display: 'flex' }}
+                    aria-label={`Remove ${displayName(s)}`}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contact list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: `0 ${spacing.sm}` }}>
+          {searching && results.length === 0 && (
+            <p style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
+              Loading…
+            </p>
+          )}
+          {!searching && results.length === 0 && (
+            <p style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
+              No contacts found.
+            </p>
           )}
           {results.map(r => {
             const isSelected = selected.some(p => p.id === r.id)
@@ -157,6 +233,7 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
                   alignItems: 'center',
                   gap: spacing.md,
                   padding: `${spacing.sm} ${spacing.md}`,
+                  margin: `0 ${spacing.sm}`,
                   borderRadius: radius.md,
                   cursor: 'pointer',
                   background: isSelected ? colors.surfaceMuted : 'transparent',
@@ -166,33 +243,46 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
                 <Avatar firstName={r.first_name || ''} lastName={r.last_name || ''} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: typography.sizeMd, fontWeight: 600, color: colors.text, fontFamily: typography.fontSans }}>
-                    {r.first_name} {r.last_name}
+                    {displayName(r)}
                   </div>
-                  <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
-                    {r.phone || r.email || '—'}
+                  <div style={{ fontSize: typography.sizeSm, color: r.phone ? colors.textMuted : colors.warning, fontFamily: typography.fontSans }}>
+                    {r.phone || 'No phone'}
                   </div>
                 </div>
-                <span style={{ fontSize: typography.sizeMd, color: isSelected ? colors.crimson : colors.textMuted, fontWeight: 600 }}>
-                  {isSelected ? '✓' : '+'}
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: radius.full,
+                    border: `1.5px solid ${isSelected ? colors.crimson : colors.border}`,
+                    background: isSelected ? colors.crimson : 'transparent',
+                    color: colors.surface,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {isSelected && <Check size={14} />}
                 </span>
               </div>
             )
           })}
         </div>
-      </div>
 
-      <div style={{
-        padding: `${spacing.lg} ${spacing['2xl']}`,
-        borderTop: `1px solid ${colors.borderLight}`,
-        display: 'flex',
-        justifyContent: 'flex-end',
-        flexShrink: 0,
-        background: colors.surface,
-      }}>
-        <Button variant="primary" disabled={selected.length === 0} onClick={() => setComposing(true)}>
-          Compose ({selected.length})
-        </Button>
+        {/* Footer CTA */}
+        <div style={{
+          padding: `${spacing.lg} ${spacing['2xl']}`,
+          borderTop: `1px solid ${colors.borderLight}`,
+          display: 'flex',
+          flexShrink: 0,
+          background: colors.surface,
+        }}>
+          <Button variant="primary" disabled={selected.length === 0} onClick={() => setComposing(true)} style={{ width: '100%' }}>
+            Compose messages{selected.length > 0 ? ` (${selected.length})` : ''}
+          </Button>
+        </div>
       </div>
-    </SlidePanel>
+    </div>
   )
 }
