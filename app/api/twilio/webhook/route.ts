@@ -22,6 +22,10 @@ export async function POST(request: Request) {
 
     if (!from || !body) return twiml()
 
+    // Phone numbers may be stored as 10-digit ("5754158066") or E.164 ("+15754158066").
+    // Normalize to a bare 10-digit form so the sender can be matched to a contact either way.
+    const fromDigits = (from || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
+
     // Resolve the sender to a contact: first by the most recent outbound message to this phone,
     // then by matching the phone number on `people`.
     let contactId: string | null = null
@@ -29,9 +33,9 @@ export async function POST(request: Request) {
     const { data: previousMessage } = await supabaseAdmin
       .from('messages')
       .select('contact_id')
-      .eq('to_phone', from)
       .eq('tenant_id', DEFAULT_TENANT_ID)
       .eq('direction', 'outbound')
+      .or(`to_phone.eq.${from},to_phone.eq.${fromDigits}`)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
         .from('people')
         .select('id')
         .eq('tenant_id', DEFAULT_TENANT_ID)
-        .eq('phone', from)
+        .or(`phone.eq.${from},phone.eq.${fromDigits}`)
         .limit(1)
         .maybeSingle()
       if (person?.id) contactId = person.id
