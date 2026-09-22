@@ -43,3 +43,76 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── LoadingButton fill variants ─────────────────────────────────────── */
+.lb-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+/* 1. Sweep — a soft darker band sweeps left→right */
+.lb-fill-sweep {
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.28), transparent);
+  animation: lb-sweep 1.3s ease-in-out infinite;
+}
+@keyframes lb-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
+}
+
+/* 2. Fill — a solid darker hue fills left→right, holds, then resets */
+.lb-fill-wipe {
+  background: rgba(0, 0, 0, 0.26);
+  transform-origin: left;
+  animation: lb-wipe 1.5s ease-in-out infinite;
+}
+@keyframes lb-wipe {
+  0% { transform: scaleX(0); }
+  55% { transform: scaleX(1); }
+  100% { transform: scaleX(1); }
+}
+
+/* 3. Bottom bar — a thin darker bar fills along the bottom edge */
+.lb-fill-bar {
+  top: auto;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  transform-origin: left;
+  animation: lb-bar 1.2s ease-in-out infinite;
+}
+@keyframes lb-bar {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+/* 4. Gradient sheen — a darker-to-transparent gradient flows across */
+.lb-fill-gradient {
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.3), transparent);
+  background-size: 200% 100%;
+  animation: lb-gradient 1.2s linear infinite;
+}
+@keyframes lb-gradient {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 5. Stripes — diagonal darker stripes march across */
+.lb-fill-stripes {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.22) 0,
+    rgba(0, 0, 0, 0.22) 10px,
+    transparent 10px,
+    transparent 20px
+  );
+  animation: lb-stripes 0.7s linear infinite;
+}
+@keyframes lb-stripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 28px 0; }
+}
