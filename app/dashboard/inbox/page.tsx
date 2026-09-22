@@ -69,6 +69,18 @@ function InboxPageInner() {
     }).catch(() => {})
   }, [tenantId])
 
+  // Poll for new messages so conversations update without a manual refresh.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const result = await fetchThreads()
+      setActiveThread(prev => {
+        if (!prev) return prev
+        return result.find(t => t.thread_key === prev.thread_key) || prev
+      })
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [tenantId, campaignId])
+
   useEffect(() => {
     if (!messagesEndRef.current) return
     messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })

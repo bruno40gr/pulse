@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
+import { CheckSquare, Image as ImageIcon, Loader2, Paperclip, Sparkles, Square, X } from 'lucide-react'
 import { Button, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
@@ -413,6 +413,10 @@ export default function ComposePanel({
 
       setSentResult(result)
       setSent(true)
+      setMessage('')
+      setMediaUrl('')
+      setSensitiveCheck(null)
+      setRemovedIds(new Set())
       onSent?.()
     } catch (e) {
       console.error(e)
@@ -422,50 +426,22 @@ export default function ComposePanel({
     }
   }
 
-  if (sent && sentResult) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: spacing.lg, padding: spacing['4xl'] }}>
-        <div style={{ width: '48px', height: '48px', background: colors.surfaceMuted, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: colors.success }}>✓</div>
-        <h3 style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Message sent</h3>
-        <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, textAlign: 'center' }}>
-          Delivered to {sentResult.sent} contacts.
-          {sentResult.failed > 0 && ` ${sentResult.failed} failed.`}
-        </p>
-        <Button
-          variant="secondary"
-          onClick={() => { setSent(false); setSentResult(null); setMessage(''); setMediaUrl(''); setSensitiveCheck(null); setRemovedIds(new Set()) }}
-          style={{ marginTop: spacing.sm }}
-        >
-          Send another
-        </Button>
-      </div>
-    )
-  }
-
-  if (sendError) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: spacing.lg, padding: spacing['4xl'] }}>
-        <div style={{ width: '48px', height: '48px', background: colors.surfaceMuted, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: colors.crimson }}>!</div>
-        <h3 style={{ fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.text, margin: 0 }}>Couldn't send</h3>
-        <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, textAlign: 'center', maxWidth: '420px' }}>
-          {sendError}
-        </p>
-        <Button
-          variant="secondary"
-          onClick={() => setSendError(null)}
-          style={{ marginTop: spacing.sm }}
-        >
-          Back to message
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
       {/* Left column */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['3xl'], overflowY: 'auto' }}>
+        {sent && sentResult && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.success}`, borderRadius: radius.md, color: colors.success, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
+            ✓ Message sent — delivered to {sentResult.sent} {sentResult.sent === 1 ? 'contact' : 'contacts'}.{sentResult.failed > 0 ? ` ${sentResult.failed} failed.` : ''}
+          </div>
+        )}
+        {sendError && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.crimson}`, borderRadius: radius.md, color: colors.crimson, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
+            <span>! {sendError}</span>
+            <button onClick={() => setSendError(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: colors.crimson, padding: 0 }}>✕</button>
+          </div>
+        )}
         {showComposeBootSkeleton ? (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
@@ -826,7 +802,14 @@ export default function ComposePanel({
           size="lg"
           style={{ background: !message.trim() || effectiveCount === 0 || isSending ? undefined : colors.crimson }}
         >
-          {isSending ? 'Sending...' : 'Send message'}
+          {isSending ? (
+            <>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+              Sending…
+            </>
+          ) : (
+            'Send message'
+          )}
         </Button>
       </div>
     </div>
