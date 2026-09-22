@@ -23,7 +23,9 @@ export async function GET(request: Request) {
         .eq('tenant_id', tenantId)
       const personIds = (instructorRows || []).map((i: any) => i.person_id).filter(Boolean)
       if (personIds.length === 0) return NextResponse.json([])
-      query = query.in('id', personIds)
+      query = query
+        .in('id', personIds)
+        .or('custom_fields->>staff_status.is.null,custom_fields->>staff_status.neq.sunset')
     }
 
     if (q) {

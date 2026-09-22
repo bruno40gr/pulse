@@ -268,7 +268,7 @@ export default function ContactsPage() {
       if (data.contact_ids) {
         setDisplayIds(data.contact_ids)
         setFilterExplanation(data.explanation || '')
-        setSelectedIds(new Set(data.contact_ids))
+        setSelectedIds(new Set())
       }
     } catch (e) {
       console.error(e)

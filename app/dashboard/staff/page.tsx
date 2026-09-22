@@ -47,7 +47,7 @@ export default function StaffPage() {
   useEffect(() => {
     fetchStaff()
       .then(data => {
-        const list = Array.isArray(data) ? data : []
+        const list = (Array.isArray(data) ? data : []).filter((s: StaffMember) => s.is_active !== false)
         list.sort((a: StaffMember, b: StaffMember) =>
           `${a.last_name || ''} ${a.first_name || ''}`.localeCompare(`${b.last_name || ''} ${b.first_name || ''}`)
         )

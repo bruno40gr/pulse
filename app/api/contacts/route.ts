@@ -247,7 +247,8 @@ export async function GET(request: Request) {
       })
     })
 
-    return NextResponse.json(flattened)
+    // Sunset instructors are not viewable/actionable — hide them from the list.
+    return NextResponse.json(flattened.filter((c: any) => !(c.staff_id && c.is_active === false)))
   } catch (error) {
     console.error('Error fetching contacts:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

@@ -17,10 +17,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {[
             { href: '/dashboard', label: 'Dashboard' },
             { href: '/dashboard/contacts', label: 'Contacts' },
-            { href: '/dashboard/staff', label: 'Staff' },
             { href: '/dashboard/inbox', label: 'Conversations' },
             { href: '/dashboard/history', label: 'Campaigns' },
-            { href: '/dashboard/preview', label: 'Preview' },
+            { href: '/dashboard/staff', label: 'Staff' },
           ].map(({ href, label }) => (
             <Link key={href} href={href} style={{ display: 'block', padding: '9px 12px', borderRadius: radius.lg, color: colors.textMuted, textDecoration: 'none', fontSize: typography.sizeMd, marginBottom: '2px' }}>
               {label}
