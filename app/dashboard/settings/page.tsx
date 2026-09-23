@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { Button, PageHeader } from '@/components/ui'
+import { Button, PageContainer, PageHeader } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 
@@ -70,7 +70,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div style={{ padding: spacing['4xl'], maxWidth: '1100px' }}>
+    <PageContainer maxWidth="1100px">
       {/* Header */}
       <PageHeader
         title="Settings"
@@ -104,7 +104,7 @@ export default function SettingsPage() {
       {tab === 'account' && <AccountTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
       {tab === 'brand' && <BrandTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
       {tab === 'pulse' && <PulseTab tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
-    </div>
+    </PageContainer>
   )
 }
 

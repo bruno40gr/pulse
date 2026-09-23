@@ -79,6 +79,8 @@ function formatLeadRow(row: LeadListRow) {
     priority: row.priority,
     temperature: row.temperature,
     source: typeof row.payload?.source === 'string' ? row.payload.source : 'website',
+    follow_up_at: typeof row.payload?.follow_up_at === 'string' ? row.payload.follow_up_at : null,
+    follow_up_note: typeof row.payload?.follow_up_note === 'string' ? row.payload.follow_up_note : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     contact: Array.isArray(row.crm_contacts) ? row.crm_contacts[0] : row.crm_contacts,

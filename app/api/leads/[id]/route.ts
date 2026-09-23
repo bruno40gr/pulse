@@ -104,6 +104,11 @@ function normalizeNotesHistory(events: LeadEvent[]) {
     }))
 }
 
+function getFollowUpFromPayload(payload: Record<string, unknown> | null, key: 'follow_up_at' | 'follow_up_note') {
+  const value = payload?.[key]
+  return typeof value === 'string' ? value : null
+}
+
 async function getJobApplicationDetail(tenantId: string, id: string) {
   const result = await withTimeout<any>(
     crmSupabaseAdmin
@@ -284,6 +289,8 @@ export async function GET(
 
     return NextResponse.json({
       ...lead,
+      follow_up_at: getFollowUpFromPayload(lead.payload, 'follow_up_at'),
+      follow_up_note: getFollowUpFromPayload(lead.payload, 'follow_up_note'),
       contact: unwrapContact(lead.crm_contacts),
       events: events || [],
       notes_history,
@@ -418,6 +425,13 @@ export async function PATCH(
 
     const addNote = typeof body.add_note === 'string' ? body.add_note.trim() : ''
 
+    const followUpChanged = Boolean(
+      body.payload &&
+      typeof body.payload === 'object' &&
+      !Array.isArray(body.payload) &&
+      'follow_up_at' in (body.payload as Record<string, unknown>),
+    )
+
     const existingLeadResult = await withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
@@ -478,6 +492,29 @@ export async function PATCH(
           }),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead note insert',
+      )
+
+      if (result.error) throw result.error
+    }
+
+    if (followUpChanged) {
+      const followUpPayload = body.payload as Record<string, unknown>
+      const followUpAt = typeof followUpPayload.follow_up_at === 'string' ? followUpPayload.follow_up_at : null
+      const followUpNote = typeof followUpPayload.follow_up_note === 'string' ? followUpPayload.follow_up_note : null
+
+      const result = await withTimeout<any>(
+        crmSupabaseAdmin
+          .from('lead_events')
+          .insert({
+            tenant_id: tenantId,
+            lead_intake_id: id,
+            contact_id: existingLead.contact_id,
+            event_type: followUpAt ? 'follow_up_scheduled' : 'follow_up_cleared',
+            event_label: followUpAt ? 'Follow-up scheduled' : 'Follow-up cleared',
+            payload: { follow_up_at: followUpAt, follow_up_note: followUpNote, actor: actorPayload },
+          }),
+        LEAD_DETAIL_TIMEOUT_MS,
+        'lead follow-up event insert',
       )
 
       if (result.error) throw result.error
@@ -597,6 +634,8 @@ export async function PATCH(
 
     return NextResponse.json({
       ...refreshedLead,
+      follow_up_at: getFollowUpFromPayload(refreshedLead.payload, 'follow_up_at'),
+      follow_up_note: getFollowUpFromPayload(refreshedLead.payload, 'follow_up_note'),
       contact: unwrapContact(refreshedLead.crm_contacts),
       events: refreshedEvents || [],
       notes_history,
