@@ -1,8 +1,8 @@
-// Repair band classification + band names for a tenant.
+// Backfill band classifications and ensemble names for a tenant.
 // Re-derives "band" service_type and the band/ensemble name from the Harmony
 // reports, and patches existing enrollments (service_type + custom_fields.band_name).
-//   node scripts/repair-bands.mjs           # dry run
-//   node scripts/repair-bands.mjs --apply   # write changes
+//   node scripts/migrations/backfill-band-enrollments.mjs           # dry run
+//   node scripts/migrations/backfill-band-enrollments.mjs --apply   # write changes
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'

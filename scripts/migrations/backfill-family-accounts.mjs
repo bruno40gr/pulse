@@ -1,9 +1,9 @@
-// Repair family/account-holder accounts for a tenant.
+// Backfill family/account-holder accounts for a tenant.
 // Re-derives the account holder (parent/payer) from the Harmony reports and
 // creates/reuses one shared account per family, re-points students at it, and
 // deletes orphaned "<Student> (account)" rows.
-//   node scripts/repair-family-accounts.mjs           # dry run
-//   node scripts/repair-family-accounts.mjs --apply   # write changes
+//   node scripts/migrations/backfill-family-accounts.mjs           # dry run
+//   node scripts/migrations/backfill-family-accounts.mjs --apply   # write changes
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
