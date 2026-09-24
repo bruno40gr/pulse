@@ -264,15 +264,15 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setIsEditing(false)
   }
 
-  const handleCall = async () => {
-    if (!contact.phone || calling) return
+  const handleCall = async (phone: string | null = contact.phone) => {
+    if (!phone || calling) return
 
     setCalling(true)
     try {
       const response = await fetch(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_phone: contact.phone, contact_id: contact.id }),
+        body: JSON.stringify({ to_phone: phone, contact_id: contact.id }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Could not place call')
@@ -534,7 +534,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </button>
             <button
               type="button"
-              onClick={handleCall}
+              onClick={() => handleCall(contact.phone)}
               disabled={!contact.phone || calling}
               aria-label={`Call ${contact.first_name} ${contact.last_name}`}
               title={contact.phone ? `Call ${displayPhone(contact.phone)}` : 'No phone number'}
@@ -654,7 +654,21 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       </div>
                       {(ah.phone || ah.email) && (
                         <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
-                          {ah.phone ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhone(ah.phone)}</span> : <span style={{ color: colors.textMuted }}>—</span>}
+                          {ah.phone ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhone(ah.phone)}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCall(ah.phone)}
+                                disabled={calling}
+                                aria-label={`Call ${cleanName(ah.name) || 'account holder'}`}
+                                title={`Call ${displayPhone(ah.phone)}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '2px', color: colors.textSecondary, background: 'transparent', border: 'none', cursor: calling ? 'wait' : 'pointer', opacity: calling ? 0.55 : 1 }}
+                              >
+                                <Phone size={14} strokeWidth={1.8} />
+                              </button>
+                            </span>
+                          ) : <span style={{ color: colors.textMuted }}>—</span>}
                           {ah.email ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
                         </div>
                       )}
@@ -673,7 +687,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   <FieldValue>{displayPhone(contact.phone)}</FieldValue>
                   <button
                     type="button"
-                    onClick={handleCall}
+                    onClick={() => handleCall(contact.phone)}
                     disabled={calling}
                     aria-label={`Call ${contact.first_name} ${contact.last_name}`}
                     title={`Call ${displayPhone(contact.phone)}`}
