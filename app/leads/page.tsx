@@ -1,5 +1,5 @@
-import LeadsView from '@/components/leads/LeadsView'
+import { redirect } from 'next/navigation'
 
 export default function LeadsPage() {
-  return <LeadsView />
+  redirect('/dashboard/leads')
 }

@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (host === 'leads.headlinerma.com' && pathname === '/') {
-    return NextResponse.rewrite(new URL('/leads', request.url))
+    return NextResponse.redirect(new URL('/dashboard/leads', request.url))
   }
 
   let supabaseResponse = NextResponse.next({ request })
