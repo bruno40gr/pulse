@@ -22,6 +22,13 @@ type DedupPerson = {
   custom_fields: Record<string, unknown> | null
 }
 
+type DedupAccount = {
+  id: string
+  name: string | null
+  email: string | null
+  phone: string | null
+}
+
 type AttendanceEntry = { session_date: string; status: string }
 
 // Merge a new attendance series into an existing one, deduping by session date
@@ -64,6 +71,11 @@ function nameKey(first: string | null | undefined, last: string | null | undefin
   return `${first ?? ''} ${last ?? ''}`.trim().toLowerCase()
 }
 
+function accountNameKey(name: string | null | undefined): string {
+  if (!name) return ''
+  return name.replace(/\s*\(account\)\s*$/i, '').trim().toLowerCase()
+}
+
 // Merge multiple session rows for the same student into a single contact,
 // keeping the most recent attended date and the union of tags/fields.
 function mergeContactRows(rows: ParsedContact[]): ParsedContact {
@@ -92,6 +104,9 @@ function mergeContactRows(rows: ParsedContact[]): ParsedContact {
     last_name: firstNonBlank((r) => r.last_name) || first.last_name,
     email: firstNonBlank((r) => (r.email && r.email !== '-' ? r.email : null)),
     phone: firstNonBlank((r) => r.phone),
+    account_holder_name: firstNonBlank((r) => r.account_holder_name),
+    account_holder_email: firstNonBlank((r) => r.account_holder_email),
+    account_holder_phone: firstNonBlank((r) => r.account_holder_phone),
     external_id: firstNonBlank((r) => r.external_id),
     date_of_birth: firstNonBlank((r) => r.date_of_birth),
     instructor: firstNonBlank((r) => r.instructor),
@@ -305,6 +320,25 @@ export async function POST(request: Request) {
       if (pk && !phoneMap.has(pk)) phoneMap.set(pk, p)
     }
 
+    // Fetch existing accounts so siblings can share one family account across imports.
+    const { data: existingAccounts } = await supabaseAdmin
+      .from('accounts')
+      .select('id, name, email, phone')
+      .eq('tenant_id', tenantId)
+
+    const accountByEmail = new Map<string, DedupAccount>()
+    const accountByPhone = new Map<string, DedupAccount>()
+    const accountByName = new Map<string, DedupAccount>()
+    const registerAccount = (acc: DedupAccount) => {
+      const ek = normalizeEmailForDedup(acc.email)
+      if (ek && !accountByEmail.has(ek)) accountByEmail.set(ek, acc)
+      const pk = normalizePhoneForDedup(acc.phone)
+      if (pk && !accountByPhone.has(pk)) accountByPhone.set(pk, acc)
+      const nk = accountNameKey(acc.name)
+      if (nk && !accountByName.has(nk)) accountByName.set(nk, acc)
+    }
+    for (const acc of (existingAccounts || []) as DedupAccount[]) registerAccount(acc)
+
     // Group rows (one per session) by identity so attendance aggregates per student
     const groups = new Map<string, ParsedContact[]>()
     for (const contact of parsedContacts) {
@@ -348,12 +382,59 @@ export async function POST(request: Request) {
       const normPhone = normalizePhoneForDedup(contact.phone)
       const normExternalId = contact.external_id || null
 
-      // Prefer stable external id, then email, then name, then phone (account holder's, often shared by siblings)
+      // Prefer stable external id, then email, then name, then phone.
       const existing =
         (normExternalId && externalIdMap.get(normExternalId)) ||
         (normEmail && emailMap.get(normEmail)) ||
         (normName && nameMap.get(normName)) ||
         (normPhone && phoneMap.get(normPhone))
+
+      // Resolve the family/account-holder account so siblings share one account.
+      const accountHolderName = contact.account_holder_name || null
+      const accountHolderEmail = contact.account_holder_email || null
+      const accountHolderPhone = contact.account_holder_phone || null
+      const hasAccountHolder = Boolean(accountHolderName || accountHolderEmail || accountHolderPhone)
+
+      // The account represents the family/payer. Use the account holder's identity when present;
+      // otherwise fall back to the student themselves (adult self-pay).
+      const accountName = (hasAccountHolder ? accountHolderName : `${contact.first_name} ${contact.last_name}`.trim()) || `${contact.first_name} ${contact.last_name}`.trim()
+      const accountEmail = hasAccountHolder ? accountHolderEmail : contact.email
+      const accountPhone = hasAccountHolder ? accountHolderPhone : contact.phone
+
+      let accountId: string | null = null
+      const accountKeyEmail = normalizeEmailForDedup(accountEmail)
+      const accountKeyPhone = normalizePhoneForDedup(accountPhone)
+      const accountKeyName = accountNameKey(accountName)
+      const existingAccount =
+        (accountKeyEmail && accountByEmail.get(accountKeyEmail)) ||
+        (accountKeyPhone && accountByPhone.get(accountKeyPhone)) ||
+        (accountKeyName && accountByName.get(accountKeyName)) ||
+        null
+
+      if (existingAccount) {
+        accountId = existingAccount.id
+        const needsEmail = !existingAccount.email && accountEmail
+        const needsPhone = !existingAccount.phone && accountPhone
+        if (needsEmail || needsPhone) {
+          const accountUpdate: Record<string, string> = {}
+          if (needsEmail) accountUpdate.email = accountEmail!
+          if (needsPhone) accountUpdate.phone = accountPhone!
+          await supabaseAdmin.from('accounts').update(accountUpdate).eq('id', accountId)
+          existingAccount.email = existingAccount.email || accountEmail
+          existingAccount.phone = existingAccount.phone || accountPhone
+          registerAccount(existingAccount)
+        }
+      } else {
+        const { data: newAccount } = await supabaseAdmin
+          .from('accounts')
+          .insert({ tenant_id: tenantId, name: accountName, email: accountEmail, phone: accountPhone })
+          .select('id, name, email, phone')
+          .single()
+        if (newAccount) {
+          accountId = newAccount.id
+          registerAccount(newAccount as DedupAccount)
+        }
+      }
 
       const enrollmentFields: Record<string, string | null | undefined> = {
         instrument, lesson_day, lesson_time, service_type,
@@ -392,12 +473,15 @@ export async function POST(request: Request) {
 
         const { data: existingStudent } = await supabaseAdmin
           .from('students')
-          .select('id')
+          .select('id, account_id')
           .eq('person_id', existing.id)
           .single()
 
         if (existingStudent) {
           studentId = existingStudent.id
+          if (accountId && existingStudent.account_id !== accountId) {
+            await supabaseAdmin.from('students').update({ account_id: accountId }).eq('id', existingStudent.id)
+          }
           const { data: existingEnrollment } = await supabaseAdmin
             .from('enrollments')
             .select('id, custom_fields')
@@ -461,18 +545,12 @@ export async function POST(request: Request) {
         if (normName) nameMap.set(normName, newPersonRow)
         if (normPhone) phoneMap.set(normPhone, newPersonRow)
 
-        const { data: newAccount } = await supabaseAdmin
-          .from('accounts')
-          .insert({ tenant_id: tenantId, name: `${contact.first_name} ${contact.last_name} (account)`, email: contact.email, phone: contact.phone })
-          .select('id')
-          .single()
-
         const { data: newStudent } = await supabaseAdmin
           .from('students')
           .insert({
             tenant_id: tenantId,
             person_id: newPerson.id,
-            account_id: newAccount?.id,
+            account_id: accountId,
             client_status: client_status || 'active',
             last_attended: last_attended || null,
           })

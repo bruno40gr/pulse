@@ -43,16 +43,20 @@ Return ONLY valid JSON, no markdown, no backticks:
 
 Use these canonical field_key values (snake_case only):
 Core (is_core true): first_name, last_name, full_name, email, phone, client_status, opted_out, external_id, date_of_birth.
+Account holder (is_core false): account_holder_name, account_holder_email, account_holder_phone.
 Attendance (is_core false): session_date, attendance_status.
 Business (is_core false): instructor, instrument, program, service_type, plan_name, session_name, band_name, lesson_day, lesson_time, tag.
 
 Mapping rules:
-- A single name column (e.g. "Client Name", "Student Name", "Member Name") -> full_name. If the sheet has separate first/last columns, use first_name and last_name.
+- A single student/client name column (e.g. "Client Name", "Student Name", "Member Name") -> full_name. If the sheet has separate first/last columns, use first_name and last_name.
+- The student's own email/phone -> email/phone.
+- The account holder is the parent/guardian/payer who pays the bill and should receive messages about the student. Map their name -> account_holder_name, email -> account_holder_email, and phone -> account_holder_phone. These columns are typically named "AccountManager 1 name/email/phone", "Account Manager ...", "Payer Name/Email/Phone", "Parent ...", or "Guardian ...". NEVER map these to instructor, and NEVER to the student's own email/phone.
 - A stable client/customer/member id -> external_id.
 - A column holding the class/session date -> session_date (field_type date).
 - A column holding an attendance mark (values like Attended, Absent, Late, No Show) -> attendance_status (field_type dropdown).
-- The teacher/staff/coach column -> instructor. The account-manager, parent, primary-contact, or payer name columns are the ACCOUNT HOLDER, not staff — never map those to instructor.
-- The service/class/program name column -> program.
+- The teacher/staff/coach column -> instructor.
+- The program/course/plan name column (e.g. "Plan Name", "Service Name", "Program") -> program or plan_name. This is the type of class (e.g. "Band - Monthly", "Piano - Level 1"), NOT the specific band name.
+- The band/ensemble name column (e.g. "Class", "Band", "Ensemble") -> band_name. This is the specific band the student plays in (e.g. "SunKast", "Anomaly Syndrome", "La Paz"). Only set band_name for band programs.
 - Day-of-week columns -> lesson_day (field_type day). Time columns -> lesson_time.
 - Tag columns (e.g. "Client Tags 1", "Instrument", "Genre") -> tag.
 Skip columns with no clear contact meaning like invoice numbers or payment amounts (but a client id column IS meaningful -> external_id).`
@@ -91,7 +95,7 @@ Skip columns with no clear contact meaning like invoice numbers or payment amoun
         })
         .map((h: string) => {
           const key = h.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-          const core = ['first_name', 'last_name', 'phone', 'email', 'client_status', 'opted_out'].includes(key)
+          const core = ['first_name', 'last_name', 'phone', 'email', 'client_status', 'opted_out', 'account_holder_name', 'account_holder_email', 'account_holder_phone'].includes(key)
           return {
             csv_column: h,
             field_key: key || 'field_' + Math.random().toString(36).slice(2, 8),
