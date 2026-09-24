@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Check, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
+import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
 
@@ -288,13 +289,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setEdits(prev => ({ ...prev, [key]: value }))
   }
 
-  const displayPhone = (phone: string | null) => {
-    if (!phone) return null
-    const cleaned = phone.replace(/^\+1\s?/, '').replace(/\D/g, '')
-    if (cleaned.length === 10) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-    if (cleaned.length === 7) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`
-    return phone.replace(/^\+1\s?/, '')
-  }
+  const displayPhone = formatPhoneNumber
 
   const getAgeFromDOB = (dob: string | null | undefined): number | null => {
     if (!dob) return null
@@ -441,7 +436,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </div>
             <div>
               <FieldLabel>Phone</FieldLabel>
-              <input type="text" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', e.target.value)} placeholder="Phone number" style={inputStyle} />
+              <input type="text" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', formatPhoneNumber(e.target.value))} placeholder="Phone number" style={inputStyle} />
             </div>
             <div>
               <FieldLabel>Email</FieldLabel>

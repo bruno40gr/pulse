@@ -9,6 +9,7 @@ import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
 import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel } from '@/components/ui'
+import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface Contact {
@@ -898,7 +899,7 @@ export default function ContactsPage() {
                 <input
                   type="text"
                   value={newContact.phone}
-                  onChange={e => setNewContact(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={e => setNewContact(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
                   placeholder="Phone number"
                   style={addInputStyle}
                 />

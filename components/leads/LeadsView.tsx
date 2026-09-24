@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, Pencil, Phone } from 'lucide-react'
 import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application'
@@ -108,8 +109,8 @@ type LeadEditFormState = {
   referrer: string
 }
 
-const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
-const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'processing', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'processing', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
 const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const DEFAULT_LESSON_BASE_VALUE = 160
@@ -229,6 +230,19 @@ function toDateInputValue(value: string | Date | null | undefined) {
   return formatDateInputValue(date)
 }
 
+function getProcessingFollowUpPayload(lead: LeadDetail | null, nextStatus: string): Record<string, string | null> | undefined {
+  if (!lead || nextStatus !== 'processing' || lead.status === 'processing' || getLeadFollowUpAt(lead)) return undefined
+
+  const followUpDate = new Date()
+  followUpDate.setDate(followUpDate.getDate() + 7)
+  followUpDate.setHours(12, 0, 0, 0)
+
+  return {
+    follow_up_at: followUpDate.toISOString(),
+    follow_up_note: 'Follow up on processing lead and close the loop.',
+  }
+}
+
 function getLeadFollowUpAt(lead: { follow_up_at?: string | null; payload?: Record<string, unknown> | null } | null | undefined): string | null {
   if (!lead) return null
   if (typeof lead.follow_up_at === 'string' && lead.follow_up_at) return lead.follow_up_at
@@ -342,7 +356,7 @@ function getDetailStatusOptions(intakeType: string | null | undefined) {
 
 function getStatusBadgeVariant(status: string) {
   if (status === 'new') return 'info'
-  if (status === 'contacted' || status === 'audition_scheduled' || status === 'offer_sent') return 'warning'
+  if (status === 'contacted' || status === 'processing' || status === 'audition_scheduled' || status === 'offer_sent') return 'warning'
   if (status === 'hired' || status === 'won') return 'success'
   if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'error'
   return 'neutral'
@@ -531,6 +545,10 @@ function getLeadSignal(lead: LeadRecord) {
 
   if (lead.status === 'booked') {
     return { emoji: '🔥🔥', label: 'Booked and close to converting' }
+  }
+
+  if (lead.status === 'processing') {
+    return { emoji: '⏳', label: 'Processing enrollment and due for follow-up' }
   }
 
   if (lead.status === 'contacted') {
@@ -725,6 +743,8 @@ export default function LeadsView() {
   useEffect(() => {
     if (!selectedLeadId) return
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
       if (event.key === 'ArrowLeft') void openAdjacentLead('prev')
       else if (event.key === 'ArrowRight') void openAdjacentLead('next')
     }
@@ -812,7 +832,7 @@ export default function LeadsView() {
 
   const handleInlineStatusChange = async (nextStatus: string) => {
     setStatusValue(nextStatus)
-    await saveDetail({ status: nextStatus })
+    await saveDetail({ status: nextStatus, payload: getProcessingFollowUpPayload(selectedLead, nextStatus) })
   }
 
   const handleCopyEmail = async (email: string) => {
@@ -897,12 +917,16 @@ export default function LeadsView() {
       setSelectedLead(data)
       setNotesValue(data.contact?.notes || '')
       setShowStatusEditor(false)
+      setFollowUpDate(toDateInputValue(getLeadFollowUpAt(data)))
+      setFollowUpNote(getLeadFollowUpNote(data))
       setLessonOpportunity(getLessonOpportunityState(data))
       setLeads((current) => current.map((lead) => (
         lead.id === selectedLeadId
           ? {
               ...lead,
               status: data.status,
+              follow_up_at: data.follow_up_at ?? null,
+              follow_up_note: data.follow_up_note ?? null,
               updated_at: data.updated_at,
               contact: data.contact
                 ? {
@@ -1011,17 +1035,24 @@ export default function LeadsView() {
           source_page: leadEditForm.sourcePage,
           utm_campaign: leadEditForm.campaign,
           referrer: leadEditForm.referrer,
-          payload: { source: leadEditForm.source },
+          payload: {
+            source: leadEditForm.source,
+            ...getProcessingFollowUpPayload(selectedLead, leadEditForm.status),
+          },
         }),
       })
 
       setSelectedLead(data)
       setStatusValue(data.status)
       setNotesValue(data.contact?.notes || '')
+      setFollowUpDate(toDateInputValue(getLeadFollowUpAt(data)))
+      setFollowUpNote(getLeadFollowUpNote(data))
       setLessonOpportunity(getLessonOpportunityState(data))
       setLeads((current) => current.map((lead) => lead.id === data.id ? {
         ...lead,
         status: data.status,
+        follow_up_at: data.follow_up_at ?? null,
+        follow_up_note: data.follow_up_note ?? null,
         source: typeof data.payload?.source === 'string' ? data.payload.source : lead.source,
         source_form: data.source_form,
         source_page: data.source_page,
@@ -1182,8 +1213,8 @@ export default function LeadsView() {
         )}
         {selectedLead.contact?.phone && (
           <QuickChip
-            label={selectedLead.contact.phone}
             width="wide"
+            label={formatPhoneNumber(selectedLead.contact.phone)}
             href={`tel:${selectedLead.contact.phone}`}
             fullWidth={isMobileLayout}
             align={isMobileLayout ? 'start' : 'center'}
@@ -1388,6 +1419,7 @@ export default function LeadsView() {
           saving={detailSaving}
           helperText="Use notes for call attempts, context, and follow-up details."
           showHeader={false}
+          autoSaveOnBlur
           onSave={(text) => saveDetail({ add_note: text })}
         />
       </DenseSectionPanel>
@@ -1541,7 +1573,7 @@ export default function LeadsView() {
                     <a href={`mailto:${lead.contact.email}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{lead.contact.email}</a>
                   )}
                   {lead.contact?.phone && (
-                    <a href={`tel:${lead.contact.phone}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{lead.contact.phone}</a>
+                    <a href={`tel:${lead.contact.phone}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{formatPhoneNumber(lead.contact.phone)}</a>
                   )}
 
                   <div style={leadCardMetaStyle}>
@@ -1626,7 +1658,7 @@ export default function LeadsView() {
                       <div style={cellTextStyle}>{lead.contact?.email || 'No email'}</div>
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={cellTextStyle}>{lead.contact?.phone || 'No phone'}</div>
+                      <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
                     </div>
                     <div style={{ minWidth: 0 }}>
                       {getLeadFollowUpAt(lead)
@@ -1682,7 +1714,7 @@ export default function LeadsView() {
               label="Phone"
               type="tel"
               value={manualLeadForm.phone}
-              onChange={(event) => updateManualLeadField('phone', event.target.value)}
+              onChange={(event) => updateManualLeadField('phone', formatPhoneNumber(event.target.value))}
               placeholder="(555) 123-4567"
               error={!manualLeadForm.email.trim() && !manualLeadForm.phone.trim() ? 'Email or phone is required' : undefined}
             />
@@ -1947,7 +1979,7 @@ export default function LeadsView() {
             <div style={manualLeadFormGridStyle}>
               <Input label="Full name" value={leadEditForm.fullName} onChange={(event) => updateLeadEditField('fullName', event.target.value)} error={!leadEditForm.fullName.trim() ? 'Required' : undefined} />
               <Input label="Email" type="email" value={leadEditForm.email} onChange={(event) => updateLeadEditField('email', event.target.value)} />
-              <Input label="Phone" type="tel" value={leadEditForm.phone} onChange={(event) => updateLeadEditField('phone', event.target.value)} />
+              <Input label="Phone" type="tel" value={leadEditForm.phone} onChange={(event) => updateLeadEditField('phone', formatPhoneNumber(event.target.value))} />
               <Select label="Status" value={leadEditForm.status} onChange={(event) => updateLeadEditField('status', event.target.value)}>
                 {getDetailStatusOptions(selectedLead?.intake_type || 'lesson_inquiry').map((value) => <option key={value} value={value}>{formatLabel(value)}</option>)}
               </Select>
@@ -1998,18 +2030,10 @@ function QuickChip({
 }) {
   const content = (
     <CompactMetaCard fullWidth={fullWidth} align={align} style={{ ...quickChipStyle, ...quickChipWidthStyles[width], ...quickChipToneStyle }}>
-      <span style={quickChipLabelStyle}>{label}</span>
+      {href ? <a href={href} style={quickChipLinkStyle}>{label}</a> : <span style={quickChipLabelStyle}>{label}</span>}
       {action ? <span style={quickChipActionWrapStyle}>{action}</span> : null}
     </CompactMetaCard>
   )
-
-  if (href) {
-    return (
-      <a href={href} style={quickChipLinkStyle}>
-        {content}
-      </a>
-    )
-  }
 
   return content
 }

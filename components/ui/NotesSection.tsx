@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Check, Shield } from 'lucide-react'
 import { Button, Textarea } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -22,7 +22,8 @@ interface NotesSectionProps {
   signifierLabel?: string
   helperText?: string
   showHeader?: boolean
-  onSave: (text: string) => void
+  autoSaveOnBlur?: boolean
+  onSave: (text: string) => void | Promise<void>
   onToggleComplete?: (index: number) => void
 }
 
@@ -42,17 +43,26 @@ export function NotesSection({
   signifierLabel,
   helperText,
   showHeader = true,
+  autoSaveOnBlur = false,
   onSave,
   onToggleComplete,
 }: NotesSectionProps) {
   const [showInput, setShowInput] = useState(false)
   const [input, setInput] = useState('')
+  const savingRef = useRef(false)
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (savingRef.current) return
     if (!input.trim()) return
-    onSave(input.trim())
-    setInput('')
-    setShowInput(false)
+    savingRef.current = true
+    const note = input.trim()
+    try {
+      await onSave(note)
+      setInput('')
+      setShowInput(false)
+    } finally {
+      savingRef.current = false
+    }
   }
 
   return (
@@ -195,12 +205,15 @@ export function NotesSection({
           <Textarea
             value={input}
             onChange={e => setInput(e.target.value)}
+            onBlur={() => {
+              if (autoSaveOnBlur) void handleSave()
+            }}
             placeholder="Write a note..."
             style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
           />
           <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" size="sm" onClick={() => { setShowInput(false); setInput('') }}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
+            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); setInput('') }}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
           </div>
         </div>
       )}

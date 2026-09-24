@@ -4,6 +4,7 @@ import { House } from 'lucide-react'
 import { Badge } from '@/components/ui'
 import { colors, typography } from '@/lib/tokens'
 import CSVImporter from './CSVImporter'
+import { formatPhoneNumber } from '@/lib/phone'
 import { getActiveTenantId } from '@/lib/tenant'
 
 interface ContactListProps {
@@ -163,7 +164,7 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                     if (!phone) return <span style={{ color: '#A0A0A0' }}>—</span>
                     return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <span>{phone}</span>
+                        <span>{formatPhoneNumber(phone)}</span>
                         {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
                       </span>
                     )
