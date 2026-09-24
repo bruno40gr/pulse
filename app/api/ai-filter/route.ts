@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
+import { assertTenantAccess } from '@/lib/access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -21,6 +22,7 @@ Return ONLY valid JSON with this exact shape (no markdown, no backticks):
   "instructors": [],
   "instruments": [],
   "service_types": [],
+  "bands": [],
   "lesson_days": [],
   "client_statuses": [],
   "last_attended_months": [],
@@ -36,6 +38,7 @@ Rules:
 - "instructors": substrings of instructor names (e.g. "Bridget"). "X's students" / "students of X" = instructors ["X"].
 - "instruments": lowercase instrument names (e.g. "drums", "piano", "bass", "voice"). "drum students" = instruments ["drums"].
 - "service_types": one of "private", "group", "semi-private", "band" (band = 101 classes like Bass 101, Guitar 101). "band students" = service_types ["band"].
+- "bands": substrings of band/ensemble names (e.g. "sunkast", "anomaly syndrome", "la paz"). "SunKast students" / "students in SunKast" / "who is in SunKast" = bands ["sunkast"]. "band students" alone = service_types ["band"] (leave bands empty unless a specific band is named).
 - "lesson_days": lowercase day names (e.g. "tuesday"). "Tuesday students" = lesson_days ["tuesday"].
 - "client_statuses": one of "active", "member", "inactive", "cancelled", "dropped", "prospect". "active students" = client_statuses ["active"] (members are also active). "inactive/cancelled students" = client_statuses ["inactive", "cancelled", "dropped"].
 - "client_statuses": one of "active", "member", "inactive", "cancelled", "dropped", "prospect". "active students" = client_statuses ["active"] (members are also active). "inactive/cancelled students" = client_statuses ["inactive", "cancelled", "dropped"]. If the query is specifically about becoming inactive in a named month (for example "inactive in september", "cancelled for september", "dropped in september"), prefer "cancelled_in_month" and leave "client_statuses" empty unless the user explicitly asks for both.
@@ -102,6 +105,9 @@ export async function POST(request: Request) {
     const tenantId = tenant || getTenantId(request)
     if (!query?.trim()) return NextResponse.json({ error: 'No query provided' }, { status: 400 })
 
+    const access = await assertTenantAccess(request, tenantId)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
     const profile = await getImportProfile(tenantId)
 
     const { data, error } = await supabaseAdmin
@@ -149,6 +155,7 @@ export async function POST(request: Request) {
       const instructors = new Set<string>()
       const instruments = new Set<string>()
       const serviceTypes = new Set<string>()
+      const bands = new Set<string>()
       const lessonDays = new Set<string>()
       let clientStatus = ''
       let lastAttended: string | null = null
@@ -166,6 +173,9 @@ export async function POST(request: Request) {
           if (enrollment.instrument) instruments.add(norm(enrollment.instrument))
           if (enrollment.service_type) serviceTypes.add(norm(enrollment.service_type))
           if (enrollment.lesson_day) lessonDays.add(norm(enrollment.lesson_day))
+
+          const cfBandName = enrollment.custom_fields?.band_name
+          if (typeof cfBandName === 'string' && cfBandName.trim() !== '' && cfBandName.trim() !== '-') bands.add(norm(cfBandName))
 
           const cfName = enrollment.custom_fields?.instructor
           const hasCfName = typeof cfName === 'string' && cfName.trim() !== '' && cfName.trim() !== '-'
@@ -188,6 +198,7 @@ export async function POST(request: Request) {
         instructors: [...instructors],
         instruments: [...instruments],
         service_types: [...serviceTypes],
+        bands: [...bands],
         lesson_days: [...lessonDays],
       }
     })
@@ -228,6 +239,7 @@ export async function POST(request: Request) {
     const instructors = strArray(spec.instructors)
     const instruments = strArray(spec.instruments)
     const serviceTypes = strArray(spec.service_types)
+    const bands = strArray(spec.bands)
     const lessonDays = strArray(spec.lesson_days)
     const clientStatuses = strArray(spec.client_statuses)
     const lastAttendedMonths = strArray(spec.last_attended_months)
@@ -251,6 +263,7 @@ export async function POST(request: Request) {
       if (!containsAny(c.instructors, instructors)) continue
       if (!containsAny(c.instruments, instruments)) continue
       if (!containsAny(c.service_types, serviceTypes)) continue
+      if (!containsAny(c.bands, bands)) continue
       if (!containsAny(c.lesson_days, lessonDays)) continue
       if (applyClientStatusFilter && clientStatuses.length > 0) {
         const cls = classifyStatus(c.client_status, profile)

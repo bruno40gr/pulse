@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { isNonStudentBooking } from '@/lib/contact-kind'
+import { assertTenantAccess } from '@/lib/access'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -60,6 +61,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { data: person, error } = result
     if (error) throw error
     if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const access = await assertTenantAccess(request, person.tenant_id)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     const student = (person as any).students?.[0] || {}
     const account = student.accounts || {}
@@ -155,6 +159,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   try {
     const body = await request.json()
+
+    const { data: existing } = await supabaseAdmin.from('people').select('tenant_id').eq('id', id).maybeSingle()
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const access = await assertTenantAccess(request, existing.tenant_id)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     // Split fields by destination table
     const personFields = ['first_name', 'last_name', 'phone', 'email', 'date_of_birth',

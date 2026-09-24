@@ -1,11 +1,16 @@
 export const ACCESS_COOKIE_NAME = 'pulse_access'
 export const ACCESS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12
 
+export type AccessScope =
+  | { kind: 'headliner' }
+  | { kind: 'demo'; tenantId: string }
+
 export type PulseActor = {
   instructorId: string
   personId: string
   fullName: string
   displayName: string
+  access?: AccessScope
 }
 
 type AccessSession = {
@@ -88,4 +93,27 @@ export function getCookieValue(cookieHeader: string | null, name: string) {
 export async function getRequestActor(request: Request) {
   const session = await readAccessSession(getCookieValue(request.headers.get('cookie'), ACCESS_COOKIE_NAME))
   return session?.actor || null
+}
+
+export function getAccessScope(actor: PulseActor | null | undefined): AccessScope {
+  if (actor?.access?.kind === 'demo' && actor.access.tenantId) return actor.access
+  return { kind: 'headliner' }
+}
+
+export function canAccessTenant(actor: PulseActor | null | undefined, tenantId: string): boolean {
+  const scope = getAccessScope(actor)
+  if (scope.kind === 'headliner') return true
+  return scope.tenantId === tenantId
+}
+
+export async function assertTenantAccess(
+  request: Request,
+  tenantId: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const actor = await getRequestActor(request)
+  if (!actor) return { ok: false, status: 401, error: 'Pulse access required.' }
+  if (!canAccessTenant(actor, tenantId)) {
+    return { ok: false, status: 403, error: 'You do not have access to this account.' }
+  }
+  return { ok: true }
 }

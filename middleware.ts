@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { ACCESS_COOKIE_NAME, readAccessSession } from '@/lib/access'
+import { ACCESS_COOKIE_NAME, getAccessScope, readAccessSession } from '@/lib/access'
 
 export async function middleware(request: NextRequest) {
   const host = (
@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
   const isPublicPath = pathname === '/login'
+    || pathname === '/demo'
     || pathname.startsWith('/api/access/')
     || pathname === '/api/intake'
     || pathname === '/api/twilio/webhook'
@@ -19,6 +20,17 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith('/api/') && !isPublicPath && !session) {
     return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
+  }
+
+  // Tenant isolation: a demo session may only read its own demo tenant.
+  if (pathname.startsWith('/api/') && session) {
+    const scope = getAccessScope(session.actor)
+    if (scope.kind === 'demo') {
+      const requestedTenant = request.nextUrl.searchParams.get('tenant')
+      if (requestedTenant && requestedTenant !== scope.tenantId) {
+        return NextResponse.json({ error: 'You do not have access to this account.' }, { status: 403 })
+      }
+    }
   }
 
   if (!isPublicPath && !session) {

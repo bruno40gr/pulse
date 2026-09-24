@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { TENANT_BRAND, setActiveTenantId } from '@/lib/tenant'
+import { TENANT_BRAND } from '@/lib/tenant'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { trackDemoEvent } from '@/lib/demo-analytics'
 
@@ -41,7 +41,7 @@ const serifLogoStyle: CSSProperties = {
   color: colors.text,
 }
 
-export default function DemoIntroPage({ overlay = false }: { overlay?: boolean }) {
+export default function DemoIntroPage({ overlay = false, tenantId }: { overlay?: boolean; tenantId?: string }) {
   const router = useRouter()
   const [launchingTenant, setLaunchingTenant] = useState<string | null>(null)
   const [isExiting, setIsExiting] = useState(false)
@@ -51,24 +51,22 @@ export default function DemoIntroPage({ overlay = false }: { overlay?: boolean }
     trackDemoEvent({ eventType: 'demo_intro_viewed', path: '/demo' })
   }, [])
 
-  const handleLaunch = async (tenantId: string, environmentName: string) => {
+  const handleLaunch = async (selectedTenantId: string, environmentName: string) => {
     setIsExiting(true)
-    setLaunchingTenant(tenantId)
+    setLaunchingTenant(selectedTenantId)
 
     await new Promise(resolve => setTimeout(resolve, 260))
 
     await trackDemoEvent({
       eventType: 'demo_environment_selected',
-      tenantId,
+      tenantId: selectedTenantId,
       path: '/demo',
       metadata: { environmentName },
     })
 
-    setActiveTenantId(tenantId)
-
     await trackDemoEvent({
       eventType: 'demo_entered_app',
-      tenantId,
+      tenantId: selectedTenantId,
       path: '/dashboard',
       metadata: { source: 'demo_intro' },
     })
@@ -152,7 +150,7 @@ export default function DemoIntroPage({ overlay = false }: { overlay?: boolean }
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.lg }}>
-              {demoEnvironments.map((environment) => (
+              {demoEnvironments.filter((environment) => !tenantId || environment.tenantId === tenantId).map((environment) => (
                 <Button
                   key={environment.tenantId}
                   size="lg"

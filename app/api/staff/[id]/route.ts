@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { assertTenantAccess } from '@/lib/access'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -19,6 +20,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (error || !instructorRecord) {
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     }
+
+    const access = await assertTenantAccess(request, instructorRecord.tenant_id)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     const person = Array.isArray(instructorRecord.person) ? instructorRecord.person[0] : instructorRecord.person
     const personId = person?.id ?? null
