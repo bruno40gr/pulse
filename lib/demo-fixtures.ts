@@ -128,68 +128,113 @@ function fixtureId(prefix: '1' | '2' | '3' | '4', tenantId: string, index: numbe
 }
 
 async function ensureLeads(tenantId: string, leads: DemoLead[]) {
-  for (const [index, lead] of leads.entries()) {
-    const contactId = fixtureId('2', tenantId, index)
-    const leadId = fixtureId('1', tenantId, index)
-    const eventId = fixtureId('4', tenantId, index)
-    const fullName = `${lead.firstName} ${lead.lastName}`
+  const rows = leads.map((lead, index) => ({
+    lead,
+    index,
+    contactId: fixtureId('2', tenantId, index),
+    leadId: fixtureId('1', tenantId, index),
+    eventId: fixtureId('4', tenantId, index),
+  }))
 
-    const { data: existingContact, error: contactLookupError } = await crmSupabaseAdmin
-      .from('crm_contacts').select('id').eq('tenant_id', tenantId).eq('id', contactId).maybeSingle()
-    if (contactLookupError) throw contactLookupError
-    if (!existingContact) {
-      const { error } = await crmSupabaseAdmin.from('crm_contacts').insert({
-        id: contactId, tenant_id: tenantId, first_name: lead.firstName, last_name: lead.lastName,
-        full_name: fullName, email: `${lead.firstName.toLowerCase()}.${lead.lastName.toLowerCase()}@example.invalid`,
-        phone: `(555) 01${tenantId.endsWith('0002') ? '2' : '3'}-${String(index + 1).padStart(4, '0')}`,
-        notes: 'Fictional demo contact.', contact_kind: 'lead', lifecycle_stage: 'new',
-      })
-      if (error) throw error
-    }
+  const { data: existingContacts, error: contactLookupError } = await crmSupabaseAdmin
+    .from('crm_contacts').select('id').eq('tenant_id', tenantId).in('id', rows.map((row) => row.contactId))
+  if (contactLookupError) throw contactLookupError
 
-    const { data: existingLead, error: leadLookupError } = await crmSupabaseAdmin
-      .from('lead_intakes').select('id').eq('tenant_id', tenantId).eq('id', leadId).maybeSingle()
-    if (leadLookupError) throw leadLookupError
-    if (!existingLead) {
-      const { error } = await crmSupabaseAdmin.from('lead_intakes').insert({
-        id: leadId, tenant_id: tenantId, contact_id: contactId, intake_type: lead.serviceLabel ? 'service_inquiry' : 'lesson_inquiry',
-        source_system: 'pulse-demo', source_form: lead.sourceForm, source_page: lead.sourcePage,
-        program_label: lead.programLabel, service_label: lead.serviceLabel, category: lead.category,
-        status: lead.status, priority: lead.priority, temperature: lead.temperature,
-        payload: {
-          source: 'website', follow_up_at: `2026-10-${String(index + 1).padStart(2, '0')}T16:00:00.000Z`,
-          follow_up_note: lead.followUpNote, is_fictional_demo_data: true,
-        },
-      })
-      if (error) throw error
-    }
+  const existingContactIds = new Set((existingContacts || []).map((contact) => contact.id))
+  const contactsToInsert = rows
+    .filter((row) => !existingContactIds.has(row.contactId))
+    .map(({ lead, index, contactId }) => ({
+      id: contactId,
+      tenant_id: tenantId,
+      first_name: lead.firstName,
+      last_name: lead.lastName,
+      full_name: `${lead.firstName} ${lead.lastName}`,
+      email: `${lead.firstName.toLowerCase()}.${lead.lastName.toLowerCase()}@example.invalid`,
+      phone: `(555) 01${tenantId.endsWith('0002') ? '2' : '3'}-${String(index + 1).padStart(4, '0')}`,
+      notes: 'Fictional demo contact.',
+      contact_kind: 'lead',
+      lifecycle_stage: 'new',
+    }))
+  if (contactsToInsert.length > 0) {
+    const { error } = await crmSupabaseAdmin.from('crm_contacts').insert(contactsToInsert)
+    if (error) throw error
+  }
 
-    const { data: existingEvent, error: eventLookupError } = await crmSupabaseAdmin
-      .from('lead_events').select('id').eq('tenant_id', tenantId).eq('id', eventId).maybeSingle()
-    if (eventLookupError) throw eventLookupError
-    if (!existingEvent) {
-      const { error } = await crmSupabaseAdmin.from('lead_events').insert({
-        id: eventId, tenant_id: tenantId, lead_intake_id: leadId, contact_id: contactId,
-        event_type: 'note_added', event_label: 'Demo note added',
-        payload: { text: lead.activityNote, actor: { displayName: 'Demo Team' }, is_fictional_demo_data: true },
-      })
-      if (error) throw error
-    }
+  const { data: existingLeads, error: leadLookupError } = await crmSupabaseAdmin
+    .from('lead_intakes').select('id').eq('tenant_id', tenantId).in('id', rows.map((row) => row.leadId))
+  if (leadLookupError) throw leadLookupError
+
+  const existingLeadIds = new Set((existingLeads || []).map((lead) => lead.id))
+  const leadsToInsert = rows
+    .filter((row) => !existingLeadIds.has(row.leadId))
+    .map(({ lead, index, contactId, leadId }) => ({
+      id: leadId,
+      tenant_id: tenantId,
+      contact_id: contactId,
+      intake_type: lead.serviceLabel ? 'service_inquiry' : 'lesson_inquiry',
+      source_system: 'pulse-demo',
+      source_form: lead.sourceForm,
+      source_page: lead.sourcePage,
+      program_label: lead.programLabel,
+      service_label: lead.serviceLabel,
+      category: lead.category,
+      status: lead.status,
+      priority: lead.priority,
+      temperature: lead.temperature,
+      payload: {
+        source: 'website',
+        follow_up_at: `2026-10-${String(index + 1).padStart(2, '0')}T16:00:00.000Z`,
+        follow_up_note: lead.followUpNote,
+        is_fictional_demo_data: true,
+      },
+    }))
+  if (leadsToInsert.length > 0) {
+    const { error } = await crmSupabaseAdmin.from('lead_intakes').insert(leadsToInsert)
+    if (error) throw error
+  }
+
+  const { data: existingEvents, error: eventLookupError } = await crmSupabaseAdmin
+    .from('lead_events').select('id').eq('tenant_id', tenantId).in('id', rows.map((row) => row.eventId))
+  if (eventLookupError) throw eventLookupError
+
+  const existingEventIds = new Set((existingEvents || []).map((event) => event.id))
+  const eventsToInsert = rows
+    .filter((row) => !existingEventIds.has(row.eventId))
+    .map(({ lead, contactId, leadId, eventId }) => ({
+      id: eventId,
+      tenant_id: tenantId,
+      lead_intake_id: leadId,
+      contact_id: contactId,
+      event_type: 'note_added',
+      event_label: 'Demo note added',
+      payload: { text: lead.activityNote, actor: { displayName: 'Demo Team' }, is_fictional_demo_data: true },
+    }))
+  if (eventsToInsert.length > 0) {
+    const { error } = await crmSupabaseAdmin.from('lead_events').insert(eventsToInsert)
+    if (error) throw error
   }
 }
 
 async function ensureNotes(tenantId: string, notes: DemoNote[]) {
-  for (const [index, note] of notes.entries()) {
-    const id = fixtureId('3', tenantId, index)
-    const { data: existingNote, error: lookupError } = await supabaseAdmin
-      .from('notes').select('id').eq('tenant_id', tenantId).eq('id', id).maybeSingle()
-    if (lookupError) throw lookupError
-    if (!existingNote) {
-      const { error } = await supabaseAdmin.from('notes').insert({
-        id, tenant_id: tenantId, title: note.title, body: note.body, color: note.color,
-        pinned: note.pinned, created_by: 'Demo Team',
-      })
-      if (error) throw error
-    }
+  const rows = notes.map((note, index) => ({ id: fixtureId('3', tenantId, index), note }))
+  const { data: existingNotes, error: lookupError } = await supabaseAdmin
+    .from('notes').select('id').eq('tenant_id', tenantId).in('id', rows.map((row) => row.id))
+  if (lookupError) throw lookupError
+
+  const existingNoteIds = new Set((existingNotes || []).map((note) => note.id))
+  const notesToInsert = rows
+    .filter((row) => !existingNoteIds.has(row.id))
+    .map(({ id, note }) => ({
+      id,
+      tenant_id: tenantId,
+      title: note.title,
+      body: note.body,
+      color: note.color,
+      pinned: note.pinned,
+      created_by: 'Demo Team',
+    }))
+  if (notesToInsert.length > 0) {
+    const { error } = await supabaseAdmin.from('notes').insert(notesToInsert)
+    if (error) throw error
   }
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
-import { ensureDemoFixtures } from '@/lib/demo-fixtures'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
@@ -61,6 +60,45 @@ type QueryResult<T> = {
   error: { message: string } | null
 }
 
+async function getLeadTabCounts(tenantId: string, status: string | null) {
+  const lessonQuery = crmSupabaseAdmin
+    .from('lead_intakes')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('intake_type', 'lesson_inquiry')
+  const serviceQuery = crmSupabaseAdmin
+    .from('lead_intakes')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('intake_type', 'service_inquiry')
+  const jobsQuery = crmSupabaseAdmin
+    .from('job_applications')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+
+  if (status) {
+    lessonQuery.eq('status', status)
+    serviceQuery.eq('status', status)
+    jobsQuery.eq('status', status)
+  }
+
+  const [lessonResult, serviceResult, jobsResult] = await Promise.all([
+    withTimeout(lessonQuery, LEADS_QUERY_TIMEOUT_MS, 'lesson lead count query'),
+    withTimeout(serviceQuery, LEADS_QUERY_TIMEOUT_MS, 'service lead count query'),
+    withTimeout(jobsQuery, LEADS_QUERY_TIMEOUT_MS, 'job application count query'),
+  ])
+
+  if (lessonResult.error) throw lessonResult.error
+  if (serviceResult.error) throw serviceResult.error
+  if (jobsResult.error) throw jobsResult.error
+
+  return {
+    lesson_inquiry: lessonResult.count ?? 0,
+    service_inquiry: serviceResult.count ?? 0,
+    job_application: jobsResult.count ?? 0,
+  }
+}
+
 function formatLeadRow(row: LeadListRow) {
   return {
     id: row.id,
@@ -97,10 +135,11 @@ export async function GET(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
     const intakeType = url.searchParams.get('intake_type')
+    const includeCounts = url.searchParams.get('include_counts') === '1'
+    const countsPromise = includeCounts ? getLeadTabCounts(tenantId, status) : null
 
     if (intakeType === 'job_application') {
       let query = crmSupabaseAdmin
@@ -178,7 +217,8 @@ export async function GET(request: Request) {
         crm_contacts: row.crm_contacts,
       }))
 
-      return NextResponse.json(formatted)
+      if (!countsPromise) return NextResponse.json(formatted)
+      return NextResponse.json({ leads: formatted, counts: await countsPromise })
     }
 
     let query = crmSupabaseAdmin
@@ -238,7 +278,9 @@ export async function GET(request: Request) {
       durationMs: getDurationMs(requestLog.startedAt),
     })
 
-    return NextResponse.json((data || []).map((row) => formatLeadRow(row as LeadListRow)))
+    const formatted = (data || []).map((row) => formatLeadRow(row as LeadListRow))
+    if (!countsPromise) return NextResponse.json(formatted)
+    return NextResponse.json({ leads: formatted, counts: await countsPromise })
   } catch (error) {
     console.error('[leads][list] Error fetching leads', {
       requestId: requestLog.requestId,
@@ -263,7 +305,6 @@ export async function DELETE(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
     const body = await request.json()
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)

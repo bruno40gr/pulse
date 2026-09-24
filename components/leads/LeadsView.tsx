@@ -76,6 +76,11 @@ type LeadDetail = LeadRecord & {
   }>
 }
 
+type LeadListResponse = {
+  leads: LeadRecord[]
+  counts: Record<LeadTabKey, number>
+}
+
 type LessonSiblingEntry = {
   name: string
   age: string
@@ -607,9 +612,11 @@ export default function LeadsView() {
       if (statusFilter !== 'all') params.set('status', statusFilter)
       params.set('intake_type', activeTab)
 
-      const data = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params.toString()}`)
+      params.set('include_counts', '1')
+      const data = await fetchJsonWithTimeout<LeadListResponse>(`/api/leads?${params.toString()}`)
 
-      setLeads(Array.isArray(data) ? data : [])
+      setLeads(Array.isArray(data.leads) ? data.leads : [])
+      setTabCounts(data.counts)
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Could not load leads'))
       setLeads([])
@@ -617,35 +624,6 @@ export default function LeadsView() {
       setLoading(false)
     }
   }, [activeTab, statusFilter])
-
-  const fetchTabCounts = useCallback(async () => {
-    try {
-      const counts = await Promise.all(
-        LEAD_TABS.map(async (tab) => {
-          const params = new URLSearchParams()
-          if (statusFilter !== 'all') params.set('status', statusFilter)
-          params.set('intake_type', tab.key)
-
-          const data = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params.toString()}`)
-
-          return [tab.key, Array.isArray(data) ? data.length : 0] as const
-        }),
-      )
-
-      setTabCounts({
-        lesson_inquiry: 0,
-        service_inquiry: 0,
-        job_application: 0,
-        ...Object.fromEntries(counts),
-      })
-    } catch {
-      setTabCounts({
-        lesson_inquiry: 0,
-        service_inquiry: 0,
-        job_application: 0,
-      })
-    }
-  }, [statusFilter])
 
   const toggleLeadSelection = (leadId: string) => {
     setSelectedIds((current) => {
@@ -702,7 +680,7 @@ export default function LeadsView() {
       setSelectedIds(new Set())
       setIsDeleteOpen(false)
       setDeletePassword('')
-      await Promise.all([fetchLeads(), fetchTabCounts()])
+      await fetchLeads()
     } catch (error: unknown) {
       setDeleteError(getErrorMessage(error, 'Could not delete leads'))
     } finally {
@@ -710,11 +688,13 @@ export default function LeadsView() {
     }
   }
 
-  const fetchLeadDetail = async (leadId: string) => {
+  const fetchLeadDetail = async (leadId: string, intakeType?: string) => {
     setDetailLoading(true)
     setDetailError('')
     try {
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}`)
+      const params = new URLSearchParams()
+      if (intakeType) params.set('intake_type', intakeType)
+      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}?${params.toString()}`)
       setSelectedLead(data)
       setStatusValue(data.status || 'new')
       setNotesValue(data.contact?.notes || '')
@@ -729,9 +709,9 @@ export default function LeadsView() {
     }
   }
 
-  const openLead = async (leadId: string) => {
+  const openLead = async (leadId: string, intakeType?: string) => {
     setSelectedLeadId(leadId)
-    await fetchLeadDetail(leadId)
+    await fetchLeadDetail(leadId, intakeType)
   }
 
   const openAdjacentLead = async (direction: 'prev' | 'next') => {
@@ -739,7 +719,7 @@ export default function LeadsView() {
     const index = leads.findIndex((lead) => lead.id === selectedLeadId)
     if (index < 0) return
     const target = direction === 'prev' ? leads[index - 1] : leads[index + 1]
-    if (target) await openLead(target.id)
+    if (target) await openLead(target.id, target.intake_type)
   }
 
   useEffect(() => {
@@ -815,13 +795,13 @@ export default function LeadsView() {
         }),
       })
 
-      await Promise.all([fetchLeads(), fetchTabCounts()])
+      await fetchLeads()
       setIsAddLeadOpen(false)
       setManualLeadForm(createInitialManualLeadForm(activeTab))
 
       if (response.lead_intake_id) {
         if (manualLeadForm.intakeType !== activeTab) setActiveTab(manualLeadForm.intakeType)
-        await openLead(response.lead_intake_id)
+        await openLead(response.lead_intake_id, manualLeadForm.intakeType)
       }
     } catch (error: unknown) {
       setManualLeadError(getErrorMessage(error, 'Could not create lead'))
@@ -1068,10 +1048,6 @@ export default function LeadsView() {
   useEffect(() => {
     fetchLeads()
   }, [fetchLeads])
-
-  useEffect(() => {
-    fetchTabCounts()
-  }, [fetchTabCounts])
 
   useEffect(() => {
     if (selectedLead && selectedLead.intake_type !== activeTab) {
@@ -1532,7 +1508,7 @@ export default function LeadsView() {
                 <button
                   key={lead.id}
                   type="button"
-                  onClick={() => openLead(lead.id)}
+                  onClick={() => openLead(lead.id, lead.intake_type)}
                   style={{
                     ...leadCardStyle,
                     background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
@@ -1614,7 +1590,7 @@ export default function LeadsView() {
                     key={lead.id}
                     as="button"
                     columns={tableColumns}
-                    onClick={() => openLead(lead.id)}
+                    onClick={() => openLead(lead.id, lead.intake_type)}
                     style={{
                       ...tableRowStyle,
                       fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,

@@ -6,6 +6,7 @@ import {
   createAccessSession,
   type PulseActor,
 } from '@/lib/access'
+import { ensureDemoFixtures } from '@/lib/demo-fixtures'
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
     if (!tenant.is_demo) {
       return NextResponse.json({ error: 'This account is not a demo.' }, { status: 403 })
     }
+
+    await ensureDemoFixtures(tenant.id)
 
     const actor: PulseActor = {
       instructorId: `demo-${tenant.id}`,

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { getRequestActor } from '@/lib/access'
-import { ensureDemoFixtures } from '@/lib/demo-fixtures'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
@@ -201,10 +200,12 @@ export async function GET(
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
+    const requestedIntakeType = new URL(request.url).searchParams.get('intake_type')
     const { id } = await params
 
-    const existingJobApplication = await getJobApplicationDetail(tenantId, id)
+    const existingJobApplication = requestedIntakeType === 'job_application' || !requestedIntakeType
+      ? await getJobApplicationDetail(tenantId, id)
+      : null
     if (existingJobApplication) {
       console.info('[leads][detail]', {
         requestId: requestLog.requestId,
@@ -217,7 +218,7 @@ export async function GET(
       return NextResponse.json(existingJobApplication)
     }
 
-    const leadResult = await withTimeout<any>(
+    const leadResultPromise = withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
         .select(`
@@ -262,10 +263,7 @@ export async function GET(
       'lead detail query',
     )
 
-    const { data: lead, error: leadError } = leadResult as { data: LeadRecord, error: { message: string } | null }
-    if (leadError) throw leadError
-
-    const eventsResult = await withTimeout<any>(
+    const eventsResultPromise = withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_events')
         .select('*')
@@ -276,6 +274,10 @@ export async function GET(
       LEAD_DETAIL_TIMEOUT_MS,
       'lead events query',
     )
+
+    const [leadResult, eventsResult] = await Promise.all([leadResultPromise, eventsResultPromise])
+    const { data: lead, error: leadError } = leadResult as { data: LeadRecord, error: { message: string } | null }
+    if (leadError) throw leadError
 
     const { data: events, error: eventsError } = eventsResult as { data: LeadEvent[] | null, error: { message: string } | null }
     if (eventsError) throw eventsError
@@ -320,7 +322,6 @@ export async function PATCH(
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
     const { id } = await params
     const body = await request.json()
     const actor = await getRequestActor(request)

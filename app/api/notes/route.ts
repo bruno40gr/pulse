@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getRequestActor } from '@/lib/access'
-import { ensureDemoFixtures } from '@/lib/demo-fixtures'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -16,7 +15,6 @@ export async function GET(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
     const { data, error } = await supabaseAdmin
       .from('notes')
       .select('*')
@@ -37,7 +35,6 @@ export async function POST(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    await ensureDemoFixtures(tenantId)
     const actor = await getRequestActor(request)
     const body = await request.json()
 
