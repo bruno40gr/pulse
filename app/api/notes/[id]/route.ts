@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { ensureDemoFixtures } from '@/lib/demo-fixtures'
+import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -14,7 +16,10 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const tenantId = getTenantId(request)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
     const body = await request.json()
 
     const updates: Record<string, unknown> = {}
@@ -59,7 +64,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const tenantId = getTenantId(request)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
 
     const { error } = await supabaseAdmin
       .from('notes')

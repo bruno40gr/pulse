@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
+import { ensureDemoFixtures } from '@/lib/demo-fixtures'
+import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
@@ -92,7 +94,10 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
     const intakeType = url.searchParams.get('intake_type')
@@ -255,8 +260,10 @@ export async function DELETE(request: Request) {
   const requestLog = createRequestLogContext()
 
   try {
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
     const body = await request.json()
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)

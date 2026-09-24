@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import TenantSwitcher from '@/components/layout/TenantSwitcher'
 import TenantBrand from '@/components/layout/TenantBrand'
+import LogoutButton from '@/components/layout/LogoutButton'
 import DemoBanner from '@/components/ui/DemoBanner'
 import { colors, typography, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -122,9 +123,10 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         </Link>
       </div>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link href="/dashboard/settings" onClick={onNavigate} style={{ ...navLinkStyle, marginBottom: 0 }}>
+        <Link href="/dashboard/settings" onClick={onNavigate} style={navLinkStyle}>
           Settings
         </Link>
+        <LogoutButton onLogout={onNavigate} />
       </div>
     </>
   )

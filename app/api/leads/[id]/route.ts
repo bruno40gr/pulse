@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { getRequestActor } from '@/lib/access'
+import { ensureDemoFixtures } from '@/lib/demo-fixtures'
+import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -196,8 +198,10 @@ export async function GET(
   const requestLog = createRequestLogContext()
 
   try {
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
     const { id } = await params
 
     const existingJobApplication = await getJobApplicationDetail(tenantId, id)
@@ -313,8 +317,10 @@ export async function PATCH(
   const requestLog = createRequestLogContext()
 
   try {
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
+    const tenantId = tenantAccess.tenantId
+    await ensureDemoFixtures(tenantId)
     const { id } = await params
     const body = await request.json()
     const actor = await getRequestActor(request)
