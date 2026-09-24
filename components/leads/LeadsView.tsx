@@ -1419,7 +1419,6 @@ export default function LeadsView() {
           saving={detailSaving}
           helperText="Use notes for call attempts, context, and follow-up details."
           showHeader={false}
-          autoSaveOnBlur
           onSave={(text) => saveDetail({ add_note: text })}
         />
       </DenseSectionPanel>

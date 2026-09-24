@@ -33,6 +33,9 @@ export async function PATCH(
     if ('pinned' in body) {
       updates.pinned = body.pinned === true
     }
+    if ('completed_at' in body) {
+      updates.completed_at = typeof body.completed_at === 'string' ? body.completed_at : null
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })

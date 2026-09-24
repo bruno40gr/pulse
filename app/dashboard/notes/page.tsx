@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Pin, Trash2 } from 'lucide-react'
+import { Check, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
@@ -15,6 +15,7 @@ interface Note {
   color: string
   pinned: boolean
   created_by: string | null
+  completed_at: string | null
   created_at: string
   updated_at: string
 }
@@ -99,6 +100,7 @@ interface NoteCardProps {
   onCancelEdit: () => void
   onPin: () => void
   onColor: (color: string) => void
+  onToggleComplete: () => void
   onDelete: () => void
 }
 
@@ -165,9 +167,19 @@ function NoteCard(props: NoteCardProps) {
           </div>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.md }}>
         <span style={{ fontSize: 11, color: '#374151' }}>{note.created_by || 'You'} · {formatTimestamp(note.updated_at)}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <button
+            type="button"
+            onClick={props.onToggleComplete}
+            title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
+            aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 7px', borderRadius: radius.sm, border: `1px solid ${note.completed_at ? '#86C99C' : colors.border}`, background: note.completed_at ? '#F0FDF4' : 'rgba(255,255,255,0.55)', color: note.completed_at ? colors.greenDark : colors.textSecondary, fontSize: '10px', fontWeight: typography.weightBold, letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: typography.fontSans, cursor: 'pointer', flexShrink: 0 }}
+          >
+            <Check size={12} strokeWidth={2.4} />
+            {note.completed_at ? 'Done' : 'Mark done'}
+          </button>
           <div style={{ display: 'flex', gap: 3, marginRight: 6 }}>
             {NOTE_COLOR_KEYS.map((key) => (
               <button
@@ -288,6 +300,12 @@ export default function NotesPage() {
     patchNote(note.id, { color })
   }
 
+  const handleToggleComplete = (note: Note) => {
+    const completed_at = note.completed_at ? null : new Date().toISOString()
+    setNotes((prev) => prev.map((entry) => (entry.id === note.id ? { ...entry, completed_at } : entry)))
+    patchNote(note.id, { completed_at })
+  }
+
   const handleDelete = (note: Note) => {
     setNotes((prev) => prev.filter((n) => n.id !== note.id))
     showToast('Note deleted', () => {
@@ -397,6 +415,7 @@ export default function NotesPage() {
               onCancelEdit={() => setEditingId(null)}
               onPin={() => handlePin(note)}
               onColor={(color) => handleColor(note, color)}
+              onToggleComplete={() => handleToggleComplete(note)}
               onDelete={() => handleDelete(note)}
             />
           ))}
