@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
-import TenantSwitcher from '@/components/layout/TenantSwitcher'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
 import DemoBanner from '@/components/ui/DemoBanner'
@@ -95,7 +94,6 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
           <TenantBrand height={36} maxWidth="100%" width="100%" />
         </div>
       )}
-      <TenantSwitcher />
       <nav style={{ flex: 1, padding: '12px 8px' }}>
         {NAV_LINKS.map(({ href, label }) => {
           const active = isNavLinkActive(href, pathname)

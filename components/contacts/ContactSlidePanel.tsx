@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Sparkles } from 'lucide-react'
+import { MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -123,6 +123,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [saving, setSaving] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [isStaffActionMenuOpen, setIsStaffActionMenuOpen] = useState(false)
+  const [calling, setCalling] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>('notes')
 
@@ -255,6 +257,26 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setIsEditing(false)
   }
 
+  const handleCall = async () => {
+    if (!contact.phone || calling) return
+
+    setCalling(true)
+    try {
+      const response = await fetch(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_phone: contact.phone, contact_id: contact.id }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not place call')
+      showToast(data.demo ? 'Demo call placed' : 'Call placed')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not place call')
+    } finally {
+      setCalling(false)
+    }
+  }
+
   const updateEdit = (key: string, value: string) => {
     setEdits(prev => ({ ...prev, [key]: value }))
   }
@@ -286,6 +308,20 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const statusLabel = (contact.client_status || 'active').charAt(0).toUpperCase() + (contact.client_status || 'active').slice(1)
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
   const isInstructorActive = contact.is_active !== false
+
+  const headerIconButtonStyle: React.CSSProperties = {
+    width: '32px',
+    height: '32px',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: colors.textSecondary,
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.sm,
+    cursor: 'pointer',
+  }
 
   const statusVariant = contact.opted_out
     ? 'error'
@@ -477,6 +513,78 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         }
         onClose={onClose}
         toast={toastMessage || undefined}
+        actions={isInstructor ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onCompose?.([contact.id])}
+              disabled={!onCompose}
+              aria-label={`Message ${contact.first_name} ${contact.last_name}`}
+              title="Send message"
+              style={{ ...headerIconButtonStyle, cursor: onCompose ? 'pointer' : 'not-allowed', opacity: onCompose ? 1 : 0.5 }}
+            >
+              <MessageSquare size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={handleCall}
+              disabled={!contact.phone || calling}
+              aria-label={`Call ${contact.first_name} ${contact.last_name}`}
+              title={contact.phone ? `Call ${displayPhone(contact.phone)}` : 'No phone number'}
+              style={{ ...headerIconButtonStyle, cursor: contact.phone && !calling ? 'pointer' : 'not-allowed', opacity: contact.phone && !calling ? 1 : 0.5 }}
+            >
+              <Phone size={16} />
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsStaffActionMenuOpen(open => !open)}
+                aria-label="Staff edit options"
+                aria-expanded={isStaffActionMenuOpen}
+                title="Edit staff member"
+                style={headerIconButtonStyle}
+              >
+                <Pencil size={16} />
+              </button>
+              {isStaffActionMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '38px',
+                  right: 0,
+                  zIndex: 5,
+                  minWidth: '176px',
+                  padding: spacing.xs,
+                  background: colors.surface,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radius.md,
+                  boxShadow: shadows.md,
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStaffActionMenuOpen(false)
+                      handleStartEditing()
+                    }}
+                    style={{ width: '100%', padding: `${spacing.sm} ${spacing.md}`, border: 'none', borderRadius: radius.sm, background: 'transparent', color: colors.text, textAlign: 'left', cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeBase }}
+                  >
+                    Edit staff member
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStaffActionMenuOpen(false)
+                      if (isInstructorActive && !window.confirm('Sunset this instructor? They will no longer be able to sign in or be messaged.')) return
+                      patch({ is_active: !isInstructorActive })
+                    }}
+                    style={{ width: '100%', padding: `${spacing.sm} ${spacing.md}`, border: 'none', borderRadius: radius.sm, background: 'transparent', color: isInstructorActive ? colors.error : colors.text, textAlign: 'left', cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeBase }}
+                  >
+                    {isInstructorActive ? 'Sunset / offboard' : 'Reactivate instructor'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        ) : undefined}
       />
 
       {/* Body — 2 equal columns */}
@@ -741,36 +849,21 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       </div>
       )}
 
-      {/* Footer — Edit contact + Send message (md size, matches edit mode) */}
-      <div style={{
-        padding: `16px 28px`,
-        borderTop: `1px solid ${colors.borderLight}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        gap: '10px',
-        flexShrink: 0,
-        background: colors.surface,
-      }}>
-        {isInstructor && (
-          <Button
-            variant="secondary"
-            style={{ marginRight: 'auto' }}
-            onClick={() => {
-              if (isInstructorActive) {
-                if (!window.confirm('Sunset this instructor? They will no longer be able to sign in or be messaged.')) return
-                patch({ is_active: false })
-              } else {
-                patch({ is_active: true })
-              }
-            }}
-          >
-            {isInstructorActive ? 'Sunset / offboard' : 'Reactivate instructor'}
-          </Button>
-        )}
-        <Button variant="secondary" onClick={handleStartEditing}>Edit contact</Button>
-        <Button variant="primary" onClick={() => onCompose?.([contact.id])}>Send message</Button>
-      </div>
+      {!isInstructor && (
+        <div style={{
+          padding: `16px 28px`,
+          borderTop: `1px solid ${colors.borderLight}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          flexShrink: 0,
+          background: colors.surface,
+        }}>
+          <Button variant="secondary" onClick={handleStartEditing}>Edit contact</Button>
+          <Button variant="primary" onClick={() => onCompose?.([contact.id])}>Send message</Button>
+        </div>
+      )}
     </SlidePanel>
   )
 }
