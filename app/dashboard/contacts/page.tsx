@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, memo } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles, Phone } from 'lucide-react'
+import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import StaffSlidePanel from '@/components/contacts/StaffSlidePanel'
@@ -702,7 +702,7 @@ export default function ContactsPage() {
                   <input type="checkbox" checked={selectedIds.size === displayed.length && displayed.length > 0} onChange={toggleSelectAll} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
                 </th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Name</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Phone</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, minWidth: '172px' }}>Phone</th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Email</th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Instructor</th>
                 {tenantFields.slice(0, 3).map(f => (
@@ -978,27 +978,6 @@ const ContactRow = memo(function ContactRow({
   onNameClick: (contact: Contact, e: React.MouseEvent) => void
   onToggleSelect: (contact: Contact, index: number, shiftKey: boolean) => void
 }) {
-  const [calling, setCalling] = useState(false)
-
-  const handleCall = async (phone: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    if (calling) return
-
-    setCalling(true)
-    try {
-      const response = await fetch(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_phone: phone, contact_id: contact.id }),
-      })
-      if (!response.ok) throw new Error('Could not place call')
-    } catch (error) {
-      console.error('Could not place contact call:', error)
-    } finally {
-      setCalling(false)
-    }
-  }
-
   return (
     <tr
       onClick={(e) => onRowClick(contact, index, e)}
@@ -1032,7 +1011,7 @@ const ContactRow = memo(function ContactRow({
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
       </td>
-                  <td style={{ padding: '10px 16px', fontSize: '12px' }}>
+                  <td style={{ padding: '10px 16px', fontSize: '12px', minWidth: '172px', whiteSpace: 'nowrap' }}>
                     {(() => {
                       const phone = contact.phone || contact.account_holder_phone
                       const showIcon = Boolean((contact.custom_fields as Record<string, unknown> | undefined)?.is_minor) || (contact.custom_fields?.message_routing === 'account_holder')
@@ -1040,26 +1019,6 @@ const ContactRow = memo(function ContactRow({
                       return (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <span>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>
-                          <button
-                            type="button"
-                            onClick={(event) => handleCall(phone, event)}
-                            disabled={calling}
-                            aria-label={`Call ${contact.first_name} ${contact.last_name}`}
-                            title={`Call ${phone}`}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '2px',
-                              color: colors.textSecondary,
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: calling ? 'wait' : 'pointer',
-                              opacity: calling ? 0.55 : 1,
-                            }}
-                          >
-                            <Phone size={14} strokeWidth={1.8} />
-                          </button>
                           {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
                         </span>
                       )

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
+import { Check, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -11,6 +11,13 @@ interface AccountHolder {
   email: string | null
   relationship: string | null
   is_primary: boolean
+}
+
+interface NoteEntry {
+  text: string
+  timestamp: string
+  actor_name?: string | null
+  completed_at?: string | null
 }
 
 interface InstructorInfo {
@@ -43,8 +50,8 @@ interface Contact {
   custom_fields: Record<string, unknown>
   message_routing?: string
   is_minor?: boolean
-  notes_history?: {text: string, timestamp: string}[]
-  student_notes_history?: {text: string, timestamp: string}[]
+  notes_history?: NoteEntry[]
+  student_notes_history?: NoteEntry[]
 }
 
 interface TenantField {
@@ -114,10 +121,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [studentNotesSaving] = useState(false)
   const [internalNotesSaving] = useState(false)
-  const [studentNotesHistory, setStudentNotesHistory] = useState<{text: string, timestamp: string}[]>(
+  const [studentNotesHistory, setStudentNotesHistory] = useState<NoteEntry[]>(
     Array.isArray(contact.student_notes_history) ? contact.student_notes_history : []
   )
-  const [internalNotesHistory, setInternalNotesHistory] = useState<{text: string, timestamp: string}[]>(
+  const [internalNotesHistory, setInternalNotesHistory] = useState<NoteEntry[]>(
     Array.isArray(contact.notes_history) ? contact.notes_history : []
   )
   const [saving, setSaving] = useState(false)
@@ -492,7 +499,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   return (
-    <SlidePanel isOpen={true} onClose={onClose} width="min(86vw, 1180px)">
+    <SlidePanel isOpen={true} onClose={onClose} width="min(92vw, 1320px)">
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -658,6 +665,27 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </DenseSectionPanel>
           ) : null}
 
+          {contact.phone && (
+            <DenseSectionPanel title="Contact" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
+              <div>
+                <FieldLabel>Phone</FieldLabel>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
+                  <FieldValue>{displayPhone(contact.phone)}</FieldValue>
+                  <button
+                    type="button"
+                    onClick={handleCall}
+                    disabled={calling}
+                    aria-label={`Call ${contact.first_name} ${contact.last_name}`}
+                    title={`Call ${displayPhone(contact.phone)}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px', color: colors.textSecondary, background: 'transparent', border: 'none', cursor: calling ? 'wait' : 'pointer', opacity: calling ? 0.55 : 1 }}
+                  >
+                    <Phone size={15} strokeWidth={1.8} />
+                  </button>
+                </div>
+              </div>
+            </DenseSectionPanel>
+          )}
+
           {/* AI Insights */}
           <DenseSectionPanel
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: typography.sizeSm, fontWeight: 400, color: colors.textMuted }}><Sparkles size={15} /> AI highlights</div>}
@@ -793,7 +821,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </div>
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
-        <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <DenseSectionPanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
             <Tabs
               items={[
@@ -822,6 +850,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   setStudentNotesHistory(updated)
                   showToast('changes saved')
                 }}
+                onToggleComplete={(index) => {
+                  const updated = studentNotesHistory.map((entry, noteIndex) => noteIndex === index
+                    ? { ...entry, completed_at: entry.completed_at ? null : new Date().toISOString() }
+                    : entry)
+                  patch({ student_notes_history: updated }, true)
+                  setStudentNotesHistory(updated)
+                }}
               />
             ) : (
               <NotesSection
@@ -841,6 +876,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   patch({ notes_history: updated, notes: text }, true)
                   setInternalNotesHistory(updated)
                   showToast('changes saved')
+                }}
+                onToggleComplete={(index) => {
+                  const updated = internalNotesHistory.map((entry, noteIndex) => noteIndex === index
+                    ? { ...entry, completed_at: entry.completed_at ? null : new Date().toISOString() }
+                    : entry)
+                  patch({ notes_history: updated }, true)
+                  setInternalNotesHistory(updated)
                 }}
               />
             )}
