@@ -374,18 +374,20 @@ function getDetailStatusOptions(intakeType: string | null | undefined) {
 }
 
 function getStatusBadgeVariant(status: string) {
-  if (status === 'new' || status === 'contacted') return 'warning'
+  if (status === 'contacted') return 'warning'
   if (status === 'booked') return 'info'
   if (status === 'processing' || status === 'hired' || status === 'won') return 'success'
-  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'error'
+  if (status === 'new') return 'neutral'
+  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'neutral'
   return 'neutral'
 }
 
 function getStatusBadgeStyle(status: string): React.CSSProperties | undefined {
-  if (status === 'new' || status === 'contacted') return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }
+  if (status === 'new') return { background: colors.crimson, color: '#FFFFFF', border: `1px solid ${colors.crimson}` }
+  if (status === 'contacted') return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }
   if (status === 'booked') return { background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #2563EB' }
   if (status === 'processing' || status === 'hired' || status === 'won') return { background: '#F0FDF4', color: '#15803D', border: `1px solid ${colors.success}` }
-  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return { background: '#FEF2F2', color: '#B91C1C', border: `1px solid ${colors.error}` }
+  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return { background: '#1F2937', color: '#F9FAFB', border: '1px solid #1F2937' }
   return undefined
 }
 
@@ -1631,7 +1633,6 @@ export default function LeadsView() {
         ) : isMobileLayout ? (
           <div style={leadCardListStyle}>
             {sortedLeads.map((lead) => {
-              const signal = getLeadSignal(lead)
               const isSelected = selectedIds.has(lead.id)
               const followUp = getLeadFollowUpAt(lead)
 
@@ -1656,7 +1657,6 @@ export default function LeadsView() {
                       />
                       <span style={leadCardNameTextStyle}>{lead.contact?.full_name || 'Unknown'}</span>
                     </div>
-                    <span style={signalCellStyle} title={signal.label}>{signal.emoji}</span>
                   </div>
 
                   <div style={leadCardBadgesStyle}>
@@ -1699,6 +1699,7 @@ export default function LeadsView() {
                       aria-label="Select all visible leads"
                     />
                   </div>
+                  <div aria-hidden="true" />
                   <div>Status</div>
                   <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <div>Email</div>
@@ -1711,6 +1712,7 @@ export default function LeadsView() {
               {sortedLeads.map((lead) => {
                 const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                 const isSelected = selectedIds.has(lead.id)
+                const signal = getLeadSignal(lead)
 
                 return (
                   <DataGridRow
@@ -1739,6 +1741,7 @@ export default function LeadsView() {
                         aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
                       />
                     </div>
+                    <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
                     <div style={tableStatusCellStyle}>
                       <Badge size="sm" variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>
                         {activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
@@ -1940,7 +1943,7 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100vw' : 'min(88vw, 1180px)'}>
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100vw' : 'min(88vw, 1180px)'} fullScreenOnMobile>
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
@@ -1987,8 +1990,8 @@ export default function LeadsView() {
         )}
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} />
+      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)" fullScreenOnMobile>
+        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} onBack={isMobileLayout ? () => setComposeLead(null) : undefined} backLabel="Back" />
         <div style={{ flex: 1, overflow: 'auto' }}>
           {composeLead?.contact && (
             <ComposePanel
@@ -2016,8 +2019,8 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} />
+      <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)" fullScreenOnMobile>
+        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={isMobileLayout ? () => setIsBulkComposeOpen(false) : undefined} backLabel="Back" />
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ComposePanel
             recipientCount={selectedCount}
@@ -2130,7 +2133,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '36px minmax(76px, 0.7fr) minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 1fr)'
+const tableColumns = '36px 44px minmax(76px, 0.7fr) minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -2148,6 +2151,8 @@ const tableRowStyle: React.CSSProperties = {
 const signalCellStyle: React.CSSProperties = {
   fontSize: typography.sizeLg,
   lineHeight: 1,
+  whiteSpace: 'nowrap',
+  textAlign: 'center',
 }
 
 const nameTextStyle: React.CSSProperties = {
@@ -2416,6 +2421,8 @@ const leadCardNameTextStyle: React.CSSProperties = {
   fontWeight: typography.weightSemibold,
   color: colors.text,
   fontFamily: typography.fontSans,
+  minWidth: 0,
+  overflowWrap: 'anywhere',
 }
 
 const leadCardBadgesStyle: React.CSSProperties = {

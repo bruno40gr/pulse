@@ -1,6 +1,7 @@
 'use client'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { Avatar } from '@/components/ui/Avatar'
+import { useIsMobile } from '@/lib/useMediaQuery'
 
 interface SlidePanelHeaderProps {
   title: string
@@ -33,9 +34,11 @@ export function SlidePanelHeader({
   badge,
   titleSize,
 }: SlidePanelHeaderProps) {
+  const isMobile = useIsMobile()
   return (
     <div style={{
       ...HEADER_PADDING,
+      padding: isMobile ? '14px 16px' : '20px 32px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
       alignItems: 'flex-start',

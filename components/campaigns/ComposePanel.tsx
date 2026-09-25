@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useIsMobile } from '@/lib/useMediaQuery'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
 import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
@@ -52,6 +53,7 @@ export default function ComposePanel({
   mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
+  const isMobile = useIsMobile()
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
   const [message, setMessage] = useState('')
@@ -455,9 +457,11 @@ export default function ComposePanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
+      <div style={isMobile
+        ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: colors.background }
+        : { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
       {/* Left column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['3xl'], overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: isMobile ? spacing.lg : spacing['3xl'], overflowY: isMobile ? 'visible' : 'auto' }}>
         {sent && sentResult && (
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.success}`, borderRadius: radius.md, color: colors.success, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
             ✓ Message sent — delivered to {sentResult.sent} {sentResult.sent === 1 ? 'contact' : 'contacts'}.{sentResult.failed > 0 ? ` ${sentResult.failed} failed.` : ''}
@@ -738,8 +742,8 @@ export default function ComposePanel({
         )}
       </div>
 
-      {/* Right column — phone preview */}
-      <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
+      {/* Right column — phone preview (hidden on mobile) */}
+      {!isMobile && <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
         {showComposeBootSkeleton ? (
           <div style={{ width: '240px', height: '520px', borderRadius: '52px', background: '#E5E7EB', animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
         ) : (
@@ -809,10 +813,10 @@ export default function ComposePanel({
           </div>
         </div>
         )}
-      </div>
+      </div>}
       </div>
       <div style={{
-        padding: `${spacing.lg} ${spacing['3xl']}`,
+        padding: isMobile ? spacing.lg : `${spacing.lg} ${spacing['3xl']}`,
         borderTop: `1px solid ${colors.borderLight}`,
         display: 'flex',
         alignItems: 'center',
