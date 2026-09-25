@@ -136,6 +136,58 @@ function getGreetingForTime(date = new Date()) {
   return eveningGreetings[Math.floor(hour % eveningGreetings.length)]
 }
 
+function normalizeInsights(value: unknown): Insight[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const insight = item as Record<string, unknown>
+    const type = insight.type
+    if (type !== 'risk' && type !== 'milestone' && type !== 'opportunity' && type !== 'nudge') return []
+
+    return [{
+      type,
+      title: typeof insight.title === 'string' ? insight.title : 'Untitled insight',
+      description: typeof insight.description === 'string' ? insight.description : '',
+      contact_ids: Array.isArray(insight.contact_ids) ? insight.contact_ids.filter((id): id is string => typeof id === 'string') : [],
+      action_label: typeof insight.action_label === 'string' && insight.action_label.trim() ? insight.action_label : 'Reach out',
+      urgency: insight.urgency === 'high' || insight.urgency === 'medium' || insight.urgency === 'low' ? insight.urgency : 'low',
+    }]
+  })
+}
+
+function readLocalStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeLocalStorage(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Caching is optional and must never block the dashboard.
+  }
+}
+
+function hasSessionStorageItem(key: string) {
+  try {
+    return window.sessionStorage.getItem(key) !== null
+  } catch {
+    return false
+  }
+}
+
+function writeSessionStorage(key: string, value: string) {
+  try {
+    window.sessionStorage.setItem(key, value)
+  } catch {
+    // Analytics degrades gracefully when storage is unavailable.
+  }
+}
+
 export default function DashboardPage() {
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(true)
@@ -160,13 +212,11 @@ export default function DashboardPage() {
     const tenantId = getActiveTenantId()
     const sessionKey = `pulse_demo_dashboard_viewed_${tenantId}`
 
-    if (typeof window !== 'undefined' && window.sessionStorage.getItem(sessionKey)) {
+    if (hasSessionStorageItem(sessionKey)) {
       return
     }
 
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem(sessionKey, 'true')
-    }
+    writeSessionStorage(sessionKey, 'true')
 
     trackDemoEvent({
       eventType: 'demo_dashboard_viewed',
@@ -187,15 +237,16 @@ export default function DashboardPage() {
     const tenant = getActiveTenantId()
     const cacheKey = `pulse_insights_${tenant}`
     const cacheTimeKey = `pulse_insights_time_${tenant}`
-    const cached = localStorage.getItem(cacheKey)
-    const cachedTime = localStorage.getItem(cacheTimeKey)
+    const cached = readLocalStorage(cacheKey)
+    const cachedTime = readLocalStorage(cacheTimeKey)
 
     // Show cached data instantly
     if (cached && cachedTime) {
       try {
         const parsed = JSON.parse(cached)
+        const normalized = normalizeInsights(parsed)
         if (Array.isArray(parsed)) {
-          setInsights(parsed)
+          setInsights(normalized)
           setLastUpdated(cachedTime)
           setLoading(false)
         }
@@ -206,11 +257,12 @@ export default function DashboardPage() {
     fetch(`/api/insights?tenant=${tenant}`)
       .then(r => r.json())
       .then(data => {
-        if (data.insights) {
-          setInsights(data.insights)
+        const normalized = normalizeInsights(data.insights)
+        if (Array.isArray(data.insights)) {
+          setInsights(normalized)
           const now = new Date().toISOString()
-          localStorage.setItem(cacheKey, JSON.stringify(data.insights))
-          localStorage.setItem(cacheTimeKey, now)
+          writeLocalStorage(cacheKey, JSON.stringify(normalized))
+          writeLocalStorage(cacheTimeKey, now)
           setLastUpdated(now)
         } else if (!cached) {
           setError('Could not load insights.')
@@ -356,12 +408,13 @@ export default function DashboardPage() {
               fetch(`/api/insights?tenant=${getActiveTenantId()}&refresh=true`)
                 .then(r => r.json())
                 .then(data => {
-                  if (data.insights) {
-                    setInsights(data.insights)
+                  const normalized = normalizeInsights(data.insights)
+                  if (Array.isArray(data.insights)) {
+                    setInsights(normalized)
                     const now = new Date().toISOString()
                     const tenant = getActiveTenantId()
-                    localStorage.setItem(`pulse_insights_${tenant}`, JSON.stringify(data.insights))
-                    localStorage.setItem(`pulse_insights_time_${tenant}`, now)
+                    writeLocalStorage(`pulse_insights_${tenant}`, JSON.stringify(normalized))
+                    writeLocalStorage(`pulse_insights_time_${tenant}`, now)
                     setLastUpdated(now)
                   }
                 })

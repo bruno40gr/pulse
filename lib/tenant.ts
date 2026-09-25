@@ -21,11 +21,19 @@ export const TENANT_BRAND = {
 
 export function getActiveTenantId(): string {
   if (typeof window === 'undefined') return DEFAULT_TENANT_ID
-  return localStorage.getItem(STORAGE_KEY) || DEFAULT_TENANT_ID
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) || DEFAULT_TENANT_ID
+  } catch {
+    return DEFAULT_TENANT_ID
+  }
 }
 
 export function setActiveTenantId(id: string): void {
-  localStorage.setItem(STORAGE_KEY, id)
+  try {
+    window.localStorage.setItem(STORAGE_KEY, id)
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
 }
 
 export const DEFAULT_TENANT = DEFAULT_TENANT_ID

@@ -17,12 +17,16 @@ export interface DemoEventPayload {
 function ensureBrowserStorage(storage: Storage | undefined, key: string): string {
   if (!storage) return 'server-unavailable'
 
-  const existing = storage.getItem(key)
-  if (existing) return existing
+  try {
+    const existing = storage.getItem(key)
+    if (existing) return existing
 
-  const value = crypto.randomUUID()
-  storage.setItem(key, value)
-  return value
+    const value = crypto.randomUUID()
+    storage.setItem(key, value)
+    return value
+  } catch {
+    return 'storage-unavailable'
+  }
 }
 
 export function getDemoVisitorId(): string {
