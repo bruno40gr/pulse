@@ -14,25 +14,12 @@ export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', childr
   useEffect(() => {
     if (!isOpen) return
 
-    const previousHtmlOverflow = document.documentElement.style.overflow
-    const previousBodyOverflow = document.body.style.overflow
-    const previousBodyOverscroll = document.body.style.overscrollBehavior
-
-    document.documentElement.style.overflow = 'hidden'
-    document.body.style.overflow = 'hidden'
-    document.body.style.overscrollBehavior = 'none'
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      document.documentElement.style.overflow = previousHtmlOverflow
-      document.body.style.overflow = previousBodyOverflow
-      document.body.style.overscrollBehavior = previousBodyOverscroll
-    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
   if (!isOpen) return null
