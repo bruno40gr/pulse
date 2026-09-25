@@ -57,6 +57,14 @@ const LOST_REASONS = [
   { value: 'competitor', label: 'Went with competitor' },
   { value: 'scheduling_conflict', label: 'Scheduling conflict' },
   { value: 'other', label: 'Other' },
+  { value: 'disenrolled', label: 'Disenrolled' },
+]
+const WINBACK_STATUSES = [
+  { value: 'to_contact', label: 'To contact' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'interested', label: 'Interested' },
+  { value: 're_enrolled', label: 'Re-enrolled' },
+  { value: 'closed', label: 'Closed' },
 ]
 const INSTRUMENTS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
 const EXPERIENCES = ['Beginner', 'Some experience', 'Intermediate', 'Advanced']
@@ -220,6 +228,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const nextStages = pipelineIndex >= 0 ? PIPELINE.slice(pipelineIndex + 1, pipelineIndex + 2) : []
   const urgency = followUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
+  const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
+  const winbackStatus = typeof winback?.status === 'string' ? winback.status : 'to_contact'
+  const disenrollmentDate = typeof winback?.disenrollment_date === 'string' ? winback.disenrollment_date : ''
+  const disenrollmentMonth = typeof winback?.disenrollment_month === 'string' ? winback.disenrollment_month : ''
 
   useEffect(() => {
     setContact({ fullName: lead.contact?.full_name || '', phone: lead.contact?.phone || '', email: lead.contact?.email || '' })
@@ -362,6 +374,19 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}`}</div>}</div></CompactMetaCard>
             <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
           </div>
+          {winback && (
+            <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
+              <div style={stackStyle}>
+                <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                  {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                </Select>
+                <div style={twoColumnStyle}>
+                  <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || 'Not provided'} />
+                  <Field label="Former program" value={lead.program_label || 'Not provided'} />
+                </div>
+              </div>
+            </DenseSectionPanel>
+          )}
           {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
             <div style={isMobile ? oneColumnStyle : twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
           </DenseSectionPanel>}

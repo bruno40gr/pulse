@@ -6,6 +6,7 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
 const LEADS_LIST_LIMIT = 100
+const WINBACK_SOURCE_FORM = '2026-disenrollment-import'
 
 type LeadContact = {
   id: string
@@ -66,6 +67,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('intake_type', 'lesson_inquiry')
+    .neq('source_form', WINBACK_SOURCE_FORM)
   const serviceQuery = crmSupabaseAdmin
     .from('lead_intakes')
     .select('id', { count: 'exact', head: true })
@@ -75,27 +77,35 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .from('job_applications')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
+  const winbackQuery = crmSupabaseAdmin
+    .from('lead_intakes')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('source_form', WINBACK_SOURCE_FORM)
 
-  if (status) {
+  if (status && status !== 'all') {
     lessonQuery.eq('status', status)
     serviceQuery.eq('status', status)
     jobsQuery.eq('status', status)
   }
 
-  const [lessonResult, serviceResult, jobsResult] = await Promise.all([
+  const [lessonResult, serviceResult, jobsResult, winbackResult] = await Promise.all([
     withTimeout(lessonQuery, LEADS_QUERY_TIMEOUT_MS, 'lesson lead count query'),
     withTimeout(serviceQuery, LEADS_QUERY_TIMEOUT_MS, 'service lead count query'),
     withTimeout(jobsQuery, LEADS_QUERY_TIMEOUT_MS, 'job application count query'),
+    withTimeout(winbackQuery, LEADS_QUERY_TIMEOUT_MS, 'win-back count query'),
   ])
 
   if (lessonResult.error) throw lessonResult.error
   if (serviceResult.error) throw serviceResult.error
   if (jobsResult.error) throw jobsResult.error
+  if (winbackResult.error) throw winbackResult.error
 
   return {
     lesson_inquiry: lessonResult.count ?? 0,
     service_inquiry: serviceResult.count ?? 0,
     job_application: jobsResult.count ?? 0,
+    winback: winbackResult.count ?? 0,
   }
 }
 
@@ -118,6 +128,7 @@ function formatLeadRow(row: LeadListRow) {
     status: row.status,
     priority: row.priority,
     temperature: row.temperature,
+    payload: row.payload || {},
     source: typeof row.payload?.source === 'string' ? row.payload.source : 'website',
     follow_up_at: typeof row.payload?.follow_up_at === 'string' ? row.payload.follow_up_at : null,
     follow_up_note: typeof row.payload?.follow_up_note === 'string' ? row.payload.follow_up_note : null,
@@ -137,7 +148,7 @@ export async function GET(request: Request) {
     const tenantId = tenantAccess.tenantId
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
-    const intakeType = url.searchParams.get('intake_type')
+    const intakeType = url.searchParams.get('intake_type') || 'lesson_inquiry'
     const includeCounts = url.searchParams.get('include_counts') === '1'
     const countsPromise = includeCounts ? getLeadTabCounts(tenantId, status) : null
 
@@ -257,7 +268,11 @@ export async function GET(request: Request) {
 
     if (status) query = query.eq('status', status)
     if (category) query = query.eq('category', category)
-    if (intakeType) query = query.eq('intake_type', intakeType)
+    if (intakeType === 'winback') query = query.eq('source_form', WINBACK_SOURCE_FORM)
+    else if (intakeType) {
+      query = query.eq('intake_type', intakeType)
+      if (intakeType === 'lesson_inquiry') query = query.neq('source_form', WINBACK_SOURCE_FORM)
+    }
 
     const result = await withTimeout(
       query,

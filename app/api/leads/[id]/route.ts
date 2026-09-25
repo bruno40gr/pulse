@@ -8,7 +8,7 @@ const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-
 const LEAD_DETAIL_TIMEOUT_MS = 8000
 const LEAD_EVENTS_LIMIT = 100
 const PIPELINE_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won']
-const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match']
+const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match', 'disenrolled']
 
 type LeadEvent = {
   id: string
@@ -449,7 +449,7 @@ export async function PATCH(
     const existingLeadResult = await withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
-        .select('id, contact_id, intake_type, status, priority, category')
+          .select('id, contact_id, intake_type, status, priority, category, source_form')
         .eq('tenant_id', tenantId)
         .eq('id', id)
         .single(),
@@ -458,7 +458,7 @@ export async function PATCH(
     )
 
     const { data: existingLead, error: existingLeadError } = existingLeadResult as {
-      data: { id: string, contact_id: string, intake_type: string, status: string, priority: string, category: string },
+      data: { id: string, contact_id: string, intake_type: string, status: string, priority: string, category: string, source_form: string },
       error: { message: string } | null,
     }
 
@@ -471,7 +471,7 @@ export async function PATCH(
           if (typeof requestedLostReason !== 'string' || !LOST_REASONS.includes(requestedLostReason)) {
             return NextResponse.json({ error: 'A valid lost reason is required.' }, { status: 400 })
           }
-        } else {
+        } else if (existingLead.category !== 'winback' && existingLead.source_form !== '2026-disenrollment-import') {
           const currentIndex = PIPELINE_STATUSES.indexOf(existingLead.status)
           const nextIndex = PIPELINE_STATUSES.indexOf(requestedStatus)
           if (currentIndex === -1 || nextIndex !== currentIndex + 1) {

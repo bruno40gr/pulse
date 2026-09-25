@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { isDemo } from '@/lib/demo'
 import twilio from 'twilio'
 
@@ -76,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // Get contacts from new schema
-    const { data: contacts, error: contactsError } = await supabaseAdmin
+    const { data: people, error: contactsError } = await supabaseAdmin
       .from('people')
       .select(`
         id, first_name, last_name, phone,
@@ -88,6 +89,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .in('id', recipientIds)
       .eq('opted_out', false)
     if (contactsError) throw contactsError
+
+    const foundPersonIds = new Set((people || []).map((person) => person.id))
+    const missingIds = recipientIds.filter((recipientId: string) => !foundPersonIds.has(recipientId))
+    const { data: crmContacts, error: crmContactsError } = missingIds.length > 0
+      ? await crmSupabaseAdmin.from('crm_contacts').select('id, first_name, last_name, full_name, phone').in('id', missingIds).eq('tenant_id', tenantId)
+      : { data: [], error: null }
+    if (crmContactsError) throw crmContactsError
+    const contacts = [
+      ...(people || []),
+      ...(crmContacts || []).map((contact) => ({
+        id: contact.id,
+        first_name: contact.first_name || contact.full_name?.split(' ')[0] || 'there',
+        last_name: contact.last_name || '',
+        phone: contact.phone,
+        students: [],
+      })),
+    ]
 
     function resolvePhone(person: any): string | null {
       const student = person.students?.[0] || {}

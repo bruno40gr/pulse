@@ -8,8 +8,9 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { LeadDetailPanel } from './LeadDetailPanel'
+import WinbackImportPanel from './WinbackImportPanel'
 
-type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application'
+type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'name' | 'followUp' | 'program' | 'created'
 type SortDirection = 'asc' | 'desc'
@@ -45,6 +46,7 @@ type LeadRecord = {
   status: string
   priority: string
   temperature: string
+  payload: Record<string, unknown>
   source?: string
   created_at: string
   updated_at: string
@@ -133,7 +135,9 @@ const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
   { key: 'service_inquiry', label: 'Service inquiries' },
   { key: 'job_application', label: 'Teacher applications' },
+  { key: 'winback', label: 'Win-back' },
 ]
+const WINBACK_STATUS_OPTIONS = ['all', 'to_contact', 'contacted', 'interested', 're_enrolled', 'closed']
 
 const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm'], label: string }> = [
   { value: 'manual-phone-call', label: 'Phone call' },
@@ -361,6 +365,7 @@ function getActivityActor(event: { payload?: Record<string, unknown> | null }) {
 }
 
 function getStatusOptionsForTab(tab: LeadTabKey) {
+  if (tab === 'winback') return WINBACK_STATUS_OPTIONS
   return tab === 'job_application' ? JOB_APPLICATION_STATUS_OPTIONS : LEAD_STATUS_OPTIONS
 }
 
@@ -606,6 +611,7 @@ export default function LeadsView() {
     lesson_inquiry: 0,
     service_inquiry: 0,
     job_application: 0,
+    winback: 0,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -616,6 +622,8 @@ export default function LeadsView() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
   const [composeLead, setComposeLead] = useState<LeadDetail | null>(null)
+  const [isBulkComposeOpen, setIsBulkComposeOpen] = useState(false)
+  const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
   const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
     if (typeof window === 'undefined') return {}
     try {
@@ -712,13 +720,19 @@ export default function LeadsView() {
 
     try {
       const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
       params.set('intake_type', activeTab)
 
       params.set('include_counts', '1')
       const data = await fetchJsonWithTimeout<LeadListResponse>(`/api/leads?${params.toString()}`)
 
-      setLeads(Array.isArray(data.leads) ? data.leads : [])
+      const returnedLeads = Array.isArray(data.leads) ? data.leads : []
+      setLeads(activeTab === 'winback' && statusFilter !== 'all'
+        ? returnedLeads.filter((lead) => {
+            const winback = lead.payload?.winback
+            return winback && typeof winback === 'object' && (winback as Record<string, unknown>).status === statusFilter
+          })
+        : returnedLeads)
       setTabCounts(data.counts)
     } catch (error: unknown) {
       setError(getErrorMessage(error, 'Could not load leads'))
@@ -1166,7 +1180,7 @@ export default function LeadsView() {
   }, [fetchLeads])
 
   useEffect(() => {
-    if (selectedLead && selectedLead.intake_type !== activeTab) {
+    if (selectedLead && selectedLead.intake_type !== activeTab && !(activeTab === 'winback' && (selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import'))) {
       closeLead()
     }
   }, [activeTab, selectedLead])
@@ -1191,7 +1205,7 @@ export default function LeadsView() {
   const selectedCount = selectedIds.size
   const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id))
 
-  const selectedLeadType = selectedLead ? formatLabel(selectedLead.intake_type) : 'Loading lead...'
+  const selectedLeadType = selectedLead ? ((selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import') ? 'Win-back' : formatLabel(selectedLead.intake_type)) : 'Loading lead...'
   const selectedProgram = selectedLead ? formatSourcePage(selectedLead.source_page, selectedLead.program_label || selectedLead.service_label) : 'Loading...'
   const selectedSource = selectedLead ? getLeadSource(selectedLead, selectedLead.payload) : 'Loading...'
   const selectedCampaign = selectedLead?.utm_campaign || '—'
@@ -1267,7 +1281,7 @@ export default function LeadsView() {
             </Select>
           ) : (
             <>
-              <Badge variant={getStatusBadgeVariant(selectedLead.status)} style={leadStatusBadgeStyle}>{formatLabel(statusValue)}</Badge>
+              <Badge size="sm" variant={getStatusBadgeVariant(selectedLead.status)} style={leadStatusBadgeStyle}>{formatLabel(statusValue)}</Badge>
               <button type="button" onClick={() => setShowStatusEditor(true)} style={leadStatusActionStyle}>Update</button>
             </>
           )}
@@ -1570,9 +1584,9 @@ export default function LeadsView() {
           title="Leads"
           subtitle={subtitle}
           right={(
-            <Button type="button" onClick={openAddLead}>
-              + Add Lead
-            </Button>
+            activeTab === 'winback'
+              ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
+              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>
           )}
         />
 
@@ -1593,12 +1607,13 @@ export default function LeadsView() {
             wrapperStyle={filterSelectWrapStyle}
           >
             {getStatusOptionsForTab(activeTab).map((option) => (
-              <option key={option} value={option}>Status: {formatLabel(option)}</option>
+              <option key={option} value={option}>{activeTab === 'winback' ? `Win-back: ${formatLabel(option)}` : `Status: ${formatLabel(option)}`}</option>
             ))}
           </Select>
           {selectedCount > 0 && (
             <div style={bulkActionBarStyle}>
               <span style={bulkActionTextStyle}>{selectedCount} selected</span>
+              {activeTab === 'winback' && <Button type="button" size="sm" onClick={() => setIsBulkComposeOpen(true)}>Message selected</Button>}
               <Button type="button" variant="destructive" size="sm" onClick={openDeleteModal}>
                 Delete leads
               </Button>
@@ -1611,7 +1626,7 @@ export default function LeadsView() {
         {!loading && leads.length === 0 ? (
           <EmptyState
             title={`No ${LEAD_TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase() || 'leads'} yet`}
-            description="New website inquiries will show up here once your forms start posting to the intake API."
+            description={activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
           />
         ) : isMobileLayout ? (
           <div style={leadCardListStyle}>
@@ -1645,7 +1660,8 @@ export default function LeadsView() {
                   </div>
 
                   <div style={leadCardBadgesStyle}>
-                    <Badge variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>{formatLabel(lead.status)}</Badge>
+                    <Badge size="sm" variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>{formatLabel(lead.status)}</Badge>
+                    {activeTab === 'winback' && <Badge size="sm" variant="info">{formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact'))}</Badge>}
                     {followUp && (
                       <span style={{ ...leadCardFollowUpStyle, color: getFollowUpTone(followUp).color, background: getFollowUpTone(followUp).background, border: `1px solid ${getFollowUpTone(followUp).border}` }}>
                         ↻ {formatFollowUpDate(followUp)}
@@ -1670,8 +1686,7 @@ export default function LeadsView() {
             })}
           </div>
         ) : (
-          <div style={tableScrollWrapStyle}>
-            <DataGridTable
+          <DataGridTable
               columns={tableColumns}
               style={tableWrapStyle}
               header={(
@@ -1684,20 +1699,16 @@ export default function LeadsView() {
                       aria-label="Select all visible leads"
                     />
                   </div>
-                  <div>Temp</div>
                   <div>Status</div>
                   <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <div>Email</div>
                   <div>Phone</div>
                   <button type="button" onClick={() => toggleSort('followUp')} aria-label={sortLabel('followUp', 'Follow-up')} style={sortableHeaderButtonStyle}>Follow-up <span aria-hidden="true">{sortKey === 'followUp' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <button type="button" onClick={() => toggleSort('program')} aria-label={sortLabel('program', activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details')} style={sortableHeaderButtonStyle}>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'} <span aria-hidden="true">{sortKey === 'program' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
-                  <div>Source</div>
-                  <button type="button" onClick={() => toggleSort('created')} aria-label={sortLabel('created', 'Created')} style={sortableHeaderButtonStyle}>Created <span aria-hidden="true">{sortKey === 'created' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                 </>
               )}
             >
               {sortedLeads.map((lead) => {
-                const signal = getLeadSignal(lead)
                 const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                 const isSelected = selectedIds.has(lead.id)
 
@@ -1728,37 +1739,33 @@ export default function LeadsView() {
                         aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
                       />
                     </div>
-                    <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
-                    <div>
-                      <Badge variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>
-                        {formatLabel(lead.status)}
+                    <div style={tableStatusCellStyle}>
+                      <Badge size="sm" variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>
+                        {activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
                       </Badge>
                     </div>
                     <div style={nameCellStyle}>
                       <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={cellTextStyle}>{lead.contact?.email || 'No email'}</div>
+                    <div style={tableCellStyle}>
+                      <div style={emailCellTextStyle} title={lead.contact?.email || 'No email'}>{lead.contact?.email || 'No email'}</div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={tableCellStyle}>
                       <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={tableCellStyle}>
                       {getLeadFollowUpAt(lead)
                         ? <div style={{ ...cellTextStyle, color: getFollowUpTone(getLeadFollowUpAt(lead)).color, fontWeight: typography.weightMedium }}>{formatFollowUpDate(getLeadFollowUpAt(lead))}</div>
                         : <div style={cellTextStyle}>—</div>}
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={tableCellStyle}>
                       <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
                       <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
                     </div>
-                    <div style={cellTextStyle}>{getLeadSource(lead)}</div>
-                    <div style={cellTextStyle}>{formatDateTime(lead.created_at)}</div>
                   </DataGridRow>
                 )
               })}
-            </DataGridTable>
-          </div>
+          </DataGridTable>
         )}
       </div>
 
@@ -2009,6 +2016,30 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
+      <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)">
+        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} />
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <ComposePanel
+            recipientCount={selectedCount}
+            filterExplanation={`Win-back: ${selectedCount} selected former students`}
+            recipientIds={leads.filter((lead) => selectedIds.has(lead.id)).map((lead) => lead.contact_id)}
+            channel="sms"
+            mode="bulk"
+            recipientPreview={leads.filter((lead) => selectedIds.has(lead.id)).map((lead) => ({
+              id: lead.contact_id,
+              first_name: lead.contact?.full_name.split(' ')[0] || 'Student',
+              last_name: lead.contact?.full_name.split(' ').slice(1).join(' ') || '',
+            }))}
+            onClose={() => setIsBulkComposeOpen(false)}
+            onSent={() => window.setTimeout(() => setIsBulkComposeOpen(false), 3000)}
+          />
+        </div>
+      </SlidePanel>
+
+      <SlidePanel isOpen={isWinbackImportOpen} onClose={() => setIsWinbackImportOpen(false)} width="min(92vw, 680px)">
+        <WinbackImportPanel onClose={() => setIsWinbackImportOpen(false)} onImported={async () => { setIsWinbackImportOpen(false); await fetchLeads() }} />
+      </SlidePanel>
+
       <SlidePanel isOpen={isEditLeadOpen} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">
         <SlidePanelHeader title="Edit lead" subtitle="Update contact details, request context, and attribution." onClose={() => setIsEditLeadOpen(false)} />
         {leadEditForm && (
@@ -2099,18 +2130,11 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(190px, 1.35fr) minmax(220px, 1.4fr) minmax(140px, 0.85fr) minmax(150px, 1fr) minmax(200px, 1.15fr) minmax(130px, 0.9fr) minmax(150px, 0.95fr)'
+const tableColumns = '36px minmax(76px, 0.7fr) minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
-  minWidth: '1400px',
-}
-
-const tableScrollWrapStyle: React.CSSProperties = {
-  width: '100%',
-  overflowX: 'auto',
-  overflowY: 'hidden',
-  WebkitOverflowScrolling: 'touch',
+  minWidth: 0,
 }
 
 const tableHeaderStyle: React.CSSProperties = {
@@ -2130,6 +2154,9 @@ const nameTextStyle: React.CSSProperties = {
   fontSize: typography.sizeMd,
   color: colors.text,
   fontFamily: typography.fontSans,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 }
 
 const subtleTextStyle: React.CSSProperties = {
@@ -2145,6 +2172,24 @@ const cellTextStyle: React.CSSProperties = {
   color: colors.text,
   fontFamily: typography.fontSans,
   lineHeight: 1.45,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+const emailCellTextStyle: React.CSSProperties = {
+  ...cellTextStyle,
+}
+
+const tableCellStyle: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+}
+
+const tableStatusCellStyle: React.CSSProperties = {
+  ...tableCellStyle,
+  whiteSpace: 'nowrap',
 }
 
 const sortableHeaderButtonStyle: React.CSSProperties = {
@@ -2160,7 +2205,7 @@ const sortableHeaderButtonStyle: React.CSSProperties = {
   fontSize: typography.sizeXs,
   fontWeight: typography.weightMedium,
   cursor: 'pointer',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
 }
 
 const leadPanelBodyStyle: React.CSSProperties = {
@@ -2511,10 +2556,7 @@ const nameCellStyle: React.CSSProperties = {
 }
 
 const leadStatusBadgeStyle: React.CSSProperties = {
-  fontSize: '18px',
   fontWeight: typography.weightSemibold,
-  lineHeight: 1.1,
-  padding: '7px 14px',
 }
 
 const leadStatusActionStyle: React.CSSProperties = {

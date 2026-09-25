@@ -21,7 +21,7 @@ interface DataGridRowProps {
 export function DataGridTable({ columns, header, children, style }: DataGridTableProps) {
   return (
     <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, overflow: 'hidden', width: '100%', ...style }}>
-      <div style={{ display: 'grid', gridTemplateColumns: columns, gap: spacing.md, padding: spacing.md, borderBottom: `1px solid ${colors.border}`, background: colors.surfaceMuted, color: colors.textSecondary, fontSize: typography.sizeXs, fontFamily: typography.fontSans }}>
+      <div style={{ display: 'grid', gridTemplateColumns: columns, gap: spacing.md, padding: spacing.md, borderBottom: `1px solid ${colors.border}`, background: colors.surfaceMuted, color: colors.textSecondary, fontSize: typography.sizeXs, fontFamily: typography.fontSans, minWidth: 0 }}>
         {header}
       </div>
       {children}
@@ -39,6 +39,7 @@ export function DataGridRow({ columns, children, style, as = 'div', onClick }: D
     alignItems: 'center',
     textAlign: 'left',
     width: '100%',
+    minWidth: 0,
     background: colors.surface,
     ...style,
   }
