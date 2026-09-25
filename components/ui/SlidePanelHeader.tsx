@@ -36,7 +36,9 @@ export function SlidePanelHeader({
 }: SlidePanelHeaderProps) {
   const isMobile = useIsMobile()
   return (
-    <div style={{
+    <div
+      className="slide-panel-header"
+      style={{
       ...HEADER_PADDING,
       padding: isMobile ? '14px 16px' : '20px 32px',
       borderBottom: `1px solid ${colors.borderLight}`,
