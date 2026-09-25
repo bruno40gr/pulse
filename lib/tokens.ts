@@ -30,6 +30,14 @@ export const colors = {
   warning: '#92400E',
 }
 
+export const semanticColors = {
+  accent: { background: colors.teal, text: colors.surface, border: colors.teal },
+  success: { background: colors.success, text: colors.surface, border: colors.success },
+  danger: { background: colors.error, text: colors.surface, border: colors.error },
+  warning: { background: colors.surfaceMuted, text: colors.warning, border: colors.warning },
+  neutral: { background: colors.surface, text: colors.textSecondary, border: colors.border },
+}
+
 export const typography = {
   fontSans: 'var(--font-dm-sans), sans-serif',
   fontDisplay: 'var(--font-baloo-2), sans-serif',

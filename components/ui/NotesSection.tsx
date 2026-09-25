@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Shield } from 'lucide-react'
 import { Button, Textarea } from '@/components/ui'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -23,7 +23,9 @@ interface NotesSectionProps {
   helperText?: string
   showHeader?: boolean
   autoSaveOnBlur?: boolean
-  onSave: (text: string) => void | Promise<void>
+  draft?: string
+  onDraftChange?: (draft: string) => void
+  onSave: (text: string) => boolean | void | Promise<boolean | void>
   onToggleComplete?: (index: number) => void
 }
 
@@ -44,12 +46,26 @@ export function NotesSection({
   helperText,
   showHeader = true,
   autoSaveOnBlur = false,
+  draft,
+  onDraftChange,
   onSave,
   onToggleComplete,
 }: NotesSectionProps) {
   const [showInput, setShowInput] = useState(false)
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(draft || '')
   const savingRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof draft === 'string') {
+      setInput(draft)
+      if (draft) setShowInput(true)
+    }
+  }, [draft])
+
+  const updateInput = (value: string) => {
+    setInput(value)
+    onDraftChange?.(value)
+  }
 
   const handleSave = async () => {
     if (savingRef.current) return
@@ -57,9 +73,11 @@ export function NotesSection({
     savingRef.current = true
     const note = input.trim()
     try {
-      await onSave(note)
-      setInput('')
-      setShowInput(false)
+      const saved = await onSave(note)
+      if (saved !== false) {
+        updateInput('')
+        setShowInput(false)
+      }
     } finally {
       savingRef.current = false
     }
@@ -204,7 +222,7 @@ export function NotesSection({
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
           <Textarea
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => updateInput(e.target.value)}
             onBlur={() => {
               if (autoSaveOnBlur) void handleSave()
             }}
@@ -212,7 +230,7 @@ export function NotesSection({
             style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
           />
           <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); setInput('') }}>Cancel</Button>
+            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput('') }}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
           </div>
         </div>

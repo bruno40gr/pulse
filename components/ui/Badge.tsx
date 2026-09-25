@@ -1,4 +1,4 @@
-import { typography, radius, spacing } from '@/lib/tokens'
+import { colors, typography, radius } from '@/lib/tokens'
 
 interface BadgeProps {
   variant?: 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'inactive' | 'member' | 'minor' | 'risk' | 'opportunity' | 'milestone' | 'nudge'
@@ -9,18 +9,18 @@ interface BadgeProps {
 
 // Filled pill variants — identical shape, no borders, consistent across all types.
 const variantStyles: Record<string, React.CSSProperties> = {
-  success: { background: '#F0FDF4', color: '#16A34A' },
-  warning: { background: '#FFFBEB', color: '#D97706' },
-  error: { background: '#FEF2F2', color: '#DC2626' },
-  info: { background: '#EEF2FF', color: '#4F46E5' },
-  neutral: { background: '#F3F4F6', color: '#9CA3AF' },
-  inactive: { background: '#F3F4F6', color: '#9CA3AF' },
-  member: { background: '#EEF2FF', color: '#4F46E5' },
-  minor: { background: '#FFFBEB', color: '#D97706' },
-  risk: { background: '#FEF2F2', color: '#DC2626' },
-  opportunity: { background: '#EEF2FF', color: '#4F46E5' },
-  milestone: { background: '#F0FDF4', color: '#16A34A' },
-  nudge: { background: '#FFFBEB', color: '#D97706' },
+  success: { background: colors.surfaceMuted, color: colors.success },
+  warning: { background: colors.surfaceMuted, color: colors.warning },
+  error: { background: colors.surfaceMuted, color: colors.error },
+  info: { background: colors.surfaceMuted, color: colors.teal },
+  neutral: { background: colors.backgroundSecondary, color: colors.textMuted },
+  inactive: { background: colors.backgroundSecondary, color: colors.textMuted },
+  member: { background: colors.surfaceMuted, color: colors.teal },
+  minor: { background: colors.surfaceMuted, color: colors.warning },
+  risk: { background: colors.surfaceMuted, color: colors.error },
+  opportunity: { background: colors.surfaceMuted, color: colors.teal },
+  milestone: { background: colors.surfaceMuted, color: colors.success },
+  nudge: { background: colors.surfaceMuted, color: colors.warning },
 }
 
 const sizeStyles: Record<'sm' | 'md', React.CSSProperties> = {

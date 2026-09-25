@@ -7,6 +7,8 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
 const LEAD_EVENTS_LIMIT = 100
+const PIPELINE_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won']
+const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match']
 
 type LeadEvent = {
   id: string
@@ -388,7 +390,12 @@ export async function PATCH(
     const leadUpdates: Record<string, unknown> = {}
     const contactUpdates: Record<string, unknown> = {}
 
-    if (typeof body.status === 'string' && body.status.trim()) leadUpdates.status = body.status.trim()
+    const requestedStatus = typeof body.status === 'string' ? body.status.trim() : ''
+    const requestedLostReason = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
+      ? (body.payload as Record<string, unknown>).lost_reason
+      : null
+
+    if (requestedStatus) leadUpdates.status = requestedStatus
     if (typeof body.priority === 'string' && body.priority.trim()) leadUpdates.priority = body.priority.trim()
     if (typeof body.category === 'string' && body.category.trim()) leadUpdates.category = body.category.trim()
     if (typeof body.program_label === 'string') leadUpdates.program_label = body.program_label.trim() || null
@@ -442,7 +449,7 @@ export async function PATCH(
     const existingLeadResult = await withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
-        .select('id, contact_id, status, priority, category')
+        .select('id, contact_id, intake_type, status, priority, category')
         .eq('tenant_id', tenantId)
         .eq('id', id)
         .single(),
@@ -451,11 +458,28 @@ export async function PATCH(
     )
 
     const { data: existingLead, error: existingLeadError } = existingLeadResult as {
-      data: { id: string, contact_id: string, status: string, priority: string, category: string },
+      data: { id: string, contact_id: string, intake_type: string, status: string, priority: string, category: string },
       error: { message: string } | null,
     }
 
     if (existingLeadError) throw existingLeadError
+
+    if (requestedStatus) {
+      const isPipelineLead = existingLead.intake_type === 'lesson_inquiry' || existingLead.intake_type === 'service_inquiry'
+      if (isPipelineLead) {
+        if (requestedStatus === 'lost') {
+          if (typeof requestedLostReason !== 'string' || !LOST_REASONS.includes(requestedLostReason)) {
+            return NextResponse.json({ error: 'A valid lost reason is required.' }, { status: 400 })
+          }
+        } else {
+          const currentIndex = PIPELINE_STATUSES.indexOf(existingLead.status)
+          const nextIndex = PIPELINE_STATUSES.indexOf(requestedStatus)
+          if (currentIndex === -1 || nextIndex !== currentIndex + 1) {
+            return NextResponse.json({ error: 'Leads can only advance one pipeline stage at a time.' }, { status: 400 })
+          }
+        }
+      }
+    }
 
     if (Object.keys(leadUpdates).length > 0) {
       const result = await withTimeout<any>(
@@ -468,6 +492,24 @@ export async function PATCH(
         'lead update',
       )
 
+      if (result.error) throw result.error
+    }
+
+    if (requestedStatus === 'lost') {
+      const result = await withTimeout<any>(
+        crmSupabaseAdmin
+          .from('lead_events')
+          .insert({
+            tenant_id: tenantId,
+            lead_intake_id: id,
+            contact_id: existingLead.contact_id,
+            event_type: 'lead_lost',
+            event_label: 'Lead marked lost',
+            payload: { lost_reason: requestedLostReason, actor: actorPayload },
+          }),
+        LEAD_DETAIL_TIMEOUT_MS,
+        'lead lost event insert',
+      )
       if (result.error) throw result.error
     }
 

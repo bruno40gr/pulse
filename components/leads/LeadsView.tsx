@@ -1,14 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Pencil, Phone } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import ComposePanel from '@/components/campaigns/ComposePanel'
+import { LeadDetailPanel } from './LeadDetailPanel'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
+type LeadSortKey = 'name' | 'followUp' | 'program' | 'created'
+type SortDirection = 'asc' | 'desc'
 
 type ManualLeadFormState = {
   fullName: string
@@ -82,6 +86,15 @@ type LeadListResponse = {
   counts: Record<LeadTabKey, number>
 }
 
+type LeadPanelDraft = {
+  note?: string
+  followUpDate?: string
+  followUpNote?: string
+}
+
+const EMPTY_LEAD_PANEL_DRAFT: LeadPanelDraft = {}
+const LEAD_PANEL_DRAFT_STORAGE_KEY = 'pulse_lead_panel_drafts'
+
 type LessonSiblingEntry = {
   name: string
   age: string
@@ -109,8 +122,8 @@ type LeadEditFormState = {
   referrer: string
 }
 
-const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'processing', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
-const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'processing', 'booked', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
 const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const DEFAULT_LESSON_BASE_VALUE = 160
@@ -296,6 +309,7 @@ function getQuickFollowUpDates(today: Date = new Date()): Array<{ label: string;
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return '—'
+  if (value === 'processing') return 'Processing enrollment'
   return value
     .replace(/[_-]/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase())
@@ -355,11 +369,19 @@ function getDetailStatusOptions(intakeType: string | null | undefined) {
 }
 
 function getStatusBadgeVariant(status: string) {
-  if (status === 'new') return 'info'
-  if (status === 'contacted' || status === 'processing' || status === 'audition_scheduled' || status === 'offer_sent') return 'warning'
-  if (status === 'hired' || status === 'won') return 'success'
+  if (status === 'new' || status === 'contacted') return 'warning'
+  if (status === 'booked') return 'info'
+  if (status === 'processing' || status === 'hired' || status === 'won') return 'success'
   if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'error'
   return 'neutral'
+}
+
+function getStatusBadgeStyle(status: string): React.CSSProperties | undefined {
+  if (status === 'new' || status === 'contacted') return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }
+  if (status === 'booked') return { background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #2563EB' }
+  if (status === 'processing' || status === 'hired' || status === 'won') return { background: '#F0FDF4', color: '#15803D', border: `1px solid ${colors.success}` }
+  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return { background: '#FEF2F2', color: '#B91C1C', border: `1px solid ${colors.error}` }
+  return undefined
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -588,9 +610,21 @@ export default function LeadsView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sortKey, setSortKey] = useState<LeadSortKey>('created')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const [composeLead, setComposeLead] = useState<LeadDetail | null>(null)
+  const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const stored = window.sessionStorage.getItem(LEAD_PANEL_DRAFT_STORAGE_KEY)
+      return stored ? JSON.parse(stored) as Record<string, LeadPanelDraft> : {}
+    } catch {
+      return {}
+    }
+  })
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false)
   const [leadEditForm, setLeadEditForm] = useState<LeadEditFormState | null>(null)
   const [leadEditError, setLeadEditError] = useState('')
@@ -620,6 +654,57 @@ export default function LeadsView() {
     siblingDiscountEnabled: true,
     siblings: [],
   })
+
+  const sortedLeads = useMemo(() => {
+    const compareText = (left: string, right: string) => left.localeCompare(right, undefined, { sensitivity: 'base' })
+    const compareNumbers = (left: number, right: number) => left - right
+    const direction = sortDirection === 'asc' ? 1 : -1
+
+    return [...leads].sort((left, right) => {
+      let comparison = 0
+      if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
+      if (sortKey === 'program') comparison = compareText(left.program_label || left.service_label || '', right.program_label || right.service_label || '')
+      if (sortKey === 'created') comparison = compareNumbers(new Date(left.created_at).getTime(), new Date(right.created_at).getTime())
+      if (sortKey === 'followUp') {
+        const leftFollowUp = getLeadFollowUpAt(left)
+        const rightFollowUp = getLeadFollowUpAt(right)
+        if (!leftFollowUp && !rightFollowUp) return 0
+        if (!leftFollowUp) return 1
+        if (!rightFollowUp) return -1
+        const leftTime = leftFollowUp ? new Date(leftFollowUp).getTime() : Number.POSITIVE_INFINITY
+        const rightTime = rightFollowUp ? new Date(rightFollowUp).getTime() : Number.POSITIVE_INFINITY
+        comparison = compareNumbers(leftTime, rightTime)
+      }
+      if (comparison === 0) comparison = compareNumbers(new Date(right.created_at).getTime(), new Date(left.created_at).getTime())
+      return comparison * direction
+    })
+  }, [leads, sortDirection, sortKey])
+
+  const toggleSort = (key: LeadSortKey) => {
+    if (key === sortKey) setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'created' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortLabel = (key: LeadSortKey, label: string) => `${label}${sortKey === key ? `, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : ''}`
+
+  const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
+    setLeadPanelDrafts((current) => {
+      const hasDraft = Object.values(draft).some((value) => value !== undefined)
+      const next = { ...current }
+      if (hasDraft) next[leadId] = draft
+      else delete next[leadId]
+
+      try {
+        if (Object.keys(next).length) window.sessionStorage.setItem(LEAD_PANEL_DRAFT_STORAGE_KEY, JSON.stringify(next))
+        else window.sessionStorage.removeItem(LEAD_PANEL_DRAFT_STORAGE_KEY)
+      } catch {}
+
+      return next
+    })
+  }
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
@@ -900,7 +985,7 @@ export default function LeadsView() {
   }
 
   const saveDetail = async (extra: { add_note?: string, status?: string, payload?: Record<string, unknown> } = {}) => {
-    if (!selectedLeadId) return
+    if (!selectedLeadId) return false
     setDetailSaving(true)
     setDetailError('')
     try {
@@ -908,8 +993,6 @@ export default function LeadsView() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: statusValue,
-          notes: notesValue,
           ...extra,
         }),
       })
@@ -939,8 +1022,10 @@ export default function LeadsView() {
             }
           : lead
       )))
+      return true
     } catch (error: unknown) {
       setDetailError(getErrorMessage(error, 'Could not save lead'))
+      return false
     } finally {
       setDetailSaving(false)
     }
@@ -1419,7 +1504,7 @@ export default function LeadsView() {
           saving={detailSaving}
           helperText="Use notes for call attempts, context, and follow-up details."
           showHeader={false}
-          onSave={(text) => saveDetail({ add_note: text })}
+          onSave={async (text) => { await saveDetail({ add_note: text }) }}
         />
       </DenseSectionPanel>
 
@@ -1508,7 +1593,7 @@ export default function LeadsView() {
             wrapperStyle={filterSelectWrapStyle}
           >
             {getStatusOptionsForTab(activeTab).map((option) => (
-              <option key={option} value={option}>Status: {option}</option>
+              <option key={option} value={option}>Status: {formatLabel(option)}</option>
             ))}
           </Select>
           {selectedCount > 0 && (
@@ -1530,7 +1615,7 @@ export default function LeadsView() {
           />
         ) : isMobileLayout ? (
           <div style={leadCardListStyle}>
-            {leads.map((lead) => {
+            {sortedLeads.map((lead) => {
               const signal = getLeadSignal(lead)
               const isSelected = selectedIds.has(lead.id)
               const followUp = getLeadFollowUpAt(lead)
@@ -1560,7 +1645,7 @@ export default function LeadsView() {
                   </div>
 
                   <div style={leadCardBadgesStyle}>
-                    <Badge variant={getStatusBadgeVariant(lead.status)}>{formatLabel(lead.status)}</Badge>
+                    <Badge variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>{formatLabel(lead.status)}</Badge>
                     {followUp && (
                       <span style={{ ...leadCardFollowUpStyle, color: getFollowUpTone(followUp).color, background: getFollowUpTone(followUp).background, border: `1px solid ${getFollowUpTone(followUp).border}` }}>
                         ↻ {formatFollowUpDate(followUp)}
@@ -1601,17 +1686,17 @@ export default function LeadsView() {
                   </div>
                   <div>Temp</div>
                   <div>Status</div>
-                  <div>Source</div>
-                  <div>Name</div>
+                  <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <div>Email</div>
                   <div>Phone</div>
-                  <div>Follow-up</div>
-                  <div>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'}</div>
-                  <div>Created</div>
+                  <button type="button" onClick={() => toggleSort('followUp')} aria-label={sortLabel('followUp', 'Follow-up')} style={sortableHeaderButtonStyle}>Follow-up <span aria-hidden="true">{sortKey === 'followUp' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
+                  <button type="button" onClick={() => toggleSort('program')} aria-label={sortLabel('program', activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details')} style={sortableHeaderButtonStyle}>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'} <span aria-hidden="true">{sortKey === 'program' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
+                  <div>Source</div>
+                  <button type="button" onClick={() => toggleSort('created')} aria-label={sortLabel('created', 'Created')} style={sortableHeaderButtonStyle}>Created <span aria-hidden="true">{sortKey === 'created' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                 </>
               )}
             >
-              {leads.map((lead) => {
+              {sortedLeads.map((lead) => {
                 const signal = getLeadSignal(lead)
                 const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                 const isSelected = selectedIds.has(lead.id)
@@ -1645,11 +1730,10 @@ export default function LeadsView() {
                     </div>
                     <div style={signalCellStyle} title={signal.label}>{signal.emoji}</div>
                     <div>
-                      <Badge variant={getStatusBadgeVariant(lead.status)}>
+                      <Badge variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>
                         {formatLabel(lead.status)}
                       </Badge>
                     </div>
-                    <div style={cellTextStyle}>{getLeadSource(lead)}</div>
                     <div style={nameCellStyle}>
                       <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
                     </div>
@@ -1668,6 +1752,7 @@ export default function LeadsView() {
                       <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
                       <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
                     </div>
+                    <div style={cellTextStyle}>{getLeadSource(lead)}</div>
                     <div style={cellTextStyle}>{formatDateTime(lead.created_at)}</div>
                   </DataGridRow>
                 )
@@ -1854,95 +1939,20 @@ export default function LeadsView() {
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
 
           {selectedLead && !detailLoading && (
-            <div style={leadDetailShellStyle}>
-              <div style={leadHeaderWrapStyle}>
-                <div style={leadHeroPanelStyle}>
-                  <div style={leadHeroTopStyle}>
-                    <div style={leadHeroIdentityStyle}>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={leadHeroNameRowStyle}>
-                          <h2 style={leadHeroNameStyle}>{selectedLead.contact?.full_name || 'Unknown lead'}</h2>
-                          {prospectAge !== '—' && (
-                            <span style={leadHeroAgeStyle}>({prospectAge})</span>
-                          )}
-                          <button type="button" aria-label="Edit contact" onClick={openLeadEditor} style={editContactIconButtonStyle}>
-                            <Pencil size={15} strokeWidth={2.25} />
-                          </button>
-                        </div>
-                        <div style={leadHeroMetaRowStyle}>
-                          <span>{selectedLeadType} · {formatDateTime(selectedLead.created_at)}</span>
-                          {selectedLeadSignal && (
-                            <span style={leadInlineSignalStyle} title={selectedLeadSignal.label}>{selectedLeadSignal.emoji}</span>
-                          )}
-                          {followUpAt && (
-                            <span style={{
-                              ...followUpBadgeStyle,
-                              background: getFollowUpTone(followUpAt).background,
-                              color: getFollowUpTone(followUpAt).color,
-                              border: `1px solid ${getFollowUpTone(followUpAt).border}`,
-                            }}>
-                              ↻ Follow-up {formatFollowUpDate(followUpAt)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={leadHeroActionsStyle}>
-                      {selectedLead.contact?.phone && (
-                        <Button type="button" variant="secondary" size="sm" onClick={handleCallLead} disabled={callingLead}>
-                          <Phone size={15} />
-                          {callingLead ? 'Calling…' : 'Call'}
-                        </Button>
-                      )}
-                      {selectedLead.intake_type !== 'job_application' && (
-                        <div style={valueCardStyle}>
-                          <div style={valueCardLabelStyle}>
-                            {selectedLead.intake_type === 'lesson_inquiry' ? 'Opportunity value' : 'Session'}
-                          </div>
-                          <div style={valueCardAmountStyle}>
-                            {selectedLead.intake_type === 'lesson_inquiry'
-                              ? formatCurrency(Math.round(lessonOpportunityTotal))
-                              : serviceSessionValue != null
-                                ? formatCurrency(serviceSessionValue)
-                                : '—'}
-                          </div>
-                          <div style={valueCardMetaStyle}>
-                            {selectedLead.intake_type === 'lesson_inquiry'
-                              ? `${lessonSiblingCount + 1} student${lessonSiblingCount === 0 ? '' : 's'} · ${lessonSiblingDiscountLabel}`
-                              : 'Fixed one-time fee'}
-                          </div>
-                        </div>
-                      )}
-
-                      <button type="button" onClick={closeLead} style={drawerCloseButtonStyle} aria-label="Close lead detail">
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {isMobileLayout && (
-                <Tabs
-                  items={detailPanelTabItems}
-                  activeKey={detailPanelTab}
-                  onChange={setDetailPanelTab}
-                  style={mobileDetailTabsStyle}
-                />
-              )}
-
-              <div style={isMobileLayout ? leadDetailContentStackStyle : leadDetailContentGridStyle}>
-                {isMobileLayout ? (
-                  detailPanelTab === 'details' ? leadDetailPrimaryContent : leadDetailSecondaryContent
-                ) : (
-                  <>
-                    {leadDetailPrimaryContent}
-                    {leadDetailSecondaryContent}
-                  </>
-                )}
-              </div>
-            </div>
+            <LeadDetailPanel
+              lead={selectedLead}
+              saving={detailSaving}
+              calling={callingLead}
+              isMobile={isMobileLayout}
+              onCall={handleCallLead}
+              onCompose={() => setComposeLead(selectedLead)}
+              onClose={closeLead}
+              draft={leadPanelDrafts[selectedLead.id] || EMPTY_LEAD_PANEL_DRAFT}
+              onDraftChange={(draft) => updateLeadPanelDraft(selectedLead.id, draft)}
+              onPatch={async (patch) => {
+                return await saveDetail(patch)
+              }}
+            />
           )}
         </div>
         {selectedLead && !detailLoading && (
@@ -1956,10 +1966,10 @@ export default function LeadsView() {
             >
               Previous
             </Button>
-            <span style={leadFooterCountStyle}>{leads.length > 0 ? `${selectedLeadIndex + 1} of ${leads.length}` : ''}</span>
+            <span style={leadFooterCountStyle}>{leads.length > 0 ? `Lead ${selectedLeadIndex + 1} of ${leads.length}` : ''}</span>
             <Button
               type="button"
-              variant="primary"
+              variant="secondary"
               size="sm"
               onClick={() => openAdjacentLead('next')}
               disabled={selectedLeadIndex < 0 || selectedLeadIndex >= leads.length - 1}
@@ -1968,6 +1978,35 @@ export default function LeadsView() {
             </Button>
           </div>
         )}
+      </SlidePanel>
+
+      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)">
+        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} />
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {composeLead?.contact && (
+            <ComposePanel
+              recipientCount={1}
+              filterExplanation={`Message to ${composeLead.contact.full_name}`}
+              recipientIds={[composeLead.contact.id]}
+              channel="sms"
+              mode="single"
+              contactContext={{
+                id: composeLead.contact.id,
+                first_name: composeLead.contact.full_name.split(' ')[0] || composeLead.contact.full_name,
+                last_name: composeLead.contact.full_name.split(' ').slice(1).join(' '),
+              }}
+              composeSource="scratch"
+              composeIntent="neutral"
+              recipientPreview={[{
+                id: composeLead.contact.id,
+                first_name: composeLead.contact.full_name.split(' ')[0] || composeLead.contact.full_name,
+                last_name: composeLead.contact.full_name.split(' ').slice(1).join(' '),
+              }]}
+              onClose={() => setComposeLead(null)}
+              onSent={() => window.setTimeout(() => setComposeLead(null), 3000)}
+            />
+          )}
+        </div>
       </SlidePanel>
 
       <SlidePanel isOpen={isEditLeadOpen} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">
@@ -2060,7 +2099,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(130px, 0.9fr) minmax(190px, 1.35fr) minmax(220px, 1.4fr) minmax(140px, 0.85fr) minmax(150px, 1fr) minmax(200px, 1.15fr) minmax(150px, 0.95fr)'
+const tableColumns = '44px 72px minmax(120px, 0.95fr) minmax(190px, 1.35fr) minmax(220px, 1.4fr) minmax(140px, 0.85fr) minmax(150px, 1fr) minmax(200px, 1.15fr) minmax(130px, 0.9fr) minmax(150px, 0.95fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -2108,14 +2147,30 @@ const cellTextStyle: React.CSSProperties = {
   lineHeight: 1.45,
 }
 
+const sortableHeaderButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: spacing.xs,
+  width: 'fit-content',
+  padding: 0,
+  border: 'none',
+  background: 'transparent',
+  color: colors.textSecondary,
+  fontFamily: typography.fontSans,
+  fontSize: typography.sizeXs,
+  fontWeight: typography.weightMedium,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+}
+
 const leadPanelBodyStyle: React.CSSProperties = {
   padding: '0',
-  overflowY: 'auto',
+  overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
-  gap: spacing.lg,
   background: colors.background,
   minHeight: 0,
+  flex: 1,
 }
 
 const leadDetailShellStyle: React.CSSProperties = {
