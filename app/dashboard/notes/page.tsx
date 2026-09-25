@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Check, Pin, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
+import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -16,6 +17,8 @@ interface Note {
   pinned: boolean
   created_by: string | null
   completed_at: string | null
+  note_date: string
+  reply_count: number
   created_at: string
   updated_at: string
 }
@@ -31,6 +34,13 @@ const NOTE_COLORS: Record<string, string> = {
   white: '#FFFFFF',
 }
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
+
+function getLocalDateValue(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function sortNotes(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
@@ -102,6 +112,7 @@ interface NoteCardProps {
   onColor: (color: string) => void
   onToggleComplete: () => void
   onDelete: () => void
+  onReply: () => void
 }
 
 function NoteCard(props: NoteCardProps) {
@@ -111,6 +122,12 @@ function NoteCard(props: NoteCardProps) {
   const cardStyle: React.CSSProperties = {
     breakInside: 'avoid',
     marginBottom: spacing.lg,
+    width: '100%',
+    maxWidth: 390,
+    maxHeight: 460,
+    boxSizing: 'border-box',
+    overflowX: 'hidden',
+    overflowY: 'hidden',
     background: bg,
     border: `1px solid ${isWhite ? colors.border : 'rgba(0,0,0,0.06)'}`,
     borderRadius: radius.md,
@@ -125,87 +142,142 @@ function NoteCard(props: NoteCardProps) {
     fontFamily: typography.fontSans,
     color: colors.text,
   }
+  const pinButtonStyle: React.CSSProperties = {
+    ...iconBtnStyle,
+    color: note.pinned ? '#DC2626' : 'rgba(55, 65, 81, 0.45)',
+  }
+  const completionButton = (
+    <button
+      type="button"
+      onClick={props.onToggleComplete}
+      title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
+      aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 7px', borderRadius: radius.sm,
+        border: `1px solid ${note.completed_at ? '#86C99C' : colors.border}`,
+        background: note.completed_at ? '#F0FDF4' : 'rgba(255,255,255,0.55)',
+        color: note.completed_at ? colors.greenDark : colors.textSecondary,
+        fontSize: '10px', fontWeight: typography.weightBold, letterSpacing: '0.05em', textTransform: 'uppercase',
+        fontFamily: typography.fontSans, cursor: 'pointer', flexShrink: 0,
+      }}
+    >
+      <Check size={12} strokeWidth={2.4} />
+      {note.completed_at ? 'Done' : 'Mark done'}
+    </button>
+  )
 
   if (editing) {
     return (
-      <div style={cardStyle}>
-        <input
-          autoFocus
-          value={editTitle}
-          onChange={(e) => props.onEditTitle(e.target.value)}
-          placeholder="Title"
-          style={{ ...plainInput, fontSize: 15, fontWeight: 600, marginBottom: spacing.sm }}
-        />
-        <MentionTextarea
-          value={editBody}
-          onChange={props.onEditBody}
-          placeholder="Take a note…"
-          style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'none', minHeight: 90 }}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') props.onSaveEdit()
-          }}
-        />
-        <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end', marginTop: spacing.md }}>
+      <div style={{ ...cardStyle, position: 'relative', overflowY: 'auto' }}>
+        <button
+          type="button"
+          onClick={props.onPin}
+          title={note.pinned ? 'Unpin note' : 'Pin note'}
+          aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+          style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
+        >
+          <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
+        </button>
+        <div style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
+          {completionButton}
+        </div>
+        <div style={{ paddingTop: 34 }}>
+          <input
+            autoFocus
+            value={editTitle}
+            onChange={(e) => props.onEditTitle(e.target.value)}
+            placeholder="Title"
+            style={{ ...plainInput, fontSize: 15, fontWeight: 600, marginBottom: spacing.sm }}
+          />
+          <MentionTextarea
+            value={editBody}
+            onChange={props.onEditBody}
+            placeholder="Take a note…"
+            style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'vertical', minHeight: 90 }}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') props.onSaveEdit()
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }} aria-label="Note color">
+            {NOTE_COLOR_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => props.onColor(key)}
+                title={`Set color to ${key}`}
+                aria-label={`Set color to ${key}`}
+                style={{
+                  width: 18, height: 18, borderRadius: '50%', background: NOTE_COLORS[key],
+                  border: key === note.color ? `2px solid ${colors.text}` : '1px solid rgba(0,0,0,0.15)',
+                  cursor: 'pointer', padding: 0,
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={props.onDelete}
+            title="Delete note"
+            aria-label="Delete note"
+            style={{ ...iconBtnStyle, color: '#B91C1C' }}
+          >
+            <Trash2 size={16} />
+          </button>
           <Button variant="ghost" size="sm" onClick={props.onCancelEdit}>Cancel</Button>
-          <Button variant="primary" size="sm" onClick={props.onSaveEdit}>Done</Button>
+          <Button variant="primary" size="sm" onClick={props.onSaveEdit}>Save</Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={cardStyle}>
-      <div onClick={props.onStartEdit} style={{ cursor: 'text' }}>
+    <div style={{ ...cardStyle, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <button
+        type="button"
+        onClick={props.onPin}
+        title={note.pinned ? 'Unpin note' : 'Pin note'}
+        aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+        style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
+      >
+        <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
+      </button>
+      <div style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
+        {completionButton}
+      </div>
+      <div style={{ minHeight: 0, flex: '1 1 auto', paddingTop: 34, overflow: 'hidden' }}>
         {note.title && (
-          <div style={{ fontWeight: 600, fontSize: 15, color: colors.text, marginBottom: 4, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <div style={{
+            display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden',
+            fontWeight: 600, fontSize: 15, color: colors.text, marginBottom: 4, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+          }}>
             {note.title}
           </div>
         )}
         {note.body && (
-          <div style={{ fontSize: 13.5, lineHeight: 1.5, color: colors.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <div style={{
+            display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 14, overflow: 'hidden',
+            fontSize: 13.5, lineHeight: 1.5, color: colors.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+          }}>
             <NoteBody body={note.body} />
           </div>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.md }}>
-        <span style={{ fontSize: 11, color: '#374151' }}>{note.created_by || 'You'} · {formatTimestamp(note.updated_at)}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button
-            type="button"
-            onClick={props.onToggleComplete}
-            title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
-            aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 7px', borderRadius: radius.sm, border: `1px solid ${note.completed_at ? '#86C99C' : colors.border}`, background: note.completed_at ? '#F0FDF4' : 'rgba(255,255,255,0.55)', color: note.completed_at ? colors.greenDark : colors.textSecondary, fontSize: '10px', fontWeight: typography.weightBold, letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: typography.fontSans, cursor: 'pointer', flexShrink: 0 }}
-          >
-            <Check size={12} strokeWidth={2.4} />
-            {note.completed_at ? 'Done' : 'Mark done'}
-          </button>
-          <div style={{ display: 'flex', gap: 3, marginRight: 6 }}>
-            {NOTE_COLOR_KEYS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => props.onColor(key)}
-                title={key}
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: '50%',
-                  background: NOTE_COLORS[key],
-                  border: key === note.color ? `2px solid ${colors.text}` : '1px solid rgba(0,0,0,0.15)',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              />
-            ))}
-          </div>
-          <button type="button" onClick={props.onPin} title={note.pinned ? 'Unpin' : 'Pin'} style={iconBtnStyle}>
-            <Pin size={15} fill={note.pinned ? 'currentColor' : 'none'} />
-          </button>
-          <button type="button" onClick={props.onDelete} title="Delete" style={iconBtnStyle}>
-            <Trash2 size={15} />
-          </button>
+      <div style={{ width: '100%', marginTop: spacing.md, paddingTop: spacing.sm, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+          <Button variant="ghost" size="sm" onClick={props.onReply} style={{ color: colors.textSecondary }}>
+            <MessageCircle size={14} aria-hidden="true" />
+            {note.reply_count > 0 ? <strong>Replies {note.reply_count}</strong> : 'Reply'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={props.onStartEdit}>
+            Edit
+          </Button>
         </div>
+        <span style={{ display: 'block', fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {note.created_by || 'You'} · {formatTimestamp(note.updated_at)}
+        </span>
       </div>
     </div>
   )
@@ -215,6 +287,8 @@ export default function NotesPage() {
   const [tenantId] = useState<string>(() => getActiveTenantId())
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState('')
+  const [showDone, setShowDone] = useState(true)
 
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
@@ -225,12 +299,21 @@ export default function NotesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
+  const [conversationNote, setConversationNote] = useState<Note | null>(null)
+
+  const handleReplyAdded = (noteId: string, replyCount: number) => {
+    setNotes((current) => current.map((note) => note.id === noteId ? { ...note, reply_count: replyCount } : note))
+    setConversationNote((current) => current?.id === noteId ? { ...current, reply_count: replyCount } : current)
+  }
 
   const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null)
 
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
-      const res = await fetch(`/api/notes?tenant=${tenantId}`)
+      const params = new URLSearchParams({ tenant: tenantId })
+      if (selectedDate) params.set('date', selectedDate)
+      if (showDone) params.set('show_done', 'true')
+      const res = await fetch(`/api/notes?${params.toString()}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
       setNotes(sortNotes(Array.isArray(data) ? data : []))
@@ -239,10 +322,12 @@ export default function NotesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedDate, showDone, tenantId])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchNotes() }, [tenantId])
+  useEffect(() => {
+    setLoading(true)
+    fetchNotes()
+  }, [fetchNotes])
 
   useEffect(() => {
     if (!toast) return
@@ -264,16 +349,33 @@ export default function NotesPage() {
     }).catch(() => {})
   }
 
+  const generateTitle = async (body: string): Promise<string | null> => {
+    if (!body.trim()) return null
+    try {
+      const res = await fetch(`/api/notes/title?tenant=${tenantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      return typeof data.title === 'string' && data.title.trim() ? data.title.trim() : null
+    } catch {
+      return null
+    }
+  }
+
   const handleAdd = async () => {
-    const title = draftTitle.trim()
+    const typedTitle = draftTitle.trim()
     const body = draftBody.trim()
-    if (!title && !body) return
+    if (!typedTitle && !body) return
     setSaving(true)
     try {
+      const title = typedTitle || await generateTitle(body)
       const res = await fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned }),
+        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, note_date: selectedDate || getLocalDateValue() }),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => null)
@@ -302,7 +404,10 @@ export default function NotesPage() {
 
   const handleToggleComplete = (note: Note) => {
     const completed_at = note.completed_at ? null : new Date().toISOString()
-    setNotes((prev) => prev.map((entry) => (entry.id === note.id ? { ...entry, completed_at } : entry)))
+    setNotes((prev) => {
+      if (!showDone && completed_at) return prev.filter((entry) => entry.id !== note.id)
+      return prev.map((entry) => (entry.id === note.id ? { ...entry, completed_at } : entry))
+    })
     patchNote(note.id, { completed_at })
   }
 
@@ -312,7 +417,7 @@ export default function NotesPage() {
       fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: note.title, body: note.body, color: note.color, pinned: note.pinned }),
+        body: JSON.stringify({ title: note.title, body: note.body, color: note.color, pinned: note.pinned, note_date: note.note_date }),
       })
         .then((r) => r.json())
         .then((created) => { if (created?.id) setNotes((prev) => sortNotes([created, ...prev])) })
@@ -327,12 +432,13 @@ export default function NotesPage() {
     setEditBody(note.body)
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingId) return
     const id = editingId
-    const title = editTitle.trim()
+    const typedTitle = editTitle.trim()
     const body = editBody.trim()
-    if (!title && !body) { setEditingId(null); return }
+    if (!typedTitle && !body) { setEditingId(null); return }
+    const title = typedTitle || await generateTitle(body)
     setNotes((prev) => sortNotes(prev.map((n) => (n.id === id ? { ...n, title: title || null, body, updated_at: new Date().toISOString() } : n))))
     setEditingId(null)
     patchNote(id, { title: title || null, body })
@@ -351,7 +457,40 @@ export default function NotesPage() {
         subtitle="Quick thoughts, names, phone numbers. Jot it down."
       />
 
-      <div style={{ maxWidth: 620, marginBottom: spacing['2xl'] }}>
+      <div style={{
+        display: 'flex', alignItems: 'end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`,
+        marginBottom: spacing.xl,
+      }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>
+          Date {selectedDate ? '' : '(all dates)'}
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) => setSelectedDate(event.target.value)}
+            aria-label="Notes date"
+            style={{
+              minHeight: 36, border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface,
+              color: colors.text, padding: '0 10px', fontFamily: typography.fontSans, fontSize: typography.sizeSm,
+            }}
+          />
+        </label>
+        {selectedDate && (
+          <Button variant="ghost" size="sm" onClick={() => setSelectedDate('')}>
+            All dates
+          </Button>
+        )}
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm, minHeight: 36, color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={showDone}
+            onChange={(event) => setShowDone(event.target.checked)}
+            style={{ width: 16, height: 16, accentColor: colors.action, cursor: 'pointer' }}
+          />
+          Show done notes
+        </label>
+      </div>
+
+      <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
         <div style={{ background: composerBg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.md, boxShadow: shadows.md, padding: spacing.lg }}>
           <input
             value={draftTitle}
@@ -381,7 +520,13 @@ export default function NotesPage() {
                 />
               ))}
             </div>
-            <button type="button" onClick={() => setDraftPinned((v) => !v)} title={draftPinned ? 'Unpin' : 'Pin'} style={iconBtnStyle}>
+            <button
+              type="button"
+              onClick={() => setDraftPinned((v) => !v)}
+              title={draftPinned ? 'Unpin' : 'Pin'}
+              aria-label={draftPinned ? 'Unpin note' : 'Pin note'}
+              style={{ ...iconBtnStyle, color: draftPinned ? '#DC2626' : 'rgba(55, 65, 81, 0.45)' }}
+            >
               <Pin size={16} fill={draftPinned ? 'currentColor' : 'none'} />
             </button>
             <div style={{ flex: 1 }} />
@@ -400,7 +545,7 @@ export default function NotesPage() {
           description="Capture a quick thought, a name, or a phone number and it will live here as a sticky note."
         />
       ) : (
-        <div style={{ columnWidth: 240, columnGap: spacing.lg }}>
+        <div style={{ columnWidth: 390, columnGap: spacing.lg }}>
           {notes.map((note) => (
             <NoteCard
               key={note.id}
@@ -417,10 +562,18 @@ export default function NotesPage() {
               onColor={(color) => handleColor(note, color)}
               onToggleComplete={() => handleToggleComplete(note)}
               onDelete={() => handleDelete(note)}
+              onReply={() => setConversationNote(note)}
             />
           ))}
         </div>
       )}
+
+      <NoteConversationPanel
+        note={conversationNote}
+        tenantId={tenantId}
+        onReplyAdded={handleReplyAdded}
+        onClose={() => setConversationNote(null)}
+      />
 
       {toast && (
         <div style={{

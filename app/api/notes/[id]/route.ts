@@ -4,9 +4,8 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+function isDateValue(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
 export async function PATCH(
@@ -35,6 +34,10 @@ export async function PATCH(
     }
     if ('completed_at' in body) {
       updates.completed_at = typeof body.completed_at === 'string' ? body.completed_at : null
+    }
+    if ('note_date' in body) {
+      if (!isDateValue(body.note_date)) return NextResponse.json({ error: 'A valid note date is required.' }, { status: 400 })
+      updates.note_date = body.note_date
     }
 
     if (Object.keys(updates).length === 0) {
