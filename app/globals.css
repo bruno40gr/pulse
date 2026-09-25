@@ -120,32 +120,51 @@ body {
 
 /* ── Responsive panels: full-screen takeover on phones ─────────────── */
 @media (max-width: 960px) {
+  /* The full-screen panel is the SINGLE scroll container */
   .slide-panel--mobile-full {
-    animation: fadeIn 0.2s ease-out !important;
     top: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
     width: 100% !important;
-    height: 100% !important;
-    max-width: none !important;
-    box-shadow: none !important;
-  }
-
-  .slide-panel-overlay--mobile-hidden {
-    display: none !important;
-  }
-
-  .slide-panel-header {
-    padding: 14px 16px !important;
-  }
-
-  /* Lead detail panel: single column, scrollable, no horizontal overflow */
-  .lead-detail-panel {
+    max-width: 100% !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
     display: block !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
+    box-shadow: none !important;
+    animation: fadeIn 0.2s ease-out !important;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .slide-panel-overlay--mobile-hidden { display: none !important; }
+
+  /* Header */
+  .slide-panel-header { padding: 14px 16px !important; }
+  .slide-panel-header h1,
+  .slide-panel-header h2,
+  .slide-panel-header h3 { min-width: 0 !important; overflow-wrap: anywhere; }
+
+  /* Panels: let content flow inside the panel scroll container (no nested
+     flex-height chains, which caused clipping and blocked scrolling) */
+  .lead-panel-body,
+  .lead-detail-panel,
+  .compose-root,
+  .compose-layout {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    flex: none !important;
+    overflow: visible !important;
+  }
+
+  .lead-panel-body,
+  .lead-detail-panel,
+  .compose-root {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .lead-detail-columns {
@@ -153,31 +172,32 @@ body {
     flex-direction: column !important;
     gap: 14px !important;
     padding: 0 16px 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
   }
 
-  .lead-detail-column {
-    display: contents !important;
-  }
+  .lead-detail-column { display: contents !important; }
 
-  /* Compose panel: single column, scrollable, no phone preview */
-  .compose-layout {
-    display: block !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
+  /* Compose */
   .compose-form-col {
-    overflow: visible !important;
     padding: 16px !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
-  .compose-preview-col {
-    display: none !important;
-  }
+  .compose-preview-col { display: none !important; }
 
   .compose-footer {
-    padding: 14px 16px !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 12px 16px !important;
   }
+
+  .slide-panel--mobile-full img,
+  .slide-panel--mobile-full video { max-width: 100% !important; height: auto !important; }
 }

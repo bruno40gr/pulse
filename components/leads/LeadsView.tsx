@@ -1944,7 +1944,7 @@ export default function LeadsView() {
       </SlidePanel>
 
       <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100vw' : 'min(88vw, 1180px)'} fullScreenOnMobile>
-        <div style={leadPanelBodyStyle}>
+        <div className="lead-panel-body" style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
 
