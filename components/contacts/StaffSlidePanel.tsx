@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useIsMobile } from '@/lib/useMediaQuery'
 import { Badge, Button, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getDemoAvatarUrl } from '@/lib/tenant'
@@ -42,7 +41,6 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
   const [staff, setStaff] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
   const tenantId = getActiveTenantId()
-  const isMobile = useIsMobile()
 
   useEffect(() => {
     fetch(`/api/staff/${staffId}`)
@@ -104,7 +102,7 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
   const hasContactInfo = !!(staff.phone || staff.email || staff.date_of_birth)
 
   return (
-    <SlidePanel isOpen={true} onClose={onClose} fullScreenOnMobile>
+    <SlidePanel isOpen={true} onClose={onClose}>
       <SlidePanelHeader
         title={fullName}
         avatar={{
@@ -135,11 +133,9 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
           </div>
         }
         onClose={onClose}
-        onBack={isMobile ? onClose : undefined}
-        backLabel="Staff"
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 480px', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 480px', flex: 1, overflow: 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
           {/* Contact info */}

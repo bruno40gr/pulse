@@ -108,13 +108,11 @@ const STATUS_TONE_BY_STATUS: Record<string, StatusTone> = {
 }
 
 function getStatusTone(status: string) {
-  if (status === 'new') return { background: colors.crimson, text: '#FFFFFF', border: colors.crimson }
-  if (status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
-  if (status === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
-  if (status === 'processing' || status === 'won') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
-  if (status === 'lost' || status === 'ghosted' || status === 'ghosted_us') return { background: colors.espresso, text: '#FFFFFF', border: colors.espresso }
-  const tone = STATUS_TONE_BY_STATUS[status]
-  return tone === 'booked' || !tone ? semanticColors.warning : semanticColors[tone]
+  if (status === 'new' || status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
+  if (STATUS_TONE_BY_STATUS[status] === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
+  if (STATUS_TONE_BY_STATUS[status] === 'success') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
+  if (STATUS_TONE_BY_STATUS[status] === 'danger') return { background: '#FEF2F2', text: '#B91C1C', border: colors.error }
+  return semanticColors[STATUS_TONE_BY_STATUS[status] || 'warning']
 }
 
 function getLeadAge(payload: Record<string, unknown>) {
@@ -227,7 +225,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
   const opportunity = isLesson ? enrollmentValue * (familyMembers.length + 1) : isService ? serviceValue : null
   const opportunityUnit = isLesson ? '/mo' : isService ? '/session' : ''
-  const nextStages = pipelineIndex >= 0 ? PIPELINE.slice(pipelineIndex + 1) : []
+  const nextStages = pipelineIndex >= 0 ? PIPELINE.slice(pipelineIndex + 1, pipelineIndex + 2) : []
   const urgency = followUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
@@ -303,32 +301,27 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const contactFirstName = contactNameParts[0] || 'L'
   const contactLastName = contactNameParts.slice(1).join(' ') || contactFirstName
   const leadAge = getLeadAge(lead.payload)
-  const statusStageSelect = nextStages.length > 0 ? (
-    <Select aria-label="Change lead stage" value={stageSelection} fullWidth={false} disabled={saving} style={isMobile ? statusStageSelectMobileStyle : statusStageSelectStyle} onChange={(event) => {
-      const stage = event.target.value
-      setStageSelection('')
-      if (stage === 'lost') setLostOpen(true)
-      else if (stage) void onPatch({ status: stage })
-    }}>
-      <option value="" disabled>Change stage</option>
-      {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
-      <option value="lost">Lost</option>
-    </Select>
-  ) : null
-
   const statusControls = lead.intake_type !== 'job_application' && (
-    <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+    <div style={statusClusterRowStyle}>
       <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border }}>
         <span style={{ ...statusLabelStyle, color: statusTone.text }}>{statusLabel(lead.status, lead.payload)}</span>
-        {!isMobile && statusStageSelect && <>
+        {nextStages.length > 0 && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
           <div style={statusStageSelectWrapStyle}>
-            {statusStageSelect}
+            <Select aria-label="Change lead stage" value={stageSelection} fullWidth={false} disabled={saving} style={statusStageSelectStyle} onChange={(event) => {
+              const stage = event.target.value
+              setStageSelection('')
+              if (stage === 'lost') setLostOpen(true)
+              else if (stage) void onPatch({ status: stage })
+            }}>
+              <option value="" disabled>Change stage</option>
+              {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
+              <option value="lost">Lost</option>
+            </Select>
             <RefreshCw size={15} aria-hidden="true" style={{ ...statusStageUpdateStyle, color: statusTone.text }} />
           </div>
         </>}
       </div>
-      {isMobile && statusStageSelect}
     </div>
   )
 
@@ -340,13 +333,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         avatar={{ firstName: contactFirstName, lastName: contactLastName, size: 48 }}
         titleSize={typography.size2xl}
         onClose={onClose}
-        onBack={isMobile ? onClose : undefined}
-        backLabel="Leads"
         titleBadge={!contactEditing ? <button type="button" aria-label="Edit contact" title="Edit contact" onClick={() => setContactEditing(true)} style={editNameButtonStyle}><Pencil size={15} /></button> : undefined}
-        actions={isMobile ? undefined : (statusControls || undefined)}
+        actions={statusControls || undefined}
       />
-
-      {isMobile && !contactEditing && statusControls && <div style={mobileStatusControlsSectionStyle}>{statusControls}</div>}
 
       {contactEditing ? (
         <div style={editContactSectionStyle}>
@@ -423,19 +412,19 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             </div>
             {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? 'Saving…' : 'Save family members'}</Button></div>}
           </DenseSectionPanel>}
-          {!isMobile && <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
+          <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
             <div style={isMobile ? oneColumnStyle : twoColumnStyle}><Field label="Source form" value={lead.source_form} /><Field label="Campaign" value={lead.utm_campaign || ''} /><Field label="Landing page" value={lead.source_page || ''} /><Field label="Referrer" value={lead.referrer || ''} /></div>
-          </DenseSectionPanel>}
+          </DenseSectionPanel>
         </div>
 
         <div style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
           <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || 'L').charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} onSave={(text) => onPatch({ add_note: text }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
-          {!isMobile && <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
+          <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
             <div style={stackStyle}><div style={isMobile ? oneColumnStyle : twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button></div></div>
-          </DenseSectionPanel>}
-          {!isMobile && <DenseSectionPanel title={<SectionTitle>Activity</SectionTitle>} tone="muted" style={activitySectionStyle}>
+          </DenseSectionPanel>
+          <DenseSectionPanel title={<SectionTitle>Activity</SectionTitle>} tone="muted" style={activitySectionStyle}>
             <div style={activityListStyle}>{activityEvents.length === 0 ? <div style={emptyActivityStyle}>No system activity yet.</div> : activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div></div></div>)}</div>
-          </DenseSectionPanel>}
+          </DenseSectionPanel>
         </div>
       </div>}
     </div>
@@ -443,7 +432,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
 }
 
 const panelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }
-const mobilePanelStyle: CSSProperties = { display: 'block', minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }
+const mobilePanelStyle: CSSProperties = { minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }
 const columnsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
 const mobileColumnsStyle: CSSProperties = { gridTemplateColumns: 'minmax(0, 1fr)', overflow: 'visible', flex: 'none' }
 const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
@@ -467,8 +456,6 @@ const statusLabelStyle: CSSProperties = { padding: `${spacing.xs} ${spacing.sm}`
 const statusDividerStyle: CSSProperties = { width: '1px', alignSelf: 'stretch', margin: `${spacing.xs} ${spacing.sm}`, opacity: 0.3 }
 const statusStageSelectWrapStyle: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
 const statusStageSelectStyle: CSSProperties = { width: '28px', minHeight: '28px', padding: 0, border: 'none', borderRadius: radius.full, background: 'transparent', color: 'transparent', appearance: 'none', cursor: 'pointer' }
-const statusStageSelectMobileStyle: CSSProperties = { minHeight: '36px', appearance: 'auto' }
-const mobileStatusControlsSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm, padding: `${spacing.md} ${spacing.lg}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }
 const statusStageUpdateStyle: CSSProperties = { position: 'absolute', right: spacing.xs, pointerEvents: 'none' }
 const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }

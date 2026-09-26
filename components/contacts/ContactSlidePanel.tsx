@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useIsMobile } from '@/lib/useMediaQuery'
 import { Check, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -111,7 +110,6 @@ const dividerStyle: React.CSSProperties = {
 
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
-  const isMobile = useIsMobile()
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
 
@@ -395,12 +393,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     const editLastName = edits.last_name ?? contact.last_name
 
     return (
-      <SlidePanel isOpen={true} onClose={onClose} fullScreenOnMobile>
+      <SlidePanel isOpen={true} onClose={onClose}>
         <SlidePanelHeader
           title="Edit contact"
           onClose={onClose}
-          onBack={isMobile ? onClose : undefined}
-          backLabel="Contacts"
           toast={toastMessage || undefined}
         />
 
@@ -498,7 +494,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   return (
-    <SlidePanel isOpen={true} onClose={onClose} width="min(92vw, 1320px)" fullScreenOnMobile>
+    <SlidePanel isOpen={true} onClose={onClose} width="min(92vw, 1320px)">
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -518,8 +514,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           </>
         }
         onClose={onClose}
-        onBack={isMobile ? onClose : undefined}
-        backLabel="Contacts"
         toast={toastMessage || undefined}
         actions={isInstructor ? (
           <>
@@ -597,7 +591,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
       {/* Body — 2 equal columns */}
       {insightsLoading ? panelSkeleton : (
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', padding: '24px 28px', borderRight: `1px solid ${colors.borderLight}` }}>
 
@@ -758,7 +752,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
             <DenseSectionPanel title="Details" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px 32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {contact.date_of_birth && (
                   <div>
                     <FieldLabel>DOB</FieldLabel>
