@@ -474,8 +474,8 @@ export async function PATCH(
         } else if (existingLead.category !== 'winback' && existingLead.source_form !== '2026-disenrollment-import') {
           const currentIndex = PIPELINE_STATUSES.indexOf(existingLead.status)
           const nextIndex = PIPELINE_STATUSES.indexOf(requestedStatus)
-          if (currentIndex === -1 || nextIndex !== currentIndex + 1) {
-            return NextResponse.json({ error: 'Leads can only advance one pipeline stage at a time.' }, { status: 400 })
+          if (currentIndex === -1 || nextIndex <= currentIndex) {
+            return NextResponse.json({ error: 'Leads can only advance forward in the pipeline.' }, { status: 400 })
           }
         }
       }

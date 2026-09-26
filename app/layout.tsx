@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, Baloo_2, Pridi } from "next/font/google";
 import "./globals.css";
 
@@ -26,6 +26,11 @@ export const metadata: Metadata = {
   icons: {
     icon: "https://res.cloudinary.com/diy08lj9x/image/upload/v1788457911/favicon_ajrnub.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

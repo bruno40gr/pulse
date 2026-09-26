@@ -30,5 +30,36 @@ export function useMediaQuery(query: string): boolean {
 }
 
 export function useIsMobile(breakpointPx = 960): boolean {
-  return useMediaQuery(`(max-width: ${breakpointPx}px)`)
+  const mediaMatches = useMediaQuery(`(max-width: ${breakpointPx}px)`)
+  const [viewportMatches, setViewportMatches] = useState(false)
+
+  useEffect(() => {
+    const sync = () => {
+      const widths = [
+        window.innerWidth,
+        window.outerWidth,
+        document.documentElement.clientWidth,
+        window.visualViewport?.width,
+        window.screen?.width,
+        window.screen?.availWidth,
+      ].filter((width): width is number => typeof width === 'number' && width > 0)
+
+      setViewportMatches(widths.length > 0 && Math.min(...widths) <= breakpointPx)
+    }
+
+    sync()
+    window.addEventListener('resize', sync)
+    window.addEventListener('orientationchange', sync)
+    window.visualViewport?.addEventListener('resize', sync)
+    window.screen?.orientation?.addEventListener('change', sync)
+
+    return () => {
+      window.removeEventListener('resize', sync)
+      window.removeEventListener('orientationchange', sync)
+      window.visualViewport?.removeEventListener('resize', sync)
+      window.screen?.orientation?.removeEventListener('change', sync)
+    }
+  }, [breakpointPx])
+
+  return mediaMatches || viewportMatches
 }

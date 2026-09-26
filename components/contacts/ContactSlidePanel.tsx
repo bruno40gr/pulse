@@ -5,6 +5,7 @@ import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePane
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
+import { useIsMobile } from '@/lib/useMediaQuery'
 
 interface AccountHolder {
   name: string | null
@@ -110,6 +111,7 @@ const dividerStyle: React.CSSProperties = {
 
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
+  const isMobile = useIsMobile()
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
 
@@ -375,13 +377,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     : undefined
 
   const panelSkeleton = (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
-      <div style={{ padding: '24px 28px', borderRight: `1px solid ${colors.borderLight}` }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
+      <div style={{ padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
         <div style={{ height: '120px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
         <div style={{ height: '220px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
         <div style={{ height: '180px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
       </div>
-      <div style={{ padding: '24px 28px' }}>
+      <div style={{ padding: isMobile ? '0 16px 16px' : '24px 28px' }}>
         <div style={{ height: '520px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
       </div>
     </div>
@@ -393,14 +395,15 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     const editLastName = edits.last_name ?? contact.last_name
 
     return (
-      <SlidePanel isOpen={true} onClose={onClose}>
+      <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile}>
         <SlidePanelHeader
           title="Edit contact"
           onClose={onClose}
           toast={toastMessage || undefined}
+          compact={isMobile}
         />
 
-        <div style={{ flex: 1, overflowY: 'auto', background: colors.surface, padding: '0 28px 24px' }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', background: colors.surface, padding: isMobile ? '0 16px 20px' : '0 28px 24px' }}>
           {/* Profile picture + name */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px 0 20px' }}>
               <Avatar
@@ -415,17 +418,17 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     })
                   : undefined}
               />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, overflowWrap: 'anywhere' }}>
                 {editFirstName as string} {editLastName as string}
               </div>
-              <div style={{ fontSize: '12px', color: colors.textMuted, marginTop: '2px' }}>
+              <div style={{ fontSize: '12px', color: colors.textMuted, marginTop: '2px', overflowWrap: 'anywhere' }}>
                 Profile picture upload coming soon
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 24px', minWidth: 0 }}>
             <div>
               <FieldLabel>First name</FieldLabel>
               <input type="text" value={editFirstName as string} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" style={inputStyle} />
@@ -444,13 +447,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </div>
             <div>
               <FieldLabel>Date of birth</FieldLabel>
-              <input type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: '160px' }} />
+              <input type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: isMobile ? '100%' : '160px' }} />
             </div>
           </div>
 
           <div style={dividerStyle} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 24px', minWidth: 0 }}>
             {tenantFields.map(f => {
               const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
               if (f.field_options?.length) {
@@ -476,12 +479,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
         {/* Footer — Cancel/Done (matches normal-mode button size) */}
         <div style={{
-          padding: `16px 28px`,
+          padding: isMobile ? '12px 16px' : `16px 28px`,
           borderTop: `1px solid ${colors.borderLight}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
           gap: '10px',
+          flexWrap: 'wrap',
+          minWidth: 0,
           flexShrink: 0,
           background: colors.surface,
         }}>
@@ -494,7 +499,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   return (
-    <SlidePanel isOpen={true} onClose={onClose} width="min(92vw, 1320px)">
+    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width="min(92vw, 1320px)">
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -504,6 +509,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           src: contactAvatarSrc,
         }}
         titleSize={typography.size2xl}
+        compact={isMobile}
         badge={
           <>
             <Badge variant={statusVariant}>{statusLabel}</Badge>
@@ -589,11 +595,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         ) : undefined}
       />
 
-      {/* Body — 2 equal columns */}
+      {/* Body — two desktop columns, one mobile stack */}
       {insightsLoading ? panelSkeleton : (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', background: colors.background }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
-        <div style={{ overflowY: 'auto', padding: '24px 28px', borderRight: `1px solid ${colors.borderLight}` }}>
+        <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
 
           {/* Account holders (conditional — no card space / divider when absent) */}
           {showAccountHolders ? (
@@ -608,6 +614,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     key={i}
                     style={{
                       display: 'flex',
+                      flexDirection: isMobile ? 'column' : 'row',
                       alignItems: 'stretch',
                       gap: spacing.md,
                       padding: '12px 14px',
@@ -618,8 +625,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   >
                     <div
                       style={{
-                        width: '42px',
-                        minHeight: '72px',
+                        width: isMobile ? '36px' : '42px',
+                        height: isMobile ? '36px' : undefined,
+                        minHeight: isMobile ? '36px' : '72px',
                         background: '#EEF1F1',
                         color: '#6B7280',
                         borderRadius: radius.lg,
@@ -634,12 +642,12 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       {getInitials(ah.name)}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, minWidth: 0 }}>
+                      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'baseline', justifyContent: 'space-between', gap: isMobile ? '4px' : '12px', minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                           {cleanName(ah.name) || '—'}
                         </div>
                         {ah.relationship && (
-                          <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, flexShrink: 0 }}>
+                          <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, flexShrink: 0, overflowWrap: 'anywhere' }}>
                             {ah.relationship}
                           </div>
                         )}
@@ -648,10 +656,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                         {ah.is_primary ? 'Primary account holder' : 'Additional account holder'}
                       </div>
                       {(ah.phone || ah.email) && (
-                        <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
+                        <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: isMobile ? '6px' : '12px', minWidth: 0 }}>
                           {ah.phone ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhone(ah.phone)}</span>
+                              <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayPhone(ah.phone)}</span>
                               <button
                                 type="button"
                                 onClick={() => handleCall(ah.phone)}
@@ -664,7 +672,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                               </button>
                             </span>
                           ) : <span style={{ color: colors.textMuted }}>—</span>}
-                          {ah.email ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
+                          {ah.email ? <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
                         </div>
                       )}
                     </div>
@@ -678,8 +686,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <DenseSectionPanel title="Contact" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
               <div>
                 <FieldLabel>Phone</FieldLabel>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
-                  <FieldValue>{displayPhone(contact.phone)}</FieldValue>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
+                  <FieldValue style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayPhone(contact.phone)}</FieldValue>
                   <button
                     type="button"
                     onClick={() => handleCall(contact.phone)}
@@ -720,7 +728,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     marginBottom: '12px',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: config.titleColor, lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: config.titleColor, lineHeight: 1.4, minWidth: 0, overflowWrap: 'anywhere' }}>
                         {insight.headline}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -737,7 +745,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       </div>
                     </div>
                     {insight.detail && (
-                      <div style={{ fontSize: '13px', color: colors.text, lineHeight: 1.5 }}>
+                      <div style={{ fontSize: '13px', color: colors.text, lineHeight: 1.5, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {insight.detail}
                       </div>
                     )}
@@ -752,11 +760,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
             <DenseSectionPanel title="Details" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 32px', minWidth: 0 }}>
                 {contact.date_of_birth && (
                   <div>
                     <FieldLabel>DOB</FieldLabel>
-                    <FieldValue>{formatDOB(contact.date_of_birth)}</FieldValue>
+                    <FieldValue style={{ overflowWrap: 'anywhere' }}>{formatDOB(contact.date_of_birth)}</FieldValue>
                   </div>
                 )}
                 {populatedFields.map(f => {
@@ -769,7 +777,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     const lastName = instrName.split(' ').slice(1).join(' ') || ''
 
                     const content = (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                         <Avatar
                           firstName={firstName}
                           lastName={lastName}
@@ -784,6 +792,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                             fontWeight: 500,
                             color: contact.instructor?.staff_id ? '#2563EB' : colors.text,
                             textDecoration: contact.instructor?.staff_id ? 'underline' : 'none',
+                             minWidth: 0,
+                             overflowWrap: 'anywhere',
+                             wordBreak: 'break-word',
                           }}
                         >
                           {instrName || 'Unassigned'}
@@ -801,6 +812,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                             style={{
                               background: 'none', border: 'none', padding: 0,
                               cursor: 'pointer', fontFamily: typography.fontSans,
+                              maxWidth: '100%', textAlign: 'left',
                             }}
                           >
                             {content}
@@ -820,7 +832,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   return (
                     <div key={f.field_key}>
                       <FieldLabel>{f.field_label}</FieldLabel>
-                      <FieldValue>{String(val).charAt(0).toUpperCase() + String(val).slice(1)}</FieldValue>
+                      <FieldValue style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{String(val).charAt(0).toUpperCase() + String(val).slice(1)}</FieldValue>
                     </div>
                   )
                 })}
@@ -830,7 +842,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </div>
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
-        <div style={{ overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '0 16px 16px' : '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <DenseSectionPanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
             <Tabs
               items={[
@@ -902,12 +914,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
       {!isInstructor && (
         <div style={{
-          padding: `16px 28px`,
+          padding: isMobile ? '12px 16px' : `16px 28px`,
           borderTop: `1px solid ${colors.borderLight}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
           gap: '10px',
+          flexWrap: 'wrap',
+          minWidth: 0,
           flexShrink: 0,
           background: colors.surface,
         }}>

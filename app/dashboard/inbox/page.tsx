@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Sparkles, SquarePen } from 'lucide-react'
+import { ArrowLeft, Sparkles, SquarePen } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
+import { useIsMobile } from '@/lib/useMediaQuery'
 import { Avatar, Button, PageContainer, PageHeader, Textarea } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposeModal from '@/components/inbox/ComposeModal'
@@ -47,6 +48,8 @@ function InboxPageInner() {
   const [aiLoading, setAiLoading] = useState(false)
   const [campaignContext, setCampaignContext] = useState<string | null>(null)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
+  const [isMobileThreadOpen, setIsMobileThreadOpen] = useState(false)
+  const isMobile = useIsMobile()
   const tenantId = getActiveTenantId()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
@@ -156,12 +159,22 @@ function InboxPageInner() {
 
   const unreadCount = threads.filter(t => t.has_unread).length
 
+  const handleSelectThread = (thread: Thread) => {
+    setActiveThread(thread)
+    if (!isMobile) return
+
+    setIsMobileThreadOpen(false)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setIsMobileThreadOpen(true))
+    })
+  }
+
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '320px 1fr',
+      gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '320px 1fr',
       gridTemplateRows: 'auto 1fr',
-      height: 'calc(100vh - 0px)',
+      height: isMobile ? 'calc(100dvh - 56px)' : 'calc(100vh - 0px)',
       overflow: 'hidden',
     }}>
 
@@ -196,7 +209,19 @@ function InboxPageInner() {
       </PageContainer>
 
       {/* LEFT — Thread list */}
-      <div style={{ borderRight: `1px solid ${colors.border}`, overflowY: 'auto', background: colors.surface, display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        gridColumn: isMobile ? 1 : undefined,
+        gridRow: isMobile ? 2 : undefined,
+        minWidth: isMobile ? 0 : undefined,
+        borderRight: isMobile ? 'none' : `1px solid ${colors.border}`,
+        overflowY: 'auto',
+        background: colors.surface,
+        display: 'flex',
+        flexDirection: 'column',
+        transform: isMobile && isMobileThreadOpen ? 'translateX(-100%)' : 'translateX(0)',
+        transition: isMobile ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
+        pointerEvents: isMobile && isMobileThreadOpen ? 'none' : 'auto',
+      }}>
 
         {/* Thread list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -210,7 +235,7 @@ function InboxPageInner() {
             threads.map(thread => (
               <div
                 key={thread.thread_key}
-                onClick={() => setActiveThread(thread)}
+                onClick={() => handleSelectThread(thread)}
                 style={{
                   padding: `${spacing.md} ${spacing['2xl']}`,
                   borderBottom: `1px solid ${colors.borderLight}`,
@@ -257,11 +282,27 @@ function InboxPageInner() {
 
       {/* RIGHT — Active thread */}
       {activeThread ? (
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', background: colors.background }}>
+        <div style={{
+          gridColumn: isMobile ? 1 : undefined,
+          gridRow: isMobile ? 2 : undefined,
+          minWidth: isMobile ? 0 : undefined,
+          position: isMobile ? 'fixed' : undefined,
+          inset: isMobile ? 0 : undefined,
+          width: isMobile ? '100dvw' : undefined,
+          height: isMobile ? '100dvh' : undefined,
+          zIndex: isMobile ? 100 : undefined,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          background: colors.background,
+          transform: isMobile && !isMobileThreadOpen ? 'translateX(100%)' : 'translateX(0)',
+          transition: isMobile ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
+          pointerEvents: isMobile && !isMobileThreadOpen ? 'none' : 'auto',
+        }}>
 
           {/* Thread header */}
           <div style={{
-            padding: `${spacing.lg} ${spacing['2xl']}`,
+            padding: isMobile ? `${spacing.md} ${spacing.lg}` : `${spacing.lg} ${spacing['2xl']}`,
             borderBottom: `1px solid ${colors.border}`,
             background: colors.surface,
             display: 'flex',
@@ -269,17 +310,40 @@ function InboxPageInner() {
             justifyContent: 'space-between',
             flexShrink: 0,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: isMobile ? 0 : undefined }}>
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setIsMobileThreadOpen(false)}
+                  aria-label="Back to conversations"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    width: 36,
+                    height: 36,
+                    padding: 0,
+                    border: 'none',
+                    borderRadius: '50%',
+                    background: 'transparent',
+                    color: colors.text,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ArrowLeft size={22} />
+                </button>
+              )}
               <Avatar
                 firstName={activeThread.first_name || '?'}
                 lastName={activeThread.last_name || '?'}
                 size={40}
               />
-              <div>
-                <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
+              <div style={{ minWidth: isMobile ? 0 : undefined }}>
+                <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
                   {activeThread.display_name}
                 </div>
-                <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
+                <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
                   Student: {activeThread.student_name} · {activeThread.other_phone}
                 </div>
               </div>
@@ -295,6 +359,8 @@ function InboxPageInner() {
                   cursor: 'pointer',
                   fontFamily: typography.fontSans,
                   padding: 0,
+                  flexShrink: isMobile ? 0 : undefined,
+                  marginLeft: isMobile ? spacing.sm : undefined,
                 }}
               >
                 View profile →
@@ -303,15 +369,15 @@ function InboxPageInner() {
           </div>
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+          <div style={{ flex: 1, minHeight: isMobile ? 0 : undefined, overflowY: 'auto', padding: isMobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
             {activeThread.messages
               .slice()
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
               .map(msg => (
                 <div key={msg.id} style={{ display: 'flex', justifyContent: msg.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
-                  <div>
+                  <div style={{ maxWidth: isMobile ? '85%' : undefined }}>
                     <div style={{
-                      maxWidth: '360px',
+                      maxWidth: isMobile ? '100%' : '360px',
                       padding: msg.media_url ? '6px' : `${spacing.sm} ${spacing.md}`,
                       borderRadius: msg.direction === 'outbound' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                       background: msg.direction === 'outbound' ? '#007AFF' : colors.surface,
@@ -359,7 +425,7 @@ function InboxPageInner() {
 
           {/* Reply bar */}
           <div style={{
-            padding: spacing['2xl'],
+            padding: isMobile ? spacing.md : spacing['2xl'],
             borderTop: `1px solid ${colors.border}`,
             background: colors.surface,
             display: 'flex',
@@ -399,7 +465,7 @@ function InboxPageInner() {
             </button>
 
             {/* Bottom row: cost + send */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
               {reply.trim().length > 0 && (
                 <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
                   SMS · {Math.ceil(Math.max(reply.length, 1) / 160)} {Math.ceil(Math.max(reply.length, 1) / 160) === 1 ? 'segment' : 'segments'} · ~${(Math.ceil(Math.max(reply.length, 1) / 160) * 0.0083).toFixed(2)}
@@ -416,13 +482,13 @@ function InboxPageInner() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : !isMobile ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.background }}>
           <p style={{ fontSize: typography.sizeBase, color: colors.textMuted, fontFamily: typography.fontSans }}>
             Select a conversation to read and reply.
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Contact slide panel */}
       {selectedContact && (

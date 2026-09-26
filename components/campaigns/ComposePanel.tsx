@@ -5,6 +5,7 @@ import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } fro
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
+import { useIsMobile } from '@/lib/useMediaQuery'
 
 const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
 const KUMON = '00000000-0000-0000-0000-000000000003'
@@ -52,6 +53,7 @@ export default function ComposePanel({
   mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
+  const isMobile = useIsMobile()
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
   const [message, setMessage] = useState('')
@@ -455,9 +457,29 @@ export default function ComposePanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
-      {/* Left column */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing['3xl'], overflowY: 'auto' }}>
+      <div style={{
+        display: isMobile ? 'flex' : 'grid',
+        flexDirection: isMobile ? 'column' : undefined,
+        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 1.2fr) 360px',
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+        background: colors.background,
+      }}>
+      {/* Left column / main form */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacing.lg,
+        padding: isMobile ? '16px' : spacing['3xl'],
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+      }}>
         {sent && sentResult && (
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.success}`, borderRadius: radius.md, color: colors.success, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
             ✓ Message sent — delivered to {sentResult.sent} {sentResult.sent === 1 ? 'contact' : 'contacts'}.{sentResult.failed > 0 ? ` ${sentResult.failed} failed.` : ''}
@@ -738,90 +760,93 @@ export default function ComposePanel({
         )}
       </div>
 
-      {/* Right column — phone preview */}
-      <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
-        {showComposeBootSkeleton ? (
-          <div style={{ width: '240px', height: '520px', borderRadius: '52px', background: '#E5E7EB', animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-        ) : (
-        <div>
-          <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: spacing.sm, textAlign: 'center' }}>Preview</div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{
-              width: '240px',
-              height: '520px',
-              background: '#1A1A1A',
-              borderRadius: '52px',
-              border: '8px solid #1A1A1A',
-              boxShadow: '0 0 0 1px #3A3A3A, 0 20px 60px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              position: 'relative',
-            }}>
-              <div style={{ background: '#1A1A1A', height: '36px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: '80px', height: '22px', background: '#000', borderRadius: '20px' }} />
-              </div>
-              <div style={{ flex: 1, background: '#F2F2F7', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#1A1A1A' }}>
-                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <div style={{ width: '12px', height: '7px', border: '1px solid #1A1A1A', borderRadius: '2px', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '1px', top: '1px', right: '1px', bottom: '1px', background: '#1A1A1A', borderRadius: '1px' }} />
+      {/* Right column — phone preview (hidden on mobile) */}
+      {!isMobile && (
+        <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
+          {showComposeBootSkeleton ? (
+            <div style={{ width: '240px', height: '520px', borderRadius: '52px', background: '#E5E7EB', animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
+          ) : (
+          <div>
+            <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: spacing.sm, textAlign: 'center' }}>Preview</div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                width: '240px',
+                height: '520px',
+                background: '#1A1A1A',
+                borderRadius: '52px',
+                border: '8px solid #1A1A1A',
+                boxShadow: '0 0 0 1px #3A3A3A, 0 20px 60px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                position: 'relative',
+              }}>
+                <div style={{ background: '#1A1A1A', height: '36px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '80px', height: '22px', background: '#000', borderRadius: '20px' }} />
+                </div>
+                <div style={{ flex: 1, background: '#F2F2F7', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#1A1A1A' }}>
+                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <div style={{ width: '12px', height: '7px', border: '1px solid #1A1A1A', borderRadius: '2px', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '1px', top: '1px', right: '1px', bottom: '1px', background: '#1A1A1A', borderRadius: '1px' }} />
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>{tenantBrand.name}</div>
-                  <div style={{ fontSize: '10px', color: '#8E8E93' }}>text message</div>
-                </div>
-                <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '4px', overflow: 'hidden' }}>
-                  <div style={{ fontSize: '10px', color: '#8E8E93', textAlign: 'center', marginBottom: '4px' }}>Today</div>
-                  {mediaUrl && (
+                  <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>{tenantBrand.name}</div>
+                    <div style={{ fontSize: '10px', color: '#8E8E93' }}>text message</div>
+                  </div>
+                  <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '4px', overflow: 'hidden' }}>
+                    <div style={{ fontSize: '10px', color: '#8E8E93', textAlign: 'center', marginBottom: '4px' }}>Today</div>
+                    {mediaUrl && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <img src={mediaUrl} alt="MMS" style={{ maxWidth: '120px', borderRadius: '12px 12px 4px 12px' }} onError={e => (e.currentTarget.style.display = 'none')} />
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <img src={mediaUrl} alt="MMS" style={{ maxWidth: '120px', borderRadius: '12px 12px 4px 12px' }} onError={e => (e.currentTarget.style.display = 'none')} />
+                      <div style={{
+                        background: '#007AFF', color: 'white',
+                        borderRadius: '16px 16px 4px 16px',
+                        padding: '7px 10px', fontSize: '13px', lineHeight: 1.5,
+                        maxWidth: '75%', wordBreak: 'break-word',
+                      }}>
+                        {previewMessage}
+                      </div>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{
-                      background: '#007AFF', color: 'white',
-                      borderRadius: '16px 16px 4px 16px',
-                      padding: '7px 10px', fontSize: '13px', lineHeight: 1.5,
-                      maxWidth: '75%', wordBreak: 'break-word',
-                    }}>
-                      {previewMessage}
+                    {sent && <div style={{ textAlign: 'right', fontSize: '9px', color: '#8E8E93' }}>Delivered</div>}
+                  </div>
+                  <div style={{ padding: '6px 8px', borderTop: '1px solid #E8E8E4', display: 'flex', alignItems: 'center', gap: '6px', background: '#F2F2F7', flexShrink: 0 }}>
+                    <div style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid #E8E8E4', padding: '5px 10px', fontSize: '11px', color: '#C8C8CC' }}>iMessage</div>
+                    <div style={{ width: '22px', height: '22px', background: '#007AFF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: 'white', fontSize: '12px', lineHeight: 1 }}>↑</span>
                     </div>
                   </div>
-                  {sent && <div style={{ textAlign: 'right', fontSize: '9px', color: '#8E8E93' }}>Delivered</div>}
                 </div>
-                <div style={{ padding: '6px 8px', borderTop: '1px solid #E8E8E4', display: 'flex', alignItems: 'center', gap: '6px', background: '#F2F2F7', flexShrink: 0 }}>
-                  <div style={{ flex: 1, background: 'white', borderRadius: '16px', border: '1px solid #E8E8E4', padding: '5px 10px', fontSize: '11px', color: '#C8C8CC' }}>iMessage</div>
-                  <div style={{ width: '22px', height: '22px', background: '#007AFF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: 'white', fontSize: '12px', lineHeight: 1 }}>↑</span>
-                  </div>
+                <div style={{ background: '#1A1A1A', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '60px', height: '4px', background: '#3A3A3A', borderRadius: '4px' }} />
                 </div>
-              </div>
-              <div style={{ background: '#1A1A1A', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: '60px', height: '4px', background: '#3A3A3A', borderRadius: '4px' }} />
               </div>
             </div>
           </div>
+          )}
         </div>
-        )}
-      </div>
+      )}
       </div>
       <div style={{
-        padding: `${spacing.lg} ${spacing['3xl']}`,
+        padding: isMobile ? '12px 16px' : `${spacing.lg} ${spacing['3xl']}`,
         borderTop: `1px solid ${colors.borderLight}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
+        flexWrap: 'wrap',
         gap: '10px',
         flexShrink: 0,
         background: colors.surface,
       }}>
-        {footerLeadingAction ? <div style={{ marginRight: 'auto' }}>{footerLeadingAction}</div> : null}
+        {footerLeadingAction ? <div style={{ marginRight: 'auto', minWidth: 0 }}>{footerLeadingAction}</div> : null}
         <LoadingButton
           loading={isSending}
           fill={2}
@@ -832,6 +857,7 @@ export default function ComposePanel({
             padding: `${spacing.md} ${spacing['3xl']}`,
             fontSize: typography.sizeMd,
             background: !message.trim() || effectiveCount === 0 ? colors.border : colors.crimson,
+            maxWidth: '100%',
           }}
         >
           {isSending ? 'Sending…' : 'Send message'}

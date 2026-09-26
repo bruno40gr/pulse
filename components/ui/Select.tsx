@@ -12,7 +12,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export function Select({ label, hint, style, children, fullWidth = true, wrapperStyle, ...props }: SelectProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: fullWidth ? '100%' : 'auto', ...wrapperStyle }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', ...wrapperStyle }}>
       {label && (
         <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
           {label}
@@ -29,6 +29,8 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
           background: colors.surface,
           outline: 'none',
           width: fullWidth ? '100%' : 'auto',
+          minWidth: 0,
+          maxWidth: '100%',
           boxSizing: 'border-box' as const,
           cursor: 'pointer',
           appearance: 'auto',

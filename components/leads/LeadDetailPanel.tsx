@@ -108,11 +108,13 @@ const STATUS_TONE_BY_STATUS: Record<string, StatusTone> = {
 }
 
 function getStatusTone(status: string) {
-  if (status === 'new' || status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
-  if (STATUS_TONE_BY_STATUS[status] === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
-  if (STATUS_TONE_BY_STATUS[status] === 'success') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
-  if (STATUS_TONE_BY_STATUS[status] === 'danger') return { background: '#FEF2F2', text: '#B91C1C', border: colors.error }
-  return semanticColors[STATUS_TONE_BY_STATUS[status] || 'warning']
+  if (status === 'new') return { background: colors.crimson, text: '#FFFFFF', border: colors.crimson }
+  if (status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
+  if (status === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
+  if (status === 'processing' || status === 'won') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
+  if (status === 'lost' || status === 'ghosted' || status === 'ghosted_us') return { background: colors.espresso, text: '#FFFFFF', border: colors.espresso }
+  const tone = STATUS_TONE_BY_STATUS[status]
+  return tone === 'booked' || !tone ? semanticColors.warning : semanticColors[tone]
 }
 
 function getLeadAge(payload: Record<string, unknown>) {
@@ -301,44 +303,93 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const contactFirstName = contactNameParts[0] || 'L'
   const contactLastName = contactNameParts.slice(1).join(' ') || contactFirstName
   const leadAge = getLeadAge(lead.payload)
+  const statusStageSelect = nextStages.length > 0 ? (
+    <Select
+      aria-label="Change lead stage"
+      value={stageSelection}
+      fullWidth={isMobile}
+      disabled={saving}
+      style={isMobile ? { minHeight: '36px', appearance: 'auto', width: '100%' } : statusStageSelectStyle}
+      onChange={(event) => {
+        const stage = event.target.value
+        setStageSelection('')
+        if (stage === 'lost') setLostOpen(true)
+        else if (stage) void onPatch({ status: stage })
+      }}
+    >
+      <option value="" disabled>Change stage</option>
+      {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
+      <option value="lost">Lost</option>
+    </Select>
+  ) : null
+
   const statusControls = lead.intake_type !== 'job_application' && (
-    <div style={statusClusterRowStyle}>
-      <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border }}>
-        <span style={{ ...statusLabelStyle, color: statusTone.text }}>{statusLabel(lead.status, lead.payload)}</span>
-        {nextStages.length > 0 && <>
+    <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
+      <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border, minWidth: 0, maxWidth: '100%' }}>
+        <span style={{ ...statusLabelStyle, color: statusTone.text, whiteSpace: isMobile ? 'normal' : 'nowrap' }}>{statusLabel(lead.status, lead.payload)}</span>
+        {!isMobile && nextStages.length > 0 && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
           <div style={statusStageSelectWrapStyle}>
-            <Select aria-label="Change lead stage" value={stageSelection} fullWidth={false} disabled={saving} style={statusStageSelectStyle} onChange={(event) => {
-              const stage = event.target.value
-              setStageSelection('')
-              if (stage === 'lost') setLostOpen(true)
-              else if (stage) void onPatch({ status: stage })
-            }}>
-              <option value="" disabled>Change stage</option>
-              {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
-              <option value="lost">Lost</option>
-            </Select>
+            {statusStageSelect}
             <RefreshCw size={15} aria-hidden="true" style={{ ...statusStageUpdateStyle, color: statusTone.text }} />
           </div>
         </>}
       </div>
+      {isMobile && statusStageSelect}
     </div>
   )
 
   return (
-    <div style={{ ...panelStyle, ...(isMobile ? mobilePanelStyle : undefined) }}>
+    <div
+      className="lead-detail-panel"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 auto',
+        alignSelf: 'stretch',
+        minHeight: 0,
+        minWidth: 0,
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        background: colors.background,
+      }}
+    >
       <SlidePanelHeader
         title={leadAge === null ? contactName : `${contactName} (${leadAge})`}
         subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
-        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: 48 }}
-        titleSize={typography.size2xl}
+        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: isMobile ? 36 : 48 }}
+        titleSize={isMobile ? typography.sizeLg : typography.size2xl}
+        compact={isMobile}
         onClose={onClose}
+        onBack={isMobile ? onClose : undefined}
+        backLabel="Leads"
         titleBadge={!contactEditing ? <button type="button" aria-label="Edit contact" title="Edit contact" onClick={() => setContactEditing(true)} style={editNameButtonStyle}><Pencil size={15} /></button> : undefined}
-        actions={statusControls || undefined}
+        actions={isMobile ? undefined : (statusControls || undefined)}
       />
 
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {isMobile && !contactEditing && statusControls && (
+          <div style={{ padding: '12px 16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            {statusControls}
+          </div>
+        )}
+
       {contactEditing ? (
-        <div style={editContactSectionStyle}>
+        <div style={{ ...editContactSectionStyle, padding: isMobile ? '12px 16px' : spacing.lg }}>
           <div style={headerIdentityRowStyle}>
             <SectionTitle>Edit contact</SectionTitle>
             <Button type="button" variant="secondary" size="sm" onClick={() => setContactEditing(false)}>Cancel</Button>
@@ -356,87 +407,156 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
           <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save contact'}</Button></div>
         </div>
       ) : <>
-        {lostOpen && <div style={lostSectionStyle}><div style={lostStyle}><Select label="Lost reason" value={lostReason} onChange={(event) => setLostReason(event.target.value)}><option value="">Select a reason</option>{LOST_REASONS.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}</Select><div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" onClick={() => setLostOpen(false)}>Cancel</Button><Button type="button" variant="destructive" size="sm" disabled={saving || !lostReason} onClick={() => void onPatch({ status: 'lost', payload: { lost_reason: lostReason } })}>Confirm lost</Button></div></div></div>}
-        <div style={contactActionsSectionStyle}>
-          <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()}><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
-          <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose}><MessageCircle size={16} />Text message</Button>
-          <CompactMetaCard style={{ ...emailControlStyle, ...emailControlMdStyle }}>
-            <span>{lead.contact?.email || 'Not provided'}</span>
+        {lostOpen && (
+          <div style={{ ...lostSectionStyle, padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0` }}>
+            <div style={lostStyle}>
+              <Select label="Lost reason" value={lostReason} onChange={(event) => setLostReason(event.target.value)}>
+                <option value="">Select a reason</option>
+                {LOST_REASONS.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
+              </Select>
+              <div style={actionRowStyle}>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setLostOpen(false)}>Cancel</Button>
+                <Button type="button" variant="destructive" size="sm" disabled={saving || !lostReason} onClick={() => void onPatch({ status: 'lost', payload: { lost_reason: lostReason } })}>Confirm lost</Button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+          <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} style={isMobile ? mobileActionControlStyle : undefined}><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
+          <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose} style={isMobile ? mobileActionControlStyle : undefined}><MessageCircle size={16} />Text message</Button>
+          <CompactMetaCard fullWidth={isMobile} style={{ ...emailControlStyle, ...emailControlMdStyle }}>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.contact?.email || 'Not provided'}</span>
             {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} style={copyButtonStyle}><Copy size={15} /></Button>}
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
         </div>
       </>}
 
-      {!contactEditing && <div style={{ ...columnsStyle, ...(isMobile ? mobileColumnsStyle : undefined) }}>
-        <div style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
-          <div style={{ ...(isMobile ? oneColumnStyle : leftMetricsStyle), ...metricSectionStyle }}>
-            <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}`}</div>}</div></CompactMetaCard>
-            <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
-          </div>
-          {winback && (
-            <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
-              <div style={stackStyle}>
-                <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
-                  {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-                </Select>
-                <div style={twoColumnStyle}>
-                  <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || 'Not provided'} />
-                  <Field label="Former program" value={lead.program_label || 'Not provided'} />
+      {!contactEditing && (
+        isMobile ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            padding: "0 16px 24px",
+            width: "100%",
+            maxWidth: "100%",
+            boxSizing: "border-box",
+          }}>
+            <div style={oneColumnStyle}>
+              <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
+              <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
+            </div>
+            <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} onSave={(text) => onPatch({ add_note: text }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
+            {winback && (
+              <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
+                <div style={stackStyle}>
+                  <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                    {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                  </Select>
+                  <div style={oneColumnStyle}>
+                    <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || "Not provided"} />
+                    <Field label="Former program" value={lead.program_label || "Not provided"} />
+                  </div>
                 </div>
-              </div>
-            </DenseSectionPanel>
-          )}
-          {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-            <div style={isMobile ? oneColumnStyle : twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
-          </DenseSectionPanel>}
-          {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: '', age: '', instrument_interest: '' }])}>Add family member</Button>} style={familySectionStyle}>
-            <div style={familyMembersStyle}>
-              {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
-              {familyMembers.map((member, index) => {
-                const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
-                return (
-                  <div key={index} style={familyMemberStyle}>
-                    <div style={familyMemberHeaderStyle}>
-                      <div style={familyMemberNameStyle}>Family member {index + 1}</div>
-                      <button type="button" disabled={saving} onClick={() => setFamilyMembers((current) => current.filter((_, memberIndex) => memberIndex !== index))} style={removeFamilyMemberButtonStyle}>Remove</button>
+              </DenseSectionPanel>
+            )}
+            {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
+              <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
+            </DenseSectionPanel>}
+            {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
+              <div style={familyMembersStyle}>
+                {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
+                {familyMembers.map((member, index) => {
+                  const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
+                  return (
+                    <div key={index} style={familyMemberStyle}>
+                      <div style={familyMemberHeaderStyle}>
+                        <div style={familyMemberNameStyle}>Family member {index + 1}</div>
+                        <button type="button" disabled={saving} onClick={() => setFamilyMembers((current) => current.filter((_, memberIndex) => memberIndex !== index))} style={removeFamilyMemberButtonStyle}>Remove</button>
+                      </div>
+                      <div style={oneColumnStyle}>
+                        <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
+                        <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
+                        <Select label="Instrument interest" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select instrument</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select>
+                      </div>
                     </div>
-                    <div style={isMobile ? oneColumnStyle : familyMemberFieldsStyle}>
-                      <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
-                      <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                      <Select label="Instrument interest" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select instrument</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select>
+                  )
+                })}
+              </div>
+              {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+            </DenseSectionPanel>}
+          </div>
+        ) : (
+          <div style={columnsStyle}>
+            <div style={columnStyle}>
+              <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
+                <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
+                <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
+              </div>
+              {winback && (
+                <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
+                  <div style={stackStyle}>
+                    <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                      {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                    </Select>
+                    <div style={twoColumnStyle}>
+                      <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || "Not provided"} />
+                      <Field label="Former program" value={lead.program_label || "Not provided"} />
                     </div>
                   </div>
-                )
-              })}
+                </DenseSectionPanel>
+              )}
+              {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
+                <div style={twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
+              </DenseSectionPanel>}
+              {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
+                <div style={familyMembersStyle}>
+                  {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
+                  {familyMembers.map((member, index) => {
+                    const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
+                    return (
+                      <div key={index} style={familyMemberStyle}>
+                        <div style={familyMemberHeaderStyle}>
+                          <div style={familyMemberNameStyle}>Family member {index + 1}</div>
+                          <button type="button" disabled={saving} onClick={() => setFamilyMembers((current) => current.filter((_, memberIndex) => memberIndex !== index))} style={removeFamilyMemberButtonStyle}>Remove</button>
+                        </div>
+                        <div style={oneColumnStyle}>
+                          <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
+                          <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
+                          <Select label="Instrument interest" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select instrument</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+              </DenseSectionPanel>}
+              <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
+                <div style={twoColumnStyle}><Field label="Source form" value={lead.source_form} /><Field label="Campaign" value={lead.utm_campaign || ""} /><Field label="Landing page" value={lead.source_page || ""} /><Field label="Referrer" value={lead.referrer || ""} /></div>
+              </DenseSectionPanel>
             </div>
-            {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? 'Saving…' : 'Save family members'}</Button></div>}
-          </DenseSectionPanel>}
-          <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
-            <div style={isMobile ? oneColumnStyle : twoColumnStyle}><Field label="Source form" value={lead.source_form} /><Field label="Campaign" value={lead.utm_campaign || ''} /><Field label="Landing page" value={lead.source_page || ''} /><Field label="Referrer" value={lead.referrer || ''} /></div>
-          </DenseSectionPanel>
-        </div>
 
-        <div style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
-          <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || 'L').charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} onSave={(text) => onPatch({ add_note: text }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
-          <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
-            <div style={stackStyle}><div style={isMobile ? oneColumnStyle : twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button></div></div>
-          </DenseSectionPanel>
-          <DenseSectionPanel title={<SectionTitle>Activity</SectionTitle>} tone="muted" style={activitySectionStyle}>
-            <div style={activityListStyle}>{activityEvents.length === 0 ? <div style={emptyActivityStyle}>No system activity yet.</div> : activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div></div></div>)}</div>
-          </DenseSectionPanel>
-        </div>
-      </div>}
+            <div style={columnStyle}>
+              <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} onSave={(text) => onPatch({ add_note: text }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
+              <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
+                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
+              </DenseSectionPanel>
+              <DenseSectionPanel title={<SectionTitle>Activity</SectionTitle>} tone="muted" style={activitySectionStyle}>
+                <div style={activityListStyle}>{activityEvents.length === 0 ? <div style={emptyActivityStyle}>No system activity yet.</div> : activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)}</div>
+              </DenseSectionPanel>
+            </div>
+          </div>
+        )
+      )}
+      </div>
     </div>
   )
 }
 
-const panelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }
-const mobilePanelStyle: CSSProperties = { minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }
+
 const columnsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
-const mobileColumnsStyle: CSSProperties = { gridTemplateColumns: 'minmax(0, 1fr)', overflow: 'visible', flex: 'none' }
 const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
-const mobileColumnContentsStyle: CSSProperties = { display: 'contents' }
 const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }
 const oneColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: spacing.md }
@@ -446,12 +566,13 @@ const editContactSectionStyle: CSSProperties = { display: 'flex', flexDirection:
 const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0 }
 const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0 }
 const emailControlStyle: CSSProperties = { gap: spacing.xs, color: colors.textSecondary, fontWeight: typography.weightMedium, flexWrap: 'wrap' }
-const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase }
+const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase, maxWidth: '100%', minWidth: 0, overflow: 'hidden' }
+const mobileActionControlStyle: CSSProperties = { width: '100%', maxWidth: '100%', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const copyButtonStyle: CSSProperties = { padding: 0, color: colors.teal }
 const copiedStyle: CSSProperties = { color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
 const actionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 const statusClusterRowStyle: CSSProperties = { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
-const statusClusterStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', border: '1px solid', borderRadius: radius.full, padding: '2px', minHeight: '36px', boxSizing: 'border-box' }
+const statusClusterStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', border: '1px solid', borderRadius: radius.full, padding: '2px', minHeight: '36px', boxSizing: 'border-box', minWidth: 0, maxWidth: '100%' }
 const statusLabelStyle: CSSProperties = { padding: `${spacing.xs} ${spacing.sm}`, fontFamily: typography.fontSans, fontSize: typography.sizeSm, fontWeight: typography.weightBold, whiteSpace: 'nowrap' }
 const statusDividerStyle: CSSProperties = { width: '1px', alignSelf: 'stretch', margin: `${spacing.xs} ${spacing.sm}`, opacity: 0.3 }
 const statusStageSelectWrapStyle: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
@@ -471,12 +592,11 @@ const metricCaptionStyle: CSSProperties = { color: colors.textSecondary, fontFam
 const metricLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
 const metricValueStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, marginTop: spacing.xs }
 const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
-const fieldValueStyle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
+const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
 const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const familyMemberStyle: CSSProperties = { padding: spacing.sm, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }
 const familyMemberHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.sm }
 const familyMemberNameStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
-const familyMemberFieldsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px minmax(0, 1fr)', gap: spacing.sm }
 const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeSm, textDecoration: 'underline', cursor: 'pointer' }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
 const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }

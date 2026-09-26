@@ -1190,12 +1190,18 @@ export default function LeadsView() {
   }, [isMobileLayout])
 
   useEffect(() => {
+    if (isMobileLayout && activeTab === 'job_application') setActiveTab('lesson_inquiry')
+  }, [activeTab, isMobileLayout])
+
+  useEffect(() => {
     setSelectedIds(new Set())
   }, [activeTab, statusFilter])
 
   const leadTabItems = useMemo(
-    () => LEAD_TABS.map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0 })),
-    [tabCounts],
+    () => LEAD_TABS
+      .filter((tab) => !isMobileLayout || tab.key !== 'job_application')
+      .map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0 })),
+    [isMobileLayout, tabCounts],
   )
 
   const subtitle = useMemo(() => {
@@ -1579,7 +1585,7 @@ export default function LeadsView() {
 
   return (
     <>
-      <div style={{ padding: isMobileLayout ? spacing.lg : spacing['3xl'], width: '100%', maxWidth: '100%' }}>
+      <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%' }}>
         <PageHeader
           title="Leads"
           subtitle={subtitle}
@@ -1590,11 +1596,13 @@ export default function LeadsView() {
           )}
         />
 
-        <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
+        <div style={{ overflowX: isMobileLayout ? 'hidden' : 'auto', marginBottom: spacing.lg }}>
           <Tabs
             items={leadTabItems}
             activeKey={activeTab}
             onChange={setActiveTab}
+            compact={isMobileLayout}
+            style={isMobileLayout ? { width: '100%', justifyContent: 'space-between' } : undefined}
           />
         </div>
 
@@ -1940,7 +1948,7 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100vw' : 'min(88vw, 1180px)'}>
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} fullScreen={isMobileLayout} width="min(88vw, 1180px)">
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
@@ -1963,7 +1971,7 @@ export default function LeadsView() {
           )}
         </div>
         {selectedLead && !detailLoading && (
-          <div style={leadFooterStyle}>
+          <div style={{ ...leadFooterStyle, padding: isMobileLayout ? `${spacing.sm} ${spacing.md}` : leadFooterStyle.padding, justifyContent: isMobileLayout ? 'space-between' : 'flex-end', gap: isMobileLayout ? spacing.sm : spacing.md, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             <Button
               type="button"
               variant="secondary"
@@ -1987,9 +1995,9 @@ export default function LeadsView() {
         )}
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} />
-        <div style={{ flex: 1, overflow: 'auto' }}>
+      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
+        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} onBack={isMobileLayout ? () => setComposeLead(null) : undefined} backLabel="Back" />
+        <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
           {composeLead?.contact && (
             <ComposePanel
               recipientCount={1}
@@ -2016,9 +2024,9 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} />
-        <div style={{ flex: 1, overflow: 'auto' }}>
+      <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
+        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={isMobileLayout ? () => setIsBulkComposeOpen(false) : undefined} backLabel="Back" />
+        <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
           <ComposePanel
             recipientCount={selectedCount}
             filterExplanation={`Win-back: ${selectedCount} selected former students`}
@@ -2214,8 +2222,13 @@ const leadPanelBodyStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   background: colors.background,
+  alignSelf: 'stretch',
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  boxSizing: 'border-box',
   minHeight: 0,
-  flex: 1,
+  flex: '1 1 auto',
 }
 
 const leadDetailShellStyle: React.CSSProperties = {
