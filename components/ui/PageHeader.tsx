@@ -10,8 +10,8 @@ interface PageHeaderProps {
 export function PageHeader({ title, subtitle, right }: PageHeaderProps) {
   if (right) {
     return (
-      <div style={{ marginBottom: spacing['3xl'], display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg }}>
-        <div>
+      <div style={{ marginBottom: spacing['3xl'], display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
           <h1 style={{ ...typography.h1, color: colors.text, margin: 0 }}>{title}</h1>
           {subtitle && (
             <p style={{ color: colors.textSecondary, fontSize: typography.sizeMd, marginTop: spacing.xs, marginBottom: 0 }}>
@@ -19,7 +19,7 @@ export function PageHeader({ title, subtitle, right }: PageHeaderProps) {
             </p>
           )}
         </div>
-        <div style={{ flexShrink: 0 }}>{right}</div>
+        <div style={{ flex: '0 1 auto' }}>{right}</div>
       </div>
     )
   }
