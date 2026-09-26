@@ -1944,6 +1944,7 @@ export default function LeadsView() {
       </SlidePanel>
 
       <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100%' : 'min(88vw, 1180px)'} fullScreenOnMobile>
+        <div className="lead-mobile-scroll" style={isMobileLayout ? { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' } : undefined}>
         <div className="lead-panel-body" style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
@@ -1966,7 +1967,7 @@ export default function LeadsView() {
           )}
         </div>
         {selectedLead && !detailLoading && (
-          <div style={leadFooterStyle}>
+          <div style={isMobileLayout ? { ...leadFooterStyle, padding: `${spacing.md} ${spacing.lg}` } : leadFooterStyle}>
             <Button
               type="button"
               variant="secondary"
@@ -1988,11 +1989,13 @@ export default function LeadsView() {
             </Button>
           </div>
         )}
+        </div>
       </SlidePanel>
 
       <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)" fullScreenOnMobile>
         <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} onBack={isMobileLayout ? () => setComposeLead(null) : undefined} backLabel="Back" />
-        <div style={{ flex: 1, overflow: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+        <div className="lead-mobile-scroll" style={{ flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ flex: 1, overflow: isMobileLayout ? 'visible' : 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           {composeLead?.contact && (
             <ComposePanel
               recipientCount={1}
@@ -2017,11 +2020,13 @@ export default function LeadsView() {
             />
           )}
         </div>
+        </div>
       </SlidePanel>
 
       <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)" fullScreenOnMobile>
         <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={isMobileLayout ? () => setIsBulkComposeOpen(false) : undefined} backLabel="Back" />
-        <div style={{ flex: 1, overflow: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+        <div className="lead-mobile-scroll" style={{ flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ flex: 1, overflow: isMobileLayout ? 'visible' : 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           <ComposePanel
             recipientCount={selectedCount}
             filterExplanation={`Win-back: ${selectedCount} selected former students`}
@@ -2036,6 +2041,7 @@ export default function LeadsView() {
             onClose={() => setIsBulkComposeOpen(false)}
             onSent={() => window.setTimeout(() => setIsBulkComposeOpen(false), 3000)}
           />
+        </div>
         </div>
       </SlidePanel>
 
