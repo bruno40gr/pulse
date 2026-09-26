@@ -32,6 +32,9 @@ export function SurfacePanel({ children, style, padding = spacing.xl, tone = 'de
         borderRadius: radius.xl,
         boxShadow: shadows.sm,
         padding,
+        minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         ...toneStyles[tone],
         ...style,
       }}

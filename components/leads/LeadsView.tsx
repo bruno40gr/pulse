@@ -1943,7 +1943,7 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100vw' : 'min(88vw, 1180px)'} fullScreenOnMobile>
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} width={isMobileLayout ? '100%' : 'min(88vw, 1180px)'} fullScreenOnMobile>
         <div className="lead-panel-body" style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
@@ -1992,7 +1992,7 @@ export default function LeadsView() {
 
       <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} width="min(92vw, 720px)" fullScreenOnMobile>
         <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} onBack={isMobileLayout ? () => setComposeLead(null) : undefined} backLabel="Back" />
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           {composeLead?.contact && (
             <ComposePanel
               recipientCount={1}
@@ -2021,7 +2021,7 @@ export default function LeadsView() {
 
       <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} width="min(92vw, 720px)" fullScreenOnMobile>
         <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={isMobileLayout ? () => setIsBulkComposeOpen(false) : undefined} backLabel="Back" />
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           <ComposePanel
             recipientCount={selectedCount}
             filterExplanation={`Win-back: ${selectedCount} selected former students`}
@@ -2221,6 +2221,10 @@ const leadPanelBodyStyle: React.CSSProperties = {
   background: colors.background,
   minHeight: 0,
   flex: 1,
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
 }
 
 const leadDetailShellStyle: React.CSSProperties = {
@@ -2361,11 +2365,16 @@ const leadFooterStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
+  flexWrap: 'wrap',
   gap: spacing.md,
   padding: `${spacing.md} ${spacing['2xl']}`,
   borderTop: `1px solid ${colors.borderLight}`,
   background: colors.surface,
   flexShrink: 0,
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
 }
 
 const leadFooterCountStyle: React.CSSProperties = {
