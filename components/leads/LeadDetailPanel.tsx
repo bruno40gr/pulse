@@ -333,7 +333,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   )
 
   return (
-    <div className="lead-detail-panel" style={{ ...panelStyle, ...(isMobile ? mobilePanelStyle : undefined) }}>
+    <div style={{ ...panelStyle, ...(isMobile ? mobilePanelStyle : undefined) }}>
       <SlidePanelHeader
         title={leadAge === null ? contactName : `${contactName} (${leadAge})`}
         subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
@@ -372,15 +372,15 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
           <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()}><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
           <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose}><MessageCircle size={16} />Text message</Button>
           <CompactMetaCard style={{ ...emailControlStyle, ...emailControlMdStyle }}>
-            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{lead.contact?.email || 'Not provided'}</span>
+            <span>{lead.contact?.email || 'Not provided'}</span>
             {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} style={copyButtonStyle}><Copy size={15} /></Button>}
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
         </div>
       </>}
 
-      {!contactEditing && <div className="lead-detail-columns" style={{ ...columnsStyle, ...(isMobile ? mobileColumnsStyle : undefined) }}>
-        <div className="lead-detail-column" style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
+      {!contactEditing && <div style={{ ...columnsStyle, ...(isMobile ? mobileColumnsStyle : undefined) }}>
+        <div style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
           <div style={{ ...(isMobile ? oneColumnStyle : leftMetricsStyle), ...metricSectionStyle }}>
             <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}`}</div>}</div></CompactMetaCard>
             <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
@@ -428,7 +428,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
           </DenseSectionPanel>}
         </div>
 
-        <div className="lead-detail-column" style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
+        <div style={{ ...columnStyle, ...(isMobile ? mobileColumnContentsStyle : undefined) }}>
           <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || 'L').charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} onSave={(text) => onPatch({ add_note: text }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
           {!isMobile && <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
             <div style={stackStyle}><div style={isMobile ? oneColumnStyle : twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button></div></div>
@@ -455,9 +455,9 @@ const headerIdentityRowStyle: CSSProperties = { display: 'flex', alignItems: 'fl
 const editNameButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', padding: 0, border: 'none', borderRadius: radius.md, background: 'transparent', color: colors.textSecondary, cursor: 'pointer' }
 const editContactSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }
 const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0 }
-const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0, minWidth: 0 }
+const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0 }
 const emailControlStyle: CSSProperties = { gap: spacing.xs, color: colors.textSecondary, fontWeight: typography.weightMedium, flexWrap: 'wrap' }
-const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase, maxWidth: '100%', minWidth: 0 }
+const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase }
 const copyButtonStyle: CSSProperties = { padding: 0, color: colors.teal }
 const copiedStyle: CSSProperties = { color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
 const actionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }

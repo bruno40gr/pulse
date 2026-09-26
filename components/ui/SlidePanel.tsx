@@ -33,13 +33,10 @@ export function SlidePanel({ isOpen, onClose, width = 'min(75vw, 900px)', childr
       {!fullScreen && (
         <div
           onClick={onClose}
-          className={fullScreenOnMobile ? 'slide-panel-overlay slide-panel-overlay--mobile-hidden' : 'slide-panel-overlay'}
           style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${overlayOpacity})`, zIndex: 40, animation: 'fadeIn 0.2s ease-out' }}
         />
       )}
-      <div
-        className={fullScreenOnMobile ? 'slide-panel slide-panel--mobile-full' : 'slide-panel'}
-        style={{
+      <div style={{
         position: 'fixed',
         zIndex: 50,
         background: colors.surface,

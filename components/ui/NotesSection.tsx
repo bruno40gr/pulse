@@ -147,7 +147,6 @@ export function NotesSection({
               borderRadius: radius.lg,
               background: cardBg,
               border: `1px solid ${colors.borderLight}`,
-              minWidth: 0,
             }}>
               <div style={{
                 width: '28px', height: '28px',
@@ -166,7 +165,7 @@ export function NotesSection({
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
                 </div>
-                <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>{entry.text}</div>
+                <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none' }}>{entry.text}</div>
               </div>
               {onToggleComplete && (
                 <button
