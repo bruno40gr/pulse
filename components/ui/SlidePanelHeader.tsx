@@ -88,8 +88,6 @@ export function SlidePanelHeader({
               color: colors.text,
               fontFamily: typography.fontSans,
               lineHeight: 1.2,
-              minWidth: 0,
-              overflowWrap: 'anywhere',
             }}>
               {title}
             </h2>

@@ -456,7 +456,7 @@ export default function ComposePanel({
   }
 
   return (
-    <div className="compose-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
       <div className="compose-layout" style={isMobile
         ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: colors.background }
         : { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
