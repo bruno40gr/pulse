@@ -456,12 +456,12 @@ export default function ComposePanel({
   }
 
   return (
-    <div className="compose-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: colors.background, overflow: 'hidden' }}>
+    <div className="compose-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
       <div className="compose-layout" style={isMobile
-        ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: colors.background }
+        ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: colors.background }
         : { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }}>
       {/* Left column */}
-      <div className="compose-form-col" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: isMobile ? spacing.lg : spacing['3xl'], overflowY: isMobile ? 'visible' : 'auto', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      <div className="compose-form-col" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: isMobile ? spacing.lg : spacing['3xl'], overflowY: isMobile ? 'visible' : 'auto' }}>
         {sent && sentResult && (
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.success}`, borderRadius: radius.md, color: colors.success, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
             ✓ Message sent — delivered to {sentResult.sent} {sentResult.sent === 1 ? 'contact' : 'contacts'}.{sentResult.failed > 0 ? ` ${sentResult.failed} failed.` : ''}
@@ -821,14 +821,9 @@ export default function ComposePanel({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        flexWrap: 'wrap',
         gap: '10px',
         flexShrink: 0,
         background: colors.surface,
-        minWidth: 0,
-        width: '100%',
-        maxWidth: '100%',
-        boxSizing: 'border-box',
       }}>
         {footerLeadingAction ? <div style={{ marginRight: 'auto' }}>{footerLeadingAction}</div> : null}
         <LoadingButton

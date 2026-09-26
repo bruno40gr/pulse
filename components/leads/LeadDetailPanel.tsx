@@ -201,7 +201,7 @@ function activityActor(event: LeadEvent) {
 
 function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   return (
-    <div style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+    <div>
       <div style={fieldLabelStyle}>{fieldLabel}</div>
       <div title={value || undefined} style={{ ...fieldValueStyle, color: value ? colors.text : colors.textMuted }}>{value || 'Not provided'}</div>
     </div>
@@ -316,22 +316,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
     </Select>
   ) : null
 
-  const statusStageSelectMobile = nextStages.length > 0 ? (
-    <Select aria-label="Change lead stage" value={stageSelection} fullWidth disabled={saving} wrapperStyle={{ minWidth: 0, maxWidth: '100%' }} style={statusStageSelectMobileStyle} onChange={(event) => {
-      const stage = event.target.value
-      setStageSelection('')
-      if (stage === 'lost') setLostOpen(true)
-      else if (stage) void onPatch({ status: stage })
-    }}>
-      <option value="" disabled>Change stage</option>
-      {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
-      <option value="lost">Lost</option>
-    </Select>
-  ) : null
-
   const statusControls = lead.intake_type !== 'job_application' && (
-    <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end', minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
-      <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border, maxWidth: '100%', minWidth: 0, flexWrap: 'wrap' }}>
+    <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+      <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border }}>
         <span style={{ ...statusLabelStyle, color: statusTone.text }}>{statusLabel(lead.status, lead.payload)}</span>
         {!isMobile && statusStageSelect && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
@@ -341,7 +328,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
           </div>
         </>}
       </div>
-      {isMobile && statusStageSelectMobile && <div style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>{statusStageSelectMobile}</div>}
+      {isMobile && statusStageSelect}
     </div>
   )
 
@@ -350,8 +337,8 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       <SlidePanelHeader
         title={leadAge === null ? contactName : `${contactName} (${leadAge})`}
         subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
-        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: isMobile ? 40 : 48 }}
-        titleSize={isMobile ? typography.sizeLg : typography.size2xl}
+        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: 48 }}
+        titleSize={typography.size2xl}
         onClose={onClose}
         onBack={isMobile ? onClose : undefined}
         backLabel="Leads"
@@ -404,7 +391,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
                 <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                   {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                 </Select>
-                <div style={isMobile ? oneColumnStyle : twoColumnStyle}>
+                <div style={twoColumnStyle}>
                   <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || 'Not provided'} />
                   <Field label="Former program" value={lead.program_label || 'Not provided'} />
                 </div>
@@ -455,36 +442,36 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   )
 }
 
-const panelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', background: colors.background }
-const mobilePanelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }
-const columnsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', padding: `0 ${spacing.lg} ${spacing.lg}` }
-const mobileColumnsStyle: CSSProperties = { display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', flex: 'none', overflow: 'visible' }
-const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, minWidth: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
-const mobileColumnContentsStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflow: 'visible', flex: 'none' }
-const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const oneColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: spacing.md, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
+const panelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: colors.background }
+const mobilePanelStyle: CSSProperties = { display: 'block', minHeight: 0, overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }
+const columnsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
+const mobileColumnsStyle: CSSProperties = { gridTemplateColumns: 'minmax(0, 1fr)', overflow: 'visible', flex: 'none' }
+const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
+const mobileColumnContentsStyle: CSSProperties = { display: 'contents' }
+const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
+const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }
+const oneColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: spacing.md }
 const headerIdentityRowStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md }
 const editNameButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', padding: 0, border: 'none', borderRadius: radius.md, background: 'transparent', color: colors.textSecondary, cursor: 'pointer' }
-const editContactSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
+const editContactSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }
+const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0 }
+const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0, minWidth: 0 }
 const emailControlStyle: CSSProperties = { gap: spacing.xs, color: colors.textSecondary, fontWeight: typography.weightMedium, flexWrap: 'wrap' }
 const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase, maxWidth: '100%', minWidth: 0 }
 const copyButtonStyle: CSSProperties = { padding: 0, color: colors.teal }
 const copiedStyle: CSSProperties = { color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
-const actionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const statusClusterRowStyle: CSSProperties = { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const statusClusterStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', border: '1px solid', borderRadius: radius.full, padding: '2px', minHeight: '36px', boxSizing: 'border-box', minWidth: 0, maxWidth: '100%' }
+const actionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
+const statusClusterRowStyle: CSSProperties = { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
+const statusClusterStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', border: '1px solid', borderRadius: radius.full, padding: '2px', minHeight: '36px', boxSizing: 'border-box' }
 const statusLabelStyle: CSSProperties = { padding: `${spacing.xs} ${spacing.sm}`, fontFamily: typography.fontSans, fontSize: typography.sizeSm, fontWeight: typography.weightBold, whiteSpace: 'nowrap' }
 const statusDividerStyle: CSSProperties = { width: '1px', alignSelf: 'stretch', margin: `${spacing.xs} ${spacing.sm}`, opacity: 0.3 }
-const statusStageSelectWrapStyle: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: '100%' }
+const statusStageSelectWrapStyle: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
 const statusStageSelectStyle: CSSProperties = { width: '28px', minHeight: '28px', padding: 0, border: 'none', borderRadius: radius.full, background: 'transparent', color: 'transparent', appearance: 'none', cursor: 'pointer' }
-const statusStageSelectMobileStyle: CSSProperties = { minHeight: '36px', appearance: 'auto', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }
-const mobileStatusControlsSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm, padding: `${spacing.md} ${spacing.lg}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
+const statusStageSelectMobileStyle: CSSProperties = { minHeight: '36px', appearance: 'auto' }
+const mobileStatusControlsSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm, padding: `${spacing.md} ${spacing.lg}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }
 const statusStageUpdateStyle: CSSProperties = { position: 'absolute', right: spacing.xs, pointerEvents: 'none' }
-const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
+const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
+const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }
 const notesSectionStyle: CSSProperties = { order: 2 }
 const lessonSectionStyle: CSSProperties = { order: 3 }
@@ -497,15 +484,15 @@ const metricCaptionStyle: CSSProperties = { color: colors.textSecondary, fontFam
 const metricLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
 const metricValueStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, marginTop: spacing.xs }
 const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
-const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
-const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
-const familyMemberStyle: CSSProperties = { padding: spacing.sm, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }
-const familyMemberHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.sm, minWidth: 0, maxWidth: '100%' }
+const fieldValueStyle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
+const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
+const familyMemberStyle: CSSProperties = { padding: spacing.sm, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }
+const familyMemberHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.sm }
 const familyMemberNameStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
 const familyMemberFieldsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px minmax(0, 1fr)', gap: spacing.sm }
 const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeSm, textDecoration: 'underline', cursor: 'pointer' }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
-const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }
+const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const activityRowStyle: CSSProperties = { display: 'flex', gap: spacing.sm, alignItems: 'flex-start' }
 const activityMarkerStyle: CSSProperties = { width: spacing.sm, height: spacing.sm, borderRadius: radius.full, background: colors.teal, marginTop: spacing.xs, flexShrink: 0 }
 const activityContentStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }

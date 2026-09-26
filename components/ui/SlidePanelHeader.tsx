@@ -17,6 +17,10 @@ interface SlidePanelHeaderProps {
   titleSize?: string
 }
 
+const HEADER_PADDING: React.CSSProperties = {
+  padding: '20px 32px',
+}
+
 export function SlidePanelHeader({
   title,
   titleBadge,
@@ -35,21 +39,17 @@ export function SlidePanelHeader({
     <div
       className="slide-panel-header"
       style={{
+      ...HEADER_PADDING,
       padding: isMobile ? '14px 16px' : '20px 32px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
-      gap: spacing.md,
       flexShrink: 0,
-      flexWrap: 'wrap',
-      minWidth: 0,
-      width: '100%',
-      maxWidth: '100%',
+      minHeight: '72px',
       boxSizing: 'border-box',
-      minHeight: isMobile ? undefined : '72px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0, maxWidth: '100%', flex: '1 1 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
         {onBack && (
           <button
             onClick={onBack}
@@ -79,8 +79,8 @@ export function SlidePanelHeader({
             src={avatar.src}
           />
         )}
-        <div style={{ minWidth: 0, maxWidth: '100%', flex: '1 1 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h2 style={{
               fontSize: titleSize || typography.sizeXl,
               fontWeight: typography.weightSemibold,

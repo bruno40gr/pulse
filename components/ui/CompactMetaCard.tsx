@@ -27,8 +27,7 @@ export function CompactMetaCard({ children, style, fullWidth = false, align = 'c
         lineHeight: 1.2,
         fontFamily: typography.fontSans,
         width: fullWidth ? '100%' : undefined,
-        maxWidth: '100%',
-        minWidth: 0,
+        maxWidth: fullWidth ? '100%' : undefined,
         boxSizing: 'border-box',
         ...style,
       }}

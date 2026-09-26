@@ -86,9 +86,9 @@ export function NotesSection({
   return (
     <div>
       {showHeader && (
-        <div style={{ marginBottom: '8px', minWidth: 0, maxWidth: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
               <h2 style={{
               fontSize: '18px',
               fontWeight: 600,
@@ -138,7 +138,7 @@ export function NotesSection({
       )}
 
       {notes.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px', minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
           {notes.map((entry, i) => (
             <div key={i} style={{
               display: 'flex',
@@ -148,9 +148,6 @@ export function NotesSection({
               background: cardBg,
               border: `1px solid ${colors.borderLight}`,
               minWidth: 0,
-              maxWidth: '100%',
-              width: '100%',
-              boxSizing: 'border-box',
             }}>
               <div style={{
                 width: '28px', height: '28px',
@@ -165,7 +162,7 @@ export function NotesSection({
                 flexShrink: 0,
                 marginTop: '1px',
               }}>{avatarInitial}</div>
-              <div style={{ flex: 1, minWidth: 0, maxWidth: '100%' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
                 </div>
@@ -196,9 +193,6 @@ export function NotesSection({
             alignItems: 'center',
             gap: '8px',
             width: '100%',
-            maxWidth: '100%',
-            minWidth: 0,
-            boxSizing: 'border-box',
             padding: '12px 16px',
             border: 'none',
             borderRadius: radius.lg,
@@ -226,7 +220,7 @@ export function NotesSection({
           {addLabel}
         </button>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, minWidth: 0, maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
           <Textarea
             value={input}
             onChange={e => updateInput(e.target.value)}
@@ -234,9 +228,7 @@ export function NotesSection({
               if (autoSaveOnBlur) void handleSave()
             }}
             placeholder="Write a note..."
-            style={{
-            minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box',
-          }}
+            style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
           />
           <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
             <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput('') }}>Cancel</Button>

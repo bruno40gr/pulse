@@ -10,7 +10,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, hint, error, style, ...props }: InputProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%' }}>
       {label && (
         <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
           {label}
@@ -27,8 +27,6 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
           background: colors.surface,
           outline: 'none',
           width: '100%',
-          maxWidth: '100%',
-          minWidth: 0,
           boxSizing: 'border-box' as const,
           ...style,
         }}
