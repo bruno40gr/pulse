@@ -21,6 +21,7 @@ export async function middleware(request: NextRequest) {
     || pathname === '/demo'
     || pathname.startsWith('/api/access/')
     || pathname === '/api/account/claim'
+    || pathname === '/api/account/confirm'
     || pathname === '/api/account/recovery'
     || pathname === '/api/intake'
     || pathname === '/api/twilio/webhook'

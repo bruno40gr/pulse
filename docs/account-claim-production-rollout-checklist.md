@@ -45,6 +45,19 @@ Do not paste credentials into chat, source files, commits, screenshots, issue tr
 - [ ] Remove obsolete preview or temporary redirect URLs that are not still required.
 - [ ] Configure custom SMTP using the verified provider credentials.
 - [ ] Review invitation and recovery email templates for correct product name, sender identity, and destination links.
+- [ ] In the **Invite user** template, replace the direct `{{ .ConfirmationURL }}` button target with:
+
+  ```html
+  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&redirect_to={{ .RedirectTo }}
+  ```
+
+- [ ] In the **Reset password** template, replace the direct `{{ .ConfirmationURL }}` button target with:
+
+  ```html
+  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&redirect_to={{ .RedirectTo }}
+  ```
+
+- [ ] Confirm that opening either template link with `GET` shows Odeon's confirmation page without creating a Supabase session; token redemption must occur only after the user presses the Continue button.
 - [ ] Confirm email-verification policy still matches the approved rollout decision; do not change it incidentally while configuring SMTP.
 - [ ] Confirm provider and Supabase rate limits are sufficient for the controlled test and expected rollout batch.
 
@@ -86,6 +99,7 @@ Use a designated internal test membership and mailbox. Do not use a real staff m
 - [ ] Confirm deleted seed/migration API routes are intentional and no operational process still depends on them.
 - [ ] Re-run `git diff --check`.
 - [ ] Re-run the foundation, account-management, and account-claim verifiers against the intended target.
+- [ ] Run `npm run verify:scanner-safe-auth` and confirm invite/recovery links survive scanner-style `GET` requests, redeem once on `POST`, reject replay, and block external redirects.
 - [ ] Re-run TypeScript, targeted lint, and the production build.
 - [ ] Review the known broad-lint debt separately; do not misrepresent it as introduced by the account release.
 - [ ] Create a reviewed commit with the SQL migrations, runtime changes, verification scripts, and documentation together.

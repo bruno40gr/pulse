@@ -1,16 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const linkError = searchParams.get('error')
+    if (linkError) setError(linkError)
+  }, [searchParams])
 
   const send = async () => {
     if (!email.trim()) return
     setLoading(true)
+    setError('')
     await fetch('/api/account/recovery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -26,10 +35,15 @@ export default function ForgotPasswordPage() {
       <p style={{ ...typography.body, color: colors.textSecondary }}>Enter the email for your claimed staff account.</p>
       <label style={authLabelStyle}>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void send() }} autoComplete="email" style={authFieldStyle} /></label>
       {message && <p role="status" style={{ color: colors.success, ...typography.bodySmall }}>{message}</p>}
+      {error && <p role="alert" style={{ color: colors.error, ...typography.bodySmall }}>{error}</p>}
       <button type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={authSubmitStyle}>{loading ? 'Sending…' : 'Send reset link'}</button>
       <a href="/login" style={{ display: 'inline-block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>
     </section></main>
   )
+}
+
+export default function ForgotPasswordPage() {
+  return <Suspense fallback={<main style={authPageStyle}><section style={authCardStyle}>Loading…</section></main>}><ForgotPasswordForm /></Suspense>
 }
 
 const authPageStyle: React.CSSProperties = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.background, padding: spacing.lg }

@@ -142,9 +142,7 @@ export async function sendMembershipSetupEmail(input: {
   })
   if (emailError) return { ok: false as const, status: 409, error: emailError }
 
-  const redirectTo = isResend
-    ? `${accountAppOrigin(input.request)}/auth/callback?next=/claim`
-    : `${accountAppOrigin(input.request)}/claim`
+  const redirectTo = `${accountAppOrigin(input.request)}/claim`
   const invitedAt = new Date().toISOString()
 
   if (isResend) {

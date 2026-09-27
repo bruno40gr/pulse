@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (authUserError || authUser.user.email?.trim().toLowerCase() !== email) return genericResponse
 
     await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${appOrigin(request)}/auth/callback?next=/reset-password`,
+      redirectTo: `${appOrigin(request)}/reset-password`,
     })
     return genericResponse
   } catch {

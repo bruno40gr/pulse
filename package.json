@@ -10,6 +10,7 @@
     "verify:account-foundation": "node scripts/verify-account-foundation.mjs",
     "verify:account-management": "node scripts/verify-account-management.mjs",
     "verify:account-claim": "node scripts/verify-account-claim.mjs",
+    "verify:scanner-safe-auth": "node scripts/verify-scanner-safe-auth-links.mjs",
     "verify:staff-emails": "node scripts/verify-staff-email-readiness.mjs"
   },
   "dependencies": {
