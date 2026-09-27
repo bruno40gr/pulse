@@ -3,6 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 import { assertTenantAccess } from '@/lib/access'
+import { requirePermission } from '@/lib/request-context'
+import { PERMISSIONS } from '@/lib/permissions'
+
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -353,10 +357,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: deleteId } = await params
   try {
+    const tenantId = new URL(request.url).searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const permission = await requirePermission(request, tenantId, PERMISSIONS.contactsDelete)
+    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
+
+    const { data: contact, error: contactError } = await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('id', deleteId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    if (contactError) throw contactError
+    if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     const { error } = await supabaseAdmin
       .from('contacts')
       .delete()
       .eq('id', deleteId)
+      .eq('tenant_id', tenantId)
     if (error) throw error
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { ensureTenantSettingsTable } from '@/lib/ensure-tenant-settings'
 import Anthropic from '@anthropic-ai/sdk'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 
@@ -152,7 +151,6 @@ export async function GET(request: Request) {
     const today = new Date()
 
     // Load tenant pulse settings (threshold + focus areas) to influence generation
-    await ensureTenantSettingsTable()
     const { data: tenantSettings } = await supabaseAdmin
       .from('tenant_settings')
       .select('highlight_threshold, focus_areas, brand_voice, brand_markdown')

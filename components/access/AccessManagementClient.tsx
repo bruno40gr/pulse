@@ -6,7 +6,7 @@ import { Avatar, Badge, Button, Input, PageContainer, PageHeader, Select, SlideP
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
-type AccessTab = 'accounts' | 'roles'
+type AccessTab = 'people' | 'roles'
 
 type Permission = {
   id: string
@@ -99,9 +99,9 @@ function permissionGroup(permission: Permission) {
   return permission.key.split('.')[0]
 }
 
-export default function AccessManagementClient({ tenantId }: { tenantId: string }) {
+export default function AccessManagementClient({ tenantId, embedded = false }: { tenantId: string; embedded?: boolean }) {
   const isMobile = useIsMobile()
-  const [activeTab, setActiveTab] = useState<AccessTab>('accounts')
+  const [activeTab, setActiveTab] = useState<AccessTab>('people')
   const [data, setData] = useState<AccessData | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [draftPermissionIds, setDraftPermissionIds] = useState<Set<string>>(new Set())
@@ -304,6 +304,39 @@ export default function AccessManagementClient({ tenantId }: { tenantId: string 
     }
   }
 
+  const sendInvitation = async (membership: Membership) => {
+    const isResend = membership.status === 'invited'
+    setSavingKey(`invitation:${membership.id}`)
+    setError('')
+    setMessage('')
+    try {
+      const response = await fetch(`/api/account/access?tenant=${tenantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: isResend ? 'resend_invitation' : 'invite',
+          membershipId: membership.id,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not send the account email.')
+      setData(current => current ? {
+        ...current,
+        memberships: current.memberships.map(item => item.id === membership.id ? {
+          ...item,
+          status: 'invited',
+          auth_user_id: result.auth_user_id || item.auth_user_id,
+          invited_at: result.invited_at || item.invited_at,
+        } : item),
+      } : current)
+      setMessage(`${isResend ? 'Another setup email was sent to' : 'Invitation sent to'} ${membership.person?.email}.`)
+    } catch (caught) {
+      setError((caught as Error).message)
+    } finally {
+      setSavingKey('')
+    }
+  }
+
   const openAccountForm = () => {
     resetAccountForm()
     setShowAccountForm(true)
@@ -311,39 +344,43 @@ export default function AccessManagementClient({ tenantId }: { tenantId: string 
 
   const headerActions = data ? (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' }}>
-      <Badge variant="info"><ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />{data.canManageRoles ? 'Owner' : 'Admin'}</Badge>
-      {activeTab === 'accounts' && <Button onClick={openAccountForm}><Plus size={16} />Add account</Button>}
+      <Badge variant="info"><ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />{data.currentRoleKey === 'owner' ? 'Owner' : 'Admin'}</Badge>
+      {activeTab === 'people' && <Button onClick={openAccountForm}><Plus size={16} />Add account</Button>}
     </div>
   ) : null
 
-  return (
-    <PageContainer maxWidth="1180px" style={{ padding: isMobile ? spacing.lg : spacing['3xl'] }}>
-      <PageHeader
-        title="Access & roles"
-        subtitle={data?.canManageRoles
-          ? 'Manage staff accounts separately from the roles and permissions that control access.'
-          : 'Add staff accounts and review access. Owners manage role assignments and permissions.'}
-        right={headerActions}
-      />
+  const content = (
+    <>
+      {!embedded && (
+        <PageHeader
+          title="Roles & permissions"
+          subtitle="Manage your people, staff accounts, roles, and permissions."
+          right={headerActions}
+        />
+      )}
+
+      {embedded && headerActions && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: spacing.lg }}>{headerActions}</div>
+      )}
 
       {data && (
         <>
           <Tabs
             items={data.canManageRoles
               ? [
-                  { key: 'accounts', label: 'Staff accounts', count: data.memberships.length },
+                  { key: 'people', label: 'People', count: data.memberships.length },
                   { key: 'roles', label: 'Roles & permissions', count: data.roles.length },
                 ]
-              : [{ key: 'accounts', label: 'Staff accounts', count: data.memberships.length }]}
+              : [{ key: 'people', label: 'People', count: data.memberships.length }]}
             activeKey={activeTab}
             onChange={setActiveTab}
             variant="prominent"
             style={{ marginBottom: spacing.lg, maxWidth: data.canManageRoles ? 620 : 310, width: '100%' }}
           />
           <div style={{ marginBottom: spacing['2xl'], color: colors.textSecondary, fontSize: typography.sizeSm }}>
-            {activeTab === 'accounts'
-              ? 'Create staff accounts and review who can sign in. Account status is separate from staff scheduling and employment status.'
-              : 'Owner-only: define roles and choose the permissions granted to each role.'}
+            {activeTab === 'people'
+              ? 'Manage the people who work in your organization and review who can sign in.'
+              : 'Define roles and choose the permissions granted to each role. The Owner role remains protected.'}
           </div>
         </>
       )}
@@ -358,11 +395,12 @@ export default function AccessManagementClient({ tenantId }: { tenantId: string 
         <AccessLoadingState />
       ) : !data ? (
         <AccessErrorState error={error || 'Access settings are unavailable.'} onRetry={fetchAccessData} />
-      ) : activeTab === 'accounts' ? (
+      ) : activeTab === 'people' ? (
         <PeopleAccessPanel
           data={data}
           savingKey={savingKey}
           onRoleChange={saveRoleAssignment}
+          onInvitation={sendInvitation}
           onAddAccount={openAccountForm}
         />
       ) : (
@@ -462,6 +500,14 @@ export default function AccessManagementClient({ tenantId }: { tenantId: string 
           </div>
         </SlidePanel>
       )}
+    </>
+  )
+
+  if (embedded) return <div>{content}</div>
+
+  return (
+    <PageContainer maxWidth="1180px" style={{ padding: isMobile ? spacing.lg : spacing['3xl'] }}>
+      {content}
     </PageContainer>
   )
 }
@@ -470,11 +516,13 @@ function PeopleAccessPanel({
   data,
   savingKey,
   onRoleChange,
+  onInvitation,
   onAddAccount,
 }: {
   data: AccessData
   savingKey: string
   onRoleChange: (membership: Membership, roleId: string) => void
+  onInvitation: (membership: Membership) => void
   onAddAccount: () => void
 }) {
   const memberships = [...data.memberships].sort((left, right) => fullName(left).localeCompare(fullName(right)))
@@ -483,9 +531,9 @@ function PeopleAccessPanel({
     <SurfacePanel padding="0" style={{ overflow: 'hidden' }}>
       <div style={{ padding: spacing.xl, borderBottom: `1px solid ${colors.borderLight}` }}>
         <div>
-          <h2 style={{ ...typography.h2, margin: 0, color: colors.text }}>Staff accounts</h2>
+          <h2 style={{ ...typography.h2, margin: 0, color: colors.text }}>People</h2>
           <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `${spacing.xs} 0 0` }}>
-            {data.canManageRoles ? 'Choose one role per staff member. Role changes apply to their next authorized request.' : 'Review staff accounts. Owners control role changes and permissions.'}
+            {data.canManageRoles ? 'Choose one role per staff member. Role changes apply to their next authorized request.' : 'Review staff accounts and access status.'}
           </p>
         </div>
       </div>
@@ -503,7 +551,7 @@ function PeopleAccessPanel({
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
           <thead>
             <tr style={{ background: colors.surfaceMuted }}>
-              {['Staff member', 'Account', 'Role', 'Access level'].map(label => (
+              {['Staff member', 'Account', 'Role', 'Access level', 'Action'].map(label => (
                 <th key={label} style={tableHeaderStyle}>{label}</th>
               ))}
             </tr>
@@ -512,6 +560,7 @@ function PeopleAccessPanel({
             {memberships.map(membership => {
               const role = data.roles.find(item => item.id === membership.role_id)
               const isSaving = savingKey === `membership:${membership.id}`
+              const isSendingInvitation = savingKey === `invitation:${membership.id}`
               const isCurrentOwner = membership.id === data.currentMembershipId && role?.key === 'owner'
               return (
                 <tr key={membership.id} style={{ borderTop: `1px solid ${colors.borderLight}` }}>
@@ -542,6 +591,19 @@ function PeopleAccessPanel({
                     <span style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>
                       {role?.key === 'owner' ? 'Full access' : `${role?.permissionIds.length || 0} permissions`}
                     </span>
+                  </td>
+                  <td style={{ ...tableCellStyle, width: 130 }}>
+                    {membership.status === 'unclaimed' || membership.status === 'invited' ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={isSendingInvitation || !membership.person?.email}
+                        title={membership.person?.email ? undefined : 'Add an email before inviting this staff member.'}
+                        onClick={() => onInvitation(membership)}
+                      >
+                        {isSendingInvitation ? 'Sending…' : membership.status === 'invited' ? 'Resend' : 'Invite'}
+                      </Button>
+                    ) : <span style={{ color: colors.textMuted, fontSize: typography.sizeSm }}>—</span>}
                   </td>
                 </tr>
               )

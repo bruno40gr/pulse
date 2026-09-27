@@ -9,6 +9,7 @@ import { trackDemoEvent } from '@/lib/demo-analytics'
 type Teacher = {
   instructorId: string
   displayName: string
+  accountClaimed: boolean
 }
 
 const HEADLINER_BLACK_LOGO_URL = 'https://res.cloudinary.com/diy08lj9x/image/upload/v1780713493/Asset_1_2x_a5hm0v.png'
@@ -40,6 +41,7 @@ export default function GatePage() {
   const [staffError, setStaffError] = useState('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [demoError, setDemoError] = useState('')
+  const selectedTeacher = teachers.find(teacher => teacher.instructorId === instructorId)
 
   useEffect(() => {
     fetch('/api/access/teachers')
@@ -124,13 +126,13 @@ export default function GatePage() {
               Your name
               <select value={instructorId} onChange={(event) => setInstructorId(event.target.value)} disabled={staffLoading || teachers.length === 0} style={fieldStyle}>
                 <option value="">Select your name</option>
-                {teachers.map((teacher) => <option key={teacher.instructorId} value={teacher.instructorId}>{teacher.displayName}</option>)}
+                {teachers.map((teacher) => <option key={teacher.instructorId} value={teacher.instructorId}>{teacher.accountClaimed ? `✓ ${teacher.displayName}` : teacher.displayName}</option>)}
               </select>
             </label>
             <label style={labelStyle}>
               Password
               <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleStaffLogin() }} autoComplete="current-password" style={fieldStyle} />
-              <span style={passwordHintStyle}>The 4 digit alarm code</span>
+              <span style={passwordHintStyle}>{selectedTeacher?.accountClaimed ? 'Use your personal password.' : 'Use the temporary shared code.'}</span>
             </label>
           </div>
           {staffError && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, margin: `${spacing.md} 0 0` }}>{staffError}</p>}

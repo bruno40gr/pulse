@@ -651,7 +651,6 @@ export default function LeadsView() {
   const [followUpNote, setFollowUpNote] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
   const isMobileLayout = useIsMobile()
@@ -769,7 +768,6 @@ export default function LeadsView() {
 
   const openDeleteModal = () => {
     setDeleteError('')
-    setDeletePassword('')
     setIsDeleteOpen(true)
   }
 
@@ -777,7 +775,6 @@ export default function LeadsView() {
     if (deleteLoading) return
     setIsDeleteOpen(false)
     setDeleteError('')
-    setDeletePassword('')
   }
 
   const handleDeleteSelected = async () => {
@@ -790,13 +787,12 @@ export default function LeadsView() {
       await fetchJsonWithTimeout<{ success: true }>(`/api/leads`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds), password: deletePassword }),
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
       })
 
       if (selectedLeadId && selectedIds.has(selectedLeadId)) closeLead()
       setSelectedIds(new Set())
       setIsDeleteOpen(false)
-      setDeletePassword('')
       await fetchLeads()
     } catch (error: unknown) {
       setDeleteError(getErrorMessage(error, 'Could not delete leads'))
@@ -1922,16 +1918,9 @@ export default function LeadsView() {
         />
         <div style={deletePanelBodyStyle}>
           <div style={deleteCopyStyle}>
-            Enter the delete password to permanently remove {selectedCount} {selectedCount === 1 ? 'lead' : 'leads'}.
+            Permanently remove {selectedCount} selected {selectedCount === 1 ? 'lead' : 'leads'}? This cannot be undone.
           </div>
           {deleteError && <MessageBox>{deleteError}</MessageBox>}
-          <Input
-            label="Password"
-            type="password"
-            value={deletePassword}
-            onChange={(event) => setDeletePassword(event.target.value)}
-            placeholder="Enter password"
-          />
           <div style={manualLeadFooterStyle}>
             <Button type="button" variant="secondary" onClick={closeDeleteModal} disabled={deleteLoading}>
               Cancel
@@ -1940,7 +1929,7 @@ export default function LeadsView() {
               type="button"
               variant="destructive"
               onClick={() => void handleDeleteSelected()}
-              disabled={deleteLoading || deletePassword.trim().length === 0}
+              disabled={deleteLoading}
             >
               {deleteLoading ? 'Deleting…' : 'Delete leads'}
             </Button>

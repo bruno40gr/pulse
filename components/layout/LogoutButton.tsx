@@ -16,7 +16,7 @@ export default function LogoutButton({ onLogout }: { onLogout?: () => void }) {
     } finally {
       window.localStorage.removeItem('pulse_active_tenant')
       onLogout?.()
-      router.replace('/demo')
+      router.replace('/login')
       router.refresh()
     }
   }

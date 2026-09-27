@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
+import { writeAccountAuditEvent } from '@/lib/account-audit'
+import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { isDemo } from '@/lib/demo'
 import twilio from 'twilio'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const authorization = await authorizeCommunicationSend(request, DEFAULT_TENANT_ID)
+    if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
+    const { tenantId } = authorization
+
     const { contact_id, body, to_phone } = await request.json()
 
     if (!body?.trim() || !to_phone) {
@@ -16,8 +19,7 @@ export async function POST(request: Request) {
     }
 
     // Demo mode — simulate reply without hitting Twilio
-    const demoMode = await isDemo(tenantId)
-    if (demoMode) {
+    if (authorization.demo) {
       await supabaseAdmin.from('messages').insert({
         tenant_id: tenantId,
         contact_id,
@@ -81,7 +83,14 @@ export async function POST(request: Request) {
       }, { status: 502 })
     }
 
-    return NextResponse.json({ success: true, sid: msg.sid })
+    const auditRecorded = await writeAccountAuditEvent({
+      tenantId,
+      actorMembershipId: authorization.context.membershipId,
+      eventType: 'communications.reply_sent',
+      metadata: { contact_id: contact_id || null },
+    })
+
+    return NextResponse.json({ success: true, sid: msg.sid, auditRecorded })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

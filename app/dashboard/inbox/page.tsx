@@ -125,7 +125,7 @@ function InboxPageInner() {
     if (!reply.trim() || !activeThread) return
     setSending(true)
     try {
-      await fetch(`/api/inbox/reply?tenant=${tenantId}`, {
+      const response = await fetch(`/api/inbox/reply?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,6 +134,8 @@ function InboxPageInner() {
           to_phone: activeThread.other_phone,
         })
       })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not send reply')
       setReply('')
       const updated = await fetchThreads()
       const refreshed = updated.find(t => t.thread_key === activeThread.thread_key)

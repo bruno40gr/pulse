@@ -2,10 +2,21 @@
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
+import AccessManagementClient from '@/components/access/AccessManagementClient'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
+import { createClient } from '@/lib/supabase/client'
+import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 
-type Tab = 'account' | 'brand' | 'pulse'
+type Tab = 'roles' | 'integrations' | 'brand' | 'account'
+
+type AccountContext = {
+  canManageRoles: boolean
+  canManageIntegrations: boolean
+  canManageBrand: boolean
+  canUpdateCredentials: boolean
+  email: string | null
+}
 
 const FOCUS_OPTIONS = [
   { value: 'retention', label: 'Retention' },
@@ -16,6 +27,29 @@ const FOCUS_OPTIONS = [
 export default function SettingsPage() {
   const tenantId = getActiveTenantId()
   const [tab, setTab] = useState<Tab>('account')
+  const [accountContext, setAccountContext] = useState<AccountContext | null>(null)
+  const [contextLoading, setContextLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/account/me?tenant=${tenantId}`)
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Could not load settings access.')
+        return data as AccountContext
+      })
+      .then(data => {
+        setAccountContext(data)
+        if (data.canManageRoles) setTab('roles')
+      })
+      .catch(() => setAccountContext({
+        canManageRoles: false,
+        canManageIntegrations: false,
+        canManageBrand: false,
+        canUpdateCredentials: false,
+        email: null,
+      }))
+      .finally(() => setContextLoading(false))
+  }, [tenantId])
 
   // ── Shared styles ──
   const inputS: React.CSSProperties = {
@@ -64,9 +98,10 @@ export default function SettingsPage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
+    ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles & permissions' }] : []),
+    ...(accountContext?.canManageIntegrations ? [{ key: 'integrations' as const, label: 'Integrations' }] : []),
+    ...(accountContext?.canManageBrand ? [{ key: 'brand' as const, label: 'Brand' }] : []),
     { key: 'account', label: 'Account settings' },
-    { key: 'brand', label: 'Your Brand' },
-    { key: 'pulse', label: 'Hey, Cohen system settings' },
   ]
 
   return (
@@ -74,11 +109,11 @@ export default function SettingsPage() {
       {/* Header */}
       <PageHeader
         title="Settings"
-        subtitle="Manage your account integrations, brand voice, and Pulse preferences."
+        subtitle="Manage access, integrations, brand preferences, and your personal account."
       />
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing['3xl'] }}>
+      <div style={{ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing['3xl'], overflowX: 'auto' }}>
         {tabs.map(t => (
           <button
             key={t.key}
@@ -101,9 +136,16 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {tab === 'account' && <AccountTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
-      {tab === 'brand' && <BrandTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
-      {tab === 'pulse' && <PulseTab tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+      {contextLoading ? (
+        <p style={{ color: colors.textMuted, fontSize: typography.sizeBase }}>Loading settings…</p>
+      ) : (
+        <>
+          {tab === 'roles' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded />}
+          {tab === 'integrations' && accountContext?.canManageIntegrations && <IntegrationsTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+          {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+          {tab === 'account' && accountContext && <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+        </>
+      )}
     </PageContainer>
   )
 }
@@ -119,8 +161,17 @@ interface SettingsStyles {
   sectionSubS: React.CSSProperties
 }
 
-function AccountTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string } & SettingsStyles) {
-  const [existing, setExisting] = useState<any>(null)
+type TwilioConfig = {
+  account_sid: string
+  phone_number?: string | null
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong.'
+}
+
+function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string } & SettingsStyles) {
+  const [existing, setExisting] = useState<TwilioConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [accountSid, setAccountSid] = useState('')
   const [authToken, setAuthToken] = useState('')
@@ -157,8 +208,8 @@ function AccountTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sec
       setAccountSid('')
       setAuthToken('')
       setTimeout(() => setSaved(false), 3000)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error) {
+      setError(errorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -171,8 +222,8 @@ function AccountTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sec
       await fetch(`/api/twilio-config?tenant=${tenantId}`, { method: 'DELETE' })
       setExisting(null)
       setShowForm(true)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error) {
+      setError(errorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -292,8 +343,8 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
       if (!res.ok) throw new Error(data.error)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error) {
+      setError(errorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -391,16 +442,18 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
           </div>
         </div>
       </div>
+
+      <HighlightsSettings tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
     </>
   )
 }
 
-/* ───────────────────────── Pulse ───────────────────────── */
+/* ───────────────────────── AI highlights ───────────────────────── */
 
-function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties; sectionSubS: React.CSSProperties }) {
+function HighlightsSettings({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties; sectionSubS: React.CSSProperties }) {
   const [threshold, setThreshold] = useState(3)
   const [focusAreas, setFocusAreas] = useState<string[]>(['retention', 'billing', 'growth'])
-  const [fontSize, setFontSize] = useState(16)
+  const [storedBaseFontSize, setStoredBaseFontSize] = useState(16)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -413,7 +466,7 @@ function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: s
         if (data && !data.error) {
           setThreshold(data.highlight_threshold ?? 3)
           setFocusAreas(data.focus_areas?.length ? data.focus_areas : ['retention', 'billing', 'growth'])
-          setFontSize(data.base_font_size ?? 16)
+          setStoredBaseFontSize(data.base_font_size ?? 16)
         }
         setLoading(false)
       })
@@ -428,14 +481,14 @@ function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: s
       const res = await fetch(`/api/pulse-settings?tenant=${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ highlight_threshold: threshold, focus_areas: focusAreas, base_font_size: fontSize }),
+        body: JSON.stringify({ highlight_threshold: threshold, focus_areas: focusAreas, base_font_size: storedBaseFontSize }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error) {
+      setError(errorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -446,15 +499,14 @@ function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: s
   }
 
   return (
-    <>
-      <div style={cardS}>
-        <h2 style={sectionTitleS}>Highlights</h2>
-        <p style={sectionSubS}>Calibrate how many highlights Pulse surfaces on your dashboard, and which areas to prioritize. These apply across the whole platform.</p>
+    <div style={cardS}>
+      <h2 style={sectionTitleS}>AI Highlights</h2>
+      <p style={sectionSubS}>Calibrate how many highlights Pulse surfaces on your dashboard and which areas to prioritize. These settings apply across the organization.</p>
 
-        {loading ? (
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
-        ) : (
-          <div style={{ marginTop: spacing.xl }}>
+      {loading ? (
+        <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+      ) : (
+        <div style={{ marginTop: spacing.xl }}>
             {/* Threshold */}
             <div style={{ marginBottom: spacing.xl }}>
               <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text }}>
@@ -508,43 +560,125 @@ function PulseTab({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: s
             {error && <p style={{ color: colors.error, fontSize: typography.sizeBase }}>{error}</p>}
             {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase }}>Saved</p>}
 
-            <Button variant="primary" onClick={handleSave} disabled={saving || focusAreas.length === 0}>
-              {saving ? 'Saving...' : 'Save highlights'}
-            </Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving || focusAreas.length === 0}>
+            {saving ? 'Saving...' : 'Save highlights'}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ───────────────────────── Personal account ───────────────────────── */
+
+function AccountSettingsTab({ context, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { context: AccountContext } & SettingsStyles) {
+  const [email, setEmail] = useState(context.email || '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [fontSize, setFontSize] = useState(16)
+  const [savingCredentials, setSavingCredentials] = useState(false)
+  const [credentialMessage, setCredentialMessage] = useState('')
+  const [credentialError, setCredentialError] = useState('')
+
+  useEffect(() => {
+    setFontSize(readDisplayFontSize())
+  }, [])
+
+  const handleFontSizeChange = (value: number) => {
+    setFontSize(applyDisplayFontSize(value))
+  }
+
+  const handleCredentialsSave = async () => {
+    setSavingCredentials(true)
+    setCredentialMessage('')
+    setCredentialError('')
+
+    try {
+      if (password && password.length < 8) throw new Error('Use at least 8 characters for your password.')
+      if (password !== confirmPassword) throw new Error('The password confirmation does not match.')
+      if (!email.trim()) throw new Error('Enter an email address.')
+
+      const supabase = createClient()
+      const changes: { email?: string; password?: string } = {}
+      if (email.trim().toLowerCase() !== (context.email || '').toLowerCase()) changes.email = email.trim().toLowerCase()
+      if (password) changes.password = password
+      if (!changes.email && !changes.password) throw new Error('Enter a new email address or password.')
+
+      const { error } = await supabase.auth.updateUser(changes)
+      if (error) throw error
+
+      setPassword('')
+      setConfirmPassword('')
+      setCredentialMessage(changes.email
+        ? 'Account updated. Check your new email address if confirmation is required.'
+        : 'Password updated.')
+    } catch (error) {
+      setCredentialError((error as Error).message)
+    } finally {
+      setSavingCredentials(false)
+    }
+  }
+
+  return (
+    <>
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Email & password</h2>
+        <p style={sectionSubS}>Update the credentials used for your personal Headliner account.</p>
+
+        {context.canUpdateCredentials ? (
+          <div style={{ marginTop: spacing.xl }}>
+            <label style={labelS}>Email address</label>
+            <input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" style={inputS} />
+
+            <label style={labelS}>New password</label>
+            <input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" placeholder="Leave blank to keep your current password" style={inputS} />
+            <span style={hintS}>Use at least 8 characters.</span>
+
+            <label style={labelS}>Confirm new password</label>
+            <input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" style={inputS} />
+
+            {credentialError && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{credentialError}</p>}
+            {credentialMessage && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>{credentialMessage}</p>}
+
+            <div style={{ marginTop: spacing.xl }}>
+              <Button variant="primary" onClick={handleCredentialsSave} disabled={savingCredentials}>
+                {savingCredentials ? 'Saving…' : 'Save account changes'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: spacing.xl, padding: spacing.xl, borderRadius: radius.lg, background: colors.surfaceMuted, color: colors.textSecondary, fontSize: typography.sizeBase, lineHeight: 1.6 }}>
+            {context.email && <div style={{ color: colors.text, fontWeight: typography.weightMedium, marginBottom: spacing.xs }}>{context.email}</div>}
+            Email and password changes become available after your personal staff account is linked. You are currently signed in through the shared staff access flow.
           </div>
         )}
       </div>
 
       <div style={cardS}>
         <h2 style={sectionTitleS}>Accessibility & display</h2>
-        <p style={sectionSubS}>Adjust the base font size and other display preferences.</p>
+        <p style={sectionSubS}>Adjust text sizing for this browser. Changes apply immediately and are saved on this device.</p>
 
-        {loading ? (
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
-        ) : (
-          <div style={{ marginTop: spacing.xl }}>
-            <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text }}>
-              Base font size: {fontSize}px
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: '480px' }}>
-              <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>14px</span>
-              <input
-                type="range"
-                min={14}
-                max={20}
-                value={fontSize}
-                onChange={e => setFontSize(Number(e.target.value))}
-                style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>20px</span>
-            </div>
-
-            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase }}>{error}</p>}
-            <div style={{ marginTop: spacing.xl }}>
-              <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save display settings'}</Button>
-            </div>
+        <div style={{ marginTop: spacing.xl }}>
+          <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text }}>
+            Base font size: {fontSize}px
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: '480px' }}>
+            <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>14px</span>
+            <input
+              type="range"
+              min={14}
+              max={20}
+              value={fontSize}
+              onChange={event => handleFontSizeChange(Number(event.target.value))}
+              aria-label="Base font size"
+              style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>20px</span>
+          </div>
+          <div style={{ marginTop: spacing.lg }}>
+            <Button variant="secondary" onClick={() => handleFontSizeChange(16)}>Reset to default</Button>
+          </div>
+        </div>
       </div>
     </>
   )

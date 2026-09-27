@@ -1,5 +1,6 @@
 export const ACCESS_COOKIE_NAME = 'pulse_access'
 export const ACCESS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12
+export const CLAIM_PROMPT_DISMISSED_COOKIE_NAME = 'pulse_claim_prompt_dismissed'
 
 export type AccessScope =
   | { kind: 'headliner' }

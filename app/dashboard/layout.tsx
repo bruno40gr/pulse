@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
 import DemoBanner from '@/components/ui/DemoBanner'
+import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
 import { colors, typography, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -38,6 +40,13 @@ function isNavLinkActive(href: string, pathname: string) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    applyDisplayFontSize(readDisplayFontSize())
+    return () => {
+      document.documentElement.style.fontSize = ''
+    }
+  }, [])
 
   const closeMenu = () => setMenuOpen(false)
 
@@ -81,12 +90,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DemoBanner />
         {children}
       </main>
+      <ClaimReminderModal />
     </div>
   )
 }
 
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
   const pathname = usePathname()
+
   return (
     <>
       {showBrand && (
@@ -121,7 +132,16 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         </Link>
       </div>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link href="/dashboard/settings" onClick={onNavigate} style={navLinkStyle}>
+        <Link
+          href="/dashboard/settings"
+          onClick={onNavigate}
+          style={{
+            ...navLinkStyle,
+            ...(isNavLinkActive('/dashboard/settings', pathname)
+              ? { background: 'rgba(255,255,255,0.08)', color: colors.surface, fontWeight: typography.weightSemibold }
+              : {}),
+          }}
+        >
           Settings
         </Link>
         <LogoutButton onLogout={onNavigate} />

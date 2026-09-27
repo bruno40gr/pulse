@@ -57,7 +57,7 @@ async function loadMembershipContext(input: {
 }): Promise<RequestContextResult> {
   let membershipQuery = supabaseAdmin
     .from('tenant_memberships')
-    .select('id, tenant_id, person_id, auth_user_id, role_id, status')
+    .select('id, tenant_id, person_id, auth_user_id, role_id, status, legacy_access_enabled')
     .eq('tenant_id', input.tenantId)
 
   membershipQuery = input.authUserId
@@ -70,6 +70,9 @@ async function loadMembershipContext(input: {
   const allowedStatuses = input.authSource === 'supabase' ? ['active'] : ['unclaimed', 'invited', 'active']
   if (!allowedStatuses.includes(membership.status)) {
     return { ok: false, status: 403, error: 'This staff account is not active.' }
+  }
+  if (input.authSource === 'legacy' && !membership.legacy_access_enabled) {
+    return { ok: false, status: 403, error: 'Legacy access is disabled for this staff account.' }
   }
 
   const { data: role, error: roleError } = await supabaseAdmin
@@ -120,12 +123,13 @@ export async function resolveMembershipRequestContext(
       return { ok: false, status: 403, error: 'Staff account access is required.' }
     }
 
-    return loadMembershipContext({
+    const legacyResult = await loadMembershipContext({
       tenantId,
       authSource: 'legacy',
       authUserId: null,
       legacyActor,
     })
+    if (legacyResult.ok) return legacyResult
   }
 
   const authUserId = await getSupabaseAuthUserId(request)
@@ -186,6 +190,16 @@ export async function requireOwner(
   if (!result.ok) return result
   if (result.context.roleKey === 'owner') return result
   return { ok: false, status: 403, error: 'Owner access required.' }
+}
+
+export async function requireAccountAdministrator(
+  request: Request,
+  tenantId: string,
+): Promise<RequestContextResult> {
+  const result = await resolveMembershipRequestContext(request, tenantId)
+  if (!result.ok) return result
+  if (result.context.roleKey === 'owner' || result.context.roleKey === 'admin') return result
+  return { ok: false, status: 403, error: 'Owner or Admin access required.' }
 }
 
 export async function requireOwnerActor(

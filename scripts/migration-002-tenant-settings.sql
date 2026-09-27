@@ -1,11 +1,7 @@
 -- Migration 002: Tenant settings (brand + pulse)
--- Run this in the Supabase SQL Editor or via the migrate API
-
--- The app auto-creates this table via the exec_sql RPC. If that RPC does not
--- exist yet, create it with the function below (required for self-healing DDL):
---   CREATE OR REPLACE FUNCTION exec_sql(sql text)
---   RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
---   BEGIN EXECUTE sql; END; $$;
+-- Historical migration retained for reference. New deployments should apply
+-- migration-012-tenant-settings.sql, which includes current constraints,
+-- grants, RLS, and updated-at behavior. Runtime DDL is no longer supported.
 
 CREATE TABLE IF NOT EXISTS tenant_settings (
   tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,

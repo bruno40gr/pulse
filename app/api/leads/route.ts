@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { requirePermission } from '@/lib/request-context'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
@@ -317,18 +319,19 @@ export async function DELETE(request: Request) {
   const requestLog = createRequestLogContext()
 
   try {
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
-    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
-    const tenantId = tenantAccess.tenantId
+    const tenantId = new URL(request.url).searchParams.get('tenant') || DEFAULT_TENANT_ID
+    const permission = await requirePermission(request, tenantId, PERMISSIONS.leadsDelete)
+    if (!permission.ok) {
+      return NextResponse.json(
+        { error: permission.error, requestId: requestLog.requestId },
+        { status: permission.status },
+      )
+    }
+
     const body = await request.json()
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
       : []
-    const password = typeof body?.password === 'string' ? body.password : ''
-
-    if (password !== 'lima') {
-      return NextResponse.json({ error: 'Invalid password', requestId: requestLog.requestId }, { status: 403 })
-    }
 
     if (ids.length === 0) {
       return NextResponse.json({ error: 'No leads selected', requestId: requestLog.requestId }, { status: 400 })

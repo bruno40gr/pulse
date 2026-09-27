@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
+import { writeAccountAuditEvent } from '@/lib/account-audit'
+import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { isDemo } from '@/lib/demo'
-import { getRequestActor } from '@/lib/access'
 import twilio from 'twilio'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -15,10 +15,10 @@ function toE164(phone: string): string {
 
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
-    const actor = await getRequestActor(request)
-    if (!actor) return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
+    const authorization = await authorizeCommunicationSend(request, DEFAULT_TENANT_ID)
+    if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
+    const { tenantId } = authorization
+    const actorPersonId = authorization.demo ? authorization.actor.personId : authorization.context.personId
 
     const { to_phone, contact_id, lead_id } = await request.json()
     if (!to_phone) return NextResponse.json({ error: 'A phone number to call is required' }, { status: 400 })
@@ -32,13 +32,18 @@ export async function POST(request: Request) {
       payload: {
         to_phone,
         agent_phone: agentPhone,
-        actor: { instructorId: actor.instructorId, personId: actor.personId, displayName: actor.displayName },
+        actor: authorization.demo
+          ? {
+              instructorId: authorization.actor.instructorId,
+              personId: actorPersonId,
+              displayName: authorization.actor.displayName,
+            }
+          : { membershipId: authorization.context.membershipId, personId: actorPersonId },
       },
     })
 
     // Demo mode — simulate the call without hitting Twilio.
-    const demoMode = await isDemo(tenantId)
-    if (demoMode) {
+    if (authorization.demo) {
       if (lead_id) await supabaseAdmin.from('lead_events').insert(eventPayload(null))
       return NextResponse.json({ success: true, demo: true })
     }
@@ -48,7 +53,8 @@ export async function POST(request: Request) {
     const { data: person } = await supabaseAdmin
       .from('people')
       .select('phone')
-      .eq('id', actor.personId)
+      .eq('id', actorPersonId)
+      .eq('tenant_id', tenantId)
       .single()
 
     const agentPhone = person?.phone
@@ -84,7 +90,17 @@ export async function POST(request: Request) {
       })
     }
 
-    return NextResponse.json({ success: true, sid: call.sid, status: call.status })
+    const auditRecorded = await writeAccountAuditEvent({
+      tenantId,
+      actorMembershipId: authorization.context.membershipId,
+      eventType: 'communications.call_started',
+      metadata: {
+        contact_id: contact_id || null,
+        lead_id: lead_id || null,
+      },
+    })
+
+    return NextResponse.json({ success: true, sid: call.sid, status: call.status, auditRecorded })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

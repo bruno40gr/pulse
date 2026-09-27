@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveInstructor, normalizeInstructorName } from '@/lib/instructors'
+import { requireOwnerAccess } from '@/lib/account-authorization'
+import { DEFAULT_TENANT } from '@/lib/tenant'
 
-export async function GET() {
+export async function POST(request: Request) {
   const results: string[] = []
 
   try {
+    const ownerAccess = await requireOwnerAccess(request, DEFAULT_TENANT)
+    if (!ownerAccess.ok) {
+      return NextResponse.json({ error: ownerAccess.error }, { status: ownerAccess.status })
+    }
+
+    const body = await request.json().catch(() => null)
+    if (body?.confirm !== 'BACKFILL') {
+      return NextResponse.json({ error: 'Type BACKFILL to confirm.' }, { status: 400 })
+    }
+
     // Get all enrollments across tenants that have an instructor name but no link
     const { data: enrollments, error } = await supabaseAdmin
       .from('enrollments')
@@ -18,7 +30,10 @@ export async function GET() {
     const enrollmentsToLink: { id: string; tenant_id: string; name: string }[] = []
 
     for (const e of enrollments || []) {
-      const rawName = (e.custom_fields as any)?.instructor
+      const customFields = e.custom_fields && typeof e.custom_fields === 'object'
+        ? e.custom_fields as Record<string, unknown>
+        : null
+      const rawName = typeof customFields?.instructor === 'string' ? customFields.instructor : null
       const name = normalizeInstructorName(rawName)
       if (!name) continue
 
@@ -68,10 +83,19 @@ export async function GET() {
 
     results.push(`Linked ${linked} enrollments to instructors (${skipped} skipped)`)
 
+    const { error: auditError } = await supabaseAdmin.from('account_audit_events').insert({
+      tenant_id: DEFAULT_TENANT,
+      actor_membership_id: ownerAccess.membershipId,
+      event_type: 'data_migration.staff_backfill_completed',
+      metadata: { linked, skipped },
+    })
+    if (auditError) console.error('Backfill audit event error:', auditError)
+
     return NextResponse.json({
       success: true,
       linked,
       skipped,
+      auditRecorded: !auditError,
       results,
       note: 'Idempotent backfill: instructor names were resolved to people + instructors records and linked via instructor_person_id.',
     })

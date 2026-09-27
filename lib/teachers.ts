@@ -2,27 +2,44 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { formatTeacherDisplayName, type PulseActor } from '@/lib/access'
 
 export const HEADLINER_TENANT_ID = '00000000-0000-0000-0000-000000000001'
+const HEADLINER_TIME_ZONE = 'America/Los_Angeles'
 
 export const ACTIVE_TEACHERS = [
-  ['Alyssa', 'Abbott'],
-  ['Bruno', 'Wong'],
-  ['Cohen', 'Roden'],
-  ['Collin', 'Franks'],
-  ['David', 'James'],
-  ['Drew', 'Johnson'],
-  ['Isaias', 'Pallib'],
-  ['Jacob', 'Rogelstad'],
-  ['Jessica', 'Suase'],
-  ['Josh', 'Brent'],
-  ['Lorena', 'Rudha'],
-  ['Marshall', 'James-Solano'],
-  ['Mel', 'Solano-Rojas'],
-  ['Noah', 'Campos'],
-  ['Scott', 'Gaona'],
-  ['Vitto', 'Trinchese'],
+  { firstName: 'Alyssa', lastName: 'Abbott' },
+  { firstName: 'Bruno', lastName: 'Wong' },
+  { firstName: 'Cohen', lastName: 'Roden' },
+  { firstName: 'Collin', lastName: 'Franks' },
+  { firstName: 'David', lastName: 'James' },
+  { firstName: 'Drew', lastName: 'Johnson' },
+  { firstName: 'Isaias', lastName: 'Pallib' },
+  { firstName: 'Jacob', lastName: 'Rogelstad' },
+  { firstName: 'Jessica', lastName: 'Suase' },
+  { firstName: 'Josh', lastName: 'Brent' },
+  { firstName: 'Lorena', lastName: 'Rudha' },
+  { firstName: 'Mae', lastName: 'Strider' },
+  { firstName: 'Marshall', lastName: 'James-Solano' },
+  { firstName: 'Mel', lastName: 'Solano-Rojas' },
+  { firstName: 'Noah', lastName: 'Campos' },
+  { firstName: 'Scott', lastName: 'Gaona' },
+  { firstName: 'Vitto', lastName: 'Trinchese' },
+  { firstName: 'Alex', lastName: 'Bird', startsOn: '2026-10-05' },
 ] as const
 
-const activeTeacherKeys = new Set(ACTIVE_TEACHERS.map(([firstName, lastName]) => `${firstName.toLowerCase()}|${lastName.toLowerCase()}`))
+const teacherEligibilityByKey = new Map(ACTIVE_TEACHERS.map(teacher => [
+  `${teacher.firstName.toLowerCase()}|${teacher.lastName.toLowerCase()}`,
+  'startsOn' in teacher ? teacher.startsOn : null,
+]))
+
+function currentHeadlinerDate() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: HEADLINER_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
 
 type InstructorRow = {
   id: string
@@ -31,6 +48,7 @@ type InstructorRow = {
 }
 
 export async function getActiveTeachers(): Promise<PulseActor[]> {
+  const today = currentHeadlinerDate()
   const { data, error } = await supabaseAdmin
     .from('instructors')
     .select('id, person_id, person:people(id, first_name, last_name, custom_fields)')
@@ -52,7 +70,15 @@ export async function getActiveTeachers(): Promise<PulseActor[]> {
         isActive: (person?.custom_fields?.staff_status ?? 'active') !== 'sunset',
       }
     })
-    .filter((teacher) => activeTeacherKeys.has(teacher.key) && teacher.isActive)
-    .map(({ key, isActive, ...teacher }) => teacher)
+    .filter((teacher) => {
+      const startsOn = teacherEligibilityByKey.get(teacher.key)
+      return startsOn !== undefined && teacher.isActive && (!startsOn || startsOn <= today)
+    })
+    .map(teacher => ({
+      instructorId: teacher.instructorId,
+      personId: teacher.personId,
+      fullName: teacher.fullName,
+      displayName: teacher.displayName,
+    }))
     .sort((left, right) => left.fullName.localeCompare(right.fullName))
 }

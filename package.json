@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:account-foundation": "node scripts/verify-account-foundation.mjs",
+    "verify:account-management": "node scripts/verify-account-management.mjs",
+    "verify:account-claim": "node scripts/verify-account-claim.mjs",
+    "verify:staff-emails": "node scripts/verify-staff-email-readiness.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

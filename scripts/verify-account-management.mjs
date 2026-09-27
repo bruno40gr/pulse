@@ -313,7 +313,7 @@ try {
 
   accessResult = await requestAccessData(adminCookie)
   assert(accessResult.status === 200, `Admin access-data request expected 200, received ${accessResult.status}: ${accessResult.body.error || ''}`)
-  assert(accessResult.body.canManageRoles === false, 'Admin access-data response must not allow role management.')
+  assert(accessResult.body.canManageRoles === true, 'Admin access-data response must allow role management.')
 
   let result = await requestAccount(null, { action: 'add_account', source: 'new', roleId: adminRoleId, firstName: 'No', lastName: 'Session' })
   assert(result.status === 401, `Unauthenticated request expected 401, received ${result.status}.`)

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { resetTenantContactData } from '@/lib/reset-contact-data'
+import { requirePermission } from '@/lib/request-context'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -7,6 +9,9 @@ export async function POST(request: Request) {
   try {
     const url = new URL(request.url)
     const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+
+    const permission = await requirePermission(request, tenantId, PERMISSIONS.contactsDelete)
+    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
 
     const body = await request.json()
     if (body?.confirm !== 'RESET') {

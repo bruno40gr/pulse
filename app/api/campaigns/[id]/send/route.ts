@@ -1,36 +1,64 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
-import { isDemo } from '@/lib/demo'
+import { writeAccountAuditEvent } from '@/lib/account-audit'
+import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import twilio from 'twilio'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
+type SendContact = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  students?: Array<{
+    message_routing?: string | null
+    is_minor?: boolean | null
+    accounts?: { phone?: string | null } | Array<{ phone?: string | null }> | null
+  }> | null
+}
+
+type MessageCreateParams = {
+  body: string
+  from: string
+  to: string
+  mediaUrl?: string[]
+}
+
+function errorMessageFrom(reason: unknown): string | null {
+  if (reason instanceof Error) return reason.message
+  if (reason && typeof reason === 'object' && 'message' in reason) {
+    const message = (reason as { message?: unknown }).message
+    return typeof message === 'string' ? message : null
+  }
+  return null
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const tenantId = getTenantId(request)
   const { id } = await params
   try {
+    const authorization = await authorizeCommunicationSend(request, DEFAULT_TENANT_ID)
+    if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
+    const { tenantId } = authorization
+
     const { recipientIds } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
 
     // Demo mode — simulate delivery without hitting Twilio
-    const demoMode = await isDemo(tenantId)
-    if (demoMode) {
+    if (authorization.demo) {
       const { data: contacts } = await supabaseAdmin
         .from('people')
         .select('id, first_name, last_name')
         .in('id', recipientIds)
+        .eq('tenant_id', tenantId)
         .eq('opted_out', false)
 
       const { data: campaign } = await supabaseAdmin
         .from('campaigns')
         .select('message')
         .eq('id', id)
+        .eq('tenant_id', tenantId)
         .single()
 
       const fakeMessages = (contacts || []).map(contact => ({
@@ -54,8 +82,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .from('campaigns')
         .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: fakeMessages.length })
         .eq('id', id)
+        .eq('tenant_id', tenantId)
 
-      return NextResponse.json({ sent: fakeMessages.length, failed: 0, demo: true })
+      return NextResponse.json({ ok: true, sent: fakeMessages.length, failed: 0, demo: true })
     }
 
     // Get campaign
@@ -63,6 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from('campaigns')
       .select('*')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single()
     if (campaignError) throw campaignError
 
@@ -87,6 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         )
       `)
       .in('id', recipientIds)
+      .eq('tenant_id', tenantId)
       .eq('opted_out', false)
     if (contactsError) throw contactsError
 
@@ -96,7 +127,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? await crmSupabaseAdmin.from('crm_contacts').select('id, first_name, last_name, full_name, phone').in('id', missingIds).eq('tenant_id', tenantId)
       : { data: [], error: null }
     if (crmContactsError) throw crmContactsError
-    const contacts = [
+    const contacts: SendContact[] = [
       ...(people || []),
       ...(crmContacts || []).map((contact) => ({
         id: contact.id,
@@ -107,9 +138,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })),
     ]
 
-    function resolvePhone(person: any): string | null {
+    function resolvePhone(person: SendContact): string | null {
       const student = person.students?.[0] || {}
-      const accountPhone = student.accounts?.phone || null
+      const account = Array.isArray(student.accounts) ? student.accounts[0] : student.accounts
+      const accountPhone = account?.phone || null
       const routing = student.is_minor ? 'account_holder' : (student.message_routing || 'account_holder')
 
       if (routing === 'student') return person.phone || accountPhone
@@ -127,6 +159,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .from('campaigns')
         .update({ status: 'failed', recipient_count: 0 })
         .eq('id', id)
+        .eq('tenant_id', tenantId)
 
       return NextResponse.json({
         error: 'No recipients have a phone number on file. Add a phone number before sending.',
@@ -138,8 +171,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const results = await Promise.allSettled(
       sendable.map(async (contact) => {
         const toPhone = resolvePhone(contact)
+        if (!toPhone) throw new Error('Recipient phone number became unavailable before sending.')
         const body = campaign.message.replace(/\{first_name\}/gi, contact.first_name)
-        const messageParams: any = {
+        const messageParams: MessageCreateParams = {
           body,
           from: twilioConfig.phone_number,
           to: toPhone,
@@ -190,8 +224,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       for (const r of results) {
         if (r.status === 'fulfilled') {
           if (!r.value.delivered && r.value.errorMessage) { firstError = r.value.errorMessage; break }
-        } else if (r.reason && typeof r.reason === 'object' && 'message' in r.reason) {
-          firstError = (r.reason as any).message; break
+        } else {
+          firstError = errorMessageFrom(r.reason)
+          if (firstError) break
         }
       }
 
@@ -199,6 +234,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .from('campaigns')
         .update({ status: 'failed', recipient_count: 0 })
         .eq('id', id)
+        .eq('tenant_id', tenantId)
 
       return NextResponse.json({
         error: firstError
@@ -214,8 +250,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from('campaigns')
       .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: delivered })
       .eq('id', id)
+      .eq('tenant_id', tenantId)
 
-    return NextResponse.json({ ok: true, sent: delivered, failed, missing_phone: missingPhone.length })
+    const auditRecorded = await writeAccountAuditEvent({
+      tenantId,
+      actorMembershipId: authorization.context.membershipId,
+      eventType: 'communications.campaign_sent',
+      metadata: {
+        campaign_id: campaign.id,
+        sent_count: delivered,
+        failed_count: failed,
+        missing_phone_count: missingPhone.length,
+      },
+    })
+
+    return NextResponse.json({ ok: true, sent: delivered, failed, missing_phone: missingPhone.length, auditRecorded })
   } catch (error) {
     console.error('Send error:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
