@@ -70,7 +70,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
       }
 
-      const response = NextResponse.json({ actor: teacher, authSource: 'personal', claimPrompt: false })
+      const response = NextResponse.json({ actor: teacher, authSource: 'personal', claimPrompt: false, tenantId: HEADLINER_TENANT_ID })
       response.cookies.set(ACCESS_COOKIE_NAME, '', { httpOnly: true, path: '/', maxAge: 0 })
       response.cookies.set(CLAIM_PROMPT_DISMISSED_COOKIE_NAME, '', { httpOnly: true, path: '/', maxAge: 0 })
       responseCookies.forEach(cookie => response.cookies.set(cookie.name, cookie.value, cookie.options))
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     const expectedPassword = process.env.PULSE_SYSTEM_PASSWORD || '1478'
     if (password !== expectedPassword) return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
 
-    const response = NextResponse.json({ actor: teacher, authSource: 'legacy', claimPrompt: true })
+    const response = NextResponse.json({ actor: teacher, authSource: 'legacy', claimPrompt: true, tenantId: HEADLINER_TENANT_ID })
     response.cookies.set(ACCESS_COOKIE_NAME, await createAccessSession({ ...teacher, access: { kind: 'headliner' } }), {
       httpOnly: true,
       sameSite: 'lax',

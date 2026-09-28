@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { setActiveTenantId } from '@/lib/tenant'
 
 type Teacher = { instructorId: string; displayName: string; accountClaimed: boolean }
 const LOGO_URL = 'https://res.cloudinary.com/diy08lj9x/image/upload/v1780713493/Asset_1_2x_a5hm0v.png'
@@ -57,6 +58,7 @@ function LoginForm() {
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not sign in.')
+      if (typeof body.tenantId === 'string') setActiveTenantId(body.tenantId)
       router.push(safeNext(searchParams.get('next')))
       router.refresh()
     } catch (caught) {
@@ -101,7 +103,7 @@ function LoginForm() {
               autoComplete="current-password"
               style={fieldStyle}
             />
-            <span style={hintStyle}>Enter door code</span>
+            {!selectedTeacher?.accountClaimed && <span style={hintStyle}>Enter door code</span>}
           </label>
           {selectedTeacher?.accountClaimed && (
             <a href="/forgot-password" style={forgotStyle}>Forgot your password?</a>

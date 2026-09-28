@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
-import { getRequestActor } from '@/lib/access'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
@@ -326,12 +325,10 @@ export async function PATCH(
     const tenantId = tenantAccess.tenantId
     const { id } = await params
     const body = await request.json()
-    const actor = await getRequestActor(request)
-    if (!actor) return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
     const actorPayload = {
-      instructorId: actor.instructorId,
-      personId: actor.personId,
-      displayName: actor.displayName,
+      instructorId: tenantAccess.identity.instructorId,
+      personId: tenantAccess.identity.personId,
+      displayName: tenantAccess.identity.displayName,
     }
 
     const existingJobApplication = await getJobApplicationDetail(tenantId, id)

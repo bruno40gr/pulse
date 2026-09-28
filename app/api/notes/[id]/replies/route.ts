@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { getRequestActor } from '@/lib/access'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
@@ -44,9 +43,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
-    const actor = await getRequestActor(request)
-    if (!actor) return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
-
     const { body } = await request.json()
     const replyBody = typeof body === 'string' ? body.trim() : ''
     if (!replyBody) return NextResponse.json({ error: 'Reply cannot be empty.' }, { status: 400 })
@@ -60,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         tenant_id: tenantAccess.tenantId,
         note_id: id,
         body: replyBody,
-        created_by: actor.displayName,
+        created_by: tenantAccess.identity.displayName,
       })
       .select('id, body, created_by, created_at')
       .single()

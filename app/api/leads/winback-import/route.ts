@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
-import { getRequestActor } from '@/lib/access'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
@@ -84,7 +83,6 @@ export async function POST(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
-    const actor = await getRequestActor(request)
     const body = await request.json()
     const rows = Array.isArray(body?.rows) ? body.rows as SourceRow[] : []
     if (!rows.length) return NextResponse.json({ error: 'A CSV with at least one student is required.' }, { status: 400 })
@@ -246,7 +244,7 @@ export async function POST(request: Request) {
         .single()
       if (leadError) throw leadError
 
-      const actorPayload = actor ? { actor: { displayName: actor.displayName } } : {}
+      const actorPayload = { actor: { displayName: tenantAccess.identity.displayName } }
       const events = importedNotes(row).map((note) => ({
         tenant_id: tenantId,
         lead_intake_id: lead.id,

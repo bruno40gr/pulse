@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { setActiveTenantId } from '@/lib/tenant'
 
 type ClaimContext = { status: 'invited' | 'active'; email: string; name: string }
 
@@ -52,6 +53,9 @@ export default function ClaimPage() {
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not activate your account.')
+      if (typeof body.tenantId === 'string') setActiveTenantId(body.tenantId)
+      const { data: sessionData } = await createClient().auth.getSession()
+      if (!sessionData.session) throw new Error('Your account was activated, but sign-in could not be completed. Return to sign in with your new password.')
       router.replace('/dashboard')
       router.refresh()
     } catch (caught) {

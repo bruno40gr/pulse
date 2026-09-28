@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { ACCESS_COOKIE_NAME, CLAIM_PROMPT_DISMISSED_COOKIE_NAME } from '@/lib/access'
+
+type ResponseCookie = {
+  name: string
+  value: string
+  options: Parameters<NextResponse['cookies']['set']>[2]
+}
 
 function requestCookies(request: Request) {
   const cookieHeader = request.headers.get('cookie') || ''
@@ -67,7 +74,7 @@ export async function POST(request: Request) {
 
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from('tenant_memberships')
-      .select('id, status, person:people(email)')
+      .select('id, tenant_id, status, person:people(email)')
       .eq('auth_user_id', user.id)
       .maybeSingle()
     if (membershipError) throw membershipError
@@ -82,6 +89,28 @@ export async function POST(request: Request) {
     const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password })
     if (passwordError) throw passwordError
 
+    const responseCookies: ResponseCookie[] = []
+    let responseHeaders: Record<string, string> = {}
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => requestCookies(request),
+          setAll(cookies, headers) {
+            responseCookies.push(...cookies as ResponseCookie[])
+            responseHeaders = headers
+          },
+        },
+      },
+    )
+    const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password })
+    if (signInError || !signIn.user || signIn.user.id !== user.id) {
+      return NextResponse.json({
+        error: 'Your password was saved, but sign-in could not be completed. Open the invitation link again or return to sign in.',
+      }, { status: 500 })
+    }
+
     const emailVerifiedAt = user.email_confirmed_at || user.confirmed_at || null
     const { error: activationError } = await supabaseAdmin.rpc('odeon_activate_membership_claim', {
       p_auth_user_id: user.id,
@@ -90,7 +119,12 @@ export async function POST(request: Request) {
     })
     if (activationError) throw activationError
 
-    return NextResponse.json({ ok: true })
+    const response = NextResponse.json({ ok: true, tenantId: membership.tenant_id })
+    response.cookies.set(ACCESS_COOKIE_NAME, '', { httpOnly: true, path: '/', maxAge: 0 })
+    response.cookies.set(CLAIM_PROMPT_DISMISSED_COOKIE_NAME, '', { httpOnly: true, path: '/', maxAge: 0 })
+    responseCookies.forEach(cookie => response.cookies.set(cookie.name, cookie.value, cookie.options))
+    Object.entries(responseHeaders).forEach(([key, value]) => response.headers.set(key, value))
+    return response
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

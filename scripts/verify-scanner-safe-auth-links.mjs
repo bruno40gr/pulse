@@ -96,7 +96,9 @@ try {
   const inviteUrl = `${BASE_URL}/auth/confirm?token_hash=${encodeURIComponent(inviteTokenHash)}&type=invite&redirect_to=${encodeURIComponent(`${BASE_URL}/claim`)}`
   const inviteScan = await fetch(inviteUrl, { redirect: 'manual' })
   assert(inviteScan.status === 200, `Invite scanner GET expected 200; received ${inviteScan.status}.`)
-  assert((await inviteScan.text()).includes('Continue to claim account'), 'Invite scanner GET did not render the inert claim confirmation page.')
+  const inviteHtml = await inviteScan.text()
+  assert(inviteHtml.includes('Create your password and access the Headliner App.'), 'Invite scanner GET did not render the approved claim copy.')
+  assert(inviteHtml.includes('>Continue<'), 'Invite scanner GET did not render the approved claim CTA.')
   assert(!inviteScan.headers.get('set-cookie'), 'Invite scanner GET unexpectedly created an Auth session.')
 
   const acceptedInvite = await postConfirmation({ tokenHash: inviteTokenHash, type: 'invite', next: 'https://attacker.example/' })

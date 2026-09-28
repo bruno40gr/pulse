@@ -32,21 +32,23 @@ export default async function ConfirmAuthActionPage({
     <main style={pageStyle}>
       <section style={cardStyle}>
         <h1 style={{ ...typography.h1, margin: 0, color: colors.text }}>
-          {isClaim ? 'Continue to claim your account' : 'Continue to reset your password'}
+          {isClaim ? 'Create your password and access the Headliner App.' : 'Continue to reset your password'}
         </h1>
-        <p style={{ ...typography.body, color: colors.textSecondary, margin: `${spacing.sm} 0 ${spacing.xl}` }}>
-          {valid
-            ? `For your security, this link has not been used yet. Press the button below to ${isClaim ? 'continue setting up your account' : 'continue resetting your password'}.`
-            : 'This email link is incomplete or invalid. Request a new email and try again.'}
-        </p>
+        {(!valid || !isClaim) && (
+          <p style={{ ...typography.body, color: colors.textSecondary, margin: `${spacing.sm} 0 ${spacing.xl}` }}>
+            {valid
+              ? 'Press the button below to continue resetting your password.'
+              : 'This email link is incomplete or invalid. Request a new email and try again.'}
+          </p>
+        )}
 
         {valid ? (
-          <form action="/api/account/confirm" method="post">
+          <form action="/api/account/confirm" method="post" style={isClaim ? { marginTop: spacing.xl } : undefined}>
             <input type="hidden" name="token_hash" value={tokenHash} />
             <input type="hidden" name="type" value={type || ''} />
             <input type="hidden" name="next" value={destination} />
             <button type="submit" style={submitStyle}>
-              {isClaim ? 'Continue to claim account' : 'Continue to reset password'}
+              {isClaim ? 'Continue' : 'Continue to reset password'}
             </button>
           </form>
         ) : (

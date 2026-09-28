@@ -132,19 +132,18 @@ export async function GET(request: Request) {
     const tenantId = getTenantId(request)
     const forceRefresh = new URL(request.url).searchParams.get('refresh') === 'true'
 
-    // Check cache first
-    if (!forceRefresh) {
-      const { data: cached } = await supabaseAdmin
-        .from('insights_cache')
-        .select('insights, generated_at')
-        .eq('tenant_id', tenantId)
-        .single()
+    const { data: cached, error: cacheError } = await supabaseAdmin
+      .from('insights_cache')
+      .select('insights, generated_at')
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    if (cacheError) throw cacheError
 
-      if (cached) {
-        const ageHours = (Date.now() - new Date(cached.generated_at).getTime()) / (1000 * 60 * 60)
-        if (ageHours < 4) {
-          return NextResponse.json({ insights: cached.insights, cached: true, generated_at: cached.generated_at })
-        }
+    // Check cache first
+    if (!forceRefresh && cached) {
+      const ageHours = (Date.now() - new Date(cached.generated_at).getTime()) / (1000 * 60 * 60)
+      if (ageHours < 4) {
+        return NextResponse.json({ insights: cached.insights, cached: true, generated_at: cached.generated_at })
       }
     }
 
@@ -224,12 +223,13 @@ export async function GET(request: Request) {
       }
     })
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{
-        role: 'user',
-        content: `You are a relationship assistant for ${tenant?.name}, a small service business using Pulse to stay connected with their customers.
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages: [{
+          role: 'user',
+          content: `You are a relationship assistant for ${tenant?.name}, a small service business using Pulse to stay connected with their customers.
 
 Today is ${today.toLocaleDateString()}.
 
@@ -261,29 +261,38 @@ Return ONLY valid JSON, no markdown, no backticks:
     }
   ]
 }`
-      }]
-    })
+        }]
+      })
 
-    const firstBlock = response.content[0]
-    const raw = firstBlock && firstBlock.type === 'text' ? firstBlock.text : ''
-    const match = raw.match(/\{[\s\S]*\}/)
-    const result = JSON.parse(match ? match[0] : raw)
+      const firstBlock = response.content[0]
+      const raw = firstBlock && firstBlock.type === 'text' ? firstBlock.text : ''
+      const match = raw.match(/\{[\s\S]*\}/)
+      const result = JSON.parse(match ? match[0] : raw)
 
-    const normalizedInsights = Array.isArray(result.insights)
-      ? result.insights.map((insight: Record<string, unknown>) => ({
+      const normalizedInsights = Array.isArray(result.insights)
+        ? result.insights.map((insight: Record<string, unknown>) => ({
           ...insight,
           description: sanitizeInsightText(typeof insight.description === 'string' ? insight.description : ''),
           action_label: shortenActionLabel(typeof insight.action_label === 'string' ? insight.action_label : ''),
         }))
-      : []
+        : []
 
-    // Save to cache
-    await supabaseAdmin
-      .from('insights_cache')
-      .upsert({ tenant_id: tenantId, insights: normalizedInsights, generated_at: new Date().toISOString() },
-        { onConflict: 'tenant_id' })
+      // Save to cache
+      await supabaseAdmin
+        .from('insights_cache')
+        .upsert({ tenant_id: tenantId, insights: normalizedInsights, generated_at: new Date().toISOString() },
+          { onConflict: 'tenant_id' })
 
-    return NextResponse.json({ ...result, insights: normalizedInsights, cached: false })
+      return NextResponse.json({ ...result, insights: normalizedInsights, cached: false })
+    } catch (generationError) {
+      console.error('Insights generation unavailable:', generationError)
+      return NextResponse.json({
+        insights: Array.isArray(cached?.insights) ? cached.insights : [],
+        cached: Boolean(cached),
+        generated_at: cached?.generated_at || null,
+        degraded: true,
+      })
+    }
   } catch (error) {
     console.error('Insights error:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

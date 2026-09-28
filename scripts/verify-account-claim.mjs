@@ -284,6 +284,20 @@ try {
     body: JSON.stringify({ password: claimedPassword }),
   })
   assert(result.status === 200, `Claim activation expected 200; received ${result.status}: ${result.body?.error || ''}`)
+  assert(result.body?.tenantId === HEADLINER_TENANT_ID, 'Claim activation must return the authorized tenant.')
+  const claimedCookie = combineCookies(invitedCookie, result.cookies)
+  assert(claimedCookie && !/(^|;\s*)pulse_access=[^;]/.test(claimedCookie), 'Claim activation must establish a personal session without legacy access.')
+
+  result = await request(`/api/account/me?tenant=${HEADLINER_TENANT_ID}`, { headers: { Cookie: claimedCookie } })
+  assert(result.status === 200 && result.body?.canUpdateCredentials === true, `Immediate post-claim account access expected 200; received ${result.status}: ${result.body?.error || ''}`)
+  result = await request('/api/leads?include_counts=1', { headers: { Cookie: claimedCookie } })
+  assert(result.status === 200, `Immediate post-claim leads access expected 200; received ${result.status}: ${result.body?.error || ''}`)
+  result = await request(`/api/insights?tenant=${HEADLINER_TENANT_ID}`, { headers: { Cookie: claimedCookie } })
+  assert(result.status === 200, `Immediate post-claim insights access expected 200; received ${result.status}: ${result.body?.error || ''}`)
+  result = await request('/api/notes', { headers: { Cookie: claimedCookie } })
+  assert(result.status === 200, `Immediate post-claim notes access expected 200; received ${result.status}: ${result.body?.error || ''}`)
+  result = await request('/api/leads?tenant=00000000-0000-0000-0000-000000000002', { headers: { Cookie: claimedCookie } })
+  assert(result.status === 403, `Stale cross-tenant post-claim request expected 403; received ${result.status}.`)
 
   const { data: activated, error: activatedError } = await admin
     .from('tenant_memberships')
@@ -335,7 +349,7 @@ try {
   assert(!result.body?.some(teacher => teacher.instructorId === primary.instructor.id), 'Suspended membership must be hidden from the public teacher list.')
 
   console.log(`PASS: unified shared-code and personal login flows completed against ${BASE_URL}.`)
-  console.log('PASS: safe dropdown state, reminder masking/dismissal, self-invite, wrong-name rejection, email conflict, activation, and cleanup checks passed.')
+  console.log('PASS: safe dropdown state, reminder masking/dismissal, self-invite, wrong-name rejection, email conflict, immediate dashboard API access, activation, and cleanup checks passed.')
 } finally {
   if (created.membershipIds.length) {
     const { error } = await admin.from('tenant_memberships').delete().in('id', created.membershipIds)
