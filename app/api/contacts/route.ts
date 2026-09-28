@@ -151,9 +151,16 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
+    // Verification fixtures are operational test data, not user-facing contacts.
+    // Keep them out of the product even if a local verification process is interrupted
+    // before its cleanup block can run.
+    const visiblePeople = (data || []).filter(person =>
+      person.custom_fields?.verification_fixture !== 'account-claim'
+    )
+
     // Collect instructor person ids to resolve names + instructor records
     const instructorPersonIds = new Set<string>()
-    for (const person of data || []) {
+    for (const person of visiblePeople) {
       const enrollment = (person as any).students?.[0]?.enrollments?.[0]
       const pid = enrollment?.instructor_person_id
       if (pid) instructorPersonIds.add(pid)
@@ -189,7 +196,7 @@ export async function GET(request: Request) {
     const instructorIdByAllPersonIds = new Map((allInstructorRows || []).map((i: any) => [i.person_id, i.id]))
 
     // Flatten the joined data to match the contacts shape
-    const flattened = (data || []).map((person: any) => {
+    const flattened = visiblePeople.map((person: any) => {
       const student = person.students?.[0] ?? {}
       const account = student.accounts ?? {}
       const enrollment = student.enrollments?.[0] ?? {}

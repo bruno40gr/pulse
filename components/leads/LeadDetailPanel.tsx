@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Copy, MessageCircle, Pencil, Phone, RefreshCw } from 'lucide-react'
+import { Copy, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, SectionTitle, Select, SlidePanelHeader, Textarea } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -50,6 +50,7 @@ interface LeadDetailPanelProps {
 }
 
 const PIPELINE = ['new', 'contacted', 'booked', 'processing', 'won']
+const LEAD_STATUSES = [...PIPELINE, 'lost', 'spam', 'ghosted_us']
 const LOST_REASONS = [
   { value: 'ghosted', label: 'Ghosted' },
   { value: 'not_interested', label: 'Not interested' },
@@ -222,12 +223,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
 
   const isLesson = lead.intake_type === 'lesson_inquiry'
   const isService = lead.intake_type === 'service_inquiry'
-  const pipelineIndex = PIPELINE.indexOf(lead.status)
   const enrollmentValue = getNumericPayloadValue(lead.payload, 'potential_value_base') ?? 160
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
   const opportunity = isLesson ? enrollmentValue * (familyMembers.length + 1) : isService ? serviceValue : null
   const opportunityUnit = isLesson ? '/mo' : isService ? '/session' : ''
-  const nextStages = pipelineIndex >= 0 ? PIPELINE.slice(pipelineIndex + 1, pipelineIndex + 2) : []
   const urgency = followUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
@@ -303,13 +302,13 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const contactFirstName = contactNameParts[0] || 'L'
   const contactLastName = contactNameParts.slice(1).join(' ') || contactFirstName
   const leadAge = getLeadAge(lead.payload)
-  const statusStageSelect = nextStages.length > 0 ? (
+  const statusStageSelect = (
     <Select
-      aria-label="Change lead stage"
+      aria-label="Change lead status"
       value={stageSelection}
       fullWidth={isMobile}
       disabled={saving}
-      style={isMobile ? { minHeight: '36px', appearance: 'auto', width: '100%' } : statusStageSelectStyle}
+      style={isMobile ? { minHeight: '36px', width: '100%' } : statusStageSelectStyle}
       onChange={(event) => {
         const stage = event.target.value
         setStageSelection('')
@@ -317,22 +316,18 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         else if (stage) void onPatch({ status: stage })
       }}
     >
-      <option value="" disabled>Change stage</option>
-      {nextStages.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
-      <option value="lost">Lost</option>
+      <option value="" disabled>Change status</option>
+      {LEAD_STATUSES.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
     </Select>
-  ) : null
+  )
 
   const statusControls = lead.intake_type !== 'job_application' && (
     <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
       <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border, minWidth: 0, maxWidth: '100%' }}>
         <span style={{ ...statusLabelStyle, color: statusTone.text, whiteSpace: isMobile ? 'normal' : 'nowrap' }}>{statusLabel(lead.status, lead.payload)}</span>
-        {!isMobile && nextStages.length > 0 && <>
+        {!isMobile && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
-          <div style={statusStageSelectWrapStyle}>
-            {statusStageSelect}
-            <RefreshCw size={15} aria-hidden="true" style={{ ...statusStageUpdateStyle, color: statusTone.text }} />
-          </div>
+          {statusStageSelect}
         </>}
       </div>
       {isMobile && statusStageSelect}
@@ -575,9 +570,20 @@ const statusClusterRowStyle: CSSProperties = { display: 'flex', justifyContent: 
 const statusClusterStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', border: '1px solid', borderRadius: radius.full, padding: '2px', minHeight: '36px', boxSizing: 'border-box', minWidth: 0, maxWidth: '100%' }
 const statusLabelStyle: CSSProperties = { padding: `${spacing.xs} ${spacing.sm}`, fontFamily: typography.fontSans, fontSize: typography.sizeSm, fontWeight: typography.weightBold, whiteSpace: 'nowrap' }
 const statusDividerStyle: CSSProperties = { width: '1px', alignSelf: 'stretch', margin: `${spacing.xs} ${spacing.sm}`, opacity: 0.3 }
-const statusStageSelectWrapStyle: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' }
-const statusStageSelectStyle: CSSProperties = { width: '28px', minHeight: '28px', padding: 0, border: 'none', borderRadius: radius.full, background: 'transparent', color: 'transparent', appearance: 'none', cursor: 'pointer' }
-const statusStageUpdateStyle: CSSProperties = { position: 'absolute', right: spacing.xs, pointerEvents: 'none' }
+const statusStageSelectStyle: CSSProperties = {
+  width: 'auto',
+  minWidth: '132px',
+  minHeight: '30px',
+  padding: `${spacing.xs} ${spacing.sm}`,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.full,
+  background: colors.surface,
+  color: colors.text,
+  fontSize: typography.sizeSm,
+  fontWeight: typography.weightSemibold,
+  colorScheme: 'light',
+  cursor: 'pointer',
+}
 const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }

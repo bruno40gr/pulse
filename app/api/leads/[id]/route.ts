@@ -6,8 +6,8 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
 const LEAD_EVENTS_LIMIT = 100
-const PIPELINE_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won']
-const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match', 'disenrolled']
+const LEAD_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
+const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match', 'other', 'disenrolled']
 
 type LeadEvent = {
   id: string
@@ -464,15 +464,12 @@ export async function PATCH(
     if (requestedStatus) {
       const isPipelineLead = existingLead.intake_type === 'lesson_inquiry' || existingLead.intake_type === 'service_inquiry'
       if (isPipelineLead) {
+        if (!LEAD_STATUSES.includes(requestedStatus)) {
+          return NextResponse.json({ error: 'A valid lead status is required.' }, { status: 400 })
+        }
         if (requestedStatus === 'lost') {
           if (typeof requestedLostReason !== 'string' || !LOST_REASONS.includes(requestedLostReason)) {
             return NextResponse.json({ error: 'A valid lost reason is required.' }, { status: 400 })
-          }
-        } else if (existingLead.category !== 'winback' && existingLead.source_form !== '2026-disenrollment-import') {
-          const currentIndex = PIPELINE_STATUSES.indexOf(existingLead.status)
-          const nextIndex = PIPELINE_STATUSES.indexOf(requestedStatus)
-          if (currentIndex === -1 || nextIndex <= currentIndex) {
-            return NextResponse.json({ error: 'Leads can only advance forward in the pipeline.' }, { status: 400 })
           }
         }
       }

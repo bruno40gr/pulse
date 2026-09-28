@@ -28,6 +28,35 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
+async function cleanupStaleFixtures() {
+  const { data: stalePeople, error: peopleError } = await admin
+    .from('people')
+    .select('id')
+    .eq('tenant_id', HEADLINER_TENANT_ID)
+    .ilike('email', 'pulse-claim-%@mailinator.com')
+  if (peopleError) throw peopleError
+
+  const personIds = (stalePeople || []).map(person => person.id)
+  if (personIds.length) {
+    const { error: membershipError } = await admin.from('tenant_memberships').delete().in('person_id', personIds)
+    if (membershipError) throw membershipError
+    const { error: instructorError } = await admin.from('instructors').delete().in('person_id', personIds)
+    if (instructorError) throw instructorError
+    const { error: deletePeopleError } = await admin.from('people').delete().in('id', personIds)
+    if (deletePeopleError) throw deletePeopleError
+  }
+
+  const { data: authData, error: authListError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  if (authListError) throw authListError
+  const staleUsers = authData.users.filter(user =>
+    user.email?.startsWith('pulse-claim-') && user.email.endsWith('@mailinator.com')
+  )
+  for (const user of staleUsers) {
+    const { error } = await admin.auth.admin.deleteUser(user.id)
+    if (error) throw error
+  }
+}
+
 function base64Url(value) {
   return Buffer.from(value).toString('base64url')
 }
@@ -122,7 +151,7 @@ async function createStaffFixture({ email, status = 'unclaimed', authUserId = nu
       first_name: 'Alyssa',
       last_name: 'Abbott',
       email,
-      custom_fields: { staff_status: 'active' },
+      custom_fields: { staff_status: 'active', verification_fixture: 'account-claim' },
     })
     .select('id')
     .single()
@@ -178,6 +207,8 @@ const otherEmail = `pulse-claim-other-${suffix}@mailinator.com`
 const otherPassword = `Other-${suffix}-C7!`
 const conflictEmail = `pulse-claim-conflict-${suffix}@mailinator.com`
 const sharedCode = process.env.PULSE_SYSTEM_PASSWORD || '1478'
+
+await cleanupStaleFixtures()
 
 try {
   const primary = await createStaffFixture({ email })

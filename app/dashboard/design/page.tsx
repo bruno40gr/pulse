@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SectionLabel } from '@/components/ui/SectionLabel'
 import { Pill } from '@/components/ui/Pill'
 import { FieldRow } from '@/components/ui/FieldRow'
+import { ModalShowcase } from '@/components/design-system/ModalShowcase'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export default function DesignPage() {
@@ -16,6 +17,8 @@ export default function DesignPage() {
     <div style={{ padding: '48px 32px', maxWidth: '900px', fontFamily: 'var(--font-dm-sans), sans-serif' }}>
       <h1 style={{ fontSize: '28px', fontWeight: 700, color: colors.text, marginBottom: '8px' }}>Design System</h1>
       <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '48px' }}>Pulse component library — built on Headliner brand tokens.</p>
+
+      <ModalShowcase />
 
       {/* COLORS */}
       <section style={{ marginBottom: '48px' }}>

@@ -1,13 +1,16 @@
 'use client'
-import { ButtonHTMLAttributes } from 'react'
+import { ButtonHTMLAttributes, CSSProperties } from 'react'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'teal'
-  size?: 'sm' | 'md' | 'lg'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'teal'
+export type ButtonSize = 'sm' | 'md' | 'lg'
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant
+  size?: ButtonSize
 }
 
-const variantStyles: Record<string, React.CSSProperties> = {
+export const buttonVariantStyles: Record<ButtonVariant, CSSProperties> = {
   primary: { background: colors.espresso, color: 'white', border: 'none' },
   secondary: { background: 'transparent', color: colors.text, border: `1px solid ${colors.border}` },
   ghost: { background: 'transparent', color: colors.textSecondary, border: 'none' },
@@ -15,7 +18,7 @@ const variantStyles: Record<string, React.CSSProperties> = {
   teal: { background: colors.teal, color: 'white', border: 'none' },
 }
 
-const sizeStyles: Record<string, React.CSSProperties> = {
+export const buttonSizeStyles: Record<ButtonSize, CSSProperties> = {
   sm: { padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeSm },
   md: { padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase },
   lg: { padding: `${spacing.md} ${spacing['2xl']}`, fontSize: typography.sizeMd },
@@ -26,8 +29,8 @@ export function Button({ variant = 'primary', size = 'md', style, disabled, chil
     <button
       disabled={disabled}
       style={{
-        ...variantStyles[variant],
-        ...sizeStyles[size],
+        ...buttonVariantStyles[variant],
+        ...buttonSizeStyles[size],
         borderRadius: radius.sm,
         fontFamily: typography.fontSans,
         fontWeight: typography.weightMedium,
