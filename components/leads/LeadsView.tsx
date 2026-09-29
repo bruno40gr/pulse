@@ -16,6 +16,7 @@ type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'wi
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
+type OpportunityValueUnit = 'mo' | 'session'
 
 type ManualLeadFormState = {
   fullName: string
@@ -132,6 +133,8 @@ type LeadEditFormState = {
   sourcePage: string
   campaign: string
   referrer: string
+  opportunityValue: string
+  opportunityValueUnit: OpportunityValueUnit
 }
 
 const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
@@ -216,6 +219,8 @@ function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
     sourcePage: lead.source_page || '',
     campaign: lead.utm_campaign || '',
     referrer: lead.referrer || '',
+    opportunityValue: getServiceSessionValue(lead)?.toString() || '',
+    opportunityValueUnit: lead.payload?.opportunity_value_unit === 'mo' ? 'mo' : 'session',
   }
 }
 
@@ -1145,6 +1150,7 @@ export default function LeadsView() {
     setLeadEditError('')
 
     try {
+      const opportunityValue = Number(leadEditForm.opportunityValue)
       const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1161,6 +1167,10 @@ export default function LeadsView() {
           referrer: leadEditForm.referrer,
           payload: {
             source: leadEditForm.source,
+            ...(selectedLead?.intake_type === 'service_inquiry' ? {
+              session_value: leadEditForm.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
+              opportunity_value_unit: leadEditForm.opportunityValueUnit,
+            } : {}),
             ...getProcessingFollowUpPayload(selectedLead, leadEditForm.status),
           },
         }),
@@ -1999,6 +2009,7 @@ export default function LeadsView() {
               isMobile={isMobileLayout}
               onCall={handleCallLead}
               onCompose={() => setComposeLead(selectedLead)}
+              onEdit={openLeadEditor}
               onClose={closeLead}
               draft={leadPanelDrafts[selectedLead.id] || EMPTY_LEAD_PANEL_DRAFT}
               onDraftChange={(draft) => updateLeadPanelDraft(selectedLead.id, draft)}
@@ -2100,7 +2111,14 @@ export default function LeadsView() {
                 {getDetailStatusOptions(selectedLead?.intake_type || 'lesson_inquiry').map((value) => <option key={value} value={value}>{formatLabel(value)}</option>)}
               </Select>
               {selectedLead?.intake_type === 'service_inquiry' ? (
-                <Input label="Service" value={leadEditForm.serviceLabel} onChange={(event) => updateLeadEditField('serviceLabel', event.target.value)} />
+                <>
+                  <Input label="Service" value={leadEditForm.serviceLabel} onChange={(event) => updateLeadEditField('serviceLabel', event.target.value)} />
+                  <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={leadEditForm.opportunityValue} onChange={(event) => updateLeadEditField('opportunityValue', event.target.value)} />
+                  <Select label="Value period" value={leadEditForm.opportunityValueUnit} onChange={(event) => updateLeadEditField('opportunityValueUnit', event.target.value as OpportunityValueUnit)}>
+                    <option value="mo">Monthly (/mo)</option>
+                    <option value="session">One-time session (/session)</option>
+                  </Select>
+                </>
               ) : (
                 <Input label="Program or instrument" value={leadEditForm.programLabel} onChange={(event) => updateLeadEditField('programLabel', event.target.value)} />
               )}

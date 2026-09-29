@@ -45,6 +45,7 @@ interface LeadDetailPanelProps {
   onPatch: (patch: Record<string, unknown>) => Promise<boolean>
   onCall: () => Promise<void>
   onCompose: () => void
+  onEdit: () => void
   onClose: () => void
   calling: boolean
   isMobile: boolean
@@ -71,7 +72,6 @@ const WINBACK_STATUSES = [
   { value: 'closed', label: 'Closed' },
 ]
 const INSTRUMENTS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
-const EXPERIENCES = ['Beginner', 'Some experience', 'Intermediate', 'Advanced']
 const QUICK_FOLLOW_UPS = [
   { value: 'tomorrow', label: 'Tomorrow', days: 1 },
   { value: 'next_week', label: 'Next week', days: 7 },
@@ -237,14 +237,12 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   )
 }
 
-export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onClose, calling, isMobile, draft, onDraftChange }: LeadDetailPanelProps) {
-  const [contactEditing, setContactEditing] = useState(false)
+export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEdit, onClose, calling, isMobile, draft, onDraftChange }: LeadDetailPanelProps) {
   const [serviceEditing, setServiceEditing] = useState(false)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
   const [stageSelection, setStageSelection] = useState('')
   const [copied, setCopied] = useState(false)
-  const [contact, setContact] = useState({ fullName: '', phone: '', email: '' })
   const [lesson, setLesson] = useState({ accountHolderName: '', instrument: '', experience: '', days: '', times: '' })
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '', opportunityValueUnit: 'session' })
@@ -265,7 +263,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const disenrollmentMonth = typeof winback?.disenrollment_month === 'string' ? winback.disenrollment_month : ''
 
   useEffect(() => {
-    setContact({ fullName: lead.contact?.full_name || '', phone: lead.contact?.phone || '', email: lead.contact?.email || '' })
     setLesson({
       accountHolderName: typeof lead.payload.account_holder_name === 'string' ? lead.payload.account_holder_name : '',
       instrument: typeof lead.payload.instrument === 'string' ? lead.payload.instrument : '',
@@ -282,7 +279,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
     })
     setFollowUpDate(draft.followUpDate ?? (lead.follow_up_at ? lead.follow_up_at.slice(0, 10) : ''))
     setFollowUpNote(draft.followUpNote ?? lead.follow_up_note ?? '')
-    setContactEditing(false)
     setServiceEditing(false)
     setLostOpen(false)
     setLostReason('')
@@ -302,27 +298,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
     if (!followUpDate) return
     const saved = await onPatch({ payload: { follow_up_at: new Date(`${followUpDate}T12:00:00`).toISOString(), follow_up_note: followUpNote.trim() || null } })
     if (saved) onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
-  }
-
-  const saveContact = async () => {
-    const opportunityValue = Number(serviceEditor.opportunityValue)
-    const saved = await onPatch({
-      full_name: contact.fullName,
-      phone: contact.phone,
-      email: contact.email,
-      payload: {
-        account_holder_name: lesson.accountHolderName || null,
-        instrument: lesson.instrument || null,
-        experience: lesson.experience || null,
-        preferred_days: lesson.days.split(',').map((item) => item.trim()).filter(Boolean),
-        preferred_times: lesson.times.split(',').map((item) => item.trim()).filter(Boolean),
-        ...(isService ? {
-          session_value: serviceEditor.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
-          opportunity_value_unit: serviceEditor.opportunityValueUnit,
-        } : {}),
-      },
-    })
-    if (saved) setContactEditing(false)
   }
 
   const resetServiceEditor = () => {
@@ -430,7 +405,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         onClose={onClose}
         onBack={isMobile ? onClose : undefined}
         backLabel="Leads"
-        titleBadge={!contactEditing ? <button type="button" aria-label="Edit lead" title="Edit lead" onClick={() => setContactEditing(true)} style={editNameButtonStyle}><Pencil size={15} /></button> : undefined}
+        titleBadge={<button type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={editNameButtonStyle}><Pencil size={15} /></button>}
         actions={isMobile ? undefined : (statusControls || undefined)}
       />
 
@@ -447,40 +422,13 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         display: 'flex',
         flexDirection: 'column',
       }}>
-        {isMobile && !contactEditing && statusControls && (
+        {isMobile && statusControls && (
           <div style={{ padding: '12px 16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             {statusControls}
           </div>
         )}
 
-      {contactEditing ? (
-        <div style={{ ...editContactSectionStyle, padding: isMobile ? '12px 16px' : spacing.lg }}>
-          <div style={headerIdentityRowStyle}>
-            <SectionTitle>Edit lead</SectionTitle>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setContactEditing(false)}>Cancel</Button>
-          </div>
-          <div style={isMobile ? oneColumnStyle : twoColumnStyle}>
-            <Input label="Name" value={contact.fullName} onChange={(event) => setContact({ ...contact, fullName: event.target.value })} />
-            <Input label="Phone" type="tel" value={contact.phone} onChange={(event) => setContact({ ...contact, phone: formatPhoneNumber(event.target.value) })} />
-            <Input label="Email" type="email" value={contact.email} onChange={(event) => setContact({ ...contact, email: event.target.value })} />
-            {isLesson && <Input label="Account holder name" value={lesson.accountHolderName} onChange={(event) => setLesson({ ...lesson, accountHolderName: event.target.value })} />}
-            {isLesson && <Select label="Instrument" value={lesson.instrument} onChange={(event) => setLesson({ ...lesson, instrument: event.target.value })}><option value="">Not provided</option>{INSTRUMENTS.map((item) => <option key={item} value={item}>{item}</option>)}</Select>}
-            {isLesson && <Select label="Experience" value={lesson.experience} onChange={(event) => setLesson({ ...lesson, experience: event.target.value })}><option value="">Not provided</option>{EXPERIENCES.map((item) => <option key={item} value={item}>{item}</option>)}</Select>}
-            {isLesson && <Input label="Preferred days" value={lesson.days} onChange={(event) => setLesson({ ...lesson, days: event.target.value })} />}
-            {isLesson && <Input label="Preferred times" value={lesson.times} onChange={(event) => setLesson({ ...lesson, times: event.target.value })} />}
-          </div>
-          {isService && (
-            <div style={isMobile ? oneColumnStyle : opportunityValueEditorStyle}>
-              <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />
-              <Select label="Value period" value={serviceEditor.opportunityValueUnit} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValueUnit: event.target.value as OpportunityValueUnit }))}>
-                <option value="mo">Monthly (/mo)</option>
-                <option value="session">One-time session (/session)</option>
-              </Select>
-            </div>
-          )}
-          <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save lead'}</Button></div>
-        </div>
-      ) : <>
+      <>
         {lostOpen && (
           <div style={{ ...lostSectionStyle, padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0` }}>
             <div style={lostStyle}>
@@ -504,10 +452,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
         </div>
-      </>}
+      </>
 
-      {!contactEditing && (
-        isMobile ? (
+      {isMobile ? (
           <div style={{
             display: "flex",
             flexDirection: "column",
@@ -676,8 +623,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
               </DenseSectionPanel>
             </div>
           </div>
-        )
-      )}
+        )}
       </div>
     </div>
   )
@@ -689,9 +635,7 @@ const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', g
 const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }
 const oneColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: spacing.md }
-const headerIdentityRowStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md }
 const editNameButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', padding: 0, border: 'none', borderRadius: radius.md, background: 'transparent', color: colors.textSecondary, cursor: 'pointer' }
-const editContactSectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }
 const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0 }
 const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0 }
 const emailControlStyle: CSSProperties = { gap: spacing.xs, color: colors.textSecondary, fontWeight: typography.weightMedium, flexWrap: 'wrap' }
