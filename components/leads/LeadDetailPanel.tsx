@@ -305,6 +305,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   }
 
   const saveContact = async () => {
+    const opportunityValue = Number(serviceEditor.opportunityValue)
     const saved = await onPatch({
       full_name: contact.fullName,
       phone: contact.phone,
@@ -315,6 +316,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         experience: lesson.experience || null,
         preferred_days: lesson.days.split(',').map((item) => item.trim()).filter(Boolean),
         preferred_times: lesson.times.split(',').map((item) => item.trim()).filter(Boolean),
+        ...(isService ? {
+          session_value: serviceEditor.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
+          opportunity_value_unit: serviceEditor.opportunityValueUnit,
+        } : {}),
       },
     })
     if (saved) setContactEditing(false)
@@ -464,6 +469,15 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {isLesson && <Input label="Preferred days" value={lesson.days} onChange={(event) => setLesson({ ...lesson, days: event.target.value })} />}
             {isLesson && <Input label="Preferred times" value={lesson.times} onChange={(event) => setLesson({ ...lesson, times: event.target.value })} />}
           </div>
+          {isService && (
+            <div style={isMobile ? oneColumnStyle : opportunityValueEditorStyle}>
+              <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />
+              <Select label="Value period" value={serviceEditor.opportunityValueUnit} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValueUnit: event.target.value as OpportunityValueUnit }))}>
+                <option value="mo">Monthly (/mo)</option>
+                <option value="session">One-time session (/session)</option>
+              </Select>
+            </div>
+          )}
           <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save lead'}</Button></div>
         </div>
       ) : <>

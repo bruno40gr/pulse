@@ -1730,15 +1730,16 @@ export default function LeadsView() {
               style={tableWrapStyle}
               header={(
                 <>
-                  <div aria-hidden="true" />
                   <div>
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
                       onChange={toggleSelectAllVisible}
                       aria-label="Select all visible leads"
+                      style={tableCheckboxStyle}
                     />
                   </div>
+                  <div aria-hidden="true" />
                   <div>Status</div>
                   <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <div>Contact</div>
@@ -1770,7 +1771,6 @@ export default function LeadsView() {
                             : colors.surface,
                     }}
                   >
-                    <div style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</div>
                     <div>
                       <input
                         type="checkbox"
@@ -1778,8 +1778,10 @@ export default function LeadsView() {
                         onChange={() => toggleLeadSelection(lead.id)}
                         onClick={(event) => event.stopPropagation()}
                         aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
+                        style={tableCheckboxStyle}
                       />
                     </div>
+                    <div style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</div>
                     <div style={tableStatusCellStyle}>
                       <StatusBadge
                         status={lead.status}
@@ -2175,7 +2177,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '56px 36px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(84px, 0.55fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
+const tableColumns = '48px 44px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(84px, 0.55fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -2196,6 +2198,12 @@ const signalCellStyle: React.CSSProperties = {
   justifyContent: 'center',
   fontSize: typography.sizeLg,
   lineHeight: 1,
+}
+
+const tableCheckboxStyle: React.CSSProperties = {
+  width: '18px',
+  height: '18px',
+  cursor: 'pointer',
 }
 
 const nameTextStyle: React.CSSProperties = {
