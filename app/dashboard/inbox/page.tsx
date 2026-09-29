@@ -1,11 +1,12 @@
 'use client'
 import { useState, useEffect, useRef, Suspense, type ComponentProps } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Sparkles, SquarePen, Trash2 } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
-import { Avatar, Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, PageContainer, PageHeader, Textarea } from '@/components/ui'
+import { Avatar, Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, PageContainer, PageHeader, SlidePanel, Textarea } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import { LeadDetailPanel } from '@/components/leads/LeadDetailPanel'
 import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { displayMessageStatus } from '@/lib/message-status'
@@ -37,10 +38,15 @@ interface Thread {
   last_message_body: string
   last_message_direction: string
   has_unread: boolean
+  profile_type: 'contact' | 'lead' | null
+  profile_id: string | null
+  profile_intake_type: string | null
 }
 
 type ContactPanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
 type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantFields'][number]
+type LeadPanelLead = ComponentProps<typeof LeadDetailPanel>['lead']
+type LeadPanelDraft = ComponentProps<typeof LeadDetailPanel>['draft']
 
 function InboxPageInner() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -49,6 +55,10 @@ function InboxPageInner() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedContact, setSelectedContact] = useState<ContactPanelContact | null>(null)
+  const [selectedLead, setSelectedLead] = useState<LeadPanelLead | null>(null)
+  const [leadPanelDraft, setLeadPanelDraft] = useState<LeadPanelDraft>({})
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
   const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
@@ -62,6 +72,7 @@ function InboxPageInner() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const campaignId = searchParams.get('campaign')
 
   const fetchThreads = async (): Promise<Thread[]> => {
@@ -103,9 +114,48 @@ function InboxPageInner() {
   }, [activeThread?.thread_key, activeThread?.messages?.length])
 
   const handleViewProfile = async () => {
-    if (!activeThread?.contact_id) return
-    const data = await fetch(`/api/contacts/${activeThread.contact_id}`).then(r => r.json())
-    if (data && !data.error) setSelectedContact(data)
+    if (!activeThread?.profile_id || !activeThread.profile_type) return
+    setProfileLoading(true)
+    setProfileError('')
+    try {
+      if (activeThread.profile_type === 'lead') {
+        const params = new URLSearchParams()
+        if (activeThread.profile_intake_type) params.set('intake_type', activeThread.profile_intake_type)
+        const response = await fetch(`/api/leads/${activeThread.profile_id}?${params.toString()}`)
+        const data = await response.json()
+        if (!response.ok) throw new Error(data?.error || 'Could not load lead')
+        setSelectedLead(data)
+        setLeadPanelDraft({})
+        return
+      }
+
+      const response = await fetch(`/api/contacts/${activeThread.profile_id}?tenant=${tenantId}`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Could not load contact')
+      setSelectedContact(data)
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Could not load profile')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  const patchSelectedLead = async (patch: Record<string, unknown>) => {
+    if (!selectedLead) return false
+    try {
+      const response = await fetch(`/api/leads/${selectedLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Could not save lead')
+      setSelectedLead(data)
+      return true
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Could not save lead')
+      return false
+    }
   }
 
   const handleAiDraft = async () => {
@@ -195,10 +245,9 @@ function InboxPageInner() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const unreadCount = threads.filter(t => t.has_unread).length
-
   const handleSelectThread = (thread: Thread) => {
     setActiveThread(thread)
+    setProfileError('')
     if (!isMobile) return
 
     setIsMobileThreadOpen(false)
@@ -220,9 +269,7 @@ function InboxPageInner() {
       <PageContainer style={{ gridColumn: '1 / -1', paddingBottom: 0 }}>
         <PageHeader
           title="Conversations"
-          subtitle={loading ? 'Loading...' : unreadCount > 0
-            ? `${unreadCount} ${unreadCount === 1 ? 'conversation needs' : 'conversations need'} attention`
-            : 'All caught up'}
+          subtitle={loading ? 'Loading...' : undefined}
           right={
             <button
               onClick={() => setIsComposeOpen(true)}
@@ -244,6 +291,9 @@ function InboxPageInner() {
             </button>
           }
         />
+        {profileError && !selectedLead && !selectedContact && (
+          <Notice variant="error" style={{ marginBottom: spacing.lg }}>{profileError}</Notice>
+        )}
       </PageContainer>
 
       {/* LEFT — Thread list */}
@@ -378,8 +428,20 @@ function InboxPageInner() {
                 size={40}
               />
               <div style={{ minWidth: isMobile ? 0 : undefined }}>
-                <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
-                  {activeThread.display_name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
+                  <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
+                    {activeThread.display_name}
+                  </div>
+                  {activeThread.profile_id && activeThread.profile_type && (
+                    <button
+                      type="button"
+                      onClick={() => void handleViewProfile()}
+                      disabled={profileLoading}
+                      style={{ fontSize: typography.sizeSm, color: colors.teal, background: 'transparent', border: 'none', cursor: profileLoading ? 'wait' : 'pointer', fontFamily: typography.fontSans, padding: 0, flexShrink: 0 }}
+                    >
+                      {profileLoading ? 'Loading…' : 'View'}
+                    </button>
+                  )}
                 </div>
                 <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
                   Student: {activeThread.student_name} · {activeThread.other_phone}
@@ -387,23 +449,6 @@ function InboxPageInner() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, flexShrink: 0, marginLeft: isMobile ? spacing.sm : undefined }}>
-              {activeThread.contact_id && (
-                <button
-                  type="button"
-                  onClick={handleViewProfile}
-                  style={{
-                    fontSize: typography.sizeSm,
-                    color: colors.teal,
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: typography.fontSans,
-                    padding: 0,
-                  }}
-                >
-                  View profile →
-                </button>
-              )}
               {canDeleteConversations && (
                 <button
                   type="button"
@@ -546,7 +591,7 @@ function InboxPageInner() {
         <ContactSlidePanel
           contact={selectedContact}
           tenantFields={tenantFields}
-          onClose={() => setSelectedContact(null)}
+          onClose={() => { setSelectedContact(null); setProfileError('') }}
           onUpdated={(updated) => setSelectedContact(updated)}
           onCompose={() => {
             setSelectedContact(null)
@@ -554,6 +599,32 @@ function InboxPageInner() {
           }}
         />
       )}
+
+      <SlidePanel isOpen={Boolean(selectedLead)} onClose={() => { setSelectedLead(null); setProfileError('') }} fullScreen={isMobile} width="min(88vw, 1180px)">
+        {profileError && <Notice variant="error">{profileError}</Notice>}
+        {selectedLead && (
+          <LeadDetailPanel
+            lead={selectedLead}
+            saving={false}
+            calling={false}
+            isMobile={isMobile}
+            onPatch={patchSelectedLead}
+            onCall={async () => {
+              if (!selectedLead.contact?.phone) return
+              await fetch('/api/calls', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_phone: selectedLead.contact.phone, contact_id: selectedLead.contact?.id || null, lead_id: selectedLead.intake_type === 'job_application' ? null : selectedLead.id }),
+              })
+            }}
+            onCompose={() => { setSelectedLead(null); setTimeout(() => replyInputRef.current?.focus(), 150) }}
+            onEdit={() => router.push(`/dashboard/leads?lead=${selectedLead.id}`)}
+            onClose={() => { setSelectedLead(null); setProfileError('') }}
+            draft={leadPanelDraft}
+            onDraftChange={setLeadPanelDraft}
+          />
+        )}
+      </SlidePanel>
 
       <Modal isOpen={isDeleteOpen} onClose={() => !deleteLoading && setIsDeleteOpen(false)} size="sm" ariaLabel="Delete conversation">
         <ModalHeader

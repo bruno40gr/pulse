@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { normalizePhoneNumber } from '@/lib/phone'
 import { requireAccountAdministrator } from '@/lib/request-context'
 
@@ -31,6 +32,24 @@ type InboxThread = {
   last_message_body: string | null
   last_message_direction: string | null
   has_unread: boolean
+  profile_type: 'contact' | 'lead' | null
+  profile_id: string | null
+  profile_intake_type: string | null
+}
+
+type CrmContact = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  full_name: string | null
+  phone: string | null
+}
+
+type LeadProfile = {
+  id: string
+  contact_id: string
+  intake_type: string
+  created_at: string
 }
 
 function getTenantId(request: Request): string {
@@ -46,9 +65,30 @@ function getCampaignId(request: Request): string | null {
 export async function GET(request: Request) {
   try {
     const tenantId = getTenantId(request)
+    const countOnly = new URL(request.url).searchParams.get('count_only') === '1'
+
+    const campaignId = getCampaignId(request)
+    if (countOnly) {
+      let countQuery = supabaseAdmin
+        .from('messages')
+        .select('from_phone')
+        .eq('tenant_id', tenantId)
+        .eq('direction', 'inbound')
+
+      if (campaignId) countQuery = countQuery.eq('campaign_id', campaignId)
+
+      const { data: inboundMessages, error: countError } = await countQuery
+      if (countError) throw countError
+
+      const attentionThreads = new Set<string>()
+      for (const message of inboundMessages || []) {
+        const otherPhone = normalizePhoneNumber(message.from_phone)
+        if (otherPhone) attentionThreads.add(otherPhone)
+      }
+      return NextResponse.json({ count: attentionThreads.size })
+    }
 
     // Step 1: Get all messages
-    const campaignId = getCampaignId(request)
     let query = supabaseAdmin
       .from('messages')
       .select('id, body, direction, status, error_message, created_at, contact_id, to_phone, from_phone, campaign_id, media_url')
@@ -82,8 +122,51 @@ export async function GET(request: Request) {
 
     // Build a lookup map: contact_id -> person data
     const personMap = new Map<string, InboxPerson>()
+    const personByPhone = new Map<string, InboxPerson>()
     for (const p of people || []) {
-      personMap.set(p.id, p as InboxPerson)
+      const person = p as InboxPerson
+      personMap.set(person.id, person)
+      const personPhone = normalizePhoneNumber(person.phone)
+      if (personPhone && !personByPhone.has(personPhone)) personByPhone.set(personPhone, person)
+      const student = person.students?.[0]
+      const account = Array.isArray(student?.accounts) ? student.accounts[0] : student?.accounts
+      const accountPhone = normalizePhoneNumber(account?.phone)
+      if (accountPhone && !personByPhone.has(accountPhone)) personByPhone.set(accountPhone, person)
+    }
+
+    const { data: crmContacts, error: crmContactsError } = await crmSupabaseAdmin
+      .from('crm_contacts')
+      .select('id, first_name, last_name, full_name, phone')
+      .eq('tenant_id', tenantId)
+    if (crmContactsError) throw crmContactsError
+
+    const crmContactById = new Map<string, CrmContact>()
+    const crmContactByPhone = new Map<string, CrmContact>()
+    for (const contact of (crmContacts || []) as CrmContact[]) {
+      crmContactById.set(contact.id, contact)
+      const phone = normalizePhoneNumber(contact.phone)
+      if (phone && !crmContactByPhone.has(phone)) crmContactByPhone.set(phone, contact)
+    }
+
+    const crmContactIds = [...crmContactById.keys()]
+    const [{ data: leadIntakes, error: leadIntakesError }, { data: jobApplications, error: jobApplicationsError }] = await Promise.all([
+      crmContactIds.length > 0
+        ? crmSupabaseAdmin.from('lead_intakes').select('id, contact_id, intake_type, created_at').eq('tenant_id', tenantId).in('contact_id', crmContactIds)
+        : Promise.resolve({ data: [], error: null }),
+      crmContactIds.length > 0
+        ? crmSupabaseAdmin.from('job_applications').select('id, contact_id, created_at').eq('tenant_id', tenantId).in('contact_id', crmContactIds)
+        : Promise.resolve({ data: [], error: null }),
+    ])
+    if (leadIntakesError) throw leadIntakesError
+    if (jobApplicationsError) throw jobApplicationsError
+
+    const latestLeadByContact = new Map<string, LeadProfile>()
+    const leadProfiles: LeadProfile[] = [
+      ...((leadIntakes || []) as LeadProfile[]),
+      ...((jobApplications || []).map((application) => ({ ...application, intake_type: 'job_application' })) as LeadProfile[]),
+    ].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    for (const lead of leadProfiles) {
+      if (!latestLeadByContact.has(lead.contact_id)) latestLeadByContact.set(lead.contact_id, lead)
     }
 
     // Step 3: Thread by the canonical recipient. A contact-backed recipient stays in one
@@ -118,7 +201,9 @@ export async function GET(request: Request) {
       const threadKey = `phone::${recipientKey}`
 
       if (!threads.has(threadKey)) {
-        const person = contactId ? personMap.get(contactId) : undefined
+        const person = (contactId ? personMap.get(contactId) : undefined) || (normalizedPhone ? personByPhone.get(normalizedPhone) : undefined)
+        const crmContact = (contactId ? crmContactById.get(contactId) : undefined) || (normalizedPhone ? crmContactByPhone.get(normalizedPhone) : undefined)
+        const leadProfile = crmContact ? latestLeadByContact.get(crmContact.id) : undefined
         const student = person?.students?.[0] || {}
         const account = student?.accounts || {}
 
@@ -140,16 +225,17 @@ export async function GET(request: Request) {
           }
         }
 
+        const crmName = crmContact?.full_name || `${crmContact?.first_name || ''} ${crmContact?.last_name || ''}`.trim()
         const studentName = person
           ? `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown'
-          : otherPhone
+          : crmName || otherPhone
 
         threads.set(threadKey, {
           thread_key: threadKey,
           contact_id: contactId,
           other_phone: normalizedPhone && normalizedPhone.length === 10 ? `+1${normalizedPhone}` : otherPhone,
-          first_name: person?.first_name || (contactId ? 'Unknown' : ''),
-          last_name: person?.last_name || '',
+          first_name: person?.first_name || crmContact?.first_name || (contactId ? 'Unknown' : ''),
+          last_name: person?.last_name || crmContact?.last_name || '',
           student_name: studentName,
           display_name: displayName || studentName,
           account_holder_name: displayName,
@@ -159,6 +245,9 @@ export async function GET(request: Request) {
           last_message_body: null,
           last_message_direction: null,
           has_unread: false,
+          profile_type: person ? 'contact' : leadProfile ? 'lead' : null,
+          profile_id: person?.id || leadProfile?.id || null,
+          profile_intake_type: leadProfile?.intake_type || null,
         })
       }
 

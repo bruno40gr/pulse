@@ -12,6 +12,7 @@ import { colors, typography, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import { getActiveTenantId } from '@/lib/tenant'
 
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -98,6 +99,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
   const pathname = usePathname()
+  const [conversationCount, setConversationCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadCount = async () => {
+      try {
+        const tenantId = getActiveTenantId()
+        const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store' })
+        const data = await response.json()
+        if (!cancelled && response.ok) setConversationCount(typeof data.count === 'number' ? data.count : 0)
+      } catch {}
+    }
+
+    void loadCount()
+    const interval = window.setInterval(loadCount, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
 
   return (
     <>
@@ -124,7 +145,14 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
                   : {}),
               }}
             >
-              {label}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>{label}</span>
+                {href === '/dashboard/inbox' && conversationCount > 0 && (
+                  <span style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+                    {conversationCount > 99 ? '99+' : conversationCount}
+                  </span>
+                )}
+              </span>
             </Link>
           )
         })}

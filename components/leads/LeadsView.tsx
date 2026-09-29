@@ -99,6 +99,11 @@ type LeadListResponse = {
   counts: Record<LeadTabKey, number>
 }
 
+type LeadListCacheEntry = {
+  leads: LeadRecord[]
+  fetchedAt: number
+}
+
 type LeadPanelDraft = {
   note?: string
   followUpDate?: string
@@ -107,6 +112,7 @@ type LeadPanelDraft = {
 
 const EMPTY_LEAD_PANEL_DRAFT: LeadPanelDraft = {}
 const LEAD_PANEL_DRAFT_STORAGE_KEY = 'pulse_lead_panel_drafts'
+const LEAD_LIST_CACHE_TTL_MS = 30_000
 
 type LessonSiblingEntry = {
   name: string
@@ -199,6 +205,18 @@ function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState
     referrer: '',
     message: '',
   }
+}
+
+function getLeadListCacheKey(tab: LeadTabKey, status: string) {
+  return `${tab}:${status}`
+}
+
+function filterWinbackLeads(leads: LeadRecord[], tab: LeadTabKey, status: string) {
+  if (tab !== 'winback' || status === 'all') return leads
+  return leads.filter((lead) => {
+    const winback = lead.payload?.winback
+    return winback && typeof winback === 'object' && (winback as Record<string, unknown>).status === status
+  })
 }
 
 function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
@@ -634,6 +652,10 @@ export default function LeadsView() {
   const [sortKey, setSortKey] = useState<LeadSortKey>('created')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
+  const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
+  const leadListRequestRef = useRef(0)
+  const leadListCacheGenerationRef = useRef(0)
+  const prefetchedTabsRef = useRef(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
   const deepLinkedLeadHandledRef = useRef(false)
@@ -730,33 +752,82 @@ export default function LeadsView() {
     })
   }
 
-  const fetchLeads = useCallback(async () => {
-    setLoading(true)
+  const fetchLeads = useCallback(async (options: { force?: boolean } = {}) => {
+    const requestedTab = activeTab
+    const requestedStatus = statusFilter
+    const cacheKey = getLeadListCacheKey(requestedTab, requestedStatus)
+    const cached = leadListCacheRef.current.get(cacheKey)
+    const cacheIsFresh = cached && Date.now() - cached.fetchedAt < LEAD_LIST_CACHE_TTL_MS
+    const requestId = ++leadListRequestRef.current
+    const cacheGeneration = leadListCacheGenerationRef.current
+
+    if (cached) {
+      setLeads(cached.leads)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     setError('')
+
+    if (cacheIsFresh && !options.force) return
 
     try {
       const params = new URLSearchParams()
-      if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
-      params.set('intake_type', activeTab)
+      if (requestedTab !== 'winback' && requestedStatus !== 'all') params.set('status', requestedStatus)
+      params.set('intake_type', requestedTab)
 
       params.set('include_counts', '1')
+      params.set('include_activity', '0')
       const data = await fetchJsonWithTimeout<LeadListResponse>(`/api/leads?${params.toString()}`)
 
       const returnedLeads = Array.isArray(data.leads) ? data.leads : []
-      setLeads(activeTab === 'winback' && statusFilter !== 'all'
-        ? returnedLeads.filter((lead) => {
-            const winback = lead.payload?.winback
-            return winback && typeof winback === 'object' && (winback as Record<string, unknown>).status === statusFilter
-          })
-        : returnedLeads)
+      const visibleLeads = filterWinbackLeads(returnedLeads, requestedTab, requestedStatus)
+      if (cacheGeneration === leadListCacheGenerationRef.current) {
+        leadListCacheRef.current.set(cacheKey, { leads: visibleLeads, fetchedAt: Date.now() })
+      }
+
+      if (requestId !== leadListRequestRef.current) return
+      setLeads(visibleLeads)
       setTabCounts(data.counts)
+
+      if (!prefetchedTabsRef.current) {
+        prefetchedTabsRef.current = true
+        const prefetchCacheGeneration = leadListCacheGenerationRef.current
+        window.setTimeout(() => {
+          LEAD_TABS.forEach((tab) => {
+            const prefetchKey = getLeadListCacheKey(tab.key, 'all')
+            if (tab.key === requestedTab || leadListCacheRef.current.has(prefetchKey)) return
+
+            const prefetchParams = new URLSearchParams({
+              intake_type: tab.key,
+              include_activity: '0',
+            })
+            void fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${prefetchParams.toString()}`)
+              .then((prefetchedLeads) => {
+                if (prefetchCacheGeneration !== leadListCacheGenerationRef.current) return
+                leadListCacheRef.current.set(prefetchKey, {
+                  leads: Array.isArray(prefetchedLeads) ? prefetchedLeads : [],
+                  fetchedAt: Date.now(),
+                })
+              })
+              .catch(() => {})
+          })
+        }, 0)
+      }
     } catch (error: unknown) {
+      if (requestId !== leadListRequestRef.current) return
       setError(getErrorMessage(error, 'Could not load leads'))
-      setLeads([])
+      if (!cached) setLeads([])
     } finally {
-      setLoading(false)
+      if (requestId === leadListRequestRef.current) setLoading(false)
     }
   }, [activeTab, statusFilter])
+
+  const invalidateLeadListCache = () => {
+    leadListCacheGenerationRef.current += 1
+    leadListCacheRef.current.clear()
+    prefetchedTabsRef.current = false
+  }
 
   const toggleLeadSelection = (leadId: string) => {
     setSelectedIds((current) => {
@@ -810,7 +881,8 @@ export default function LeadsView() {
       if (selectedLeadId && selectedIds.has(selectedLeadId)) closeLead()
       setSelectedIds(new Set())
       setIsDeleteOpen(false)
-      await fetchLeads()
+      invalidateLeadListCache()
+      await fetchLeads({ force: true })
     } catch (error: unknown) {
       setDeleteError(getErrorMessage(error, 'Could not delete leads'))
     } finally {
@@ -940,7 +1012,8 @@ export default function LeadsView() {
         }),
       })
 
-      await fetchLeads()
+      invalidateLeadListCache()
+      await fetchLeads({ force: true })
       setIsAddLeadOpen(false)
       setManualLeadForm(createInitialManualLeadForm(activeTab))
 
@@ -1066,6 +1139,7 @@ export default function LeadsView() {
             }
           : lead
       )))
+      invalidateLeadListCache()
       return true
     } catch (error: unknown) {
       setDetailError(getErrorMessage(error, 'Could not save lead'))
@@ -1099,6 +1173,7 @@ export default function LeadsView() {
           ? { ...lead, follow_up_at: data.follow_up_at ?? null, follow_up_note: data.follow_up_note ?? null, updated_at: data.updated_at }
           : lead
       )))
+      invalidateLeadListCache()
     } catch (error: unknown) {
       setDetailError(getErrorMessage(error, 'Could not save follow-up'))
     } finally {
@@ -1126,6 +1201,7 @@ export default function LeadsView() {
           ? { ...lead, follow_up_at: null, follow_up_note: null, updated_at: data.updated_at }
           : lead
       )))
+      invalidateLeadListCache()
     } catch (error: unknown) {
       setDetailError(getErrorMessage(error, 'Could not clear follow-up'))
     } finally {
@@ -1202,6 +1278,7 @@ export default function LeadsView() {
           phone: data.contact.phone,
         } : lead.contact,
       } : lead))
+      invalidateLeadListCache()
       setIsEditLeadOpen(false)
     } catch (error: unknown) {
       setLeadEditError(getErrorMessage(error, 'Could not save lead changes'))
@@ -2095,7 +2172,7 @@ export default function LeadsView() {
       </SlidePanel>
 
       <SlidePanel isOpen={isWinbackImportOpen} onClose={() => setIsWinbackImportOpen(false)} width="min(92vw, 680px)">
-        <WinbackImportPanel onClose={() => setIsWinbackImportOpen(false)} onImported={async () => { setIsWinbackImportOpen(false); await fetchLeads() }} />
+        <WinbackImportPanel onClose={() => setIsWinbackImportOpen(false)} onImported={async () => { setIsWinbackImportOpen(false); invalidateLeadListCache(); await fetchLeads({ force: true }) }} />
       </SlidePanel>
 
       <SlidePanel isOpen={isEditLeadOpen} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">

@@ -189,6 +189,9 @@ function formatLeadRow(row: LeadListRow) {
     follow_up_note: typeof row.payload?.follow_up_note === 'string' ? row.payload.follow_up_note : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    last_activity_at: row.updated_at || row.created_at,
+    last_status_change: null,
+    last_inbound_at: null,
     contact: Array.isArray(row.crm_contacts) ? row.crm_contacts[0] : row.crm_contacts,
   }
 }
@@ -205,6 +208,7 @@ export async function GET(request: Request) {
     const category = url.searchParams.get('category')
     const intakeType = url.searchParams.get('intake_type') || 'lesson_inquiry'
     const includeCounts = url.searchParams.get('include_counts') === '1'
+    const includeActivity = url.searchParams.get('include_activity') !== '0'
     const countsPromise = includeCounts ? getLeadTabCounts(tenantId, status) : null
 
     if (intakeType === 'job_application') {
@@ -259,7 +263,7 @@ export async function GET(request: Request) {
         durationMs: getDurationMs(requestLog.startedAt),
       })
 
-      const formatted = await enrichLeadActivity(tenantId, (data || []).map((row) => formatLeadRow({
+      const baseRows = (data || []).map((row) => formatLeadRow({
         id: row.id,
         tenant_id: row.tenant_id,
         contact_id: row.contact_id,
@@ -281,7 +285,8 @@ export async function GET(request: Request) {
         created_at: row.created_at,
         updated_at: row.updated_at,
         crm_contacts: row.crm_contacts,
-      })))
+      }))
+      const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
 
       if (!countsPromise) return NextResponse.json(formatted)
       return NextResponse.json({ leads: formatted, counts: await countsPromise })
@@ -348,7 +353,8 @@ export async function GET(request: Request) {
       durationMs: getDurationMs(requestLog.startedAt),
     })
 
-    const formatted = await enrichLeadActivity(tenantId, (data || []).map((row) => formatLeadRow(row as LeadListRow)))
+    const baseRows = (data || []).map((row) => formatLeadRow(row as LeadListRow))
+    const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
     if (!countsPromise) return NextResponse.json(formatted)
     return NextResponse.json({ leads: formatted, counts: await countsPromise })
   } catch (error) {
