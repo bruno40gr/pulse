@@ -4,9 +4,15 @@ import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 import { assertTenantAccess } from '@/lib/access'
 import { requirePermission } from '@/lib/request-context'
-import { PERMISSIONS } from '@/lib/permissions'
+import { PERMISSIONS, type PermissionKey } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
+
+async function authorizeContactAccess(request: Request, tenantId: string, permission: PermissionKey) {
+  const legacyAccess = await assertTenantAccess(request, tenantId)
+  if (legacyAccess.ok) return legacyAccess
+  return requirePermission(request, tenantId, permission)
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -66,7 +72,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (error) throw error
     if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const access = await assertTenantAccess(request, person.tenant_id)
+    const access = await authorizeContactAccess(request, person.tenant_id, PERMISSIONS.contactsRead)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     const student = (person as any).students?.[0] || {}
@@ -166,7 +172,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { data: existing } = await supabaseAdmin.from('people').select('tenant_id').eq('id', id).maybeSingle()
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const access = await assertTenantAccess(request, existing.tenant_id)
+    const access = await authorizeContactAccess(request, existing.tenant_id, PERMISSIONS.contactsManage)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     // Split fields by destination table

@@ -14,6 +14,8 @@ import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-prefere
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
 
+const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
+
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/leads', label: 'Leads' },
@@ -114,9 +116,21 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
 
     void loadCount()
     const interval = window.setInterval(loadCount, 5000)
+    const handleCountChange = (event: Event) => {
+      const delta = event instanceof CustomEvent && typeof event.detail?.delta === 'number'
+        ? event.detail.delta
+        : null
+      if (delta === null) {
+        void loadCount()
+        return
+      }
+      setConversationCount((current) => Math.max(0, current + delta))
+    }
+    window.addEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     return () => {
       cancelled = true
       window.clearInterval(interval)
+      window.removeEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     }
   }, [])
 

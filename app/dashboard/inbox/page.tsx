@@ -47,6 +47,7 @@ type ContactPanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
 type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantFields'][number]
 type LeadPanelLead = ComponentProps<typeof LeadDetailPanel>['lead']
 type LeadPanelDraft = ComponentProps<typeof LeadDetailPanel>['draft']
+const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
 function InboxPageInner() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -71,6 +72,7 @@ function InboxPageInner() {
   const tenantId = getActiveTenantId()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
+  const markingReadThreadKeysRef = useRef(new Set<string>())
   const searchParams = useSearchParams()
   const router = useRouter()
   const campaignId = searchParams.get('campaign')
@@ -80,7 +82,9 @@ function InboxPageInner() {
       ? `/api/inbox?tenant=${tenantId}&campaign_id=${campaignId}`
       : `/api/inbox?tenant=${tenantId}`
     const data = await fetch(url).then(r => r.json())
-    const result = Array.isArray(data) ? data : []
+    const result = Array.isArray(data)
+      ? data.map((thread: Thread) => markingReadThreadKeysRef.current.has(thread.thread_key) ? { ...thread, has_unread: false } : thread)
+      : []
     setThreads(result)
     return result
   }
@@ -121,6 +125,7 @@ function InboxPageInner() {
       if (activeThread.profile_type === 'lead') {
         const params = new URLSearchParams()
         if (activeThread.profile_intake_type) params.set('intake_type', activeThread.profile_intake_type)
+        params.set('tenant', tenantId)
         const response = await fetch(`/api/leads/${activeThread.profile_id}?${params.toString()}`)
         const data = await response.json()
         if (!response.ok) throw new Error(data?.error || 'Could not load lead')
@@ -143,7 +148,7 @@ function InboxPageInner() {
   const patchSelectedLead = async (patch: Record<string, unknown>) => {
     if (!selectedLead) return false
     try {
-      const response = await fetch(`/api/leads/${selectedLead.id}`, {
+      const response = await fetch(`/api/leads/${selectedLead.id}?tenant=${tenantId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -246,8 +251,33 @@ function InboxPageInner() {
   }
 
   const handleSelectThread = (thread: Thread) => {
-    setActiveThread(thread)
+    const openedThread = thread.has_unread ? { ...thread, has_unread: false } : thread
+    setActiveThread(openedThread)
     setProfileError('')
+
+    if (thread.has_unread) {
+      markingReadThreadKeysRef.current.add(thread.thread_key)
+      setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: false } : item))
+      window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: -1 } }))
+      void fetch(`/api/inbox?tenant=${tenantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ other_phone: thread.other_phone }),
+      }).then(async (response) => {
+        if (response.ok) return
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.error || 'Could not mark conversation as read')
+      }).then(() => {
+        markingReadThreadKeysRef.current.delete(thread.thread_key)
+      }).catch((error) => {
+        markingReadThreadKeysRef.current.delete(thread.thread_key)
+        console.error(error)
+        setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: true } : item))
+        setActiveThread((current) => current?.thread_key === thread.thread_key ? { ...current, has_unread: true } : current)
+        window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: 1 } }))
+      })
+    }
+
     if (!isMobile) return
 
     setIsMobileThreadOpen(false)

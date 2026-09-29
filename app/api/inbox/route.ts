@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { normalizePhoneNumber } from '@/lib/phone'
-import { requireAccountAdministrator } from '@/lib/request-context'
+import { getAccessScope, getRequestActor } from '@/lib/access'
+import { PERMISSIONS } from '@/lib/permissions'
+import { requireAccountAdministrator, requirePermission } from '@/lib/request-context'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -62,6 +64,17 @@ function getCampaignId(request: Request): string | null {
   return url.searchParams.get('campaign_id') || null
 }
 
+async function authorizeInboxRead(request: Request, tenantId: string) {
+  const actor = await getRequestActor(request)
+  if (actor && getAccessScope(actor).kind === 'demo') {
+    const scope = getAccessScope(actor)
+    return scope.kind === 'demo' && scope.tenantId === tenantId
+      ? { ok: true as const }
+      : { ok: false as const, status: 403, error: 'You do not have access to this account.' }
+  }
+  return requirePermission(request, tenantId, PERMISSIONS.communicationsRead)
+}
+
 export async function GET(request: Request) {
   try {
     const tenantId = getTenantId(request)
@@ -71,7 +84,7 @@ export async function GET(request: Request) {
     if (countOnly) {
       let countQuery = supabaseAdmin
         .from('messages')
-        .select('from_phone')
+        .select('from_phone, status')
         .eq('tenant_id', tenantId)
         .eq('direction', 'inbound')
 
@@ -82,6 +95,7 @@ export async function GET(request: Request) {
 
       const attentionThreads = new Set<string>()
       for (const message of inboundMessages || []) {
+        if (message.status === 'read') continue
         const otherPhone = normalizePhoneNumber(message.from_phone)
         if (otherPhone) attentionThreads.add(otherPhone)
       }
@@ -272,7 +286,7 @@ export async function GET(request: Request) {
         thread.last_message_direction = msg.direction
       }
 
-      if (msg.direction === 'inbound') thread.has_unread = true
+      if (msg.direction === 'inbound' && msg.status !== 'read') thread.has_unread = true
     }
 
     const sorted = Array.from(threads.values()).sort(
@@ -280,6 +294,42 @@ export async function GET(request: Request) {
     )
 
     return NextResponse.json(sorted)
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const tenantId = getTenantId(request)
+    const access = await authorizeInboxRead(request, tenantId)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
+    const body = await request.json().catch(() => ({})) as { other_phone?: unknown }
+    const normalizedTarget = normalizePhoneNumber(typeof body.other_phone === 'string' ? body.other_phone : null)
+    if (!normalizedTarget) return NextResponse.json({ error: 'A valid conversation phone number is required.' }, { status: 400 })
+
+    const { data: inboundMessages, error: lookupError } = await supabaseAdmin
+      .from('messages')
+      .select('id, from_phone, status')
+      .eq('tenant_id', tenantId)
+      .eq('direction', 'inbound')
+    if (lookupError) throw lookupError
+
+    const messageIds = (inboundMessages || [])
+      .filter((message) => message.status !== 'read' && normalizePhoneNumber(message.from_phone) === normalizedTarget)
+      .map((message) => message.id)
+
+    if (messageIds.length > 0) {
+      const { error: updateError } = await supabaseAdmin
+        .from('messages')
+        .update({ status: 'read' })
+        .eq('tenant_id', tenantId)
+        .in('id', messageIds)
+      if (updateError) throw updateError
+    }
+
+    return NextResponse.json({ marked_read: messageIds.length })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
