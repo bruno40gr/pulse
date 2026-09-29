@@ -44,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
     const { tenantId } = authorization
 
-    const { recipientIds } = await request.json()
+    const { recipientIds, leadId } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
 
     // Demo mode — simulate delivery without hitting Twilio
@@ -78,6 +78,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       if (fakeMessages.length > 0) {
         await supabaseAdmin.from('messages').insert(fakeMessages)
+        if (leadId && recipientIds.length === 1) {
+          await crmSupabaseAdmin.from('lead_events').insert({
+            tenant_id: tenantId,
+            lead_intake_id: leadId,
+            contact_id: recipientIds[0],
+            event_type: 'outbound_sms',
+            event_label: 'Text message sent',
+            payload: { campaign_id: id, status: 'delivered', demo: true },
+          })
+        }
       }
 
       await supabaseAdmin
@@ -213,6 +223,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           if (insertError.code !== '23503') throw insertError
           const { error: fallbackError } = await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
           if (fallbackError) throw fallbackError
+        }
+
+        if (leadId && recipientIds.length === 1) {
+          await crmSupabaseAdmin.from('lead_events').insert({
+            tenant_id: tenantId,
+            lead_intake_id: leadId,
+            contact_id: contact.id,
+            event_type: 'outbound_sms',
+            event_label: failedStatus ? 'Text message failed' : 'Text message sent',
+            payload: { campaign_id: campaign.id, twilio_sid: msg.sid, status: msg.status || 'sent' },
+          })
         }
 
         await new Promise(r => setTimeout(r, 50))

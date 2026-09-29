@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       canManageRoles: result.context.roleKey === 'owner' || result.context.roleKey === 'admin',
       canManageIntegrations: result.context.roleKey === 'owner' || result.context.permissions.has(PERMISSIONS.communicationsConfigure),
       canManageBrand: result.context.roleKey === 'owner' || result.context.permissions.has(PERMISSIONS.tenantSettingsManage),
+      canAccessDesignSystem: result.context.roleKey === 'owner' || result.context.roleKey === 'admin',
       canUpdateCredentials: hasMatchingPersonalSession,
       email: hasMatchingPersonalSession ? authData.user?.email || person?.email || null : person?.email || null,
       membershipId: result.context.membershipId,

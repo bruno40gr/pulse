@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { getActiveTenantId } from '@/lib/tenant'
+import Link from 'next/link'
+import { getActiveTenantId, getTenantBrand } from '@/lib/tenant'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
 import AccessManagementClient from '@/components/access/AccessManagementClient'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -14,6 +15,7 @@ type AccountContext = {
   canManageRoles: boolean
   canManageIntegrations: boolean
   canManageBrand: boolean
+  canAccessDesignSystem: boolean
   canUpdateCredentials: boolean
   email: string | null
 }
@@ -39,17 +41,25 @@ export default function SettingsPage() {
       })
       .then(data => {
         setAccountContext(data)
-        if (data.canManageRoles) setTab('roles')
+        const requestedTab = new URLSearchParams(window.location.search).get('tab')
+        if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
+        else if (data.canManageRoles) setTab('roles')
       })
       .catch(() => setAccountContext({
         canManageRoles: false,
         canManageIntegrations: false,
         canManageBrand: false,
+        canAccessDesignSystem: false,
         canUpdateCredentials: false,
         email: null,
       }))
       .finally(() => setContextLoading(false))
   }, [tenantId])
+
+  useEffect(() => {
+    if (contextLoading || tab !== 'brand' || window.location.hash !== '#ai-highlights') return
+    window.requestAnimationFrame(() => document.getElementById('ai-highlights')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [contextLoading, tab])
 
   // ── Shared styles ──
   const inputS: React.CSSProperties = {
@@ -142,7 +152,7 @@ export default function SettingsPage() {
         <>
           {tab === 'roles' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded />}
           {tab === 'integrations' && accountContext?.canManageIntegrations && <IntegrationsTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
-          {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+          {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} canAccessDesignSystem={accountContext.canAccessDesignSystem} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
           {tab === 'account' && accountContext && <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
         </>
       )}
@@ -300,7 +310,7 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
 
 /* ───────────────────────── Brand ───────────────────────── */
 
-function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string } & SettingsStyles) {
+function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string; canAccessDesignSystem: boolean } & SettingsStyles) {
   const [logoUrl, setLogoUrl] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
   const [brandMarkdown, setBrandMarkdown] = useState('')
@@ -315,7 +325,7 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
       .then(r => r.json())
       .then(data => {
         if (data && !data.error) {
-          setLogoUrl(data.logo_url || '')
+          setLogoUrl(data.logo_url || getTenantBrand(tenantId).logoUrl)
           setBrandVoice(data.brand_voice || '')
           setBrandMarkdown(data.brand_markdown || '')
         }
@@ -360,45 +370,6 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
 
   return (
     <>
-      {/* Brand voice */}
-      <div style={cardS}>
-        <h2 style={sectionTitleS}>Brand voice</h2>
-        <p style={sectionSubS}>Describe how your business sounds and what you care about. This shapes every AI-generated message across Pulse.</p>
-
-        {loading ? (
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
-        ) : (
-          <div style={{ marginTop: spacing.xl }}>
-            <label style={labelS}>Descriptive text</label>
-            <textarea
-              value={brandVoice}
-              onChange={e => setBrandVoice(e.target.value)}
-              placeholder="e.g. We are a friendly neighborhood music school. Warm, encouraging, never pushy. We celebrate progress and use first names."
-              style={{ ...inputS, minHeight: '140px', resize: 'vertical', lineHeight: 1.6 }}
-            />
-
-            <label style={labelS}>Upload a file (.md or text)</label>
-            <input type="file" accept=".md,.markdown,.txt" onChange={handleMarkdownUpload} style={{ ...inputS, padding: spacing.sm }} />
-            <span style={hintS}>Paste or upload brand guidelines. Uploaded text is stored and combined with your description.</span>
-
-            {brandMarkdown && (
-              <textarea
-                value={brandMarkdown}
-                onChange={e => setBrandMarkdown(e.target.value)}
-                style={{ ...inputS, minHeight: '100px', resize: 'vertical', lineHeight: 1.6, marginTop: spacing.lg }}
-              />
-            )}
-
-            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{error}</p>}
-            {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>Saved</p>}
-
-            <div style={{ marginTop: spacing.xl }}>
-              <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save brand voice'}</Button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Logo */}
       <div style={cardS}>
         <h2 style={sectionTitleS}>Logo</h2>
@@ -443,7 +414,54 @@ function BrandTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS, secti
         </div>
       </div>
 
-      <HighlightsSettings tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
+      <div id="ai-highlights" style={{ scrollMarginTop: spacing['2xl'] }}>
+        <HighlightsSettings tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
+      </div>
+
+      {/* Brand voice */}
+      <div style={cardS}>
+        <h2 style={sectionTitleS}>Brand voice</h2>
+        <p style={sectionSubS}>Describe how your business sounds and what you care about. This shapes every AI-generated message across Pulse.</p>
+
+        {loading ? (
+          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        ) : (
+          <div style={{ marginTop: spacing.xl }}>
+            <label style={labelS}>Descriptive text</label>
+            <textarea
+              value={brandVoice}
+              onChange={e => setBrandVoice(e.target.value)}
+              placeholder="e.g. We are a friendly neighborhood music school. Warm, encouraging, never pushy. We celebrate progress and use first names."
+              style={{ ...inputS, minHeight: '140px', resize: 'vertical', lineHeight: 1.6 }}
+            />
+
+            <label style={labelS}>Upload a file (.md or text)</label>
+            <input type="file" accept=".md,.markdown,.txt" onChange={handleMarkdownUpload} style={{ ...inputS, padding: spacing.sm }} />
+            <span style={hintS}>Paste or upload brand guidelines. Uploaded text is stored and combined with your description.</span>
+
+            {brandMarkdown && (
+              <textarea
+                value={brandMarkdown}
+                onChange={e => setBrandMarkdown(e.target.value)}
+                style={{ ...inputS, minHeight: '100px', resize: 'vertical', lineHeight: 1.6, marginTop: spacing.lg }}
+              />
+            )}
+
+            {error && <p style={{ color: colors.error, fontSize: typography.sizeBase, marginTop: spacing.md }}>{error}</p>}
+            {saved && <p style={{ color: colors.success, fontSize: typography.sizeBase, marginTop: spacing.md }}>Saved</p>}
+
+            <div style={{ marginTop: spacing.xl }}>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save brand voice'}</Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {canAccessDesignSystem && (
+        <p style={{ margin: `${spacing['2xl']} 0 0`, color: colors.textSecondary, fontSize: typography.sizeBase }}>
+          Access the <Link href="/dashboard/design" style={{ color: colors.tealDark, fontWeight: typography.weightSemibold }}>Design System</Link>.
+        </p>
+      )}
     </>
   )
 }

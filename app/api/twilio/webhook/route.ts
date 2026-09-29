@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -83,6 +84,44 @@ export async function POST(request: Request) {
       if (fallbackError) throw fallbackError
     } else {
       console.log('[twilio-webhook] stored', messageSid)
+    }
+
+    const { data: crmContact } = await crmSupabaseAdmin
+      .from('crm_contacts')
+      .select('id')
+      .eq('tenant_id', DEFAULT_TENANT_ID)
+      .or(`phone.eq.${from},phone.eq.${fromDigits}`)
+      .limit(1)
+      .maybeSingle()
+    if (crmContact?.id) {
+      const { data: outboundEvent } = await crmSupabaseAdmin
+        .from('lead_events')
+        .select('lead_intake_id')
+        .eq('tenant_id', DEFAULT_TENANT_ID)
+        .eq('contact_id', crmContact.id)
+        .eq('event_type', 'outbound_sms')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const { data: fallbackLead } = outboundEvent?.lead_intake_id ? { data: null } : await crmSupabaseAdmin
+        .from('lead_intakes')
+        .select('id')
+        .eq('tenant_id', DEFAULT_TENANT_ID)
+        .eq('contact_id', crmContact.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const leadId = outboundEvent?.lead_intake_id || fallbackLead?.id
+      if (leadId) {
+        await crmSupabaseAdmin.from('lead_events').insert({
+          tenant_id: DEFAULT_TENANT_ID,
+          lead_intake_id: leadId,
+          contact_id: crmContact.id,
+          event_type: 'inbound_sms',
+          event_label: 'Lead replied by text',
+          payload: { twilio_sid: messageSid },
+        })
+      }
     }
 
     return twiml()

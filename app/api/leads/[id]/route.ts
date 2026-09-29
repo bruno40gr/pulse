@@ -480,6 +480,8 @@ export async function PATCH(
       }
     }
 
+    const statusChanged = typeof requestedStatus === 'string' && requestedStatus !== existingLead.status
+
     if (Object.keys(leadUpdates).length > 0) {
       const result = await withTimeout<any>(
         crmSupabaseAdmin
@@ -593,7 +595,11 @@ export async function PATCH(
             contact_id: existingLead.contact_id,
             event_type: 'updated',
             event_label: 'Lead updated',
-            payload: { updates: leadUpdates, actor: actorPayload },
+            payload: {
+              updates: leadUpdates,
+              ...(statusChanged ? { previous_status: existingLead.status, next_status: requestedStatus } : {}),
+              actor: actorPayload,
+            },
           }),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead update event insert',

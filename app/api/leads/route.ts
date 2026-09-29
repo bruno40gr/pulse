@@ -63,6 +63,54 @@ type QueryResult<T> = {
   error: { message: string } | null
 }
 
+type LeadActivityEvent = {
+  lead_intake_id: string
+  event_type: string
+  payload: Record<string, unknown> | null
+  created_at: string
+}
+
+async function enrichLeadActivity<T extends ReturnType<typeof formatLeadRow>>(tenantId: string, leads: T[]) {
+  if (leads.length === 0) return leads
+
+  const leadIds = leads.map((lead) => lead.id)
+  const result = await withTimeout(
+    crmSupabaseAdmin
+      .from('lead_events')
+      .select('lead_intake_id, event_type, payload, created_at')
+      .eq('tenant_id', tenantId)
+      .in('lead_intake_id', leadIds)
+      .order('created_at', { ascending: false }),
+    LEADS_QUERY_TIMEOUT_MS,
+    'lead activity query',
+  )
+  const { data, error } = result as QueryResult<LeadActivityEvent[]>
+  if (error) throw error
+
+  const latestActivity = new Map<string, string>()
+  const latestStatusChange = new Map<string, { previous_status: string; next_status: string; created_at: string }>()
+  const latestInbound = new Map<string, string>()
+
+  for (const event of data || []) {
+    if (!latestActivity.has(event.lead_intake_id)) latestActivity.set(event.lead_intake_id, event.created_at)
+    if (event.event_type === 'inbound_sms' && !latestInbound.has(event.lead_intake_id)) {
+      latestInbound.set(event.lead_intake_id, event.created_at)
+    }
+    const previousStatus = typeof event.payload?.previous_status === 'string' ? event.payload.previous_status : null
+    const nextStatus = typeof event.payload?.next_status === 'string' ? event.payload.next_status : null
+    if (previousStatus && nextStatus && !latestStatusChange.has(event.lead_intake_id)) {
+      latestStatusChange.set(event.lead_intake_id, { previous_status: previousStatus, next_status: nextStatus, created_at: event.created_at })
+    }
+  }
+
+  return leads.map((lead) => ({
+    ...lead,
+    last_activity_at: latestActivity.get(lead.id) || lead.updated_at || lead.created_at,
+    last_status_change: latestStatusChange.get(lead.id) || null,
+    last_inbound_at: latestInbound.get(lead.id) || null,
+  }))
+}
+
 async function getLeadTabCounts(tenantId: string, status: string | null) {
   const lessonQuery = crmSupabaseAdmin
     .from('lead_intakes')
@@ -206,7 +254,7 @@ export async function GET(request: Request) {
         durationMs: getDurationMs(requestLog.startedAt),
       })
 
-      const formatted = (data || []).map((row) => formatLeadRow({
+      const formatted = await enrichLeadActivity(tenantId, (data || []).map((row) => formatLeadRow({
         id: row.id,
         tenant_id: row.tenant_id,
         contact_id: row.contact_id,
@@ -228,7 +276,7 @@ export async function GET(request: Request) {
         created_at: row.created_at,
         updated_at: row.updated_at,
         crm_contacts: row.crm_contacts,
-      }))
+      })))
 
       if (!countsPromise) return NextResponse.json(formatted)
       return NextResponse.json({ leads: formatted, counts: await countsPromise })
@@ -295,7 +343,7 @@ export async function GET(request: Request) {
       durationMs: getDurationMs(requestLog.startedAt),
     })
 
-    const formatted = (data || []).map((row) => formatLeadRow(row as LeadListRow))
+    const formatted = await enrichLeadActivity(tenantId, (data || []).map((row) => formatLeadRow(row as LeadListRow)))
     if (!countsPromise) return NextResponse.json(formatted)
     return NextResponse.json({ leads: formatted, counts: await countsPromise })
   } catch (error) {

@@ -39,6 +39,7 @@ interface ComposePanelProps {
     avatar_src?: string
   }>
   footerLeadingAction?: React.ReactNode
+  leadId?: string
 }
 
 interface ResolvedPreviewRecipient {
@@ -50,7 +51,7 @@ interface ResolvedPreviewRecipient {
 
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
@@ -426,7 +427,7 @@ export default function ComposePanel({
       const sendRes = await fetch(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipientIds: effectiveRecipientIds })
+        body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId })
       })
       const result = await sendRes.json()
 

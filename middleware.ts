@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { ACCESS_COOKIE_NAME, getAccessScope, readAccessSession } from '@/lib/access'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireAccountAdministrator } from '@/lib/request-context'
+import { DEFAULT_TENANT } from '@/lib/tenant'
 
 export async function middleware(request: NextRequest) {
   const host = (
@@ -107,6 +109,12 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')) {
+    const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
+    const designAccess = await requireAccountAdministrator(request, tenantId)
+    if (!designAccess.ok) return NextResponse.redirect(new URL('/dashboard/settings', request.url))
   }
 
   if (host === 'heycohen.headlinerma.com' && pathname === '/') {

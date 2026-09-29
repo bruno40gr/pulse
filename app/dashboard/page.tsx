@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { RefreshCw } from 'lucide-react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl } from '@/lib/tenant'
 import { trackDemoEvent } from '@/lib/demo-analytics'
@@ -203,9 +204,15 @@ export default function DashboardPage() {
   const [composeTarget, setComposeTarget] = useState<ComposeTarget | null>(null)
   const [selectedContact, setSelectedContact] = useState<ContactRecord | null>(null)
   const [greeting, setGreeting] = useState(() => getGreetingForTime())
+  const [canManageHighlights, setCanManageHighlights] = useState(false)
 
   useEffect(() => {
     setGreeting(getGreetingForTime())
+    const tenantId = getActiveTenantId()
+    fetch(`/api/account/me?tenant=${tenantId}`)
+      .then(response => response.ok ? response.json() : null)
+      .then(data => setCanManageHighlights(Boolean(data?.canManageBrand)))
+      .catch(() => setCanManageHighlights(false))
   }, [])
 
   useEffect(() => {
@@ -401,7 +408,13 @@ export default function DashboardPage() {
         title={greeting}
         subtitle="Here is what is worth your attention today."
         right={
-          <Button
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+            {canManageHighlights && (
+              <Link href="/dashboard/settings?tab=brand#ai-highlights" style={{ color: colors.tealDark, fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, textDecoration: 'none' }}>
+                AI Highlights settings
+              </Link>
+            )}
+            <Button
             variant="secondary"
             onClick={() => {
               setRefreshing(true)
@@ -425,7 +438,8 @@ export default function DashboardPage() {
           >
             <RefreshCw size={14} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
             {refreshing ? 'Refreshing insights' : 'Refresh insights'}
-          </Button>
+            </Button>
+          </div>
         }
       />
 

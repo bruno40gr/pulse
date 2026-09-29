@@ -12,7 +12,7 @@ import WinbackImportPanel from './WinbackImportPanel'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
-type LeadSortKey = 'name' | 'followUp' | 'program' | 'created'
+type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 
 type ManualLeadFormState = {
@@ -50,6 +50,13 @@ type LeadRecord = {
   source?: string
   created_at: string
   updated_at: string
+  last_activity_at: string
+  last_status_change?: {
+    previous_status: string
+    next_status: string
+    created_at: string
+  } | null
+  last_inbound_at?: string | null
   follow_up_at?: string | null
   follow_up_note?: string | null
   contact?: {
@@ -228,6 +235,22 @@ function formatDateTime(value: string) {
   })
 }
 
+function formatLastActivity(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  const now = new Date()
+  const elapsedMs = Math.max(0, now.getTime() - date.getTime())
+  const dayDifference = Math.round((getStartOfLocalDay(now).getTime() - getStartOfLocalDay(date).getTime()) / 86400000)
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').toLowerCase()
+
+  if (dayDifference === 0 && elapsedMs < 60 * 60 * 1000) return 'Today a moment ago'
+  if (dayDifference === 0) return `Today at ${time}`
+  if (dayDifference === 1) return `Yesterday at ${time}`
+  if (dayDifference === 2) return `2 days ago at ${time}`
+  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${time}`
+}
+
 function formatFollowUpDate(value: string | null | undefined) {
   if (!value) return '—'
   const date = new Date(value)
@@ -257,7 +280,7 @@ function getProcessingFollowUpPayload(lead: LeadDetail | null, nextStatus: strin
 
   return {
     follow_up_at: followUpDate.toISOString(),
-    follow_up_note: 'Follow up on processing lead and close the loop.',
+    follow_up_note: null,
   }
 }
 
@@ -558,6 +581,15 @@ function getLeadSignal(lead: LeadRecord) {
   const sinceLastUpdateMs = Math.max(0, nowMs - updatedAtMs)
   const firstFollowUpBusinessDays = getBusinessDaysBetween(createdAt, updatedAt)
   const businessDaysSinceLastUpdate = getBusinessDaysBetween(updatedAt, now)
+  const pipelineOrder: Record<string, number> = { new: 0, contacted: 1, booked: 2, processing: 3, won: 4 }
+  const lastStatusChange = lead.last_status_change
+  const movedForward = Boolean(
+    lastStatusChange &&
+    pipelineOrder[lastStatusChange.previous_status] != null &&
+    pipelineOrder[lastStatusChange.next_status] != null &&
+    pipelineOrder[lastStatusChange.next_status] > pipelineOrder[lastStatusChange.previous_status] &&
+    !(lastStatusChange.previous_status === 'new' && lastStatusChange.next_status === 'contacted'),
+  )
 
   if (lead.status === 'won') {
     return { emoji: '🏆', label: 'Won' }
@@ -571,8 +603,16 @@ function getLeadSignal(lead: LeadRecord) {
     return { emoji: '👻', label: 'Ghosted us' }
   }
 
-  if (lead.status === 'booked') {
-    return { emoji: '🔥🔥', label: 'Booked and close to converting' }
+  if (lead.status === 'spam') {
+    return { emoji: '🗑️', label: 'Spam' }
+  }
+
+  if (movedForward) {
+    return { emoji: '🔥🔥', label: 'Latest status change moved this lead forward' }
+  }
+
+  if (lead.last_inbound_at) {
+    return { emoji: '🔥🔥', label: 'Lead replied' }
   }
 
   if (lead.status === 'processing') {
@@ -580,11 +620,7 @@ function getLeadSignal(lead: LeadRecord) {
   }
 
   if (lead.status === 'contacted') {
-    const contactedQuickly = contactLagMs <= dayMs || firstFollowUpBusinessDays <= 1
-    if (contactedQuickly && businessDaysSinceLastUpdate <= 2) {
-      return { emoji: '🔥🧊', label: 'Contacted quickly and still moving' }
-    }
-    return { emoji: '🧊🧊', label: 'Contacted but stale' }
+    return { emoji: '🧊🧊', label: 'Outreach attempted; awaiting engagement' }
   }
 
   if (lead.status === 'new') {
@@ -597,13 +633,7 @@ function getLeadSignal(lead: LeadRecord) {
     return { emoji: '🧊🧊', label: 'Still uncontacted' }
   }
 
-  if (lead.status === 'spam') {
-    return { emoji: '🧊🧊', label: 'Not a real opportunity' }
-  }
-
-  return sinceLastUpdateMs <= 7 * dayMs
-    ? { emoji: '🔥🧊', label: 'Active lead' }
-    : { emoji: '🧊🧊', label: 'Cold lead' }
+  return { emoji: '🧊🧊', label: 'No verified engagement signal' }
 }
 
 export default function LeadsView() {
@@ -673,6 +703,7 @@ export default function LeadsView() {
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
       if (sortKey === 'program') comparison = compareText(left.program_label || left.service_label || '', right.program_label || right.service_label || '')
       if (sortKey === 'created') comparison = compareNumbers(new Date(left.created_at).getTime(), new Date(right.created_at).getTime())
+      if (sortKey === 'lastActivity') comparison = compareNumbers(new Date(left.last_activity_at).getTime(), new Date(right.last_activity_at).getTime())
       if (sortKey === 'followUp') {
         const leftFollowUp = getLeadFollowUpAt(left)
         const rightFollowUp = getLeadFollowUpAt(right)
@@ -692,7 +723,7 @@ export default function LeadsView() {
     if (key === sortKey) setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
     else {
       setSortKey(key)
-      setSortDirection(key === 'created' ? 'desc' : 'asc')
+      setSortDirection(key === 'created' || key === 'lastActivity' ? 'desc' : 'asc')
     }
   }
 
@@ -1693,7 +1724,7 @@ export default function LeadsView() {
                   <div style={leadCardMetaStyle}>
                     <span>{getLeadSource(lead)}</span>
                     <span aria-hidden="true">·</span>
-                    <span>{formatDateTime(lead.created_at)}</span>
+                    <span>Last activity: {formatLastActivity(lead.last_activity_at)}</span>
                   </div>
                 </button>
               )
@@ -1718,6 +1749,7 @@ export default function LeadsView() {
                   <div>Email</div>
                   <div>Phone</div>
                   <button type="button" onClick={() => toggleSort('followUp')} aria-label={sortLabel('followUp', 'Follow-up')} style={sortableHeaderButtonStyle}>Follow-up <span aria-hidden="true">{sortKey === 'followUp' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
+                  <button type="button" onClick={() => toggleSort('lastActivity')} aria-label={sortLabel('lastActivity', 'Last activity')} style={sortableHeaderButtonStyle}>Last activity <span aria-hidden="true">{sortKey === 'lastActivity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <button type="button" onClick={() => toggleSort('program')} aria-label={sortLabel('program', activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details')} style={sortableHeaderButtonStyle}>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'} <span aria-hidden="true">{sortKey === 'program' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                 </>
               )}
@@ -1771,6 +1803,9 @@ export default function LeadsView() {
                       {getLeadFollowUpAt(lead)
                         ? <div style={{ ...cellTextStyle, color: getFollowUpTone(getLeadFollowUpAt(lead)).color, fontWeight: typography.weightMedium }}>{formatFollowUpDate(getLeadFollowUpAt(lead))}</div>
                         : <div style={cellTextStyle}>—</div>}
+                    </div>
+                    <div style={tableCellStyle}>
+                      <div style={{ ...cellTextStyle, whiteSpace: 'normal' }}>{formatLastActivity(lead.last_activity_at)}</div>
                     </div>
                     <div style={tableCellStyle}>
                       <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
@@ -2011,6 +2046,7 @@ export default function LeadsView() {
               }}
               composeSource="scratch"
               composeIntent="neutral"
+              leadId={composeLead.id}
               recipientPreview={[{
                 id: composeLead.contact.id,
                 first_name: composeLead.contact.full_name.split(' ')[0] || composeLead.contact.full_name,
@@ -2137,11 +2173,11 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '36px minmax(76px, 0.7fr) minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 1fr)'
+const tableColumns = '36px minmax(76px, 0.7fr) minmax(120px, 1.05fr) minmax(140px, 1.1fr) minmax(110px, 0.8fr) minmax(110px, 0.75fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
-  minWidth: 0,
+  minWidth: '1180px',
 }
 
 const tableHeaderStyle: React.CSSProperties = {

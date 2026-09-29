@@ -67,7 +67,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu size={22} />
           </button>
           <TenantBrand height={28} maxWidth="150px" width="150px" />
-          <div style={{ marginLeft: 'auto' }}><NotificationBell inverse /></div>
         </header>
       )}
 
@@ -106,11 +105,11 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}><TenantBrand height={36} maxWidth="100%" width="100%" /></div>
-            <NotificationBell inverse />
           </div>
         </div>
       )}
       <nav style={{ flex: 1, padding: '12px 8px' }}>
+        <NotificationBell inverse variant="nav" onNavigate={onNavigate} />
         {NAV_LINKS.map(({ href, label }) => {
           const active = isNavLinkActive(href, pathname)
           return (
@@ -130,12 +129,6 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
           )
         })}
       </nav>
-      <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ padding: '0 12px 6px', ...typography.helper, color: colors.textSecondary }}>Brand</div>
-        <Link href="/dashboard/design" onClick={onNavigate} style={navLinkStyle}>
-          Design System
-        </Link>
-      </div>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Link
           href="/dashboard/settings"

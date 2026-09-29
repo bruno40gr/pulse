@@ -16,7 +16,7 @@ type NotificationItem = {
   actor_name: string
 }
 
-export default function NotificationBell({ inverse = false }: { inverse?: boolean }) {
+export default function NotificationBell({ inverse = false, variant = 'icon', onNavigate }: { inverse?: boolean; variant?: 'icon' | 'nav'; onNavigate?: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -53,6 +53,7 @@ export default function NotificationBell({ inverse = false }: { inverse?: boolea
   const openNotification = async (item: NotificationItem) => {
     if (!item.read_at) await markRead(item.id)
     setOpen(false)
+    onNavigate?.()
     router.push(item.link)
   }
 
@@ -62,17 +63,22 @@ export default function NotificationBell({ inverse = false }: { inverse?: boolea
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 'none', borderRadius: radius.full, background: inverse ? 'rgba(255,255,255,0.08)' : colors.surface, color: inverse ? colors.surface : colors.text, cursor: 'pointer' }}
+        style={variant === 'nav'
+          ? { position: 'relative', display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%', padding: '9px 12px', marginBottom: 2, border: 'none', borderRadius: radius.lg, background: open ? 'rgba(255,255,255,0.08)' : 'transparent', color: inverse ? colors.textMuted : colors.text, cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeMd, textAlign: 'left' }
+          : { position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 'none', borderRadius: radius.full, background: inverse ? 'rgba(255,255,255,0.08)' : colors.surface, color: inverse ? colors.surface : colors.text, cursor: 'pointer' }}
       >
         <Bell size={19} />
+        {variant === 'nav' && <span>Notifications</span>}
         {unreadCount > 0 && (
-          <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, padding: '0 4px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '17px', textAlign: 'center' }}>
+          <span style={variant === 'nav'
+            ? { marginLeft: 'auto', minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }
+            : { position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, padding: '0 4px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '17px', textAlign: 'center' }}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 42, right: 0, zIndex: 100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 480, overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
+        <div style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, background: colors.surface }}>
             <strong style={{ fontSize: typography.sizeMd }}>Notifications</strong>
             {unreadCount > 0 && <button type="button" onClick={() => void markRead()} style={{ border: 'none', background: 'transparent', color: colors.tealDark, cursor: 'pointer', fontSize: typography.sizeSm, fontWeight: typography.weightSemibold }}>Mark all read</button>}
