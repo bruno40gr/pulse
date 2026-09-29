@@ -10,6 +10,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import WinbackImportPanel from './WinbackImportPanel'
+import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -994,6 +995,7 @@ export default function LeadsView() {
   }
 
   const closeLead = () => {
+    removeCurrentSearchParam('lead')
     setSelectedLeadId(null)
     setSelectedLead(null)
     setDetailError('')

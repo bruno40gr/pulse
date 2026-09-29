@@ -5,6 +5,7 @@ import { Check, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
 import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
 import MentionTextarea from '@/components/notes/MentionTextarea'
+import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
@@ -312,6 +313,11 @@ export default function NotesPage() {
     setConversationNote((current) => current?.id === noteId ? { ...current, reply_count: replyCount } : current)
   }
 
+  const closeConversation = () => {
+    removeCurrentSearchParam('note')
+    setConversationNote(null)
+  }
+
   const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null)
 
   const fetchNotes = useCallback(async () => {
@@ -590,7 +596,7 @@ export default function NotesPage() {
         note={conversationNote}
         tenantId={tenantId}
         onReplyAdded={handleReplyAdded}
-        onClose={() => setConversationNote(null)}
+        onClose={closeConversation}
       />
 
       {toast && (
