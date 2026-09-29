@@ -9,7 +9,8 @@ import { getFollowUpTone } from '@/lib/follow-up'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
-type ServiceEditorState = { types: string[]; newType: string; opportunityValue: string }
+type OpportunityValueUnit = 'mo' | 'session'
+type ServiceEditorState = { types: string[]; newType: string; opportunityValue: string; opportunityValueUnit: OpportunityValueUnit }
 
 type LeadEvent = {
   id: string
@@ -101,6 +102,10 @@ function appendServiceType(current: ServiceEditorState): ServiceEditorState {
   return { ...current, types: [...current.types, nextType], newType: '' }
 }
 
+function getOpportunityValueUnit(payload: Record<string, unknown>): OpportunityValueUnit {
+  return payload.opportunity_value_unit === 'mo' ? 'mo' : 'session'
+}
+
 function label(value: string) {
   if (value === 'processing') return 'Enrolling'
   return value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
@@ -147,7 +152,7 @@ const STATUS_TONE_BY_STATUS: Record<string, StatusTone> = {
 }
 
 function getStatusTone(status: string) {
-  if (status === 'new') return { background: '#FFF0F4', text: colors.crimson, border: colors.crimson }
+  if (status === 'new') return semanticColors.newLead
   if (status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
   if (status === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
   if (status === 'processing' || status === 'won') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
@@ -242,7 +247,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const [contact, setContact] = useState({ fullName: '', phone: '', email: '' })
   const [lesson, setLesson] = useState({ accountHolderName: '', instrument: '', experience: '', days: '', times: '' })
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
-  const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '' })
+  const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '', opportunityValueUnit: 'session' })
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
 
@@ -251,7 +256,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const enrollmentValue = getNumericPayloadValue(lead.payload, 'potential_value_base') ?? 160
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
   const opportunity = isLesson ? enrollmentValue * (familyMembers.length + 1) : isService ? serviceValue : null
-  const opportunityUnit = isLesson ? '/mo' : isService ? '/session' : ''
+  const opportunityUnit = isLesson ? '/mo' : isService ? `/${getOpportunityValueUnit(lead.payload)}` : ''
   const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
@@ -273,6 +278,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       types: getServiceTypes(lead),
       newType: '',
       opportunityValue: getNumericPayloadValue(lead.payload, 'session_value')?.toString() || '',
+      opportunityValueUnit: getOpportunityValueUnit(lead.payload),
     })
     setFollowUpDate(draft.followUpDate ?? (lead.follow_up_at ? lead.follow_up_at.slice(0, 10) : ''))
     setFollowUpNote(draft.followUpNote ?? lead.follow_up_note ?? '')
@@ -319,6 +325,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       types: getServiceTypes(lead),
       newType: '',
       opportunityValue: getNumericPayloadValue(lead.payload, 'session_value')?.toString() || '',
+      opportunityValueUnit: getOpportunityValueUnit(lead.payload),
     })
   }
 
@@ -332,6 +339,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         service_types: serviceTypes,
         service_type: serviceTypes[0]?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null,
         session_value: editorWithPendingType.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
+        opportunity_value_unit: editorWithPendingType.opportunityValueUnit,
       },
     })
     if (saved) setServiceEditing(false)
@@ -552,14 +560,20 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
                     />
                     <Button type="button" variant="secondary" size="sm" disabled={saving || !serviceEditor.newType.trim()} onClick={() => setServiceEditor(appendServiceType)}>Add service</Button>
                   </div>
-                  <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />
+                  <div style={isMobile ? oneColumnStyle : opportunityValueEditorStyle}>
+                    <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />
+                    <Select label="Value period" value={serviceEditor.opportunityValueUnit} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValueUnit: event.target.value as OpportunityValueUnit }))}>
+                      <option value="mo">Monthly (/mo)</option>
+                      <option value="session">One-time session (/session)</option>
+                    </Select>
+                  </div>
                   <div style={actionRowStyle}>
                     <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => { resetServiceEditor(); setServiceEditing(false) }}>Cancel</Button>
                     <Button type="button" size="sm" disabled={saving} onClick={() => void saveServiceDetails()}>{saving ? 'Saving…' : 'Save service details'}</Button>
                   </div>
                 </div>
               ) : (
-                <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
+                <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}/${getOpportunityValueUnit(lead.payload)}`} /></div>
               )}
             </DenseSectionPanel>}
             {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
@@ -690,7 +704,7 @@ const statusStageSelectStyle: CSSProperties = {
   colorScheme: 'light',
   cursor: 'pointer',
 }
-const newStatusSelectStyle: CSSProperties = { background: '#FFF0F4', color: colors.crimson, border: `1px solid ${colors.crimson}` }
+const newStatusSelectStyle: CSSProperties = { background: semanticColors.newLead.background, color: semanticColors.newLead.text, border: `1px solid ${semanticColors.newLead.border}` }
 const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }
@@ -714,6 +728,7 @@ const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
 const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const serviceTypeRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: spacing.sm, alignItems: 'end' }
+const opportunityValueEditorStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(180px, 0.7fr)', gap: spacing.sm, alignItems: 'start' }
 const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const activityRowStyle: CSSProperties = { display: 'flex', gap: spacing.sm, alignItems: 'flex-start' }
 const activityMarkerStyle: CSSProperties = { width: spacing.sm, height: spacing.sm, borderRadius: radius.full, background: colors.teal, marginTop: spacing.xs, flexShrink: 0 }

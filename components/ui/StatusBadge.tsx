@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Badge } from './Badge'
+import { semanticColors } from '@/lib/tokens'
 
 interface StatusBadgeProps {
   status: string
@@ -19,7 +20,7 @@ function getStatusStyle(status: string): CSSProperties | undefined {
 
   if (normalized === 'active' || normalized === 'member' || normalized === 'booked') return blueStyle
   if (normalized === 'new') {
-    return { background: '#FFF0F4', color: '#FF0044', border: '1px solid #FF0044' }
+    return { background: semanticColors.newLead.background, color: semanticColors.newLead.text, border: `1px solid ${semanticColors.newLead.border}` }
   }
   if (normalized === 'contacted' || normalized === 'pending') {
     return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }

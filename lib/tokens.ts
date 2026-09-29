@@ -32,6 +32,7 @@ export const colors = {
 
 export const semanticColors = {
   accent: { background: colors.teal, text: colors.surface, border: colors.teal },
+  newLead: { background: '#FFF0F4', text: colors.crimson, border: colors.crimson },
   success: { background: colors.success, text: colors.surface, border: colors.success },
   danger: { background: colors.error, text: colors.surface, border: colors.error },
   warning: { background: colors.surfaceMuted, text: colors.warning, border: colors.warning },

@@ -257,7 +257,7 @@ function formatFollowUpDate(value: string | null | undefined) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function formatDateInputValue(date: Date) {
@@ -910,7 +910,10 @@ export default function LeadsView() {
         const serviceType = getServiceTypeByLabel(manualLeadForm.serviceLabel)
         if (serviceType) {
           payload.service_type = serviceType.value
-          if (serviceType.fee != null) payload.session_value = serviceType.fee
+          if (serviceType.fee != null) {
+            payload.session_value = serviceType.fee
+            payload.opportunity_value_unit = 'session'
+          }
         }
       }
 
@@ -1727,6 +1730,7 @@ export default function LeadsView() {
               style={tableWrapStyle}
               header={(
                 <>
+                  <div aria-hidden="true" />
                   <div>
                     <input
                       type="checkbox"
@@ -1766,6 +1770,7 @@ export default function LeadsView() {
                             : colors.surface,
                     }}
                   >
+                    <div style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</div>
                     <div>
                       <input
                         type="checkbox"
@@ -1776,7 +1781,6 @@ export default function LeadsView() {
                       />
                     </div>
                     <div style={tableStatusCellStyle}>
-                      <span style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</span>
                       <StatusBadge
                         status={lead.status}
                         label={activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
@@ -2171,7 +2175,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '36px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(120px, 0.85fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
+const tableColumns = '56px 36px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(84px, 0.55fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -2187,6 +2191,9 @@ const tableRowStyle: React.CSSProperties = {
 }
 
 const signalCellStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   fontSize: typography.sizeLg,
   lineHeight: 1,
 }
