@@ -799,7 +799,7 @@ export default function LeadsView() {
       await fetchJsonWithTimeout<{ success: true }>(`/api/leads`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        body: JSON.stringify({ ids: Array.from(selectedIds), intake_type: activeTab }),
       })
 
       if (selectedLeadId && selectedIds.has(selectedLeadId)) closeLead()
@@ -1041,6 +1041,9 @@ export default function LeadsView() {
           ? {
               ...lead,
               status: data.status,
+              program_label: data.program_label,
+              service_label: data.service_label,
+              payload: data.payload,
               follow_up_at: data.follow_up_at ?? null,
               follow_up_note: data.follow_up_note ?? null,
               updated_at: data.updated_at,
@@ -1229,6 +1232,8 @@ export default function LeadsView() {
   }, [loading, leads.length])
   const selectedCount = selectedIds.size
   const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id))
+  const deleteRecordLabel = activeTab === 'job_application' ? 'application' : 'lead'
+  const deleteRecordLabelPlural = activeTab === 'job_application' ? 'applications' : 'leads'
 
   const selectedLeadType = selectedLead ? ((selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import') ? 'Win-back' : formatLabel(selectedLead.intake_type)) : 'Loading lead...'
   const selectedProgram = selectedLead ? formatSourcePage(selectedLead.source_page, selectedLead.program_label || selectedLead.service_label) : 'Loading...'
@@ -1643,7 +1648,7 @@ export default function LeadsView() {
               <span style={bulkActionTextStyle}>{selectedCount} selected</span>
               {activeTab === 'winback' && <Button type="button" size="sm" onClick={() => setIsBulkComposeOpen(true)}>Message selected</Button>}
               <Button type="button" variant="destructive" size="sm" onClick={openDeleteModal}>
-                Delete leads
+                Delete {deleteRecordLabelPlural}
               </Button>
             </div>
           )}
@@ -1949,12 +1954,12 @@ export default function LeadsView() {
 
       <SlidePanel isOpen={isDeleteOpen} onClose={closeDeleteModal} width="min(92vw, 520px)">
         <SlidePanelHeader
-          title="Delete leads"
+          title={`Delete ${deleteRecordLabelPlural}`}
           onClose={closeDeleteModal}
         />
         <div style={deletePanelBodyStyle}>
           <div style={deleteCopyStyle}>
-            Permanently remove {selectedCount} selected {selectedCount === 1 ? 'lead' : 'leads'}? This cannot be undone.
+            Permanently remove {selectedCount} selected {selectedCount === 1 ? deleteRecordLabel : deleteRecordLabelPlural}? This cannot be undone.
           </div>
           {deleteError && <MessageBox>{deleteError}</MessageBox>}
           <div style={manualLeadFooterStyle}>
@@ -1967,7 +1972,7 @@ export default function LeadsView() {
               onClick={() => void handleDeleteSelected()}
               disabled={deleteLoading}
             >
-              {deleteLoading ? 'Deleting…' : 'Delete leads'}
+              {deleteLoading ? 'Deleting…' : `Delete ${deleteRecordLabelPlural}`}
             </Button>
           </div>
         </div>

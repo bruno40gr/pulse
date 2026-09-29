@@ -9,6 +9,7 @@ import { getFollowUpTone } from '@/lib/follow-up'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
+type ServiceEditorState = { types: string[]; newType: string; opportunityValue: string }
 
 type LeadEvent = {
   id: string
@@ -75,6 +76,30 @@ const QUICK_FOLLOW_UPS = [
   { value: 'next_week', label: 'Next week', days: 7 },
   { value: 'next_month', label: 'Next month', days: 30 },
 ]
+
+function normalizeServiceType(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function getServiceTypes(lead: LeadDetail) {
+  const payloadTypes = Array.isArray(lead.payload.service_types)
+    ? lead.payload.service_types.filter((value): value is string => typeof value === 'string').map(normalizeServiceType).filter(Boolean)
+    : []
+  if (payloadTypes.length > 0) return [...new Set(payloadTypes)]
+
+  if (lead.service_label) return [...new Set(lead.service_label.split(',').map(normalizeServiceType).filter(Boolean))]
+
+  const payloadType = typeof lead.payload.service_type === 'string' ? normalizeServiceType(lead.payload.service_type.replace(/-/g, ' ')) : ''
+  return payloadType ? [payloadType] : []
+}
+
+function appendServiceType(current: ServiceEditorState): ServiceEditorState {
+  const nextType = normalizeServiceType(current.newType)
+  if (!nextType || current.types.some((value) => normalizeServiceType(value).toLowerCase() === nextType.toLowerCase())) {
+    return { ...current, newType: '' }
+  }
+  return { ...current, types: [...current.types, nextType], newType: '' }
+}
 
 function label(value: string) {
   if (value === 'processing') return 'Enrolling'
@@ -216,6 +241,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const [contact, setContact] = useState({ fullName: '', phone: '', email: '' })
   const [lesson, setLesson] = useState({ accountHolderName: '', instrument: '', experience: '', days: '', times: '' })
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '' })
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
 
@@ -242,6 +268,11 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       times: asArray(lead.payload.preferred_times).join(', '),
     })
     setFamilyMembers(Array.isArray(lead.payload.siblings) ? lead.payload.siblings.map(getFamilyMember).filter((member): member is FamilyMember => Boolean(member)) : [])
+    setServiceEditor({
+      types: getServiceTypes(lead),
+      newType: '',
+      opportunityValue: getNumericPayloadValue(lead.payload, 'session_value')?.toString() || '',
+    })
     setFollowUpDate(draft.followUpDate ?? (lead.follow_up_at ? lead.follow_up_at.slice(0, 10) : ''))
     setFollowUpNote(draft.followUpNote ?? lead.follow_up_note ?? '')
     setContactEditing(false)
@@ -266,16 +297,24 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   }
 
   const saveContact = async () => {
+    const serviceTypes = serviceEditor.types.map(normalizeServiceType).filter(Boolean)
+    const opportunityValue = Number(serviceEditor.opportunityValue)
     const saved = await onPatch({
       full_name: contact.fullName,
       phone: contact.phone,
       email: contact.email,
+      ...(isService ? { service_label: serviceTypes.join(', ') } : {}),
       payload: {
         account_holder_name: lesson.accountHolderName || null,
         instrument: lesson.instrument || null,
         experience: lesson.experience || null,
         preferred_days: lesson.days.split(',').map((item) => item.trim()).filter(Boolean),
         preferred_times: lesson.times.split(',').map((item) => item.trim()).filter(Boolean),
+        ...(isService ? {
+          service_types: serviceTypes,
+          service_type: serviceTypes[0]?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null,
+          session_value: serviceEditor.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
+        } : {}),
       },
     })
     if (saved) setContactEditing(false)
@@ -358,7 +397,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
         onClose={onClose}
         onBack={isMobile ? onClose : undefined}
         backLabel="Leads"
-        titleBadge={!contactEditing ? <button type="button" aria-label="Edit contact" title="Edit contact" onClick={() => setContactEditing(true)} style={editNameButtonStyle}><Pencil size={15} /></button> : undefined}
+        titleBadge={!contactEditing ? <button type="button" aria-label="Edit lead" title="Edit lead" onClick={() => setContactEditing(true)} style={editNameButtonStyle}><Pencil size={15} /></button> : undefined}
         actions={isMobile ? undefined : (statusControls || undefined)}
       />
 
@@ -384,7 +423,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       {contactEditing ? (
         <div style={{ ...editContactSectionStyle, padding: isMobile ? '12px 16px' : spacing.lg }}>
           <div style={headerIdentityRowStyle}>
-            <SectionTitle>Edit contact</SectionTitle>
+            <SectionTitle>Edit lead</SectionTitle>
             <Button type="button" variant="secondary" size="sm" onClick={() => setContactEditing(false)}>Cancel</Button>
           </div>
           <div style={isMobile ? oneColumnStyle : twoColumnStyle}>
@@ -396,8 +435,44 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {isLesson && <Select label="Experience" value={lesson.experience} onChange={(event) => setLesson({ ...lesson, experience: event.target.value })}><option value="">Not provided</option>{EXPERIENCES.map((item) => <option key={item} value={item}>{item}</option>)}</Select>}
             {isLesson && <Input label="Preferred days" value={lesson.days} onChange={(event) => setLesson({ ...lesson, days: event.target.value })} />}
             {isLesson && <Input label="Preferred times" value={lesson.times} onChange={(event) => setLesson({ ...lesson, times: event.target.value })} />}
+            {isService && (
+              <div style={{ ...serviceEditorStyle, gridColumn: isMobile ? undefined : '1 / -1' }}>
+                <div style={fieldLabelStyle}>Service types</div>
+                {serviceEditor.types.length === 0 && <div style={emptyFamilyMembersStyle}>No service types added.</div>}
+                {serviceEditor.types.map((serviceType, index) => (
+                  <div key={`${serviceType}-${index}`} style={serviceTypeRowStyle}>
+                    <Input
+                      aria-label={`Service type ${index + 1}`}
+                      value={serviceType}
+                      onChange={(event) => setServiceEditor((current) => ({
+                        ...current,
+                        types: current.types.map((value, typeIndex) => typeIndex === index ? event.target.value : value),
+                      }))}
+                    />
+                    <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setServiceEditor((current) => ({ ...current, types: current.types.filter((_, typeIndex) => typeIndex !== index) }))}>Remove</Button>
+                  </div>
+                ))}
+                <div style={serviceTypeRowStyle}>
+                  <Input
+                    aria-label="New service type"
+                    placeholder="Add another service type"
+                    value={serviceEditor.newType}
+                    onChange={(event) => setServiceEditor((current) => ({ ...current, newType: event.target.value }))}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      event.preventDefault()
+                      setServiceEditor(appendServiceType)
+                    }}
+                  />
+                  <Button type="button" variant="secondary" size="sm" disabled={saving || !serviceEditor.newType.trim()} onClick={() => {
+                    setServiceEditor(appendServiceType)
+                  }}>Add service</Button>
+                </div>
+              </div>
+            )}
+            {isService && <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />}
           </div>
-          <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save contact'}</Button></div>
+          <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save lead'}</Button></div>
         </div>
       ) : <>
         {lostOpen && (
@@ -457,6 +532,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
               <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
             </DenseSectionPanel>}
+            {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
+              <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
+            </DenseSectionPanel>}
             {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
               <div style={familyMembersStyle}>
                 {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
@@ -502,6 +580,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
               )}
               {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
+              </DenseSectionPanel>}
+              {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
+                <div style={twoColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
               </DenseSectionPanel>}
               {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
                 <div style={familyMembersStyle}>
@@ -603,6 +684,8 @@ const familyMemberHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'c
 const familyMemberNameStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
 const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeSm, textDecoration: 'underline', cursor: 'pointer' }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
+const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
+const serviceTypeRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: spacing.sm, alignItems: 'end' }
 const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const activityRowStyle: CSSProperties = { display: 'flex', gap: spacing.sm, alignItems: 'flex-start' }
 const activityMarkerStyle: CSSProperties = { width: spacing.sm, height: spacing.sm, borderRadius: radius.full, background: colors.teal, marginTop: spacing.xs, flexShrink: 0 }

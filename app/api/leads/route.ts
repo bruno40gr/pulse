@@ -58,6 +58,11 @@ type ContactIdRow = {
   contact_id: string
 }
 
+type DeletableRecordRow = {
+  id: string
+  contact_id: string
+}
+
 type QueryResult<T> = {
   data: T | null
   error: { message: string } | null
@@ -380,56 +385,70 @@ export async function DELETE(request: Request) {
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
       : []
+    const intakeType = typeof body?.intake_type === 'string' ? body.intake_type : null
+    const isJobApplication = intakeType === 'job_application'
+    const recordTable = isJobApplication ? 'job_applications' : 'lead_intakes'
+    const recordLabel = isJobApplication ? 'teacher applications' : 'leads'
 
     if (ids.length === 0) {
-      return NextResponse.json({ error: 'No leads selected', requestId: requestLog.requestId }, { status: 400 })
+      return NextResponse.json({ error: `No ${recordLabel} selected`, requestId: requestLog.requestId }, { status: 400 })
     }
 
-    const selectedLeadResult = await withTimeout(
-      crmSupabaseAdmin
-        .from('lead_intakes')
-        .select('id, contact_id')
-        .eq('tenant_id', tenantId)
-        .in('id', ids),
+    let selectedRecordQuery = crmSupabaseAdmin
+      .from(recordTable)
+      .select('id, contact_id')
+      .eq('tenant_id', tenantId)
+      .in('id', ids)
+
+    if (!isJobApplication) {
+      if (intakeType === 'winback') selectedRecordQuery = selectedRecordQuery.eq('source_form', WINBACK_SOURCE_FORM)
+      else if (intakeType === 'lesson_inquiry') selectedRecordQuery = selectedRecordQuery.eq('intake_type', intakeType).neq('source_form', WINBACK_SOURCE_FORM)
+      else if (intakeType === 'service_inquiry') selectedRecordQuery = selectedRecordQuery.eq('intake_type', intakeType)
+    }
+
+    const selectedRecordResult = await withTimeout(
+      selectedRecordQuery,
       LEADS_QUERY_TIMEOUT_MS,
-      'selected leads query',
+      `selected ${recordLabel} query`,
     )
 
-    const { data: selectedLeads, error: selectedLeadsError } = selectedLeadResult as {
-      data: Array<{ id: string, contact_id: string }> | null,
+    const { data: selectedRecords, error: selectedRecordsError } = selectedRecordResult as {
+      data: DeletableRecordRow[] | null,
       error: { message: string } | null,
     }
 
-    if (selectedLeadsError) throw selectedLeadsError
+    if (selectedRecordsError) throw selectedRecordsError
 
-    const selectedLeadIds = (selectedLeads || []).map((lead) => lead.id)
-    const selectedContactIds = [...new Set((selectedLeads || []).map((lead) => lead.contact_id).filter(Boolean))]
+    const selectedRecordIds = (selectedRecords || []).map((record) => record.id)
+    const selectedContactIds = [...new Set((selectedRecords || []).map((record) => record.contact_id).filter(Boolean))]
 
-    if (selectedLeadIds.length === 0) {
-      return NextResponse.json({ error: 'No matching leads found', requestId: requestLog.requestId }, { status: 404 })
+    if (selectedRecordIds.length === 0) {
+      return NextResponse.json({ error: `No matching ${recordLabel} found`, requestId: requestLog.requestId }, { status: 404 })
     }
 
-    const deleteEventsResult = await withTimeout(
-      crmSupabaseAdmin
-        .from('lead_events')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .in('lead_intake_id', selectedLeadIds),
-      LEADS_QUERY_TIMEOUT_MS,
-      'lead events delete',
-    )
-    if (deleteEventsResult.error) throw deleteEventsResult.error
+    if (!isJobApplication) {
+      const deleteEventsResult = await withTimeout(
+        crmSupabaseAdmin
+          .from('lead_events')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .in('lead_intake_id', selectedRecordIds),
+        LEADS_QUERY_TIMEOUT_MS,
+        'lead events delete',
+      )
+      if (deleteEventsResult.error) throw deleteEventsResult.error
+    }
 
-    const deleteLeadsResult = await withTimeout(
+    const deleteRecordsResult = await withTimeout(
       crmSupabaseAdmin
-        .from('lead_intakes')
+        .from(recordTable)
         .delete()
         .eq('tenant_id', tenantId)
-        .in('id', selectedLeadIds),
+        .in('id', selectedRecordIds),
       LEADS_QUERY_TIMEOUT_MS,
-      'lead delete',
+      `${recordLabel} delete`,
     )
-    if (deleteLeadsResult.error) throw deleteLeadsResult.error
+    if (deleteRecordsResult.error) throw deleteRecordsResult.error
 
     if (selectedContactIds.length > 0) {
       const remainingLeadResult = await withTimeout(
@@ -475,7 +494,16 @@ export async function DELETE(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, deletedIds: selectedLeadIds, requestId: requestLog.requestId })
+    console.info('[leads][delete]', {
+      requestId: requestLog.requestId,
+      tenantId,
+      intakeType,
+      recordTable,
+      deletedCount: selectedRecordIds.length,
+      durationMs: getDurationMs(requestLog.startedAt),
+    })
+
+    return NextResponse.json({ success: true, deletedIds: selectedRecordIds, requestId: requestLog.requestId })
   } catch (error) {
     console.error('[leads][delete] Error deleting leads', {
       requestId: requestLog.requestId,
