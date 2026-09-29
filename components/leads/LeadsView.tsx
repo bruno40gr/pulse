@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Copy } from 'lucide-react'
 import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -631,6 +631,7 @@ export default function LeadsView() {
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const deepLinkedLeadHandledRef = useRef(false)
   const [composeLead, setComposeLead] = useState<LeadDetail | null>(null)
   const [isBulkComposeOpen, setIsBulkComposeOpen] = useState(false)
   const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
@@ -839,12 +840,14 @@ export default function LeadsView() {
   }
 
   useEffect(() => {
+    if (deepLinkedLeadHandledRef.current) return
+    deepLinkedLeadHandledRef.current = true
     const leadId = new URLSearchParams(window.location.search).get('lead')
-    if (!leadId || selectedLeadId) return
+    if (!leadId) return
     void openLead(leadId)
     // Deep links are consumed once per page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeadId])
+  }, [])
 
   const openAdjacentLead = async (direction: 'prev' | 'next') => {
     if (!selectedLeadId) return
@@ -995,9 +998,9 @@ export default function LeadsView() {
   }
 
   const closeLead = () => {
-    removeCurrentSearchParam('lead')
     setSelectedLeadId(null)
     setSelectedLead(null)
+    removeCurrentSearchParam('lead')
     setDetailError('')
     setShowStatusEditor(false)
     setFollowUpDate('')

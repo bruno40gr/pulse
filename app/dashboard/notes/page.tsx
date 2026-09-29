@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
 import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
@@ -307,6 +307,7 @@ export default function NotesPage() {
   const [editBody, setEditBody] = useState('')
   const [editMentionIds, setEditMentionIds] = useState<string[]>([])
   const [conversationNote, setConversationNote] = useState<Note | null>(null)
+  const deepLinkedNoteHandledRef = useRef(false)
 
   const handleReplyAdded = (noteId: string, replyCount: number) => {
     setNotes((current) => current.map((note) => note.id === noteId ? { ...note, reply_count: replyCount } : note))
@@ -314,8 +315,8 @@ export default function NotesPage() {
   }
 
   const closeConversation = () => {
-    removeCurrentSearchParam('note')
     setConversationNote(null)
+    removeCurrentSearchParam('note')
   }
 
   const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null)
@@ -342,11 +343,13 @@ export default function NotesPage() {
   }, [fetchNotes])
 
   useEffect(() => {
+    if (deepLinkedNoteHandledRef.current || loading) return
     const noteId = new URLSearchParams(window.location.search).get('note')
-    if (!noteId || conversationNote) return
+    deepLinkedNoteHandledRef.current = true
+    if (!noteId) return
     const target = notes.find((note) => note.id === noteId)
     if (target) setConversationNote(target)
-  }, [conversationNote, notes])
+  }, [loading, notes])
 
   useEffect(() => {
     if (!toast) return
