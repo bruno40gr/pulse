@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -18,6 +19,9 @@ export async function PATCH(
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const body = await request.json()
+    const mentionMembershipIds = 'body' in body && tenantAccess.context
+      ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
+      : []
 
     const updates: Record<string, unknown> = {}
     if ('title' in body) {
@@ -55,6 +59,18 @@ export async function PATCH(
       .single()
 
     if (error) throw error
+    if ('body' in body && tenantAccess.context) {
+      await persistMentions({
+        tenantId,
+        actorMembershipId: tenantAccess.context.membershipId,
+        membershipIds: mentionMembershipIds,
+        entityType: 'dashboard_note',
+        entityId: id,
+        title: `${tenantAccess.identity.displayName} mentioned you in a note`,
+        body: typeof body.body === 'string' ? body.body : '',
+        link: `/dashboard/notes?note=${encodeURIComponent(id)}`,
+      })
+    }
     return NextResponse.json(data)
   } catch (error) {
     console.error('[notes][update] Error', error instanceof Error ? error.message : error)

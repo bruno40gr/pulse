@@ -65,6 +65,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
   const [replies, setReplies] = useState<NoteReply[]>([])
   const [loading, setLoading] = useState(false)
   const [replyBody, setReplyBody] = useState('')
+  const [replyMentionIds, setReplyMentionIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -86,6 +87,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
 
   useEffect(() => {
     setReplyBody('')
+    setReplyMentionIds([])
     setReplies([])
     if (note) void loadReplies()
   }, [loadReplies, note])
@@ -98,7 +100,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
       const response = await fetch(`/api/notes/${note.id}/replies?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: replyBody.trim() }),
+        body: JSON.stringify({ body: replyBody.trim(), mention_membership_ids: replyMentionIds }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || 'Could not save reply.')
@@ -108,6 +110,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
         return nextReplies
       })
       setReplyBody('')
+      setReplyMentionIds([])
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Could not save reply.')
     } finally {
@@ -150,6 +153,8 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
             <MentionTextarea
               value={replyBody}
               onChange={setReplyBody}
+              mentionMembershipIds={replyMentionIds}
+              onMentionMembershipIdsChange={setReplyMentionIds}
               placeholder="Write a reply…"
               style={{ minHeight: 96, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, lineHeight: 1.5, resize: 'vertical' }}
               onKeyDown={(event) => {

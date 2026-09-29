@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Shield } from 'lucide-react'
 import { Button, Textarea } from '@/components/ui'
+import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface NoteEntry {
+  id?: string
   text: string
   timestamp: string
   actor_name?: string | null
@@ -25,7 +27,8 @@ interface NotesSectionProps {
   autoSaveOnBlur?: boolean
   draft?: string
   onDraftChange?: (draft: string) => void
-  onSave: (text: string) => boolean | void | Promise<boolean | void>
+  mentionsEnabled?: boolean
+  onSave: (text: string, mentionMembershipIds: string[]) => boolean | void | Promise<boolean | void>
   onToggleComplete?: (index: number) => void
 }
 
@@ -48,11 +51,13 @@ export function NotesSection({
   autoSaveOnBlur = false,
   draft,
   onDraftChange,
+  mentionsEnabled = false,
   onSave,
   onToggleComplete,
 }: NotesSectionProps) {
   const [showInput, setShowInput] = useState(false)
   const [input, setInput] = useState(draft || '')
+  const [mentionMembershipIds, setMentionMembershipIds] = useState<string[]>([])
   const savingRef = useRef(false)
 
   useEffect(() => {
@@ -73,9 +78,10 @@ export function NotesSection({
     savingRef.current = true
     const note = input.trim()
     try {
-      const saved = await onSave(note)
+      const saved = await onSave(note, mentionMembershipIds)
       if (saved !== false) {
         updateInput('')
+        setMentionMembershipIds([])
         setShowInput(false)
       }
     } finally {
@@ -140,7 +146,7 @@ export function NotesSection({
       {notes.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
           {notes.map((entry, i) => (
-            <div key={i} style={{
+            <div key={entry.id || `${entry.timestamp}-${i}`} style={{
               display: 'flex',
               gap: '12px',
               padding: '14px 16px',
@@ -165,7 +171,7 @@ export function NotesSection({
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
                 </div>
-                <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none' }}>{entry.text}</div>
+                <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', whiteSpace: 'pre-wrap' }}>{entry.text.replace(/\u00A0/g, ' ')}</div>
               </div>
               {onToggleComplete && (
                 <button
@@ -220,17 +226,28 @@ export function NotesSection({
         </button>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-          <Textarea
-            value={input}
-            onChange={e => updateInput(e.target.value)}
-            onBlur={() => {
-              if (autoSaveOnBlur) void handleSave()
-            }}
-            placeholder="Write a note..."
-            style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
-          />
+          {mentionsEnabled ? (
+            <MentionTextarea
+              value={input}
+              onChange={updateInput}
+              mentionMembershipIds={mentionMembershipIds}
+              onMentionMembershipIdsChange={setMentionMembershipIds}
+              placeholder="Write a note..."
+              style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
+            />
+          ) : (
+            <Textarea
+              value={input}
+              onChange={e => updateInput(e.target.value)}
+              onBlur={() => {
+                if (autoSaveOnBlur) void handleSave()
+              }}
+              placeholder="Write a note..."
+              style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
+            />
+          )}
           <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput('') }}>Cancel</Button>
+            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput(''); setMentionMembershipIds([]) }}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
           </div>
         </div>

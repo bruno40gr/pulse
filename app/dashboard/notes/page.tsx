@@ -103,9 +103,11 @@ interface NoteCardProps {
   editing: boolean
   editTitle: string
   editBody: string
+  editMentionIds: string[]
   onStartEdit: () => void
   onEditTitle: (v: string) => void
   onEditBody: (v: string) => void
+  onEditMentionIds: (ids: string[]) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
   onPin: () => void
@@ -192,6 +194,8 @@ function NoteCard(props: NoteCardProps) {
           <MentionTextarea
             value={editBody}
             onChange={props.onEditBody}
+            mentionMembershipIds={props.editMentionIds}
+            onMentionMembershipIdsChange={props.onEditMentionIds}
             placeholder="Take a note…"
             style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'vertical', minHeight: 90 }}
             onKeyDown={(e) => {
@@ -292,6 +296,7 @@ export default function NotesPage() {
 
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
+  const [draftMentionIds, setDraftMentionIds] = useState<string[]>([])
   const [draftColor, setDraftColor] = useState('yellow')
   const [draftPinned, setDraftPinned] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -299,6 +304,7 @@ export default function NotesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
+  const [editMentionIds, setEditMentionIds] = useState<string[]>([])
   const [conversationNote, setConversationNote] = useState<Note | null>(null)
 
   const handleReplyAdded = (noteId: string, replyCount: number) => {
@@ -330,6 +336,13 @@ export default function NotesPage() {
   }, [fetchNotes])
 
   useEffect(() => {
+    const noteId = new URLSearchParams(window.location.search).get('note')
+    if (!noteId || conversationNote) return
+    const target = notes.find((note) => note.id === noteId)
+    if (target) setConversationNote(target)
+  }, [conversationNote, notes])
+
+  useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 5000)
     return () => clearTimeout(t)
@@ -338,7 +351,7 @@ export default function NotesPage() {
   const showToast = (message: string, undo?: () => void) => setToast({ message, undo })
 
   const resetComposer = () => {
-    setDraftTitle(''); setDraftBody(''); setDraftColor('yellow'); setDraftPinned(false)
+    setDraftTitle(''); setDraftBody(''); setDraftMentionIds([]); setDraftColor('yellow'); setDraftPinned(false)
   }
 
   const patchNote = (id: string, updates: Record<string, unknown>) => {
@@ -375,7 +388,7 @@ export default function NotesPage() {
       const res = await fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, note_date: selectedDate || getLocalDateValue() }),
+        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, note_date: selectedDate || getLocalDateValue(), mention_membership_ids: draftMentionIds }),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => null)
@@ -430,6 +443,7 @@ export default function NotesPage() {
     setEditingId(note.id)
     setEditTitle(note.title || '')
     setEditBody(note.body)
+    setEditMentionIds([])
   }
 
   const saveEdit = async () => {
@@ -441,7 +455,7 @@ export default function NotesPage() {
     const title = typedTitle || await generateTitle(body)
     setNotes((prev) => sortNotes(prev.map((n) => (n.id === id ? { ...n, title: title || null, body, updated_at: new Date().toISOString() } : n))))
     setEditingId(null)
-    patchNote(id, { title: title || null, body })
+    patchNote(id, { title: title || null, body, mention_membership_ids: editMentionIds })
   }
 
   const composerBg = NOTE_COLORS[draftColor] || NOTE_COLORS.white
@@ -501,6 +515,8 @@ export default function NotesPage() {
           <MentionTextarea
             value={draftBody}
             onChange={setDraftBody}
+            mentionMembershipIds={draftMentionIds}
+            onMentionMembershipIdsChange={setDraftMentionIds}
             placeholder="Take a note…"
             style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'none', minHeight: 72 }}
           />
@@ -553,9 +569,11 @@ export default function NotesPage() {
               editing={editingId === note.id}
               editTitle={editTitle}
               editBody={editBody}
+              editMentionIds={editMentionIds}
               onStartEdit={() => startEdit(note)}
               onEditTitle={setEditTitle}
               onEditBody={setEditBody}
+              onEditMentionIds={setEditMentionIds}
               onSaveEdit={saveEdit}
               onCancelEdit={() => setEditingId(null)}
               onPin={() => handlePin(note)}

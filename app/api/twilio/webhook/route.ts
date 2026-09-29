@@ -78,7 +78,9 @@ export async function POST(request: Request) {
     const { error: insertError } = await supabaseAdmin.from('messages').insert(messageRow)
     if (insertError) {
       console.error('[twilio-webhook] insert error', insertError)
-      await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+      if (insertError.code !== '23503') throw insertError
+      const { error: fallbackError } = await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+      if (fallbackError) throw fallbackError
     } else {
       console.log('[twilio-webhook] stored', messageSid)
     }

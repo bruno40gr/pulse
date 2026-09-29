@@ -8,12 +8,14 @@ import { Avatar, Button, PageContainer, PageHeader, Textarea } from '@/component
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
+import { displayMessageStatus } from '@/lib/message-status'
 
 interface Message {
   id: string
   body: string
   direction: 'inbound' | 'outbound'
   status: string
+  error_message: string | null
   created_at: string
   to_phone: string | null
   from_phone: string | null
@@ -417,7 +419,8 @@ function InboxPageInner() {
                       textAlign: msg.direction === 'outbound' ? 'right' : 'left',
                     }}>
                       {formatTime(msg.created_at)}
-                      {msg.direction === 'outbound' && msg.status ? ` · ${msg.status}` : ''}
+                      {msg.direction === 'outbound' && msg.status ? ` · ${displayMessageStatus(msg.status)}` : ''}
+                      {msg.direction === 'outbound' && msg.error_message ? ` · ${msg.error_message}` : ''}
                     </div>
                   </div>
                 </div>

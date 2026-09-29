@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -100,6 +101,7 @@ function normalizeNotesHistory(events: LeadEvent[]) {
   return (events || [])
     .filter((event) => event.event_type === 'note_added')
     .map((event) => ({
+      id: event.id,
       text: typeof event.payload?.text === 'string' ? event.payload.text : '',
       timestamp: event.created_at,
       actor_name: getEventActorName(event.payload),
@@ -435,6 +437,9 @@ export async function PATCH(
     }
 
     const addNote = typeof body.add_note === 'string' ? body.add_note.trim() : ''
+    const mentionMembershipIds = addNote && tenantAccess.context
+      ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
+      : []
 
     const followUpChanged = Boolean(
       body.payload &&
@@ -531,13 +536,28 @@ export async function PATCH(
             contact_id: existingLead.contact_id,
             event_type: 'note_added',
             event_label: 'Note added',
-            payload: { text: addNote, actor: actorPayload },
-          }),
+            payload: { text: addNote, actor: { ...actorPayload, membershipId: tenantAccess.context?.membershipId || null } },
+          })
+          .select('id')
+          .single(),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead note insert',
       )
 
       if (result.error) throw result.error
+      if (tenantAccess.context && result.data?.id) {
+        await persistMentions({
+          tenantId,
+          actorMembershipId: tenantAccess.context.membershipId,
+          membershipIds: mentionMembershipIds,
+          entityType: 'lead_note',
+          entityId: result.data.id,
+          parentEntityId: id,
+          title: `${tenantAccess.identity.displayName} mentioned you on a lead`,
+          body: addNote,
+          link: `/dashboard/leads?lead=${encodeURIComponent(id)}`,
+        })
+      }
     }
 
     if (followUpChanged) {

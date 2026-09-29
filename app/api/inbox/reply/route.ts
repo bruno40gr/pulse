@@ -3,6 +3,7 @@ import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import twilio from 'twilio'
+import { toE164PhoneNumber } from '@/lib/phone'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -46,10 +47,15 @@ export async function POST(request: Request) {
 
     const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token)
 
+    const normalizedToPhone = toE164PhoneNumber(to_phone)
+    if (!normalizedToPhone) return NextResponse.json({ error: 'A valid recipient phone is required' }, { status: 400 })
+    const callbackOrigin = process.env.PULSE_APP_URL?.trim().replace(/\/$/, '') || new URL(request.url).origin
+    const statusCallback = `${callbackOrigin}/api/twilio/status`
     const msg = await client.messages.create({
       body,
       from: twilioConfig.phone_number,
-      to: to_phone,
+      to: normalizedToPhone,
+      statusCallback,
     })
 
     const failedStatus = msg.status === 'undelivered' || msg.status === 'failed'
@@ -64,7 +70,7 @@ export async function POST(request: Request) {
       status: msg.status || 'sent',
       error_message: errorMessage,
       twilio_sid: msg.sid,
-      to_phone: to_phone,
+      to_phone: normalizedToPhone,
       from_phone: twilioConfig.phone_number,
     }
 
@@ -72,7 +78,9 @@ export async function POST(request: Request) {
     // when the person isn't present there so the message is still recorded.
     const { error: insertError } = await supabaseAdmin.from('messages').insert(messageRow)
     if (insertError) {
-      await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+      if (insertError.code !== '23503') throw insertError
+      const { error: fallbackError } = await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+      if (fallbackError) throw fallbackError
     }
 
     if (failedStatus) {

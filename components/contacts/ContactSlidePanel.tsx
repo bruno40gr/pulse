@@ -16,6 +16,7 @@ interface AccountHolder {
 }
 
 interface NoteEntry {
+  id?: string
   text: string
   timestamp: string
   actor_name?: string | null
@@ -88,6 +89,7 @@ interface ContactSlidePanelProps {
   onUpdated: (updated: Contact) => void
   onCompose?: (contactIds: string[]) => void
   onViewStaff?: (staffId: string) => void
+  initialNotesTab?: 'notes' | 'internal'
 }
 
 const inputStyle: React.CSSProperties = {
@@ -109,7 +111,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff, initialNotesTab = 'notes' }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const cleanName = (name: string | null | undefined) =>
@@ -136,7 +138,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [isStaffActionMenuOpen, setIsStaffActionMenuOpen] = useState(false)
   const [calling, setCalling] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
-  const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>('notes')
+  const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
 
   // ── Load insights with note context ──
   useEffect(() => {
@@ -891,12 +893,21 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 signifierLabel="Internal comms"
                 helperText="Visible to staff only. Use for coaching, coordination, and operational follow-up."
                 showHeader={false}
-                onSave={(text) => {
-                  const newEntry = { text, timestamp: new Date().toISOString() }
-                  const updated = [newEntry, ...internalNotesHistory]
-                  patch({ notes_history: updated, notes: text }, true)
-                  setInternalNotesHistory(updated)
+                mentionsEnabled
+                onSave={async (text, mentionMembershipIds) => {
+                  const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, mention_membership_ids: mentionMembershipIds }),
+                  })
+                  const newEntry = await response.json()
+                  if (!response.ok) {
+                    showToast(newEntry?.error || 'Could not save note')
+                    return false
+                  }
+                  setInternalNotesHistory((current) => [newEntry, ...current])
                   showToast('changes saved')
+                  return true
                 }}
                 onToggleComplete={(index) => {
                   const updated = internalNotesHistory.map((entry, noteIndex) => noteIndex === index

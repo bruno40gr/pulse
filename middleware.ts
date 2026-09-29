@@ -25,6 +25,7 @@ export async function middleware(request: NextRequest) {
     || pathname === '/api/account/recovery'
     || pathname === '/api/intake'
     || pathname === '/api/twilio/webhook'
+    || pathname === '/api/twilio/status'
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

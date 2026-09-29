@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -68,6 +69,9 @@ export async function POST(request: Request) {
     const pinned = body.pinned === true
     const noteDate = typeof body.note_date === 'string' ? body.note_date : new Date().toISOString().slice(0, 10)
     if (!isDateValue(noteDate)) return NextResponse.json({ error: 'A valid note date is required.' }, { status: 400 })
+    const mentionMembershipIds = tenantAccess.context
+      ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
+      : []
 
     const { data, error } = await supabaseAdmin
       .from('notes')
@@ -79,11 +83,24 @@ export async function POST(request: Request) {
         pinned,
         note_date: noteDate,
         created_by: tenantAccess.identity.displayName,
+        created_by_membership_id: tenantAccess.context?.membershipId || null,
       })
       .select()
       .single()
 
     if (error) throw error
+    if (tenantAccess.context) {
+      await persistMentions({
+        tenantId,
+        actorMembershipId: tenantAccess.context.membershipId,
+        membershipIds: mentionMembershipIds,
+        entityType: 'dashboard_note',
+        entityId: data.id,
+        title: `${tenantAccess.identity.displayName} mentioned you in a note`,
+        body: noteBody,
+        link: `/dashboard/notes?note=${encodeURIComponent(data.id)}`,
+      })
+    }
     return NextResponse.json(data)
   } catch (error) {
     console.error('[notes][create] Error', error instanceof Error ? error.message : error)

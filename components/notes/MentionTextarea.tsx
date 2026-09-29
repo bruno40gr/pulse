@@ -4,36 +4,38 @@ import { useEffect, useRef, useState } from 'react'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-interface Person {
-  id: string
+export interface MentionMember {
+  membership_id: string
+  person_id: string | null
   first_name: string | null
   last_name: string | null
-  phone: string | null
   email: string | null
 }
 
 const NBSP = '\u00A0'
 
-function displayName(p: Person): string {
+function displayName(p: MentionMember): string {
   return `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unnamed'
 }
 
 interface MentionTextareaProps {
   value: string
   onChange: (value: string) => void
+  mentionMembershipIds?: string[]
+  onMentionMembershipIdsChange?: (ids: string[]) => void
   placeholder?: string
   style?: React.CSSProperties
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
-export default function MentionTextarea({ value, onChange, placeholder, style, onKeyDown }: MentionTextareaProps) {
+export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
   const [tenantId] = useState<string>(() => getActiveTenantId())
   const [open, setOpen] = useState(false)
   const [mentionStart, setMentionStart] = useState<number | null>(null)
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<Person[]>([])
+  const [suggestions, setSuggestions] = useState<MentionMember[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
 
   const close = () => {
@@ -50,7 +52,7 @@ export default function MentionTextarea({ value, onChange, placeholder, style, o
     const timer = setTimeout(async () => {
       try {
         const qs = query ? `?q=${encodeURIComponent(query)}&tenant=${tenantId}` : `?tenant=${tenantId}`
-        const res = await fetch(`/api/recipient-search${qs}`)
+        const res = await fetch(`/api/staff/mention-directory${qs}`)
         const data = await res.json()
         if (!cancelled) {
           setSuggestions((Array.isArray(data) ? data : []).slice(0, 8))
@@ -84,13 +86,14 @@ export default function MentionTextarea({ value, onChange, placeholder, style, o
     setOpen(true)
   }
 
-  const select = (person: Person) => {
+  const select = (person: MentionMember) => {
     const start = mentionStart ?? 0
     const name = displayName(person).replace(/ /g, NBSP)
     const before = value.slice(0, start)
     const after = value.slice(cursorRef.current)
     const next = `${before}@${name} ${after}`
     onChange(next)
+    onMentionMembershipIdsChange?.([...new Set([...mentionMembershipIds, person.membership_id])])
     const cursor = start + 1 + name.length + 1
     close()
     requestAnimationFrame(() => {
@@ -176,10 +179,10 @@ export default function MentionTextarea({ value, onChange, placeholder, style, o
         >
           {suggestions.map((person, i) => {
             const active = i === activeIndex
-            const secondary = person.phone || person.email || ''
+            const secondary = person.email || ''
             return (
               <button
-                key={person.id}
+                key={person.membership_id}
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault()

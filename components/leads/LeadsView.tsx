@@ -77,6 +77,7 @@ type LeadDetail = LeadRecord & {
     created_at: string
   }>
   notes_history?: Array<{
+    id?: string
     text: string
     timestamp: string
     actor_name?: string | null
@@ -827,6 +828,14 @@ export default function LeadsView() {
     await fetchLeadDetail(leadId, intakeType)
   }
 
+  useEffect(() => {
+    const leadId = new URLSearchParams(window.location.search).get('lead')
+    if (!leadId || selectedLeadId) return
+    void openLead(leadId)
+    // Deep links are consumed once per page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLeadId])
+
   const openAdjacentLead = async (direction: 'prev' | 'next') => {
     if (!selectedLeadId) return
     const index = leads.findIndex((lead) => lead.id === selectedLeadId)
@@ -994,7 +1003,7 @@ export default function LeadsView() {
     })
   }
 
-  const saveDetail = async (extra: { add_note?: string, status?: string, payload?: Record<string, unknown> } = {}) => {
+  const saveDetail = async (extra: { add_note?: string, mention_membership_ids?: string[], status?: string, payload?: Record<string, unknown> } = {}) => {
     if (!selectedLeadId) return false
     setDetailSaving(true)
     setDetailError('')
@@ -1520,7 +1529,8 @@ export default function LeadsView() {
           saving={detailSaving}
           helperText="Use notes for call attempts, context, and follow-up details."
           showHeader={false}
-          onSave={async (text) => { await saveDetail({ add_note: text }) }}
+          mentionsEnabled
+          onSave={async (text, mentionMembershipIds) => { await saveDetail({ add_note: text, mention_membership_ids: mentionMembershipIds }) }}
         />
       </DenseSectionPanel>
 

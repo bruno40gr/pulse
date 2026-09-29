@@ -1,7 +1,36 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { normalizePhoneNumber } from '@/lib/phone'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
+
+type InboxPerson = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  students?: Array<{
+    client_status?: string | null
+    accounts?: { name?: string | null; phone?: string | null } | null
+  }>
+}
+
+type InboxThread = {
+  thread_key: string
+  contact_id: string | null
+  other_phone: string
+  first_name: string
+  last_name: string
+  student_name: string
+  display_name: string
+  account_holder_name: string | null
+  client_status: string | null
+  messages: Array<Record<string, unknown>>
+  last_message_at: string | null
+  last_message_body: string | null
+  last_message_direction: string | null
+  has_unread: boolean
+}
 
 function getTenantId(request: Request): string {
   const url = new URL(request.url)
@@ -21,7 +50,7 @@ export async function GET(request: Request) {
     const campaignId = getCampaignId(request)
     let query = supabaseAdmin
       .from('messages')
-      .select('id, body, direction, status, created_at, contact_id, to_phone, from_phone, campaign_id, media_url')
+      .select('id, body, direction, status, error_message, created_at, contact_id, to_phone, from_phone, campaign_id, media_url')
       .eq('tenant_id', tenantId)
 
     if (campaignId) {
@@ -37,7 +66,6 @@ export async function GET(request: Request) {
     }
 
     // Step 2: Get unique contact IDs and fetch people with students + accounts
-    const contactIds = [...new Set(messages.map(m => m.contact_id).filter(Boolean))]
     const { data: people, error: peopleError } = await supabaseAdmin
       .from('people')
       .select(`
@@ -47,29 +75,46 @@ export async function GET(request: Request) {
           accounts ( id, name, phone, email )
         )
       `)
-      .in('id', contactIds)
       .eq('tenant_id', tenantId)
 
     if (peopleError) throw peopleError
 
     // Build a lookup map: contact_id -> person data
-    const personMap = new Map<string, any>()
+    const personMap = new Map<string, InboxPerson>()
     for (const p of people || []) {
-      personMap.set(p.id, p)
+      personMap.set(p.id, p as InboxPerson)
     }
 
-    // Step 3: Thread messages by contact_id + other_phone. Unknown senders (no contact_id)
-    // are threaded by phone number so they still show up in the inbox.
-    const threads = new Map<string, any>()
+    // Step 3: Thread by the canonical recipient. A contact-backed recipient stays in one
+    // conversation across campaigns and dates; unknown recipients fall back to normalized phone.
+    const threads = new Map<string, InboxThread>()
+
+    const phoneToContact = new Map<string, string>()
+    for (const person of people || []) {
+      const personPhone = normalizePhoneNumber(person.phone)
+      if (personPhone && !phoneToContact.has(personPhone)) phoneToContact.set(personPhone, person.id)
+      const student = person.students?.[0]
+      const account = Array.isArray(student?.accounts) ? student.accounts[0] : student?.accounts
+      const accountPhone = normalizePhoneNumber(account?.phone)
+      if (accountPhone && !phoneToContact.has(accountPhone)) phoneToContact.set(accountPhone, person.id)
+    }
+    for (const message of messages) {
+      const otherPhone = message.direction === 'outbound' ? message.to_phone : message.from_phone
+      const normalizedPhone = normalizePhoneNumber(otherPhone)
+      if (message.contact_id && normalizedPhone) phoneToContact.set(normalizedPhone, message.contact_id)
+    }
 
     for (const msg of messages) {
-      const contactId = msg.contact_id || null
+      const rawContactId = msg.contact_id || null
       const otherPhone = msg.direction === 'outbound'
         ? msg.to_phone
         : msg.from_phone
       if (!otherPhone) continue
+      const normalizedPhone = normalizePhoneNumber(otherPhone)
+      const contactId = rawContactId || (normalizedPhone ? phoneToContact.get(normalizedPhone) : null) || null
 
-      const threadKey = contactId ? `${contactId}::${otherPhone}` : `phone::${otherPhone}`
+      const recipientKey = normalizedPhone || otherPhone
+      const threadKey = `phone::${recipientKey}`
 
       if (!threads.has(threadKey)) {
         const person = contactId ? personMap.get(contactId) : undefined
@@ -81,11 +126,11 @@ export async function GET(request: Request) {
 
         if (person) {
           // 1. Check if the other phone matches the account phone (parent/guardian)
-          if (account.phone && account.phone === otherPhone && account.name) {
+          if (account.phone && normalizePhoneNumber(account.phone) === normalizedPhone && account.name) {
             displayName = account.name.replace(' (account)', '').trim() || null
           }
           // 2. If otherPhone matches the student's own phone, display the student name
-          if (!displayName && person.phone === otherPhone) {
+          if (!displayName && normalizePhoneNumber(person.phone) === normalizedPhone) {
             displayName = `${person.first_name || ''} ${person.last_name || ''}`.trim() || null
           }
           // 3. Fallback to student name
@@ -101,7 +146,7 @@ export async function GET(request: Request) {
         threads.set(threadKey, {
           thread_key: threadKey,
           contact_id: contactId,
-          other_phone: otherPhone,
+          other_phone: normalizedPhone && normalizedPhone.length === 10 ? `+1${normalizedPhone}` : otherPhone,
           first_name: person?.first_name || (contactId ? 'Unknown' : ''),
           last_name: person?.last_name || '',
           student_name: studentName,
@@ -117,11 +162,14 @@ export async function GET(request: Request) {
       }
 
       const thread = threads.get(threadKey)
+      if (!thread) continue
+      if (!thread.contact_id && contactId) thread.contact_id = contactId
       thread.messages.push({
         id: msg.id,
         body: msg.body,
         direction: msg.direction,
         status: msg.status,
+        error_message: msg.error_message,
         created_at: msg.created_at,
         to_phone: msg.to_phone,
         from_phone: msg.from_phone,
@@ -138,7 +186,7 @@ export async function GET(request: Request) {
     }
 
     const sorted = Array.from(threads.values()).sort(
-      (a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      (a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
     )
 
     return NextResponse.json(sorted)

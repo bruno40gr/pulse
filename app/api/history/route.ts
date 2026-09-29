@@ -30,9 +30,9 @@ export async function GET(request: Request) {
         .eq('tenant_id', tenantId)
 
       const outbound = messages?.filter(m => m.direction === 'outbound') || []
-      const delivered = outbound.filter(m => ['delivered', 'sent'].includes(m.status)).length
-      const failed = outbound.filter(m => m.status === 'failed').length
-      const pending = outbound.filter(m => ['queued', 'sending', 'accepted'].includes(m.status)).length
+      const delivered = outbound.filter(m => ['delivered', 'read'].includes(m.status)).length
+      const failed = outbound.filter(m => ['failed', 'undelivered', 'canceled'].includes(m.status)).length
+      const pending = outbound.filter(m => ['queued', 'scheduled', 'sending', 'accepted', 'sent'].includes(m.status)).length
 
       const inbound = messages?.filter(m => m.direction === 'inbound') || []
       const replies = inbound.length

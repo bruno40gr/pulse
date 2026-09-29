@@ -4,6 +4,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import twilio from 'twilio'
+import { toE164PhoneNumber } from '@/lib/phone'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -24,6 +25,7 @@ type MessageCreateParams = {
   from: string
   to: string
   mediaUrl?: string[]
+  statusCallback?: string
 }
 
 function errorMessageFrom(reason: unknown): string | null {
@@ -168,15 +170,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token)
+    const callbackOrigin = process.env.PULSE_APP_URL?.trim().replace(/\/$/, '') || new URL(request.url).origin
     const results = await Promise.allSettled(
       sendable.map(async (contact) => {
-        const toPhone = resolvePhone(contact)
+        const toPhone = toE164PhoneNumber(resolvePhone(contact))
         if (!toPhone) throw new Error('Recipient phone number became unavailable before sending.')
         const body = campaign.message.replace(/\{first_name\}/gi, contact.first_name)
         const messageParams: MessageCreateParams = {
           body,
           from: twilioConfig.phone_number,
           to: toPhone,
+          statusCallback: `${callbackOrigin}/api/twilio/status`,
         }
         if (campaign.media_url) messageParams.mediaUrl = [campaign.media_url]
 
@@ -206,24 +210,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // null when the person isn't present there so the message is still recorded.
         const { error: insertError } = await supabaseAdmin.from('messages').insert(messageRow)
         if (insertError) {
-          await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+          if (insertError.code !== '23503') throw insertError
+          const { error: fallbackError } = await supabaseAdmin.from('messages').insert({ ...messageRow, contact_id: null })
+          if (fallbackError) throw fallbackError
         }
 
         await new Promise(r => setTimeout(r, 50))
-        return { delivered: !failedStatus, errorMessage }
+        return { accepted: !failedStatus, errorMessage }
       })
     )
 
-    const delivered = results.filter(r => r.status === 'fulfilled' && r.value?.delivered).length
+    const accepted = results.filter(r => r.status === 'fulfilled' && r.value?.accepted).length
     const rejected = results.filter(r => r.status === 'rejected').length
-    const undelivered = results.filter(r => r.status === 'fulfilled' && !r.value?.delivered).length
+    const undelivered = results.filter(r => r.status === 'fulfilled' && !r.value?.accepted).length
     const failed = rejected + undelivered
 
-    if (delivered === 0) {
+    if (accepted === 0) {
       let firstError: string | null = null
       for (const r of results) {
         if (r.status === 'fulfilled') {
-          if (!r.value.delivered && r.value.errorMessage) { firstError = r.value.errorMessage; break }
+          if (!r.value.accepted && r.value.errorMessage) { firstError = r.value.errorMessage; break }
         } else {
           firstError = errorMessageFrom(r.reason)
           if (firstError) break
@@ -248,7 +254,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await supabaseAdmin
       .from('campaigns')
-      .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: delivered })
+      .update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: accepted })
       .eq('id', id)
       .eq('tenant_id', tenantId)
 
@@ -258,13 +264,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       eventType: 'communications.campaign_sent',
       metadata: {
         campaign_id: campaign.id,
-        sent_count: delivered,
+        accepted_count: accepted,
         failed_count: failed,
         missing_phone_count: missingPhone.length,
       },
     })
 
-    return NextResponse.json({ ok: true, sent: delivered, failed, missing_phone: missingPhone.length, auditRecorded })
+    return NextResponse.json({ ok: true, sent: accepted, failed, missing_phone: missingPhone.length, auditRecorded })
   } catch (error) {
     console.error('Send error:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

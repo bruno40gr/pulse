@@ -95,6 +95,7 @@ export default function ContactsPage() {
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [initialNotesTab, setInitialNotesTab] = useState<'notes' | 'internal'>('notes')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
@@ -134,6 +135,21 @@ export default function ContactsPage() {
   useEffect(() => {
     localStorage.getItem(`pulse_last_sync_${tenantId}`)
   }, [tenantId])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const contactId = params.get('contact')
+    if (!contactId || selectedContact) return
+    fetch(`/api/contacts/${contactId}?tenant=${tenantId}`)
+      .then((response) => response.json())
+      .then((contact) => {
+        if (!contact?.error) {
+          setInitialNotesTab(params.get('notes') === 'internal' ? 'internal' : 'notes')
+          setSelectedContact(contact)
+        }
+      })
+      .catch(() => {})
+  }, [selectedContact, tenantId])
 
   const handleSync = async () => {
     const syncMethod = localStorage.getItem(`pulse_sync_method_${tenantId}`)
@@ -765,6 +781,7 @@ export default function ContactsPage() {
       {selectedContact && (
         <ContactSlidePanel
           contact={selectedContact}
+          initialNotesTab={initialNotesTab}
           tenantFields={tenantFields}
           onClose={() => setSelectedContact(null)}
           onUpdated={(updated) => {

@@ -36,7 +36,9 @@ export async function resolveRequestTenant(
     if (!canAccessTenant(actor, tenantId)) {
       return { ok: false, status: 403, error: 'You do not have access to this account.' }
     }
-    return { ok: true, tenantId, identity: actor, context: null }
+    const membership = await resolveMembershipRequestContext(request, tenantId)
+    if (!membership.ok) return { ok: false, status: membership.status, error: membership.error }
+    return { ok: true, tenantId, identity: actor, context: membership.context }
   }
 
   const membership = await resolveMembershipRequestContext(request, tenantId)

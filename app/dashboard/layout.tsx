@@ -11,6 +11,7 @@ import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
 import { colors, typography, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -66,6 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu size={22} />
           </button>
           <TenantBrand height={28} maxWidth="150px" width="150px" />
+          <div style={{ marginLeft: 'auto' }}><NotificationBell inverse /></div>
         </header>
       )}
 
@@ -102,7 +104,10 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
     <>
       {showBrand && (
         <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <TenantBrand height={36} maxWidth="100%" width="100%" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}><TenantBrand height={36} maxWidth="100%" width="100%" /></div>
+            <NotificationBell inverse />
+          </div>
         </div>
       )}
       <nav style={{ flex: 1, padding: '12px 8px' }}>
