@@ -4,6 +4,7 @@ export { Modal, ModalBody, ModalFooter, ModalHeader, type ModalSize } from './Mo
 export { ModalStepper } from './ModalStepper'
 export { Notice, type NoticeVariant } from './Notice'
 export { Badge } from './Badge'
+export { StatusBadge } from './StatusBadge'
 export { Avatar, getAvatarColor } from './Avatar'
 export { Input } from './Input'
 export { Select } from './Select'

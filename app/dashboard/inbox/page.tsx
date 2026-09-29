@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense, type ComponentProps } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, SquarePen } from 'lucide-react'
+import { ArrowLeft, Sparkles, SquarePen, Trash2 } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
-import { Avatar, Button, PageContainer, PageHeader, Textarea } from '@/components/ui'
+import { Avatar, Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, PageContainer, PageHeader, Textarea } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
@@ -39,18 +39,24 @@ interface Thread {
   has_unread: boolean
 }
 
+type ContactPanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
+type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantFields'][number]
+
 function InboxPageInner() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThread, setActiveThread] = useState<Thread | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [selectedContact, setSelectedContact] = useState<any>(null)
-  const [tenantFields, setTenantFields] = useState<any[]>([])
+  const [selectedContact, setSelectedContact] = useState<ContactPanelContact | null>(null)
+  const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [aiLoading, setAiLoading] = useState(false)
-  const [campaignContext, setCampaignContext] = useState<string | null>(null)
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isMobileThreadOpen, setIsMobileThreadOpen] = useState(false)
+  const [canDeleteConversations, setCanDeleteConversations] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const isMobile = useIsMobile()
   const tenantId = getActiveTenantId()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -73,6 +79,10 @@ function InboxPageInner() {
     fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()).then(data => {
       setTenantFields(Array.isArray(data) ? data : [])
     }).catch(() => {})
+    fetch(`/api/account/me?tenant=${tenantId}`).then(async response => {
+      if (!response.ok) return null
+      return response.json()
+    }).then(data => setCanDeleteConversations(data?.roleKey === 'owner' || data?.roleKey === 'admin')).catch(() => {})
   }, [tenantId])
 
   // Poll for new messages so conversations update without a manual refresh.
@@ -146,6 +156,30 @@ function InboxPageInner() {
       console.error(e)
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleDeleteConversation = async () => {
+    if (!activeThread || deleteLoading) return
+    setDeleteLoading(true)
+    setDeleteError('')
+    try {
+      const response = await fetch(`/api/inbox?tenant=${tenantId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ other_phone: activeThread.other_phone }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Could not delete conversation.')
+      setThreads(current => current.filter(thread => thread.thread_key !== activeThread.thread_key))
+      setActiveThread(null)
+      setReply('')
+      setIsMobileThreadOpen(false)
+      setIsDeleteOpen(false)
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete conversation.')
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -352,24 +386,36 @@ function InboxPageInner() {
                 </div>
               </div>
             </div>
-            {activeThread.contact_id && (
-              <button
-                onClick={handleViewProfile}
-                style={{
-                  fontSize: typography.sizeSm,
-                  color: colors.teal,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: typography.fontSans,
-                  padding: 0,
-                  flexShrink: isMobile ? 0 : undefined,
-                  marginLeft: isMobile ? spacing.sm : undefined,
-                }}
-              >
-                View profile →
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, flexShrink: 0, marginLeft: isMobile ? spacing.sm : undefined }}>
+              {activeThread.contact_id && (
+                <button
+                  type="button"
+                  onClick={handleViewProfile}
+                  style={{
+                    fontSize: typography.sizeSm,
+                    color: colors.teal,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: typography.fontSans,
+                    padding: 0,
+                  }}
+                >
+                  View profile →
+                </button>
+              )}
+              {canDeleteConversations && (
+                <button
+                  type="button"
+                  onClick={() => { setDeleteError(''); setIsDeleteOpen(true) }}
+                  aria-label={`Delete conversation with ${activeThread.display_name}`}
+                  title="Delete conversation"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, padding: 0, border: 'none', borderRadius: '50%', background: 'transparent', color: colors.error, cursor: 'pointer' }}
+                >
+                  <Trash2 size={17} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Messages */}
@@ -508,6 +554,26 @@ function InboxPageInner() {
           }}
         />
       )}
+
+      <Modal isOpen={isDeleteOpen} onClose={() => !deleteLoading && setIsDeleteOpen(false)} size="sm" ariaLabel="Delete conversation">
+        <ModalHeader
+          title="Delete conversation?"
+          description={activeThread ? `Permanently delete the full message history with ${activeThread.display_name}.` : undefined}
+          onClose={() => !deleteLoading && setIsDeleteOpen(false)}
+        />
+        <ModalBody>
+          <Notice variant="warning" title="This cannot be undone">
+            This removes every inbound and outbound message in this phone conversation. It does not delete the contact.
+          </Notice>
+          {deleteError && <div role="alert" style={{ marginTop: spacing.md, color: colors.error, fontSize: typography.sizeSm }}>{deleteError}</div>}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setIsDeleteOpen(false)} disabled={deleteLoading}>Cancel</Button>
+          <Button variant="destructive" onClick={() => void handleDeleteConversation()} disabled={deleteLoading || !activeThread}>
+            {deleteLoading ? 'Deleting…' : 'Delete conversation'}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Compose modal */}
       {isComposeOpen && (

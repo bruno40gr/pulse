@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -21,6 +21,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     const tenantId = getActiveTenantId()
@@ -38,6 +39,24 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
     const interval = window.setInterval(() => void load(), 60_000)
     return () => window.clearInterval(interval)
   }, [load])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
 
   const markRead = async (id?: string) => {
     const tenantId = getActiveTenantId()
@@ -58,10 +77,12 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
         style={variant === 'nav'
           ? { position: 'relative', display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%', padding: '9px 12px', marginBottom: 2, border: 'none', borderRadius: radius.lg, background: open ? 'rgba(255,255,255,0.08)' : 'transparent', color: inverse ? colors.textMuted : colors.text, cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeMd, textAlign: 'left' }
@@ -78,7 +99,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
         )}
       </button>
       {open && (
-        <div style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
+        <div role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, background: colors.surface }}>
             <strong style={{ fontSize: typography.sizeMd }}>Notifications</strong>
             {unreadCount > 0 && <button type="button" onClick={() => void markRead()} style={{ border: 'none', background: 'transparent', color: colors.tealDark, cursor: 'pointer', fontSize: typography.sizeSm, fontWeight: typography.weightSemibold }}>Mark all read</button>}

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Check, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, Tabs } from '@/components/ui'
+import { MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
+import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -62,6 +62,22 @@ interface TenantField {
   field_label: string
   field_type: string
   field_options: string[] | null
+}
+
+function normalizeFieldName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function isHiddenContactCardField(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key.includes('pronoun') || label.includes('pronoun') || label === 'gender' || key === 'account manager name' || label === 'account manager name'
+}
+
+function getContactCardFieldLabel(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key === 'primary account manager' || label === 'primary account manager' ? 'Account manager' : field.field_label
 }
 
 interface Insight {
@@ -329,18 +345,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     cursor: 'pointer',
   }
 
-  const statusVariant = contact.opted_out
-    ? 'error'
-    : contact.client_status === 'active'
-    ? 'success'
-    : contact.client_status === 'pending'
-    ? 'warning'
-    : contact.client_status === 'inactive'
-    ? 'inactive'
-    : contact.client_status === 'lead'
-    ? 'info'
-    : 'neutral'
-
   const accountHolders: AccountHolder[] = contact.account_holders?.length
     ? contact.account_holders
     : (contact.account_holder_name
@@ -366,7 +370,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     return parts.map(p => p[0]).join('').toUpperCase().slice(0, 2)
   }
 
-  const populatedFields = tenantFields.filter(f => {
+  const visibleTenantFields = tenantFields.filter(field => !isHiddenContactCardField(field))
+  const populatedFields = visibleTenantFields.filter(f => {
     const val = contact.custom_fields?.[f.field_key]
     return val !== undefined && val !== null && val !== ''
   })
@@ -456,12 +461,12 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           <div style={dividerStyle} />
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 24px', minWidth: 0 }}>
-            {tenantFields.map(f => {
+            {visibleTenantFields.map(f => {
               const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
               if (f.field_options?.length) {
                 return (
                   <div key={f.field_key}>
-                    <FieldLabel>{f.field_label}</FieldLabel>
+                    <FieldLabel>{getContactCardFieldLabel(f)}</FieldLabel>
                     <Select value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)}>
                       <option value="">—</option>
                       {f.field_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -471,7 +476,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
               }
               return (
                 <div key={f.field_key}>
-                  <FieldLabel>{f.field_label}</FieldLabel>
+                <FieldLabel>{getContactCardFieldLabel(f)}</FieldLabel>
                   <input type="text" value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} placeholder={f.field_label} style={inputStyle} />
                 </div>
               )
@@ -514,7 +519,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         compact={isMobile}
         badge={
           <>
-            <Badge variant={statusVariant}>{statusLabel}</Badge>
+            <StatusBadge status={contact.opted_out ? 'spam' : contact.client_status} label={contact.opted_out ? 'Opted out' : statusLabel} size="md" />
             {isInstructor && <Badge variant="info">Instructor</Badge>}
             {isInstructor && !isInstructorActive && <Badge variant="inactive">Sunset</Badge>}
             {computedIsMinor && <Badge variant="minor">Minor</Badge>}
@@ -606,7 +611,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {/* Account holders (conditional — no card space / divider when absent) */}
           {showAccountHolders ? (
             <DenseSectionPanel
-              title="Account holders"
+              title="Account managers"
               style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
               contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
             >
@@ -655,7 +660,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                         )}
                       </div>
                       <div style={{ fontSize: '12px', color: colors.textMuted }}>
-                        {ah.is_primary ? 'Primary account holder' : 'Additional account holder'}
+                        {ah.is_primary ? 'Account manager' : 'Additional account manager'}
                       </div>
                       {(ah.phone || ah.email) && (
                         <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: isMobile ? '6px' : '12px', minWidth: 0 }}>
@@ -684,13 +689,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </DenseSectionPanel>
           ) : null}
 
-          {contact.phone && (
+          {(contact.phone || contact.email) && (
             <DenseSectionPanel title="Contact" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
               <div>
-                <FieldLabel>Phone</FieldLabel>
+                <FieldLabel>Contact</FieldLabel>
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
-                  <FieldValue style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayPhone(contact.phone)}</FieldValue>
-                  <button
+                  <FieldValue style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contact.phone ? displayPhone(contact.phone) : 'No phone'}</FieldValue>
+                  {contact.phone && <button
                     type="button"
                     onClick={() => handleCall(contact.phone)}
                     disabled={calling}
@@ -699,8 +704,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                     style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px', color: colors.textSecondary, background: 'transparent', border: 'none', cursor: calling ? 'wait' : 'pointer', opacity: calling ? 0.55 : 1 }}
                   >
                     <Phone size={15} strokeWidth={1.8} />
-                  </button>
+                  </button>}
                 </div>
+                <FieldValue style={{ minWidth: 0, marginTop: spacing.xs, color: colors.textSecondary, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contact.email || 'No email'}</FieldValue>
               </div>
             </DenseSectionPanel>
           )}

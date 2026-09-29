@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { normalizePhoneNumber } from '@/lib/phone'
+import { requireAccountAdministrator } from '@/lib/request-context'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -190,6 +191,41 @@ export async function GET(request: Request) {
     )
 
     return NextResponse.json(sorted)
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const tenantId = getTenantId(request)
+    const access = await requireAccountAdministrator(request, tenantId)
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
+    const body = await request.json().catch(() => ({})) as { other_phone?: unknown }
+    const normalizedTarget = normalizePhoneNumber(typeof body.other_phone === 'string' ? body.other_phone : null)
+    if (!normalizedTarget) return NextResponse.json({ error: 'A valid conversation phone number is required.' }, { status: 400 })
+
+    const { data: messages, error: lookupError } = await supabaseAdmin
+      .from('messages')
+      .select('id, direction, to_phone, from_phone')
+      .eq('tenant_id', tenantId)
+    if (lookupError) throw lookupError
+
+    const messageIds = (messages || [])
+      .filter((message) => normalizePhoneNumber(message.direction === 'outbound' ? message.to_phone : message.from_phone) === normalizedTarget)
+      .map((message) => message.id)
+
+    if (messageIds.length === 0) return NextResponse.json({ deleted: 0 })
+
+    const { error: deleteError } = await supabaseAdmin
+      .from('messages')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .in('id', messageIds)
+    if (deleteError) throw deleteError
+
+    return NextResponse.json({ deleted: messageIds.length })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

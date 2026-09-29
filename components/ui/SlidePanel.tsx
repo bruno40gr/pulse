@@ -77,7 +77,10 @@ export function SlidePanel({
   return (
     <>
       <div
-        onClick={onClose}
+        role="presentation"
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) onClose()
+        }}
         style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${overlayOpacity})`, zIndex: 40, animation: 'fadeIn 0.2s ease-out' }}
       />
       <div style={{

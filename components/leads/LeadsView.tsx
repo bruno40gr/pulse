@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy } from 'lucide-react'
-import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea } from '@/components/ui'
+import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { getFollowUpTone } from '@/lib/follow-up'
 import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import ComposePanel from '@/components/campaigns/ComposePanel'
@@ -298,17 +299,6 @@ function getLeadFollowUpNote(lead: { follow_up_note?: string | null; payload?: R
   return typeof fromPayload === 'string' ? fromPayload : ''
 }
 
-function getFollowUpTone(value: string | null | undefined): { color: string; background: string; border: string } {
-  if (!value) return { color: colors.textSecondary, background: colors.surfaceMuted, border: colors.border }
-  const due = new Date(value).getTime()
-  if (Number.isNaN(due)) return { color: colors.textSecondary, background: colors.surfaceMuted, border: colors.border }
-  const now = Date.now()
-  const dayMs = 86400000
-  if (due < now) return { color: '#991B1B', background: '#FEF2F2', border: '#FECACA' }
-  if (due - now <= 7 * dayMs) return { color: '#92400E', background: '#FEF7E7', border: '#FDE68A' }
-  return { color: '#1E3A5F', background: '#F2F7FF', border: '#B9D0EA' }
-}
-
 function getQuickFollowUpDates(today: Date = new Date()): Array<{ label: string; date: Date }> {
   const addDays = (count: number) => {
     const date = new Date(today)
@@ -337,7 +327,7 @@ function getQuickFollowUpDates(today: Date = new Date()): Array<{ label: string;
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return '—'
-  if (value === 'processing') return 'Processing enrollment'
+  if (value === 'processing') return 'Enrolling'
   return value
     .replace(/[_-]/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase())
@@ -381,6 +371,10 @@ function formatActivity(eventType: string, eventLabel: string | null) {
   return eventLabel || formatLabel(eventType)
 }
 
+function isUrgentFollowUp(tone: ReturnType<typeof getFollowUpTone>) {
+  return tone.urgency === 'today' || tone.urgency === 'overdue'
+}
+
 function getActivityActor(event: { payload?: Record<string, unknown> | null }) {
   const actor = event.payload?.actor
   return actor && typeof actor === 'object' && typeof (actor as Record<string, unknown>).displayName === 'string'
@@ -395,22 +389,6 @@ function getStatusOptionsForTab(tab: LeadTabKey) {
 
 function getDetailStatusOptions(intakeType: string | null | undefined) {
   return intakeType === 'job_application' ? JOB_APPLICATION_DETAIL_STATUS_OPTIONS : LEAD_DETAIL_STATUS_OPTIONS
-}
-
-function getStatusBadgeVariant(status: string) {
-  if (status === 'new' || status === 'contacted') return 'warning'
-  if (status === 'booked') return 'info'
-  if (status === 'processing' || status === 'hired' || status === 'won') return 'success'
-  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return 'error'
-  return 'neutral'
-}
-
-function getStatusBadgeStyle(status: string): React.CSSProperties | undefined {
-  if (status === 'new' || status === 'contacted') return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }
-  if (status === 'booked') return { background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #2563EB' }
-  if (status === 'processing' || status === 'hired' || status === 'won') return { background: '#F0FDF4', color: '#15803D', border: `1px solid ${colors.success}` }
-  if (status === 'ghosted' || status === 'ghosted_us' || status === 'lost' || status === 'rejected' || status === 'withdrew' || status === 'spam') return { background: '#FEF2F2', color: '#B91C1C', border: `1px solid ${colors.error}` }
-  return undefined
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -616,7 +594,7 @@ function getLeadSignal(lead: LeadRecord) {
   }
 
   if (lead.status === 'processing') {
-    return { emoji: '⏳', label: 'Processing enrollment and due for follow-up' }
+    return { emoji: '⏳', label: 'Enrolling and due for follow-up' }
   }
 
   if (lead.status === 'contacted') {
@@ -1323,7 +1301,7 @@ export default function LeadsView() {
             </Select>
           ) : (
             <>
-              <Badge size="sm" variant={getStatusBadgeVariant(selectedLead.status)} style={leadStatusBadgeStyle}>{formatLabel(statusValue)}</Badge>
+              <StatusBadge status={selectedLead.status} label={formatLabel(statusValue)} style={leadStatusBadgeStyle} />
               <button type="button" onClick={() => setShowStatusEditor(true)} style={leadStatusActionStyle}>Update</button>
             </>
           )}
@@ -1705,13 +1683,16 @@ export default function LeadsView() {
                   </div>
 
                   <div style={leadCardBadgesStyle}>
-                    <Badge size="sm" variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>{formatLabel(lead.status)}</Badge>
+                    <StatusBadge status={lead.status} label={formatLabel(lead.status)} />
                     {activeTab === 'winback' && <Badge size="sm" variant="info">{formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact'))}</Badge>}
-                    {followUp && (
-                      <span style={{ ...leadCardFollowUpStyle, color: getFollowUpTone(followUp).color, background: getFollowUpTone(followUp).background, border: `1px solid ${getFollowUpTone(followUp).border}` }}>
-                        ↻ {formatFollowUpDate(followUp)}
-                      </span>
-                    )}
+                    {followUp && (() => {
+                      const followUpTone = getFollowUpTone(followUp)
+                      return (
+                        <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
+                          ↻ {formatFollowUpDate(followUp)}
+                        </span>
+                      )
+                    })()}
                   </div>
 
                   {lead.contact?.email && (
@@ -1746,8 +1727,7 @@ export default function LeadsView() {
                   </div>
                   <div>Status</div>
                   <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
-                  <div>Email</div>
-                  <div>Phone</div>
+                  <div>Contact</div>
                   <button type="button" onClick={() => toggleSort('followUp')} aria-label={sortLabel('followUp', 'Follow-up')} style={sortableHeaderButtonStyle}>Follow-up <span aria-hidden="true">{sortKey === 'followUp' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <button type="button" onClick={() => toggleSort('lastActivity')} aria-label={sortLabel('lastActivity', 'Last activity')} style={sortableHeaderButtonStyle}>Last activity <span aria-hidden="true">{sortKey === 'lastActivity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
                   <button type="button" onClick={() => toggleSort('program')} aria-label={sortLabel('program', activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details')} style={sortableHeaderButtonStyle}>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'} <span aria-hidden="true">{sortKey === 'program' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
@@ -1766,7 +1746,6 @@ export default function LeadsView() {
                     onClick={() => openLead(lead.id, lead.intake_type)}
                     style={{
                       ...tableRowStyle,
-                      fontWeight: isBold ? typography.weightSemibold : typography.weightNormal,
                       background: isSelected
                         ? '#F5F8FF'
                         : selectedLeadId === lead.id
@@ -1786,22 +1765,29 @@ export default function LeadsView() {
                       />
                     </div>
                     <div style={tableStatusCellStyle}>
-                      <Badge size="sm" variant={getStatusBadgeVariant(lead.status)} style={getStatusBadgeStyle(lead.status)}>
-                        {activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
-                      </Badge>
+                      <StatusBadge
+                        status={lead.status}
+                        label={activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
+                      />
                     </div>
                     <div style={nameCellStyle}>
                       <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
                     </div>
                     <div style={tableCellStyle}>
-                      <div style={emailCellTextStyle} title={lead.contact?.email || 'No email'}>{lead.contact?.email || 'No email'}</div>
-                    </div>
-                    <div style={tableCellStyle}>
                       <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
+                      <div style={subtleTextStyle}>{lead.contact?.email || 'No email'}</div>
                     </div>
                     <div style={tableCellStyle}>
                       {getLeadFollowUpAt(lead)
-                        ? <div style={{ ...cellTextStyle, color: getFollowUpTone(getLeadFollowUpAt(lead)).color, fontWeight: typography.weightMedium }}>{formatFollowUpDate(getLeadFollowUpAt(lead))}</div>
+                        ? (() => {
+                            const followUp = getLeadFollowUpAt(lead)
+                            const followUpTone = getFollowUpTone(followUp)
+                            return (
+                              <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
+                                {formatFollowUpDate(followUp)}
+                              </span>
+                            )
+                          })()
                         : <div style={cellTextStyle}>—</div>}
                     </div>
                     <div style={tableCellStyle}>
@@ -2173,7 +2159,7 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '36px minmax(76px, 0.7fr) minmax(120px, 1.05fr) minmax(140px, 1.1fr) minmax(110px, 0.8fr) minmax(110px, 0.75fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
+const tableColumns = '36px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(120px, 0.85fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
 
 const tableWrapStyle: React.CSSProperties = {
   width: '100%',
@@ -2194,45 +2180,44 @@ const signalCellStyle: React.CSSProperties = {
 }
 
 const nameTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeMd,
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightBold,
   color: colors.text,
   fontFamily: typography.fontSans,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const subtleTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeSm,
+  fontSize: typography.sizeBase,
   color: colors.textSecondary,
   fontFamily: typography.fontSans,
   marginTop: spacing.xs,
   lineHeight: 1.45,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const cellTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeSm,
+  fontSize: typography.sizeBase,
   color: colors.text,
   fontFamily: typography.fontSans,
   lineHeight: 1.45,
   minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-
-const emailCellTextStyle: React.CSSProperties = {
-  ...cellTextStyle,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const tableCellStyle: React.CSSProperties = {
   minWidth: 0,
-  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const tableStatusCellStyle: React.CSSProperties = {
   ...tableCellStyle,
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const sortableHeaderButtonStyle: React.CSSProperties = {
@@ -2460,8 +2445,8 @@ const leadCardHeaderStyle: React.CSSProperties = {
 }
 
 const leadCardNameTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeLg,
-  fontWeight: typography.weightSemibold,
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightBold,
   color: colors.text,
   fontFamily: typography.fontSans,
 }
@@ -2483,22 +2468,20 @@ const leadCardLineStyle: React.CSSProperties = {
 }
 
 const leadCardFollowUpStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '3px 10px',
-  borderRadius: radius.full,
-  fontSize: typography.sizeSm,
-  fontWeight: typography.weightMedium,
+  display: 'inline',
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightNormal,
   fontFamily: typography.fontSans,
-  whiteSpace: 'nowrap',
+  lineHeight: 1.45,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 const leadCardMetaStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: spacing.xs,
-  fontSize: typography.sizeSm,
+  fontSize: typography.sizeBase,
   color: colors.textMuted,
   fontFamily: typography.fontSans,
   flexWrap: 'wrap',

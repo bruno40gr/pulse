@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ComponentProps } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { Avatar, Badge, Button, PageHeader, SlidePanel, SlidePanelHeader } from '@/components/ui'
+import { Avatar, Button, PageHeader, SlidePanel, SlidePanelHeader, StatusBadge } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
@@ -17,6 +17,14 @@ interface StaffMember {
   is_active: boolean
 }
 
+type ContactPanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
+type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantFields'][number]
+type ComposeContact = (ContactPanelContact & { bulk?: false }) | {
+  bulk: true
+  recipientIds: string[]
+  recipientPreview: Array<{ id: string; first_name: string; last_name: string }>
+}
+
 const thStyle: React.CSSProperties = {
   padding: '12px 16px',
   textAlign: 'left',
@@ -29,19 +37,23 @@ const thStyle: React.CSSProperties = {
 
 const tdStyle: React.CSSProperties = {
   padding: '12px 16px',
-  fontSize: '14px',
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightNormal,
+  lineHeight: 1.45,
   color: colors.text,
   borderBottom: `1px solid ${colors.borderLight}`,
   fontFamily: typography.fontSans,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 }
 
 export default function StaffPage() {
   const tenantId = getActiveTenantId()
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedContact, setSelectedContact] = useState<any>(null)
-  const [tenantFields, setTenantFields] = useState<any[]>([])
-  const [composeContact, setComposeContact] = useState<any>(null)
+  const [selectedContact, setSelectedContact] = useState<ContactPanelContact | null>(null)
+  const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
+  const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
 
   const fetchStaff = () => fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json())
@@ -108,7 +120,7 @@ export default function StaffPage() {
   }
 
   return (
-    <div style={{ padding: spacing['3xl'], maxWidth: 1100 }}>
+    <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <PageHeader
         title="Staff"
         subtitle="Instructors and team members. Click a row to edit contact info, add a phone number, or sunset/offboard."
@@ -132,15 +144,14 @@ export default function StaffPage() {
         <p style={{ color: colors.textMuted, fontFamily: typography.fontSans }}>No staff found.</p>
       ) : (
         <div style={{ background: colors.surface, borderRadius: radius.lg, border: `1px solid ${colors.borderLight}`, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: '48px' }}>
                   <input type="checkbox" checked={selectableStaff.length > 0 && selectedStaffIds.size === selectableStaff.length} onChange={toggleSelectAll} aria-label="Select all staff" style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
                 </th>
                 <th style={thStyle}>Name</th>
-                <th style={thStyle}>Phone</th>
-                <th style={thStyle}>Email</th>
+                <th style={thStyle}>Contact</th>
                 <th style={thStyle}>Status</th>
               </tr>
             </thead>
@@ -159,15 +170,17 @@ export default function StaffPage() {
                   <td style={tdStyle}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
                       <Avatar firstName={s.first_name || ''} lastName={s.last_name || ''} size={32} />
-                      <span style={{ fontWeight: 600 }}>{fullName(s)}</span>
+                      <span style={{ fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(s)}</span>
                     </span>
                   </td>
-                  <td style={tdStyle}>{displayPhone(s.phone)}</td>
-                  <td style={tdStyle}>{s.email || '—'}</td>
                   <td style={tdStyle}>
-                    <Badge size="sm" variant={s.is_active ? 'success' : 'inactive'}>
-                      {s.is_active ? 'Active' : 'Sunset'}
-                    </Badge>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
+                      <span>{s.phone ? displayPhone(s.phone) : 'No phone'}</span>
+                      <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{s.email || 'No email'}</span>
+                    </div>
+                  </td>
+                  <td style={tdStyle}>
+                    <StatusBadge status={s.is_active ? 'active' : 'sunset'} label={s.is_active ? 'Active' : 'Sunset'} />
                   </td>
                 </tr>
               ))}

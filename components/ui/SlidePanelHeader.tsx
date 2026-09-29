@@ -77,7 +77,11 @@ export function SlidePanelHeader({
             {actions}
             <button
               type="button"
-              onClick={onClose}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onClose()
+              }}
               aria-label="Close"
               style={{ background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', color: colors.textSecondary, lineHeight: 1, padding: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
@@ -118,6 +122,7 @@ export function SlidePanelHeader({
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0, flex: 1 }}>
         {onBack && (
           <button
+            type="button"
             onClick={onBack}
             style={{
               background: 'transparent',
@@ -194,7 +199,12 @@ export function SlidePanelHeader({
         )}
         {actions}
         <button
-          onClick={onClose}
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onClose()
+          }}
           aria-label="Close"
           style={{
             background: 'transparent',

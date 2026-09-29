@@ -8,7 +8,7 @@ import StaffSlidePanel from '@/components/contacts/StaffSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel } from '@/components/ui'
+import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, StatusBadge } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
@@ -48,6 +48,22 @@ interface TenantField {
 
 interface SyncStatusResponse {
   last_synced_at?: string | null
+}
+
+function normalizeFieldName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function isHiddenContactTableField(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key.includes('pronoun') || label.includes('pronoun') || label === 'gender' || key === 'account manager name' || label === 'account manager name'
+}
+
+function getContactTableFieldLabel(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key === 'primary account manager' || label === 'primary account manager' ? 'Account manager' : field.field_label
 }
 
 const PLACEHOLDER_MESSAGES = [
@@ -128,6 +144,7 @@ export default function ContactsPage() {
 
   const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
   const visibleContacts = displayed.slice(0, visibleCount)
+  const contactTableFields = tenantFields.filter(field => !isHiddenContactTableField(field)).slice(0, 3)
   const filterSummary = filterExplanation
     ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
     : ''
@@ -696,14 +713,14 @@ export default function ContactsPage() {
       <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
         {loading ? (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 1fr repeat(3, 1fr) 100px', gap: 0, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
-              {Array.from({ length: 8 }).map((_, idx) => (
+            <div style={{ display: 'grid', gridTemplateColumns: `60px 1.4fr 1.2fr 100px 1fr repeat(${contactTableFields.length}, 1fr)`, gap: 0, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
+              {Array.from({ length: 5 + contactTableFields.length }).map((_, idx) => (
                 <div key={idx} style={{ height: '42px', margin: '10px 16px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
               ))}
             </div>
             {Array.from({ length: 8 }).map((_, rowIdx) => (
-              <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 1fr repeat(3, 1fr) 100px', alignItems: 'center', borderBottom: rowIdx === 7 ? 'none' : `1px solid ${colors.borderLight}` }}>
-                {Array.from({ length: 8 }).map((__, cellIdx) => (
+              <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: `60px 1.4fr 1.2fr 100px 1fr repeat(${contactTableFields.length}, 1fr)`, alignItems: 'center', borderBottom: rowIdx === 7 ? 'none' : `1px solid ${colors.borderLight}` }}>
+                {Array.from({ length: 5 + contactTableFields.length }).map((__, cellIdx) => (
                   <div key={cellIdx} style={{ margin: '14px 16px', height: cellIdx === 1 ? '24px' : '14px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
                 ))}
               </div>
@@ -712,20 +729,19 @@ export default function ContactsPage() {
         ) : displayed.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>No contacts found.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: typography.sizeBase, fontFamily: typography.fontSans }}>
             <thead>
               <tr style={{ background: colors.surfaceMuted, color: colors.textSecondary }}>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>
                   <input type="checkbox" checked={selectedIds.size === displayed.length && displayed.length > 0} onChange={toggleSelectAll} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
                 </th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Name</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, minWidth: '172px' }}>Phone</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Email</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Instructor</th>
-                {tenantFields.slice(0, 3).map(f => (
-                  <th key={f.field_key} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>{f.field_label}</th>
-                ))}
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Contact</th>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Status</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Instructor</th>
+                {contactTableFields.map(f => (
+                  <th key={f.field_key} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>{getContactTableFieldLabel(f)}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -735,7 +751,7 @@ export default function ContactsPage() {
                   contact={contact}
                   index={index}
                   isSelected={selectedIds.has(contact.id)}
-                  tenantFields={tenantFields}
+                  tenantFields={contactTableFields}
                   tenantId={tenantId}
                   onRowClick={handleRowClick}
                   onNameClick={handleNameClick}
@@ -1009,8 +1025,8 @@ const ContactRow = memo(function ContactRow({
           style={{ width: '18px', height: '18px', cursor: 'pointer' }}
         />
       </td>
-      <td style={{ padding: '10px 16px', fontWeight: 500 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+      <td style={contactCellStyle}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
                       <Avatar
                         firstName={contact.first_name}
                         lastName={contact.last_name}
@@ -1021,7 +1037,7 @@ const ContactRow = memo(function ContactRow({
                       />
           <span
             onClick={(e) => onNameClick(contact, e)}
-            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border, fontWeight: typography.weightBold }}
+            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border, fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}
           >
             {contact.first_name} {contact.last_name}
           </span>
@@ -1029,34 +1045,46 @@ const ContactRow = memo(function ContactRow({
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
       </td>
-                  <td style={{ padding: '10px 16px', fontSize: '12px', minWidth: '172px', whiteSpace: 'nowrap' }}>
+      <td style={contactCellStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
                     {(() => {
                       const phone = contact.phone || contact.account_holder_phone
                       const showIcon = Boolean((contact.custom_fields as Record<string, unknown> | undefined)?.is_minor) || (contact.custom_fields?.message_routing === 'account_holder')
-                      if (!phone) return <span style={{ color: colors.textMuted }}>—</span>
+                       if (!phone) return <span style={{ color: colors.textMuted }}>No phone</span>
                       return (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>
+                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                           <span style={{ overflowWrap: 'anywhere' }}>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>
                           {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
                         </span>
                       )
                     })()}
-                  </td>
-      <td style={{ padding: '10px 16px' }}>{contact.email || '—'}</td>
-      <td style={{ padding: '10px 16px', color: colors.textSecondary }}>{contact.instructor?.name || '—'}</td>
-      {tenantFields.slice(0, 3).map(f => {
+          <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{contact.email || 'No email'}</span>
+        </div>
+      </td>
+      <td style={contactCellStyle}>
+        <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />
+      </td>
+      <td style={{ ...contactCellStyle, color: colors.textSecondary }}>{contact.instructor?.name || '—'}</td>
+      {tenantFields.map(f => {
         const fieldValue = contact.custom_fields?.[f.field_key]
         return (
-          <td key={f.field_key} style={{ padding: '10px 16px', color: colors.textSecondary }}>
+          <td key={f.field_key} style={{ ...contactCellStyle, color: colors.textSecondary }}>
             {typeof fieldValue === 'string' || typeof fieldValue === 'number'
               ? String(fieldValue)
               : '—'}
           </td>
         )
       })}
-      <td style={{ padding: '10px 16px' }}>
-        <Badge size="sm" variant={contact.client_status === 'active' ? 'success' : 'neutral'}>{contact.client_status}</Badge>
-      </td>
     </tr>
   )
 })
+
+const contactCellStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  fontSize: typography.sizeBase,
+  fontWeight: typography.weightNormal,
+  lineHeight: 1.45,
+  minWidth: 0,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+}

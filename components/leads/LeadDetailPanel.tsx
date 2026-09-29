@@ -5,6 +5,7 @@ import { Copy, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, SectionTitle, Select, SlidePanelHeader, Textarea } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
+import { getFollowUpTone } from '@/lib/follow-up'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
@@ -76,8 +77,20 @@ const QUICK_FOLLOW_UPS = [
 ]
 
 function label(value: string) {
-  if (value === 'processing') return 'Processing enrollment'
+  if (value === 'processing') return 'Enrolling'
   return value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+}
+
+function isUrgentFollowUp(tone: ReturnType<typeof getFollowUpTone>) {
+  return tone.urgency === 'today' || tone.urgency === 'overdue'
+}
+
+function getFollowUpCardStyle(tone: ReturnType<typeof getFollowUpTone>): CSSProperties {
+  if (!isUrgentFollowUp(tone)) return {}
+  return {
+    background: tone.background,
+    borderColor: tone.borderColor,
+  }
 }
 
 function dateLabel(value: string) {
@@ -147,21 +160,6 @@ function getActivityTone(event: LeadEvent) {
   return semanticColors.neutral
 }
 
-function followUpTone(value: string | null | undefined) {
-  if (!value) return { background: '#FEFCE8', borderColor: '#EAB308', color: colors.textSecondary, label: '' }
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return { background: '#FEFCE8', borderColor: '#EAB308', color: colors.textSecondary, label: '' }
-
-  const today = new Date()
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
-  const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-  const dayOffset = Math.round((startOfTarget - startOfToday) / (24 * 60 * 60 * 1000))
-  if (dayOffset <= 0) return { background: '#FEFCE8', borderColor: colors.error, color: colors.error, label: dayOffset < 0 ? 'Overdue' : 'Due today' }
-  if (dayOffset === 1) return { background: '#FEFCE8', borderColor: colors.warning, color: colors.warning, label: 'Due tomorrow' }
-  if (dayOffset <= 30) return { background: '#FEFCE8', borderColor: '#EAB308', color: colors.warning, label: '' }
-  return { background: colors.surface, borderColor: colors.border, color: colors.text, label: '' }
-}
-
 function getNumericPayloadValue(payload: Record<string, unknown>, key: string) {
   const value = payload[key]
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -227,7 +225,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
   const opportunity = isLesson ? enrollmentValue * (familyMembers.length + 1) : isService ? serviceValue : null
   const opportunityUnit = isLesson ? '/mo' : isService ? '/session' : ''
-  const urgency = followUpTone(lead.follow_up_at)
+  const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
   const winbackStatus = typeof winback?.status === 'string' ? winback.status : 'to_contact'
@@ -440,7 +438,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
           }}>
             <div style={oneColumnStyle}>
               <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
-              <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
+              <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, ...getFollowUpCardStyle(urgency) }}><div><div style={metricLabelStyle}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color, fontWeight: isUrgentFollowUp(urgency) ? typography.weightBold : typography.weightNormal }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div></div></CompactMetaCard>
             </div>
             <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
             {winback && (
@@ -487,7 +485,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             <div style={columnStyle}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
                 <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
-                <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, background: urgency.background, borderColor: urgency.borderColor }}><div><div style={{ ...metricLabelStyle, color: urgency.color }}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div>{urgency.label && <div style={{ ...metricCaptionStyle, color: urgency.color }}>{urgency.label}</div>}</div></CompactMetaCard>
+                <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, ...getFollowUpCardStyle(urgency) }}><div><div style={metricLabelStyle}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color, fontWeight: isUrgentFollowUp(urgency) ? typography.weightBold : typography.weightNormal }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div></div></CompactMetaCard>
               </div>
               {winback && (
                 <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
