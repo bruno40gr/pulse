@@ -147,7 +147,7 @@ const STATUS_TONE_BY_STATUS: Record<string, StatusTone> = {
 }
 
 function getStatusTone(status: string) {
-  if (status === 'new') return { background: colors.crimson, text: '#FFFFFF', border: colors.crimson }
+  if (status === 'new') return { background: '#FFF0F4', text: colors.crimson, border: colors.crimson }
   if (status === 'contacted') return { background: '#FEF3C7', text: '#92400E', border: '#D97706' }
   if (status === 'booked') return { background: '#EFF6FF', text: '#1D4ED8', border: '#2563EB' }
   if (status === 'processing' || status === 'won') return { background: '#F0FDF4', text: '#15803D', border: colors.success }
@@ -234,6 +234,7 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
 
 export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onClose, calling, isMobile, draft, onDraftChange }: LeadDetailPanelProps) {
   const [contactEditing, setContactEditing] = useState(false)
+  const [serviceEditing, setServiceEditing] = useState(false)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
   const [stageSelection, setStageSelection] = useState('')
@@ -276,6 +277,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
     setFollowUpDate(draft.followUpDate ?? (lead.follow_up_at ? lead.follow_up_at.slice(0, 10) : ''))
     setFollowUpNote(draft.followUpNote ?? lead.follow_up_note ?? '')
     setContactEditing(false)
+    setServiceEditing(false)
     setLostOpen(false)
     setLostReason('')
     setStageSelection('')
@@ -297,27 +299,42 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
   }
 
   const saveContact = async () => {
-    const serviceTypes = serviceEditor.types.map(normalizeServiceType).filter(Boolean)
-    const opportunityValue = Number(serviceEditor.opportunityValue)
     const saved = await onPatch({
       full_name: contact.fullName,
       phone: contact.phone,
       email: contact.email,
-      ...(isService ? { service_label: serviceTypes.join(', ') } : {}),
       payload: {
         account_holder_name: lesson.accountHolderName || null,
         instrument: lesson.instrument || null,
         experience: lesson.experience || null,
         preferred_days: lesson.days.split(',').map((item) => item.trim()).filter(Boolean),
         preferred_times: lesson.times.split(',').map((item) => item.trim()).filter(Boolean),
-        ...(isService ? {
-          service_types: serviceTypes,
-          service_type: serviceTypes[0]?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null,
-          session_value: serviceEditor.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
-        } : {}),
       },
     })
     if (saved) setContactEditing(false)
+  }
+
+  const resetServiceEditor = () => {
+    setServiceEditor({
+      types: getServiceTypes(lead),
+      newType: '',
+      opportunityValue: getNumericPayloadValue(lead.payload, 'session_value')?.toString() || '',
+    })
+  }
+
+  const saveServiceDetails = async () => {
+    const editorWithPendingType = appendServiceType(serviceEditor)
+    const serviceTypes = editorWithPendingType.types.map(normalizeServiceType).filter(Boolean)
+    const opportunityValue = Number(editorWithPendingType.opportunityValue)
+    const saved = await onPatch({
+      service_label: serviceTypes.join(', '),
+      payload: {
+        service_types: serviceTypes,
+        service_type: serviceTypes[0]?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null,
+        session_value: editorWithPendingType.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
+      },
+    })
+    if (saved) setServiceEditing(false)
   }
 
   const updateFamilyMember = (index: number, patch: Partial<FamilyMember>) => {
@@ -345,7 +362,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
       value={stageSelection}
       fullWidth={isMobile}
       disabled={saving}
-      style={isMobile ? { minHeight: '36px', width: '100%' } : statusStageSelectStyle}
+      style={{
+        ...(isMobile ? { minHeight: '36px', width: '100%' } : statusStageSelectStyle),
+        ...(lead.status === 'new' ? newStatusSelectStyle : {}),
+      }}
       onChange={(event) => {
         const stage = event.target.value
         setStageSelection('')
@@ -435,42 +455,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {isLesson && <Select label="Experience" value={lesson.experience} onChange={(event) => setLesson({ ...lesson, experience: event.target.value })}><option value="">Not provided</option>{EXPERIENCES.map((item) => <option key={item} value={item}>{item}</option>)}</Select>}
             {isLesson && <Input label="Preferred days" value={lesson.days} onChange={(event) => setLesson({ ...lesson, days: event.target.value })} />}
             {isLesson && <Input label="Preferred times" value={lesson.times} onChange={(event) => setLesson({ ...lesson, times: event.target.value })} />}
-            {isService && (
-              <div style={{ ...serviceEditorStyle, gridColumn: isMobile ? undefined : '1 / -1' }}>
-                <div style={fieldLabelStyle}>Service types</div>
-                {serviceEditor.types.length === 0 && <div style={emptyFamilyMembersStyle}>No service types added.</div>}
-                {serviceEditor.types.map((serviceType, index) => (
-                  <div key={`${serviceType}-${index}`} style={serviceTypeRowStyle}>
-                    <Input
-                      aria-label={`Service type ${index + 1}`}
-                      value={serviceType}
-                      onChange={(event) => setServiceEditor((current) => ({
-                        ...current,
-                        types: current.types.map((value, typeIndex) => typeIndex === index ? event.target.value : value),
-                      }))}
-                    />
-                    <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setServiceEditor((current) => ({ ...current, types: current.types.filter((_, typeIndex) => typeIndex !== index) }))}>Remove</Button>
-                  </div>
-                ))}
-                <div style={serviceTypeRowStyle}>
-                  <Input
-                    aria-label="New service type"
-                    placeholder="Add another service type"
-                    value={serviceEditor.newType}
-                    onChange={(event) => setServiceEditor((current) => ({ ...current, newType: event.target.value }))}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') return
-                      event.preventDefault()
-                      setServiceEditor(appendServiceType)
-                    }}
-                  />
-                  <Button type="button" variant="secondary" size="sm" disabled={saving || !serviceEditor.newType.trim()} onClick={() => {
-                    setServiceEditor(appendServiceType)
-                  }}>Add service</Button>
-                </div>
-              </div>
-            )}
-            {isService && <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />}
           </div>
           <div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !contact.fullName.trim()} onClick={() => void saveContact()}>{saving ? 'Saving…' : 'Save lead'}</Button></div>
         </div>
@@ -532,8 +516,51 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onCl
             {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
               <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
             </DenseSectionPanel>}
-            {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
-              <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
+            {isService && <DenseSectionPanel
+              title={<SectionTitle>Service details</SectionTitle>}
+              actions={!serviceEditing ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setServiceEditing(true)}>Edit</Button> : undefined}
+              style={lessonSectionStyle}
+            >
+              {serviceEditing ? (
+                <div style={serviceEditorStyle}>
+                  <div style={fieldLabelStyle}>Service types</div>
+                  {serviceEditor.types.length === 0 && <div style={emptyFamilyMembersStyle}>No service types added.</div>}
+                  {serviceEditor.types.map((serviceType, index) => (
+                    <div key={`${serviceType}-${index}`} style={serviceTypeRowStyle}>
+                      <Input
+                        aria-label={`Service type ${index + 1}`}
+                        value={serviceType}
+                        onChange={(event) => setServiceEditor((current) => ({
+                          ...current,
+                          types: current.types.map((value, typeIndex) => typeIndex === index ? event.target.value : value),
+                        }))}
+                      />
+                      <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setServiceEditor((current) => ({ ...current, types: current.types.filter((_, typeIndex) => typeIndex !== index) }))}>Remove</Button>
+                    </div>
+                  ))}
+                  <div style={serviceTypeRowStyle}>
+                    <Input
+                      aria-label="New service type"
+                      placeholder="Add another service type"
+                      value={serviceEditor.newType}
+                      onChange={(event) => setServiceEditor((current) => ({ ...current, newType: event.target.value }))}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return
+                        event.preventDefault()
+                        setServiceEditor(appendServiceType)
+                      }}
+                    />
+                    <Button type="button" variant="secondary" size="sm" disabled={saving || !serviceEditor.newType.trim()} onClick={() => setServiceEditor(appendServiceType)}>Add service</Button>
+                  </div>
+                  <Input label="Opportunity value" type="number" min="0" step="1" inputMode="decimal" value={serviceEditor.opportunityValue} onChange={(event) => setServiceEditor((current) => ({ ...current, opportunityValue: event.target.value }))} hint="Expected value for this service opportunity." />
+                  <div style={actionRowStyle}>
+                    <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => { resetServiceEditor(); setServiceEditing(false) }}>Cancel</Button>
+                    <Button type="button" size="sm" disabled={saving} onClick={() => void saveServiceDetails()}>{saving ? 'Saving…' : 'Save service details'}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
+              )}
             </DenseSectionPanel>}
             {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
               <div style={familyMembersStyle}>
@@ -663,6 +690,7 @@ const statusStageSelectStyle: CSSProperties = {
   colorScheme: 'light',
   cursor: 'pointer',
 }
+const newStatusSelectStyle: CSSProperties = { background: '#FFF0F4', color: colors.crimson, border: `1px solid ${colors.crimson}` }
 const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }

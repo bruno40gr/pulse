@@ -18,7 +18,10 @@ function getStatusStyle(status: string): CSSProperties | undefined {
   const normalized = status.toLowerCase()
 
   if (normalized === 'active' || normalized === 'member' || normalized === 'booked') return blueStyle
-  if (normalized === 'new' || normalized === 'contacted' || normalized === 'pending') {
+  if (normalized === 'new') {
+    return { background: '#FFF0F4', color: '#FF0044', border: '1px solid #FF0044' }
+  }
+  if (normalized === 'contacted' || normalized === 'pending') {
     return { background: '#FEF3C7', color: '#92400E', border: '1px solid #D97706' }
   }
   if (normalized === 'processing' || normalized === 'hired' || normalized === 'won') {

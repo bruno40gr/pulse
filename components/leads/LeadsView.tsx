@@ -1747,6 +1747,7 @@ export default function LeadsView() {
               {sortedLeads.map((lead) => {
                 const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                 const isSelected = selectedIds.has(lead.id)
+                const signal = getLeadSignal(lead)
 
                 return (
                   <DataGridRow
@@ -1775,6 +1776,7 @@ export default function LeadsView() {
                       />
                     </div>
                     <div style={tableStatusCellStyle}>
+                      <span style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</span>
                       <StatusBadge
                         status={lead.status}
                         label={activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
@@ -2226,6 +2228,10 @@ const tableCellStyle: React.CSSProperties = {
 
 const tableStatusCellStyle: React.CSSProperties = {
   ...tableCellStyle,
+  display: 'flex',
+  alignItems: 'center',
+  gap: spacing.xs,
+  flexWrap: 'wrap',
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
 }
