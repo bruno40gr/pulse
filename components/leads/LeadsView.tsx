@@ -600,6 +600,9 @@ function getLeadSignal(lead: LeadRecord) {
   const nowMs = Date.now()
   const dayMs = 24 * 60 * 60 * 1000
   const ageMs = nowMs - createdAtMs
+  const isRecentlyCreated = Number.isFinite(createdAtMs) && ageMs >= 0 && ageMs <= dayMs
+  const status = lead.status.trim().toLowerCase()
+  const temperature = lead.temperature.trim().toLowerCase()
   const contactLagMs = Math.max(0, updatedAtMs - createdAtMs)
   const sinceLastUpdateMs = Math.max(0, nowMs - updatedAtMs)
   const firstFollowUpBusinessDays = getBusinessDaysBetween(createdAt, updatedAt)
@@ -614,19 +617,19 @@ function getLeadSignal(lead: LeadRecord) {
     !(lastStatusChange.previous_status === 'new' && lastStatusChange.next_status === 'contacted'),
   )
 
-  if (lead.status === 'won') {
+  if (status === 'won') {
     return { emoji: '🏆', label: 'Won' }
   }
 
-  if (lead.status === 'lost') {
+  if (status === 'lost') {
     return { emoji: '💀', label: 'Lost' }
   }
 
-  if (lead.status === 'ghosted_us' || lead.status === 'ghosted') {
+  if (status === 'ghosted_us' || status === 'ghosted') {
     return { emoji: '👻', label: 'Ghosted us' }
   }
 
-  if (lead.status === 'spam') {
+  if (status === 'spam') {
     return { emoji: '🗑️', label: 'Spam' }
   }
 
@@ -638,16 +641,20 @@ function getLeadSignal(lead: LeadRecord) {
     return { emoji: '🔥🔥', label: 'Lead replied' }
   }
 
-  if (lead.status === 'processing') {
+  if (status === 'processing') {
     return { emoji: '⏳', label: 'Enrolling and due for follow-up' }
   }
 
-  if (lead.status === 'contacted') {
+  if (isRecentlyCreated) {
+    return { emoji: '🔥🔥', label: 'New and needs fast follow-up' }
+  }
+
+  if (status === 'contacted') {
     return { emoji: '🧊🧊', label: 'Outreach attempted; awaiting engagement' }
   }
 
-  if (lead.status === 'new') {
-    if (lead.temperature === 'hot' || ageMs <= dayMs) {
+  if (status === 'new') {
+    if (temperature === 'hot') {
       return { emoji: '🔥🔥', label: 'New and needs fast follow-up' }
     }
     if (ageMs <= 3 * dayMs) {
@@ -1811,7 +1818,7 @@ export default function LeadsView() {
 
   return (
     <>
-      <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%' }}>
+      <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <PageHeader
           title="Leads"
           subtitle={subtitle}
@@ -1925,6 +1932,8 @@ export default function LeadsView() {
             />
           )}
           minDesktopWidth={1180}
+          mobileMode="scroll"
+          stickyMobileColumnId="name"
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead) => ({
             background: selectedIds.has(lead.id)

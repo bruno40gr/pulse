@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const closeMenu = () => setMenuOpen(false)
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: typography.fontSans }}>
+    <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
       {!isMobile && (
         <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh' }}>
@@ -90,7 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main content */}
-      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '56px' : 0, flex: 1, background: colors.background, color: colors.text }}>
+      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '56px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
         <DemoBanner />
         {children}
       </main>

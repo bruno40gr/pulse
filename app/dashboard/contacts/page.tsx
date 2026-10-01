@@ -543,7 +543,7 @@ export default function ContactsPage() {
   ]
 
   return (
-    <div style={{ padding: spacing['3xl'] }}>
+    <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Header */}
       <PageHeader
         title="Contacts"
@@ -889,6 +889,8 @@ export default function ContactsPage() {
           skeletonRows={8}
           emptyContent="No contacts found."
           minDesktopWidth={1100}
+          mobileMode="scroll"
+          stickyMobileColumnId="name"
           onRowClick={(contact, index, event) => handleRowClick(contact, index, event)}
           getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
           getMobileCardStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}

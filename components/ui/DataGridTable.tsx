@@ -63,6 +63,8 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   emptyContent: ReactNode
   minDesktopWidth?: number | string
   mobileBreakpoint?: number
+  mobileMode?: 'cards' | 'scroll'
+  stickyMobileColumnId?: string
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
   getMobileCardStyle?: (row: Row, index: number) => CSSProperties | undefined
@@ -131,6 +133,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   emptyContent,
   minDesktopWidth = 960,
   mobileBreakpoint = 960,
+  mobileMode = 'cards',
+  stickyMobileColumnId,
   onRowClick,
   getRowStyle,
   getMobileCardStyle,
@@ -138,6 +142,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   style,
 }: ResponsiveDataTableProps<Row, SortKey>) {
   const isMobile = useIsMobile(mobileBreakpoint)
+  const showMobileCards = isMobile && mobileMode === 'cards'
+  const showScrollableMobileTable = isMobile && mobileMode === 'scroll'
   const sortableColumns = columns.filter((column) => column.sortable && column.sortKey)
   const availableMobileSortOptions = mobileSortOptions || sortableColumns.map((column) => ({
     key: column.sortKey as SortKey,
@@ -153,7 +159,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
     if (next) onSortChange?.(next)
   }
 
-  if (isMobile) {
+  if (showMobileCards) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, width: '100%', ...style }}>
         {(availableMobileSortOptions.length > 0 || selection) && (
@@ -273,11 +279,42 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   }
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto', ...style }}>
-      <div role="table" aria-label={ariaLabel} style={{ ...desktopTableStyle, minWidth: desktopMinWidth }}>
-        <div role="row" style={{ ...desktopHeaderStyle, gridTemplateColumns: columnTemplate }}>
+    <div
+      style={{
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'auto',
+        ...(showScrollableMobileTable ? mobileTableScrollerStyle : undefined),
+        ...style,
+      }}
+    >
+      <div
+        role="table"
+        aria-label={ariaLabel}
+        style={{
+          ...desktopTableStyle,
+          minWidth: desktopMinWidth,
+          ...(showScrollableMobileTable ? scrollableMobileTableStyle : undefined),
+        }}
+      >
+        <div
+          role="row"
+          style={{
+            ...desktopHeaderStyle,
+            gridTemplateColumns: columnTemplate,
+            ...(showScrollableMobileTable ? stickyHeaderRowStyle : undefined),
+          }}
+        >
           {selection && (
-            <div role="columnheader" style={desktopSelectionCellStyle}>
+            <div
+              role="columnheader"
+              style={{
+                ...desktopSelectionCellStyle,
+                ...(showScrollableMobileTable ? stickyHeaderSelectionCellStyle : undefined),
+              }}
+            >
               <IndeterminateCheckbox
                 checked={selection.allSelected}
                 indeterminate={someSelected}
@@ -294,7 +331,13 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 key={column.id}
                 role="columnheader"
                 aria-sort={column.sortable ? (active ? (sort?.direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
-                style={{ ...desktopCellStyle, justifyContent: alignToJustify(column.align) }}
+                style={{
+                  ...desktopCellStyle,
+                  justifyContent: alignToJustify(column.align),
+                  ...(showScrollableMobileTable && column.id === stickyMobileColumnId
+                    ? getStickyHeaderColumnStyle(Boolean(selection))
+                    : undefined),
+                }}
               >
                 {column.sortable ? (
                   <button
@@ -315,8 +358,21 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
         {loading ? (
           Array.from({ length: skeletonRows }).map((_, rowIndex) => (
             <div key={rowIndex} role="row" style={{ ...desktopRowStyle, gridTemplateColumns: columnTemplate }}>
-              {selection && <SkeletonBlock compact />}
-              {columns.map((column, columnIndex) => <SkeletonBlock key={column.id} compact={columnIndex !== 0} />)}
+              {selection && (
+                <div style={showScrollableMobileTable ? stickyBodySelectionCellStyle : undefined}>
+                  <SkeletonBlock compact />
+                </div>
+              )}
+              {columns.map((column, columnIndex) => (
+                <div
+                  key={column.id}
+                  style={showScrollableMobileTable && column.id === stickyMobileColumnId
+                    ? getStickyBodyColumnStyle(Boolean(selection), colors.surface)
+                    : undefined}
+                >
+                  <SkeletonBlock compact={columnIndex !== 0} />
+                </div>
+              ))}
             </div>
           ))
         ) : rows.length === 0 ? (
@@ -325,6 +381,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
           const rowKey = getRowKey(row)
           const selected = selection?.selectedKeys.has(rowKey) || false
           const selectable = selection?.isSelectable?.(row) ?? true
+          const customRowStyle = getRowStyle?.(row, index)
+          const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
           return (
             <div
               key={rowKey}
@@ -337,13 +395,20 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
               style={{
                 ...desktopRowStyle,
                 gridTemplateColumns: columnTemplate,
-                background: selected ? colors.surfaceMuted : colors.surface,
+                background: rowBackground,
                 cursor: onRowClick ? 'pointer' : 'default',
-                ...getRowStyle?.(row, index),
+                ...customRowStyle,
               }}
             >
               {selection && (
-                <div role="cell" style={desktopSelectionCellStyle} onClick={(event) => event.stopPropagation()}>
+                <div
+                  role="cell"
+                  style={{
+                    ...desktopSelectionCellStyle,
+                    ...(showScrollableMobileTable ? { ...stickyBodySelectionCellStyle, background: rowBackground } : undefined),
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     checked={selected}
@@ -355,7 +420,17 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 </div>
               )}
               {columns.map((column) => (
-                <div key={column.id} role="cell" style={{ ...desktopCellStyle, justifyContent: alignToJustify(column.align) }}>
+                <div
+                  key={column.id}
+                  role="cell"
+                  style={{
+                    ...desktopCellStyle,
+                    justifyContent: alignToJustify(column.align),
+                    ...(showScrollableMobileTable && column.id === stickyMobileColumnId
+                      ? getStickyBodyColumnStyle(Boolean(selection), rowBackground)
+                      : undefined),
+                  }}
+                >
                   {column.render(row, index)}
                 </div>
               ))}
@@ -420,6 +495,11 @@ const desktopRowStyle: CSSProperties = { display: 'grid', gap: spacing.md, paddi
 const desktopCellStyle: CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const desktopSelectionCellStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const sortableHeaderStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: spacing.xs, width: '100%', padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightMedium, cursor: 'pointer', textAlign: 'left' }
+const mobileTableScrollerStyle: CSSProperties = { maxHeight: 'min(70vh, 640px)', touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollbarGutter: 'stable' }
+const scrollableMobileTableStyle: CSSProperties = { overflow: 'visible' }
+const stickyHeaderRowStyle: CSSProperties = { position: 'sticky', top: 0, zIndex: 3 }
+const stickyHeaderSelectionCellStyle: CSSProperties = { position: 'sticky', left: 0, zIndex: 5, alignSelf: 'stretch', marginBlock: `-${spacing.md}`, paddingBlock: spacing.md, background: colors.surfaceMuted }
+const stickyBodySelectionCellStyle: CSSProperties = { position: 'sticky', left: 0, zIndex: 2, alignSelf: 'stretch', marginBlock: `-${spacing.md}`, paddingBlock: spacing.md, display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.surface }
 const checkboxStyle: CSSProperties = { width: 18, height: 18, margin: 0, cursor: 'pointer' }
 const checkboxTouchTargetStyle: CSSProperties = { width: 40, height: 40, margin: -11, marginRight: -5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
 const mobileControlsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }
@@ -441,3 +521,29 @@ const mobileDetailsStyle: CSSProperties = { color: colors.textSecondary, fontSiz
 const mobileMetadataStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', color: colors.textMuted, fontSize: typography.sizeSm, lineHeight: 1.45 }
 const emptyStyle: CSSProperties = { padding: '48px 24px', textAlign: 'center', color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeBase }
 const skeletonBlockStyle: CSSProperties = { height: 14, borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }
+
+function getStickyHeaderColumnStyle(hasSelection: boolean): CSSProperties {
+  return {
+    position: 'sticky',
+    left: hasSelection ? `calc(48px + ${spacing.md})` : 0,
+    zIndex: 4,
+    alignSelf: 'stretch',
+    marginBlock: `-${spacing.md}`,
+    paddingBlock: spacing.md,
+    background: colors.surfaceMuted,
+    boxShadow: `${hasSelection ? `-${spacing.md} 0 0 ${colors.surfaceMuted}, ` : ''}1px 0 0 ${colors.border}, 8px 0 12px -12px rgba(0, 0, 0, 0.45)`,
+  }
+}
+
+function getStickyBodyColumnStyle(hasSelection: boolean, background: CSSProperties['background']): CSSProperties {
+  return {
+    position: 'sticky',
+    left: hasSelection ? `calc(48px + ${spacing.md})` : 0,
+    zIndex: 1,
+    alignSelf: 'stretch',
+    marginBlock: `-${spacing.md}`,
+    paddingBlock: spacing.md,
+    background,
+    boxShadow: `${hasSelection ? `-${spacing.md} 0 0 ${String(background)}, ` : ''}1px 0 0 ${colors.borderLight}, 8px 0 12px -12px rgba(0, 0, 0, 0.4)`,
+  }
+}
