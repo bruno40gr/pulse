@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { attributeInboundMessagesToCampaigns } from '@/lib/campaign-message-attribution'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -21,20 +22,25 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
-    // For each campaign get message stats
-    const enriched = await Promise.all((campaigns || []).map(async (campaign) => {
-      const { data: messages } = await supabaseAdmin
-        .from('messages')
-        .select('id, status, direction, contact_id')
-        .eq('campaign_id', campaign.id)
-        .eq('tenant_id', tenantId)
+    const { data: messages, error: messagesError } = await supabaseAdmin
+      .from('messages')
+      .select('id, campaign_id, status, direction, contact_id, to_phone, from_phone, created_at')
+      .eq('tenant_id', tenantId)
+    if (messagesError) throw messagesError
 
-      const outbound = messages?.filter(m => m.direction === 'outbound') || []
+    const campaignByInboundMessageId = attributeInboundMessagesToCampaigns(messages || [])
+
+    const enriched = (campaigns || []).map((campaign) => {
+      const campaignMessages = (messages || []).filter(message =>
+        message.campaign_id === campaign.id || campaignByInboundMessageId.get(message.id) === campaign.id
+      )
+
+      const outbound = campaignMessages.filter(m => m.direction === 'outbound')
       const delivered = outbound.filter(m => ['delivered', 'read'].includes(m.status)).length
       const failed = outbound.filter(m => ['failed', 'undelivered', 'canceled'].includes(m.status)).length
       const pending = outbound.filter(m => ['queued', 'scheduled', 'sending', 'accepted', 'sent'].includes(m.status)).length
 
-      const inbound = messages?.filter(m => m.direction === 'inbound') || []
+      const inbound = campaignMessages.filter(m => m.direction === 'inbound')
       const replies = inbound.length
 
       const uniqueContacts = new Set(outbound.map(m => m.contact_id)).size
@@ -50,7 +56,7 @@ export async function GET(request: Request) {
           delivery_rate: uniqueContacts > 0 ? Math.round((delivered / uniqueContacts) * 100) : 0,
         }
       }
-    }))
+    })
 
     return NextResponse.json(enriched)
   } catch (error) {

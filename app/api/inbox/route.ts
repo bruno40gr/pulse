@@ -5,6 +5,7 @@ import { normalizePhoneNumber } from '@/lib/phone'
 import { getAccessScope, getRequestActor } from '@/lib/access'
 import { PERMISSIONS } from '@/lib/permissions'
 import { requireAccountAdministrator, requirePermission } from '@/lib/request-context'
+import { attributeInboundMessagesToCampaigns } from '@/lib/campaign-message-attribution'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -103,20 +104,21 @@ export async function GET(request: Request) {
     }
 
     // Step 1: Get all messages
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from('messages')
       .select('id, body, direction, status, error_message, created_at, contact_id, to_phone, from_phone, campaign_id, media_url')
       .eq('tenant_id', tenantId)
-
-    if (campaignId) {
-      query = query.eq('campaign_id', campaignId)
-    }
 
     const { data: messages, error: msgError } = await query
       .order('created_at', { ascending: false })
 
     if (msgError) throw msgError
-    if (!messages || messages.length === 0) {
+    const campaignByInboundMessageId = campaignId ? attributeInboundMessagesToCampaigns(messages || []) : null
+    const visibleMessages = campaignId
+      ? (messages || []).filter(message => message.campaign_id === campaignId || campaignByInboundMessageId?.get(message.id) === campaignId)
+      : (messages || [])
+
+    if (visibleMessages.length === 0) {
       return NextResponse.json([])
     }
 
@@ -202,7 +204,7 @@ export async function GET(request: Request) {
       if (message.contact_id && normalizedPhone) phoneToContact.set(normalizedPhone, message.contact_id)
     }
 
-    for (const msg of messages) {
+    for (const msg of visibleMessages) {
       const rawContactId = msg.contact_id || null
       const otherPhone = msg.direction === 'outbound'
         ? msg.to_phone

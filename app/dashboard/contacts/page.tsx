@@ -1,16 +1,18 @@
 'use client'
-import { useState, useEffect, useRef, memo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
 import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
-import StaffSlidePanel from '@/components/contacts/StaffSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, StatusBadge } from '@/components/ui'
+import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, ResponsiveDataTable, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { useIsMobile } from '@/lib/useMediaQuery'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
+import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 interface Contact {
   id: string
@@ -39,6 +41,8 @@ interface Contact {
   is_active?: boolean
 }
 
+type ContactSortKey = 'name' | 'status' | 'accountManager' | 'contact' | 'instructor'
+
 interface TenantField {
   field_key: string
   field_label: string
@@ -48,22 +52,6 @@ interface TenantField {
 
 interface SyncStatusResponse {
   last_synced_at?: string | null
-}
-
-function normalizeFieldName(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-function isHiddenContactTableField(field: TenantField) {
-  const key = normalizeFieldName(field.field_key)
-  const label = normalizeFieldName(field.field_label)
-  return key.includes('pronoun') || label.includes('pronoun') || label === 'gender' || key === 'account manager name' || label === 'account manager name'
-}
-
-function getContactTableFieldLabel(field: TenantField) {
-  const key = normalizeFieldName(field.field_key)
-  const label = normalizeFieldName(field.field_label)
-  return key === 'primary account manager' || label === 'primary account manager' ? 'Account manager' : field.field_label
 }
 
 const PLACEHOLDER_MESSAGES = [
@@ -119,7 +107,6 @@ export default function ContactsPage() {
   const [savingContact, setSavingContact] = useState(false)
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', phone: '', email: '' })
   const [singleComposeContact, setSingleComposeContact] = useState<Contact | null>(null)
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   const [syncing, setSyncing] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
@@ -129,8 +116,21 @@ export default function ContactsPage() {
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const [showStickyActions, setShowStickyActions] = useState(false)
   const [visibleCount, setVisibleCount] = useState(12)
+  const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>({ key: 'name', direction: 'asc' })
   const tenantId = getActiveTenantId()
+  const isMobile = useIsMobile()
   const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
+
+  const closeContactState = () => {
+    setSelectedContact(null)
+    removeCurrentSearchParam('contact')
+  }
+  const contactHistory = useMobilePanelHistory({
+    isOpen: Boolean(selectedContact),
+    isMobile,
+    historyKey: 'pulseMobileContactProfile',
+    onClose: closeContactState,
+  })
 
   // Apply standard filters
   const standardFiltered = contacts.filter(c => {
@@ -143,8 +143,28 @@ export default function ContactsPage() {
   })
 
   const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
-  const visibleContacts = displayed.slice(0, visibleCount)
-  const contactTableFields = tenantFields.filter(field => !isHiddenContactTableField(field)).slice(0, 3)
+  const sortedDisplayed = [...displayed].sort((left, right) => {
+    const direction = contactSort.direction === 'asc' ? 1 : -1
+    const text = (value: string | null | undefined) => value || ''
+    const leftContact = left.is_minor === true || left.custom_fields?.is_minor === true
+      ? left.account_holder_phone || left.account_holder_email
+      : left.phone || left.email
+    const rightContact = right.is_minor === true || right.custom_fields?.is_minor === true
+      ? right.account_holder_phone || right.account_holder_email
+      : right.phone || right.email
+    const values: Record<ContactSortKey, [string, string]> = {
+      name: [`${text(left.last_name)} ${text(left.first_name)}`, `${text(right.last_name)} ${text(right.first_name)}`],
+      status: [text(left.client_status), text(right.client_status)],
+      accountManager: [text(left.account_holder_name), text(right.account_holder_name)],
+      contact: [text(leftContact), text(rightContact)],
+      instructor: [text(left.instructor?.name), text(right.instructor?.name)],
+    }
+    const [leftValue, rightValue] = values[contactSort.key]
+    const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' })
+    if (comparison !== 0) return comparison * direction
+    return `${text(left.last_name)} ${text(left.first_name)}`.localeCompare(`${text(right.last_name)} ${text(right.first_name)}`, undefined, { sensitivity: 'base' })
+  })
+  const visibleContacts = sortedDisplayed.slice(0, visibleCount)
   const filterSummary = filterExplanation
     ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
     : ''
@@ -332,7 +352,7 @@ export default function ContactsPage() {
     if (shiftKey && lastSelectedIndex >= 0) {
       const start = Math.min(lastSelectedIndex, index)
       const end = Math.max(lastSelectedIndex, index)
-      const rangeIds = displayed.slice(start, end + 1).map(c => c.id)
+      const rangeIds = sortedDisplayed.slice(start, end + 1).map(c => c.id)
       setSelectedIds(prev => {
         const next = new Set(prev)
         rangeIds.forEach(id => next.add(id))
@@ -348,7 +368,7 @@ export default function ContactsPage() {
     if (e.shiftKey && lastSelectedIndex >= 0) {
       const start = Math.min(lastSelectedIndex, index)
       const end = Math.max(lastSelectedIndex, index)
-      const rangeIds = displayed.slice(start, end + 1).map(c => c.id)
+      const rangeIds = sortedDisplayed.slice(start, end + 1).map(c => c.id)
       setSelectedIds(prev => {
         const next = new Set(prev)
         rangeIds.forEach(id => next.add(id))
@@ -360,8 +380,16 @@ export default function ContactsPage() {
     }
   }
 
-  const handleNameClick = (contact: Contact, e: React.MouseEvent) => {
+  const handleNameClick = async (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (contact.staff_id) {
+      const response = await fetch(`/api/contacts/${contact.id}?tenant=${tenantId}`)
+      const detailedContact = await response.json()
+      if (response.ok && detailedContact && !detailedContact.error) {
+        setSelectedContact(detailedContact)
+        return
+      }
+    }
     setSelectedContact(contact)
   }
 
@@ -431,6 +459,83 @@ export default function ContactsPage() {
   const sel = { border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
 
   const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
+
+  const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
+    {
+      id: 'name',
+      header: 'Name',
+      width: 'minmax(260px, 1.7fr)',
+      sortable: true,
+      sortKey: 'name',
+      render: (contact) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
+          <Avatar
+            firstName={contact.first_name}
+            lastName={contact.last_name}
+            size={32}
+            src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact) : undefined}
+          />
+          <button
+            type="button"
+            onClick={(event) => handleNameClick(contact, event)}
+            style={{ border: 'none', background: 'transparent', padding: 0, color: colors.text, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: colors.border, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightBold, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {contact.first_name} {contact.last_name}
+          </button>
+          {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
+          {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      width: '110px',
+      sortable: true,
+      sortKey: 'status',
+      render: (contact) => <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
+    },
+    {
+      id: 'accountManager',
+      header: 'Account manager',
+      width: 'minmax(180px, 1fr)',
+      sortable: true,
+      sortKey: 'accountManager',
+      render: (contact) => <span style={{ color: colors.textSecondary }}>{contact.account_holder_name || '—'}</span>,
+    },
+    {
+      id: 'contact',
+      header: 'Contact',
+      width: 'minmax(220px, 1.25fr)',
+      sortable: true,
+      sortKey: 'contact',
+      render: (contact) => {
+        const isMinor = contact.is_minor === true || contact.custom_fields?.is_minor === true
+        const phone = isMinor ? contact.account_holder_phone : contact.phone
+        const email = isMinor ? contact.account_holder_email : contact.email
+        const showIcon = isMinor || contact.custom_fields?.message_routing === 'account_holder'
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
+            {phone ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                <span style={{ overflowWrap: 'anywhere' }}>{formatPhoneNumber(phone)}</span>
+                {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
+              </span>
+            ) : <span style={{ color: colors.textMuted }}>No phone</span>}
+            <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{email || 'No email'}</span>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'instructor',
+      header: 'Instructor',
+      width: 'minmax(160px, 0.9fr)',
+      sortable: true,
+      sortKey: 'instructor',
+      render: (contact) => <span style={{ color: colors.textSecondary }}>{contact.instructor?.name || '—'}</span>,
+    },
+  ]
 
   return (
     <div style={{ padding: spacing['3xl'] }}>
@@ -710,58 +815,74 @@ export default function ContactsPage() {
 
       {/* Contact table */}
       {!aiLoading && (
-      <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
-        {loading ? (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: `60px 1.4fr 1.2fr 100px 1fr repeat(${contactTableFields.length}, 1fr)`, gap: 0, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
-              {Array.from({ length: 5 + contactTableFields.length }).map((_, idx) => (
-                <div key={idx} style={{ height: '42px', margin: '10px 16px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-              ))}
-            </div>
-            {Array.from({ length: 8 }).map((_, rowIdx) => (
-              <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: `60px 1.4fr 1.2fr 100px 1fr repeat(${contactTableFields.length}, 1fr)`, alignItems: 'center', borderBottom: rowIdx === 7 ? 'none' : `1px solid ${colors.borderLight}` }}>
-                {Array.from({ length: 5 + contactTableFields.length }).map((__, cellIdx) => (
-                  <div key={cellIdx} style={{ margin: '14px 16px', height: cellIdx === 1 ? '24px' : '14px', borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : displayed.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: colors.textMuted, ...typography.body }}>No contacts found.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: typography.sizeBase, fontFamily: typography.fontSans }}>
-            <thead>
-              <tr style={{ background: colors.surfaceMuted, color: colors.textSecondary }}>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>
-                  <input type="checkbox" checked={selectedIds.size === displayed.length && displayed.length > 0} onChange={toggleSelectAll} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Name</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Contact</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Status</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>Instructor</th>
-                {contactTableFields.map(f => (
-                  <th key={f.field_key} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500 }}>{getContactTableFieldLabel(f)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleContacts.map((contact, index) => (
-                <ContactRow
-                  key={contact.id}
-                  contact={contact}
-                  index={index}
-                  isSelected={selectedIds.has(contact.id)}
-                  tenantFields={contactTableFields}
-                  tenantId={tenantId}
-                  onRowClick={handleRowClick}
-                  onNameClick={handleNameClick}
-                  onToggleSelect={handleCheckboxToggle}
+        <ResponsiveDataTable
+          rows={visibleContacts}
+          columns={contactColumns}
+          getRowKey={(contact) => contact.id}
+          renderMobileCard={(contact) => {
+            const isMinor = contact.is_minor === true || contact.custom_fields?.is_minor === true
+            const phone = isMinor ? contact.account_holder_phone : contact.phone
+            const email = isMinor ? contact.account_holder_email : contact.email
+            return {
+              leading: (
+                <Avatar
+                  firstName={contact.first_name}
+                  lastName={contact.last_name}
+                  size={36}
+                  src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact) : undefined}
                 />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              ),
+              title: (
+                <button
+                  type="button"
+                  onClick={(event) => handleNameClick(contact, event)}
+                  style={{ border: 'none', background: 'transparent', padding: 0, color: colors.text, cursor: 'pointer', textAlign: 'left', font: 'inherit', fontWeight: 'inherit' }}
+                >
+                  {contact.first_name} {contact.last_name}
+                </button>
+              ),
+              status: (
+                <>
+                  <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />
+                  {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
+                  {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
+                </>
+              ),
+              details: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+                  <span>{phone ? formatPhoneNumber(phone) : 'No phone'}</span>
+                  <span>{email || 'No email'}</span>
+                </div>
+              ),
+              metadata: (
+                <>
+                  <span>Account manager: {contact.account_holder_name || '—'}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Instructor: {contact.instructor?.name || '—'}</span>
+                </>
+              ),
+            }
+          }}
+          sort={contactSort}
+          onSortChange={setContactSort}
+          selection={{
+            selectedKeys: selectedIds,
+            onToggle: (contact, index, event) => handleCheckboxToggle(contact, index, (event.nativeEvent as MouseEvent).shiftKey),
+            onToggleAll: toggleSelectAll,
+            allSelected: displayed.length > 0 && displayed.every((contact) => selectedIds.has(contact.id)),
+            someSelected: selectedIds.size > 0 && !displayed.every((contact) => selectedIds.has(contact.id)),
+            selectAllLabel: 'Select all contacts',
+            getRowLabel: (contact) => `${contact.first_name} ${contact.last_name}`.trim(),
+          }}
+          loading={loading}
+          skeletonRows={8}
+          emptyContent="No contacts found."
+          minDesktopWidth={1100}
+          onRowClick={(contact, index, event) => handleRowClick(contact, index, event)}
+          getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
+          getMobileCardStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
+          ariaLabel="Contacts"
+        />
       )}
 
       {!selectedContact && selectedIds.size > 0 && (
@@ -796,10 +917,11 @@ export default function ContactsPage() {
       {/* Contact slide panel */}
       {selectedContact && (
         <ContactSlidePanel
+          key={selectedContact.id}
           contact={selectedContact}
           initialNotesTab={initialNotesTab}
           tenantFields={tenantFields}
-          onClose={() => setSelectedContact(null)}
+          onClose={contactHistory.closePanel}
           onUpdated={(updated) => {
             setContacts(prev => prev.map(c => c.id === updated.id ? updated : c))
             setSelectedContact(updated)
@@ -808,30 +930,17 @@ export default function ContactsPage() {
             if (ids.length === 1) {
               const contact = contacts.find(c => c.id === ids[0])
               setSingleComposeContact(contact || null)
-              setSelectedContact(null)
-              setIsComposeOpen(true)
+              contactHistory.dismissPanel(() => setIsComposeOpen(true))
             } else {
               setSelectedIds(new Set(ids))
-              setSelectedContact(null)
-              setIsComposeOpen(true)
+              contactHistory.dismissPanel(() => setIsComposeOpen(true))
             }
           }}
-          onViewStaff={(staffId) => {
-            setSelectedStaffId(staffId)
-          }}
-        />
-      )}
-
-      {/* Staff slide panel */}
-      {selectedStaffId && (
-        <StaffSlidePanel
-          staffId={selectedStaffId}
-          onClose={() => setSelectedStaffId(null)}
-          onViewStudent={(personId) => {
-            const contact = contacts.find(c => c.id === personId)
-            if (contact) {
-              setSelectedStaffId(null)
-              setSelectedContact(contact)
+          onViewInstructor={async (personId) => {
+            const response = await fetch(`/api/contacts/${personId}?tenant=${tenantId}`)
+            const instructorContact = await response.json()
+            if (response.ok && instructorContact && !instructorContact.error) {
+              setSelectedContact(instructorContact)
             }
           }}
         />
@@ -990,101 +1099,4 @@ export default function ContactsPage() {
       />
     </div>
   )
-}
-
-// Memoized row — only re-renders when its own props change
-const ContactRow = memo(function ContactRow({
-  contact,
-  index,
-  isSelected,
-  tenantFields,
-  tenantId,
-  onRowClick,
-  onNameClick,
-  onToggleSelect,
-}: {
-  contact: Contact
-  index: number
-  isSelected: boolean
-  tenantFields: TenantField[]
-  tenantId: string
-  onRowClick: (contact: Contact, index: number, e: React.MouseEvent) => void
-  onNameClick: (contact: Contact, e: React.MouseEvent) => void
-  onToggleSelect: (contact: Contact, index: number, shiftKey: boolean) => void
-}) {
-  return (
-    <tr
-      onClick={(e) => onRowClick(contact, index, e)}
-      style={{ borderBottom: `1px solid ${colors.borderLight}`, background: isSelected ? colors.surfaceMuted : colors.surface, cursor: 'pointer', transition: 'background 0.1s' }}
-    >
-      <td style={{ padding: '10px 16px' }} onClick={e => e.stopPropagation()}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => onToggleSelect(contact, index, (e.nativeEvent as MouseEvent).shiftKey)}
-          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-        />
-      </td>
-      <td style={contactCellStyle}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-                      <Avatar
-                        firstName={contact.first_name}
-                        lastName={contact.last_name}
-                        size={32}
-                        src={shouldUseDemoPhotos(tenantId)
-                          ? getContactDemoAvatarUrl(tenantId, contact)
-                          : undefined}
-                      />
-          <span
-            onClick={(e) => onNameClick(contact, e)}
-            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: colors.border, fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}
-          >
-            {contact.first_name} {contact.last_name}
-          </span>
-          {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
-          {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
-        </span>
-      </td>
-      <td style={contactCellStyle}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
-                    {(() => {
-                      const phone = contact.phone || contact.account_holder_phone
-                      const showIcon = Boolean((contact.custom_fields as Record<string, unknown> | undefined)?.is_minor) || (contact.custom_fields?.message_routing === 'account_holder')
-                       if (!phone) return <span style={{ color: colors.textMuted }}>No phone</span>
-                      return (
-                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                           <span style={{ overflowWrap: 'anywhere' }}>{phone.replace(/^\+1\s?/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}</span>
-                          {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
-                        </span>
-                      )
-                    })()}
-          <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{contact.email || 'No email'}</span>
-        </div>
-      </td>
-      <td style={contactCellStyle}>
-        <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />
-      </td>
-      <td style={{ ...contactCellStyle, color: colors.textSecondary }}>{contact.instructor?.name || '—'}</td>
-      {tenantFields.map(f => {
-        const fieldValue = contact.custom_fields?.[f.field_key]
-        return (
-          <td key={f.field_key} style={{ ...contactCellStyle, color: colors.textSecondary }}>
-            {typeof fieldValue === 'string' || typeof fieldValue === 'number'
-              ? String(fieldValue)
-              : '—'}
-          </td>
-        )
-      })}
-    </tr>
-  )
-})
-
-const contactCellStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  fontSize: typography.sizeBase,
-  fontWeight: typography.weightNormal,
-  lineHeight: 1.45,
-  minWidth: 0,
-  whiteSpace: 'normal',
-  overflowWrap: 'anywhere',
 }

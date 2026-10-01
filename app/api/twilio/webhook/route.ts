@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const { data: previousMessage } = await supabaseAdmin
       .from('messages')
-      .select('contact_id')
+      .select('contact_id, campaign_id')
       .eq('tenant_id', DEFAULT_TENANT_ID)
       .eq('direction', 'outbound')
       .or(`to_phone.eq.${from},to_phone.eq.${fromDigits}`)
@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     // `contacts` table; fall back to null so the message is always recorded.
     const messageRow = {
       tenant_id: DEFAULT_TENANT_ID,
+      campaign_id: previousMessage?.campaign_id || null,
       contact_id: contactId,
       direction: 'inbound',
       channel: 'sms',

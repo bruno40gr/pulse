@@ -14,6 +14,92 @@ async function authorizeContactAccess(request: Request, tenantId: string, permis
   return requirePermission(request, tenantId, permission)
 }
 
+interface InstructorEnrollmentRow {
+  id: string
+  instrument: string | null
+  service_type: string | null
+  lesson_day: string | null
+  lesson_time: string | null
+  student: {
+    client_status: string | null
+    person: {
+      id: string
+      first_name: string | null
+      last_name: string | null
+    } | Array<{
+      id: string
+      first_name: string | null
+      last_name: string | null
+    }> | null
+  } | Array<{
+    client_status: string | null
+    person: {
+      id: string
+      first_name: string | null
+      last_name: string | null
+    } | Array<{
+      id: string
+      first_name: string | null
+      last_name: string | null
+    }> | null
+  }> | null
+}
+
+interface ActiveInstructorStudent {
+  enrollment_id: string
+  person_id: string
+  name: string
+  client_status: string
+  instrument: string | null
+  service_type: string | null
+  lesson_day: string | null
+  lesson_time: string | null
+}
+
+async function getActiveInstructorStudents(instructorPersonId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('enrollments')
+    .select(`
+      id, instrument, service_type, lesson_day, lesson_time,
+      student:students (
+        client_status,
+        person:people ( id, first_name, last_name )
+      )
+    `)
+    .eq('instructor_person_id', instructorPersonId)
+
+  if (error) throw error
+
+  return ((data || []) as InstructorEnrollmentRow[])
+    .map((enrollment): ActiveInstructorStudent | null => {
+      const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student
+      const studentPerson = Array.isArray(student?.person) ? student.person[0] : student?.person
+      const clientStatus = student?.client_status ?? null
+      const name = studentPerson ? `${studentPerson.first_name || ''} ${studentPerson.last_name || ''}`.trim() : ''
+
+      if (
+        !studentPerson?.id ||
+        !name ||
+        (clientStatus !== 'active' && clientStatus !== 'member')
+      ) {
+        return null
+      }
+
+      return {
+        enrollment_id: enrollment.id,
+        person_id: studentPerson.id,
+        name,
+        client_status: clientStatus,
+        instrument: enrollment.instrument ?? null,
+        service_type: enrollment.service_type ?? null,
+        lesson_day: enrollment.lesson_day ?? null,
+        lesson_time: enrollment.lesson_time ?? null,
+      }
+    })
+    .filter((student): student is ActiveInstructorStudent => student !== null)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
@@ -89,6 +175,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const staffId = ownInstructor?.id ?? null
     const isInstructor = !!staffId
     const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
+    const activeStudents = isInstructor ? await getActiveInstructorStudents(person.id) : []
 
     // Build account_holders array from student_accounts
     const studentAccounts = student.student_accounts ?? []
@@ -145,6 +232,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       instructor: instructorInfo,
       staff_id: staffId,
       is_active: isActive,
+      active_students: activeStudents,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {
@@ -286,6 +374,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const staffId = ownInstructor?.id ?? null
     const isInstructor = !!staffId
     const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
+    const activeStudents = isInstructor ? await getActiveInstructorStudents(person.id) : []
 
     // Build account_holders array
     const studentAccounts = student.student_accounts ?? []
@@ -340,6 +429,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       instructor: instructorInfo,
       staff_id: staffId,
       is_active: isActive,
+      active_students: activeStudents,
       notes_history: person.notes_history || [],
       student_notes_history: person.student_notes_history || [],
       custom_fields: {

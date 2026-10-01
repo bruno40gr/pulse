@@ -40,17 +40,27 @@ interface StaffSlidePanelProps {
 export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: StaffSlidePanelProps) {
   const [staff, setStaff] = useState<StaffMember | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const tenantId = getActiveTenantId()
 
   useEffect(() => {
-    fetch(`/api/staff/${staffId}`)
-      .then(r => r.json())
+    fetch(`/api/staff/${staffId}?tenant=${tenantId}`)
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok || data?.error) throw new Error(data?.error || 'Could not load staff member')
+        return data
+      })
       .then(data => {
         setStaff(data)
+        setError(null)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
-  }, [staffId])
+      .catch(fetchError => {
+        setStaff(null)
+        setError(fetchError instanceof Error ? fetchError.message : 'Could not load staff member')
+        setLoading(false)
+      })
+  }, [staffId, tenantId])
 
   const displayPhone = (phone: string | null) => {
     if (!phone) return null
@@ -91,7 +101,7 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
           onClose={onClose}
         />
         <div style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted }}>
-          Could not load staff member.
+          {error || 'Could not load staff member.'}
         </div>
       </SlidePanel>
     )

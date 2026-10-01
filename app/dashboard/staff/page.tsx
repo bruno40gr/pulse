@@ -1,11 +1,15 @@
 'use client'
 import { useState, useEffect, type ComponentProps } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { Avatar, Button, PageHeader, SlidePanel, SlidePanelHeader, StatusBadge } from '@/components/ui'
+import { Avatar, Button, PageHeader, ResponsiveDataTable, SlidePanel, SlidePanelHeader, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
 import { colors, typography, spacing, radius } from '@/lib/tokens'
+import { useIsMobile } from '@/lib/useMediaQuery'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
+
+type StaffSortKey = 'name' | 'contact' | 'status'
 
 interface StaffMember {
   id: string
@@ -25,28 +29,6 @@ type ComposeContact = (ContactPanelContact & { bulk?: false }) | {
   recipientPreview: Array<{ id: string; first_name: string; last_name: string }>
 }
 
-const thStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  textAlign: 'left',
-  fontSize: '12px',
-  fontWeight: 600,
-  color: colors.textSecondary,
-  borderBottom: `1px solid ${colors.borderLight}`,
-  fontFamily: typography.fontSans,
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  fontSize: typography.sizeBase,
-  fontWeight: typography.weightNormal,
-  lineHeight: 1.45,
-  color: colors.text,
-  borderBottom: `1px solid ${colors.borderLight}`,
-  fontFamily: typography.fontSans,
-  whiteSpace: 'normal',
-  overflowWrap: 'anywhere',
-}
-
 export default function StaffPage() {
   const tenantId = getActiveTenantId()
   const [staff, setStaff] = useState<StaffMember[]>([])
@@ -55,6 +37,14 @@ export default function StaffPage() {
   const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
+  const [staffSort, setStaffSort] = useState<DataTableSort<StaffSortKey>>({ key: 'name', direction: 'asc' })
+  const isMobile = useIsMobile()
+  const contactHistory = useMobilePanelHistory({
+    isOpen: Boolean(selectedContact),
+    isMobile,
+    historyKey: 'pulseMobileStaffContactProfile',
+    onClose: () => setSelectedContact(null),
+  })
 
   const fetchStaff = () => fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json())
 
@@ -90,8 +80,57 @@ export default function StaffPage() {
   }
 
   const fullName = (s: StaffMember) => `${s.first_name || ''} ${s.last_name || ''}`.trim()
+  const sortedStaff = [...staff].sort((left, right) => {
+    const direction = staffSort.direction === 'asc' ? 1 : -1
+    const values: Record<StaffSortKey, [string, string]> = {
+      name: [`${left.last_name || ''} ${left.first_name || ''}`, `${right.last_name || ''} ${right.first_name || ''}`],
+      contact: [left.phone || left.email || '', right.phone || right.email || ''],
+      status: [left.is_active ? 'active' : 'sunset', right.is_active ? 'active' : 'sunset'],
+    }
+    const [leftValue, rightValue] = values[staffSort.key]
+    const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' })
+    if (comparison !== 0) return comparison * direction
+    return `${left.last_name || ''} ${left.first_name || ''}`.localeCompare(`${right.last_name || ''} ${right.first_name || ''}`, undefined, { sensitivity: 'base' })
+  })
   const selectableStaff = staff.filter(member => member.person_id)
   const selectedStaff = selectableStaff.filter(member => selectedStaffIds.has(member.id))
+
+  const staffColumns: DataTableColumn<StaffMember, StaffSortKey>[] = [
+    {
+      id: 'name',
+      header: 'Name',
+      width: 'minmax(220px, 1.2fr)',
+      sortable: true,
+      sortKey: 'name',
+      render: (member) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
+          <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={32} />
+          <span style={{ fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(member)}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'contact',
+      header: 'Contact',
+      width: 'minmax(260px, 1.4fr)',
+      sortable: true,
+      sortKey: 'contact',
+      render: (member) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
+          <span>{member.phone ? displayPhone(member.phone) : 'No phone'}</span>
+          <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{member.email || 'No email'}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      width: '120px',
+      sortable: true,
+      sortKey: 'status',
+      render: (member) => <StatusBadge status={member.is_active ? 'active' : 'sunset'} label={member.is_active ? 'Active' : 'Sunset'} />,
+    },
+  ]
 
   const toggleStaffSelection = (staffId: string) => {
     setSelectedStaffIds(previous => {
@@ -138,71 +177,68 @@ export default function StaffPage() {
         </div>
       )}
 
-      {loading ? (
-        <p style={{ color: colors.textMuted, fontFamily: typography.fontSans }}>Loading staff…</p>
-      ) : staff.length === 0 ? (
-        <p style={{ color: colors.textMuted, fontFamily: typography.fontSans }}>No staff found.</p>
-      ) : (
-        <div style={{ background: colors.surface, borderRadius: radius.lg, border: `1px solid ${colors.borderLight}`, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, width: '48px' }}>
-                  <input type="checkbox" checked={selectableStaff.length > 0 && selectedStaffIds.size === selectableStaff.length} onChange={toggleSelectAll} aria-label="Select all staff" style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-                </th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Contact</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staff.map(s => (
-                <tr
-                  key={s.id}
-                  onClick={() => s.person_id && openContact(s.person_id)}
-                  style={{ cursor: 'pointer', transition: 'background 0.1s', borderBottom: `1px solid ${colors.borderLight}`, background: selectedStaffIds.has(s.id) ? colors.surfaceMuted : colors.surface }}
-                  onMouseEnter={e => (e.currentTarget.style.background = colors.surfaceMuted)}
-                  onMouseLeave={e => (e.currentTarget.style.background = selectedStaffIds.has(s.id) ? colors.surfaceMuted : colors.surface)}
-                >
-                  <td style={tdStyle} onClick={event => event.stopPropagation()}>
-                    <input type="checkbox" checked={selectedStaffIds.has(s.id)} onChange={() => toggleStaffSelection(s.id)} aria-label={`Select ${fullName(s)}`} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <Avatar firstName={s.first_name || ''} lastName={s.last_name || ''} size={32} />
-                      <span style={{ fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(s)}</span>
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
-                      <span>{s.phone ? displayPhone(s.phone) : 'No phone'}</span>
-                      <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{s.email || 'No email'}</span>
-                    </div>
-                  </td>
-                  <td style={tdStyle}>
-                    <StatusBadge status={s.is_active ? 'active' : 'sunset'} label={s.is_active ? 'Active' : 'Sunset'} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ResponsiveDataTable
+        rows={sortedStaff}
+        columns={staffColumns}
+        getRowKey={(member) => member.id}
+        renderMobileCard={(member) => ({
+          leading: <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={36} />,
+          title: fullName(member),
+          status: <StatusBadge status={member.is_active ? 'active' : 'sunset'} label={member.is_active ? 'Active' : 'Sunset'} />,
+          details: (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <span>{member.phone ? displayPhone(member.phone) : 'No phone'}</span>
+              <span>{member.email || 'No email'}</span>
+            </div>
+          ),
+        })}
+        sort={staffSort}
+        onSortChange={setStaffSort}
+        selection={{
+          selectedKeys: selectedStaffIds,
+          isSelectable: (member) => Boolean(member.person_id),
+          onToggle: (member) => toggleStaffSelection(member.id),
+          onToggleAll: toggleSelectAll,
+          allSelected: selectableStaff.length > 0 && selectableStaff.every((member) => selectedStaffIds.has(member.id)),
+          someSelected: selectedStaff.length > 0 && selectedStaff.length < selectableStaff.length,
+          selectAllLabel: 'Select all staff',
+          getRowLabel: fullName,
+        }}
+        loading={loading}
+        skeletonRows={6}
+        emptyContent="No staff found."
+        minDesktopWidth={720}
+        onRowClick={(member) => {
+          if (member.person_id) void openContact(member.person_id)
+        }}
+        getRowStyle={(member) => ({
+          background: selectedStaffIds.has(member.id) ? colors.surfaceMuted : colors.surface,
+          cursor: member.person_id ? 'pointer' : 'default',
+        })}
+        getMobileCardStyle={(member) => ({
+          background: selectedStaffIds.has(member.id) ? colors.surfaceMuted : colors.surface,
+          cursor: member.person_id ? 'pointer' : 'default',
+        })}
+        ariaLabel="Staff"
+      />
 
       {selectedContact && (
         <ContactSlidePanel
+          key={selectedContact.id}
           contact={selectedContact}
           tenantFields={tenantFields}
-          onClose={() => setSelectedContact(null)}
+          onClose={contactHistory.closePanel}
           onCompose={(ids) => {
             if (ids.length === 1 && selectedContact) {
-              setComposeContact(selectedContact)
+              const contact = selectedContact
+              contactHistory.dismissPanel(() => setComposeContact(contact))
             }
           }}
           onUpdated={(updated) => {
             setSelectedContact(updated)
             fetchStaff().then(data => setStaff(Array.isArray(data) ? data : []))
           }}
+          onViewInstructor={openContact}
         />
       )}
 

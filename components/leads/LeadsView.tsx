@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Copy } from 'lucide-react'
-import { Badge, Button, CompactMetaCard, DataGridRow, DataGridTable, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea } from '@/components/ui'
+import { Badge, Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -11,6 +11,7 @@ import ComposePanel from '@/components/campaigns/ComposePanel'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -726,16 +727,6 @@ export default function LeadsView() {
     })
   }, [leads, sortDirection, sortKey])
 
-  const toggleSort = (key: LeadSortKey) => {
-    if (key === sortKey) setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
-    else {
-      setSortKey(key)
-      setSortDirection(key === 'created' || key === 'lastActivity' ? 'desc' : 'asc')
-    }
-  }
-
-  const sortLabel = (key: LeadSortKey, label: string) => `${label}${sortKey === key ? `, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : ''}`
-
   const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
     setLeadPanelDrafts((current) => {
       const hasDraft = Object.values(draft).some((value) => value !== undefined)
@@ -1098,6 +1089,13 @@ export default function LeadsView() {
     })
   }
 
+  const leadHistory = useMobilePanelHistory({
+    isOpen: Boolean(selectedLeadId),
+    isMobile: isMobileLayout,
+    historyKey: 'pulseMobileLeadProfile',
+    onClose: closeLead,
+  })
+
   const saveDetail = async (extra: { add_note?: string, mention_membership_ids?: string[], status?: string, payload?: Record<string, unknown> } = {}) => {
     if (!selectedLeadId) return false
     setDetailSaving(true)
@@ -1335,6 +1333,91 @@ export default function LeadsView() {
   const selectedLeadIndex = selectedLeadId ? leads.findIndex((lead) => lead.id === selectedLeadId) : -1
   const followUpAt = getLeadFollowUpAt(selectedLead)
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
+
+  const leadColumns = useMemo<DataTableColumn<LeadRecord, LeadSortKey>[]>(() => [
+    {
+      id: 'signal',
+      header: '',
+      width: '44px',
+      align: 'center',
+      render: (lead) => {
+        const signal = getLeadSignal(lead)
+        return <div style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</div>
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      width: 'minmax(86px, 0.72fr)',
+      render: (lead) => (
+        <div style={tableStatusCellStyle}>
+          <StatusBadge
+            status={lead.status}
+            label={activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
+          />
+        </div>
+      ),
+    },
+    {
+      id: 'name',
+      header: 'Name',
+      width: 'minmax(120px, 1fr)',
+      sortable: true,
+      sortKey: 'name',
+      render: (lead) => <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>,
+    },
+    {
+      id: 'contact',
+      header: 'Contact',
+      width: 'minmax(170px, 1.25fr)',
+      render: (lead) => (
+        <div style={tableCellStyle}>
+          <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
+          <div style={subtleTextStyle}>{lead.contact?.email || 'No email'}</div>
+        </div>
+      ),
+    },
+    {
+      id: 'followUp',
+      header: 'Follow-up',
+      width: 'minmax(84px, 0.55fr)',
+      sortable: true,
+      sortKey: 'followUp',
+      render: (lead) => {
+        const followUp = getLeadFollowUpAt(lead)
+        if (!followUp) return <div style={cellTextStyle}>—</div>
+        const followUpTone = getFollowUpTone(followUp)
+        return (
+          <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
+            {formatFollowUpDate(followUp)}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'lastActivity',
+      header: 'Last activity',
+      width: 'minmax(130px, 0.9fr)',
+      sortable: true,
+      sortKey: 'lastActivity',
+      defaultSortDirection: 'desc',
+      render: (lead) => <div style={{ ...cellTextStyle, whiteSpace: 'normal' }}>{formatLastActivity(lead.last_activity_at)}</div>,
+    },
+    {
+      id: 'program',
+      header: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details',
+      sortLabel: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details',
+      width: 'minmax(150px, 1fr)',
+      sortable: true,
+      sortKey: 'program',
+      render: (lead) => (
+        <div style={tableCellStyle}>
+          <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
+          <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
+        </div>
+      ),
+    },
+  ], [activeTab])
   const prospectAge = (() => {
     const payload = selectedLead?.payload
     const candidates = [
@@ -1746,167 +1829,89 @@ export default function LeadsView() {
 
         {error && <MessageBox>{error}</MessageBox>}
 
-        {!loading && leads.length === 0 ? (
-          <EmptyState
-            title={`No ${LEAD_TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase() || 'leads'} yet`}
-            description={activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
-          />
-        ) : isMobileLayout ? (
-          <div style={leadCardListStyle}>
-            {sortedLeads.map((lead) => {
-              const signal = getLeadSignal(lead)
-              const isSelected = selectedIds.has(lead.id)
-              const followUp = getLeadFollowUpAt(lead)
+        <ResponsiveDataTable
+          rows={sortedLeads}
+          columns={leadColumns}
+          getRowKey={(lead) => lead.id}
+          renderMobileCard={(lead) => {
+            const signal = getLeadSignal(lead)
+            const followUp = getLeadFollowUpAt(lead)
+            const followUpTone = followUp ? getFollowUpTone(followUp) : null
 
-              return (
-                <button
-                  key={lead.id}
-                  type="button"
-                  onClick={() => openLead(lead.id, lead.intake_type)}
-                  style={{
-                    ...leadCardStyle,
-                    background: isSelected ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
-                  }}
-                >
-                  <div style={leadCardHeaderStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleLeadSelection(lead.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
-                      />
-                      <span style={leadCardNameTextStyle}>{lead.contact?.full_name || 'Unknown'}</span>
-                    </div>
-                    <span style={signalCellStyle} title={signal.label}>{signal.emoji}</span>
-                  </div>
-
-                  <div style={leadCardBadgesStyle}>
-                    <StatusBadge status={lead.status} label={formatLabel(lead.status)} />
-                    {activeTab === 'winback' && <Badge size="sm" variant="info">{formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact'))}</Badge>}
-                    {followUp && (() => {
-                      const followUpTone = getFollowUpTone(followUp)
-                      return (
-                        <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
-                          ↻ {formatFollowUpDate(followUp)}
-                        </span>
-                      )
-                    })()}
-                  </div>
-
-                  {lead.contact?.email && (
-                    <a href={`mailto:${lead.contact.email}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{lead.contact.email}</a>
-                  )}
-                  {lead.contact?.phone && (
-                    <a href={`tel:${lead.contact.phone}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{formatPhoneNumber(lead.contact.phone)}</a>
-                  )}
-
-                  <div style={leadCardMetaStyle}>
-                    <span>{getLeadSource(lead)}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Last activity: {formatLastActivity(lead.last_activity_at)}</span>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        ) : (
-          <DataGridTable
-              columns={tableColumns}
-              style={tableWrapStyle}
-              header={(
+            return {
+              title: lead.contact?.full_name || 'Unknown',
+              trailing: <span style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</span>,
+              status: (
                 <>
-                  <div>
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleSelectAllVisible}
-                      aria-label="Select all visible leads"
-                      style={tableCheckboxStyle}
-                    />
-                  </div>
-                  <div aria-hidden="true" />
-                  <div>Status</div>
-                  <button type="button" onClick={() => toggleSort('name')} aria-label={sortLabel('name', 'Name')} style={sortableHeaderButtonStyle}>Name <span aria-hidden="true">{sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
-                  <div>Contact</div>
-                  <button type="button" onClick={() => toggleSort('followUp')} aria-label={sortLabel('followUp', 'Follow-up')} style={sortableHeaderButtonStyle}>Follow-up <span aria-hidden="true">{sortKey === 'followUp' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
-                  <button type="button" onClick={() => toggleSort('lastActivity')} aria-label={sortLabel('lastActivity', 'Last activity')} style={sortableHeaderButtonStyle}>Last activity <span aria-hidden="true">{sortKey === 'lastActivity' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
-                  <button type="button" onClick={() => toggleSort('program')} aria-label={sortLabel('program', activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details')} style={sortableHeaderButtonStyle}>{activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details'} <span aria-hidden="true">{sortKey === 'program' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button>
+                  <StatusBadge status={lead.status} label={formatLabel(lead.status)} />
+                  {activeTab === 'winback' && <Badge size="sm" variant="info">{formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact'))}</Badge>}
+                  {followUp && followUpTone && (
+                    <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
+                      ↻ {formatFollowUpDate(followUp)}
+                    </span>
+                  )}
                 </>
-              )}
-            >
-              {sortedLeads.map((lead) => {
-                const isBold = Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
-                const isSelected = selectedIds.has(lead.id)
-                const signal = getLeadSignal(lead)
-
-                return (
-                  <DataGridRow
-                    key={lead.id}
-                    as="button"
-                    columns={tableColumns}
-                    onClick={() => openLead(lead.id, lead.intake_type)}
-                    style={{
-                      ...tableRowStyle,
-                      background: isSelected
-                        ? '#F5F8FF'
-                        : selectedLeadId === lead.id
-                          ? '#FBFCFF'
-                          : isBold
-                            ? NET_NEW_ROW_BACKGROUND
-                            : colors.surface,
-                    }}
-                  >
-                    <div>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleLeadSelection(lead.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        aria-label={`Select ${lead.contact?.full_name || 'lead'}`}
-                        style={tableCheckboxStyle}
-                      />
-                    </div>
-                    <div style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</div>
-                    <div style={tableStatusCellStyle}>
-                      <StatusBadge
-                        status={lead.status}
-                        label={activeTab === 'winback' ? formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact')) : formatLabel(lead.status)}
-                      />
-                    </div>
-                    <div style={nameCellStyle}>
-                      <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>
-                    </div>
-                    <div style={tableCellStyle}>
-                      <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
-                      <div style={subtleTextStyle}>{lead.contact?.email || 'No email'}</div>
-                    </div>
-                    <div style={tableCellStyle}>
-                      {getLeadFollowUpAt(lead)
-                        ? (() => {
-                            const followUp = getLeadFollowUpAt(lead)
-                            const followUpTone = getFollowUpTone(followUp)
-                            return (
-                              <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
-                                {formatFollowUpDate(followUp)}
-                              </span>
-                            )
-                          })()
-                        : <div style={cellTextStyle}>—</div>}
-                    </div>
-                    <div style={tableCellStyle}>
-                      <div style={{ ...cellTextStyle, whiteSpace: 'normal' }}>{formatLastActivity(lead.last_activity_at)}</div>
-                    </div>
-                    <div style={tableCellStyle}>
-                      <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
-                      <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
-                    </div>
-                  </DataGridRow>
-                )
-              })}
-          </DataGridTable>
-        )}
+              ),
+              details: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+                  {lead.contact?.email && <a href={`mailto:${lead.contact.email}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{lead.contact.email}</a>}
+                  {lead.contact?.phone && <a href={`tel:${lead.contact.phone}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{formatPhoneNumber(lead.contact.phone)}</a>}
+                </div>
+              ),
+              metadata: (
+                <>
+                  <span>{getLeadSource(lead)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Last activity: {formatLastActivity(lead.last_activity_at)}</span>
+                </>
+              ),
+            }
+          }}
+          sort={{ key: sortKey, direction: sortDirection }}
+          onSortChange={(nextSort) => {
+            setSortKey(nextSort.key)
+            setSortDirection(nextSort.direction)
+          }}
+          mobileSortOptions={[
+            { key: 'created', label: 'Created', defaultSortDirection: 'desc' },
+            { key: 'name', label: 'Name' },
+            { key: 'followUp', label: 'Follow-up' },
+            { key: 'lastActivity', label: 'Last activity', defaultSortDirection: 'desc' },
+            { key: 'program', label: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details' },
+          ]}
+          selection={{
+            selectedKeys: selectedIds,
+            onToggle: (lead) => toggleLeadSelection(lead.id),
+            onToggleAll: toggleSelectAllVisible,
+            allSelected: allVisibleSelected,
+            someSelected: selectedCount > 0 && !allVisibleSelected,
+            selectAllLabel: 'Select all visible leads',
+            getRowLabel: (lead) => lead.contact?.full_name || 'lead',
+          }}
+          loading={loading}
+          skeletonRows={6}
+          emptyContent={(
+            <EmptyState
+              title={`No ${LEAD_TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase() || 'leads'} yet`}
+              description={activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
+            />
+          )}
+          minDesktopWidth={1180}
+          onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
+          getRowStyle={(lead) => ({
+            background: selectedIds.has(lead.id)
+              ? '#F5F8FF'
+              : selectedLeadId === lead.id
+                ? '#FBFCFF'
+                : Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
+                  ? NET_NEW_ROW_BACKGROUND
+                  : colors.surface,
+          })}
+          getMobileCardStyle={(lead) => ({
+            background: selectedIds.has(lead.id) ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
+          })}
+          ariaLabel="Leads"
+        />
       </div>
 
       <SlidePanel isOpen={isAddLeadOpen} onClose={closeAddLead} width="min(92vw, 640px)">
@@ -2073,7 +2078,7 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={closeLead} fullScreen={isMobileLayout} width="min(88vw, 1180px)">
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} fullScreen={isMobileLayout} width="min(88vw, 1180px)">
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
@@ -2087,7 +2092,7 @@ export default function LeadsView() {
               onCall={handleCallLead}
               onCompose={() => setComposeLead(selectedLead)}
               onEdit={openLeadEditor}
-              onClose={closeLead}
+              onClose={leadHistory.closePanel}
               draft={leadPanelDrafts[selectedLead.id] || EMPTY_LEAD_PANEL_DRAFT}
               onDraftChange={(draft) => updateLeadPanelDraft(selectedLead.id, draft)}
               onPatch={async (patch) => {
@@ -2272,33 +2277,12 @@ const filterBarStyle: React.CSSProperties = {
   marginBottom: spacing.lg,
 }
 
-const tableColumns = '48px 44px minmax(86px, 0.72fr) minmax(120px, 1fr) minmax(170px, 1.25fr) minmax(84px, 0.55fr) minmax(130px, 0.9fr) minmax(150px, 1fr)'
-
-const tableWrapStyle: React.CSSProperties = {
-  width: '100%',
-  minWidth: '1180px',
-}
-
-const tableHeaderStyle: React.CSSProperties = {
-  gridTemplateColumns: tableColumns,
-}
-
-const tableRowStyle: React.CSSProperties = {
-  gridTemplateColumns: tableColumns,
-}
-
 const signalCellStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: typography.sizeLg,
   lineHeight: 1,
-}
-
-const tableCheckboxStyle: React.CSSProperties = {
-  width: '18px',
-  height: '18px',
-  cursor: 'pointer',
 }
 
 const nameTextStyle: React.CSSProperties = {
@@ -2344,22 +2328,6 @@ const tableStatusCellStyle: React.CSSProperties = {
   flexWrap: 'wrap',
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
-}
-
-const sortableHeaderButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: spacing.xs,
-  width: 'fit-content',
-  padding: 0,
-  border: 'none',
-  background: 'transparent',
-  color: colors.textSecondary,
-  fontFamily: typography.fontSans,
-  fontSize: typography.sizeXs,
-  fontWeight: typography.weightMedium,
-  cursor: 'pointer',
-  whiteSpace: 'normal',
 }
 
 const leadPanelBodyStyle: React.CSSProperties = {
@@ -2542,48 +2510,6 @@ const followUpChipsStyle: React.CSSProperties = {
   gap: spacing.xs,
 }
 
-const leadCardListStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: spacing.md,
-}
-
-const leadCardStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: spacing.sm,
-  width: '100%',
-  textAlign: 'left',
-  background: colors.surface,
-  border: `1px solid ${colors.border}`,
-  borderRadius: radius.lg,
-  padding: spacing.lg,
-  cursor: 'pointer',
-  fontFamily: typography.fontSans,
-  boxSizing: 'border-box',
-}
-
-const leadCardHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: spacing.md,
-}
-
-const leadCardNameTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeBase,
-  fontWeight: typography.weightBold,
-  color: colors.text,
-  fontFamily: typography.fontSans,
-}
-
-const leadCardBadgesStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: spacing.sm,
-  flexWrap: 'wrap',
-}
-
 const leadCardLineStyle: React.CSSProperties = {
   fontSize: typography.sizeBase,
   color: colors.textSecondary,
@@ -2601,16 +2527,6 @@ const leadCardFollowUpStyle: React.CSSProperties = {
   lineHeight: 1.45,
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
-}
-
-const leadCardMetaStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: spacing.xs,
-  fontSize: typography.sizeBase,
-  color: colors.textMuted,
-  fontFamily: typography.fontSans,
-  flexWrap: 'wrap',
 }
 
 const valueCardStyle: React.CSSProperties = {
@@ -2704,12 +2620,6 @@ const leadStatusSelectStyle: React.CSSProperties = {
 const statusInlineSelectWrapStyle: React.CSSProperties = {
   width: 'auto',
   flex: '0 0 auto',
-}
-
-const nameCellStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  minWidth: 0,
 }
 
 const leadStatusBadgeStyle: React.CSSProperties = {

@@ -10,6 +10,7 @@ import { LeadDetailPanel } from '@/components/leads/LeadDetailPanel'
 import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { displayMessageStatus } from '@/lib/message-status'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
 interface Message {
   id: string
@@ -48,6 +49,7 @@ type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantF
 type LeadPanelLead = ComponentProps<typeof LeadDetailPanel>['lead']
 type LeadPanelDraft = ComponentProps<typeof LeadDetailPanel>['draft']
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
+const MOBILE_THREAD_HISTORY_KEY = 'pulseMobileConversation'
 
 function InboxPageInner() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -73,9 +75,22 @@ function InboxPageInner() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
   const markingReadThreadKeysRef = useRef(new Set<string>())
+  const mobileThreadHistoryRef = useRef(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const campaignId = searchParams.get('campaign')
+
+  const closeProfileState = () => {
+    setSelectedContact(null)
+    setSelectedLead(null)
+    setProfileError('')
+  }
+  const profileHistory = useMobilePanelHistory({
+    isOpen: Boolean(selectedContact || selectedLead),
+    isMobile,
+    historyKey: 'pulseMobileConversationProfile',
+    onClose: closeProfileState,
+  })
 
   const fetchThreads = async (): Promise<Thread[]> => {
     const url = campaignId
@@ -116,6 +131,22 @@ function InboxPageInner() {
     if (!messagesEndRef.current) return
     messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
   }, [activeThread?.thread_key, activeThread?.messages?.length])
+
+  useEffect(() => {
+    if (!isMobile) {
+      mobileThreadHistoryRef.current = false
+      return
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const shouldOpenThread = Boolean(event.state?.[MOBILE_THREAD_HISTORY_KEY])
+      mobileThreadHistoryRef.current = shouldOpenThread
+      setIsMobileThreadOpen(shouldOpenThread)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [isMobile])
 
   const handleViewProfile = async () => {
     if (!activeThread?.profile_id || !activeThread.profile_type) return
@@ -229,7 +260,11 @@ function InboxPageInner() {
       setThreads(current => current.filter(thread => thread.thread_key !== activeThread.thread_key))
       setActiveThread(null)
       setReply('')
-      setIsMobileThreadOpen(false)
+      if (isMobile && mobileThreadHistoryRef.current) {
+        window.history.back()
+      } else {
+        setIsMobileThreadOpen(false)
+      }
       setIsDeleteOpen(false)
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : 'Could not delete conversation.')
@@ -280,6 +315,15 @@ function InboxPageInner() {
 
     if (!isMobile) return
 
+    if (!mobileThreadHistoryRef.current) {
+      window.history.pushState(
+        { ...window.history.state, [MOBILE_THREAD_HISTORY_KEY]: true },
+        '',
+        window.location.href,
+      )
+      mobileThreadHistoryRef.current = true
+    }
+
     setIsMobileThreadOpen(false)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setIsMobileThreadOpen(true))
@@ -300,6 +344,7 @@ function InboxPageInner() {
         <PageHeader
           title="Conversations"
           subtitle={loading ? 'Loading...' : undefined}
+          singleLine={isMobile}
           right={
             <button
               onClick={() => setIsComposeOpen(true)}
@@ -432,7 +477,13 @@ function InboxPageInner() {
               {isMobile && (
                 <button
                   type="button"
-                  onClick={() => setIsMobileThreadOpen(false)}
+                  onClick={() => {
+                    if (mobileThreadHistoryRef.current) {
+                      window.history.back()
+                    } else {
+                      setIsMobileThreadOpen(false)
+                    }
+                  }}
                   aria-label="Back to conversations"
                   style={{
                     display: 'inline-flex',
@@ -621,16 +672,15 @@ function InboxPageInner() {
         <ContactSlidePanel
           contact={selectedContact}
           tenantFields={tenantFields}
-          onClose={() => { setSelectedContact(null); setProfileError('') }}
+          onClose={profileHistory.closePanel}
           onUpdated={(updated) => setSelectedContact(updated)}
           onCompose={() => {
-            setSelectedContact(null)
-            setTimeout(() => replyInputRef.current?.focus(), 150)
+            profileHistory.dismissPanel(() => setTimeout(() => replyInputRef.current?.focus(), 150))
           }}
         />
       )}
 
-      <SlidePanel isOpen={Boolean(selectedLead)} onClose={() => { setSelectedLead(null); setProfileError('') }} fullScreen={isMobile} width="min(88vw, 1180px)">
+      <SlidePanel isOpen={Boolean(selectedLead)} onClose={profileHistory.closePanel} fullScreen={isMobile} width="min(88vw, 1180px)">
         {profileError && <Notice variant="error">{profileError}</Notice>}
         {selectedLead && (
           <LeadDetailPanel
@@ -647,9 +697,9 @@ function InboxPageInner() {
                 body: JSON.stringify({ to_phone: selectedLead.contact.phone, contact_id: selectedLead.contact?.id || null, lead_id: selectedLead.intake_type === 'job_application' ? null : selectedLead.id }),
               })
             }}
-            onCompose={() => { setSelectedLead(null); setTimeout(() => replyInputRef.current?.focus(), 150) }}
-            onEdit={() => router.push(`/dashboard/leads?lead=${selectedLead.id}`)}
-            onClose={() => { setSelectedLead(null); setProfileError('') }}
+            onCompose={() => profileHistory.dismissPanel(() => setTimeout(() => replyInputRef.current?.focus(), 150))}
+            onEdit={() => profileHistory.dismissPanel(() => router.push(`/dashboard/leads?lead=${selectedLead.id}`))}
+            onClose={profileHistory.closePanel}
             draft={leadPanelDraft}
             onDraftChange={setLeadPanelDraft}
           />

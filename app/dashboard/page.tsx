@@ -8,6 +8,8 @@ import { Button, Badge, SlidePanel, SlidePanelHeader, PageHeader } from '@/compo
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { useIsMobile } from '@/lib/useMediaQuery'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
 interface Insight {
   type: 'risk' | 'milestone' | 'opportunity' | 'nudge'
@@ -203,6 +205,13 @@ export default function DashboardPage() {
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
   const [composeTarget, setComposeTarget] = useState<ComposeTarget | null>(null)
   const [selectedContact, setSelectedContact] = useState<ContactRecord | null>(null)
+  const isMobile = useIsMobile()
+  const contactHistory = useMobilePanelHistory({
+    isOpen: Boolean(selectedContact),
+    isMobile,
+    historyKey: 'pulseMobileDashboardContactProfile',
+    onClose: () => setSelectedContact(null),
+  })
   const [greeting, setGreeting] = useState(() => getGreetingForTime())
   const [canManageHighlights, setCanManageHighlights] = useState(false)
 
@@ -627,7 +636,7 @@ export default function DashboardPage() {
         <ContactSlidePanel
           contact={selectedContact}
           tenantFields={tenantFields}
-          onClose={() => setSelectedContact(null)}
+          onClose={contactHistory.closePanel}
           onUpdated={(updated) => {
             setSelectedContact(updated)
             setContactDetailsMap(prev => ({ ...prev, [updated.id]: updated }))

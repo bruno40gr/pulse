@@ -26,5 +26,16 @@ export { NotesSection } from './NotesSection'
 export { SurfacePanel } from './SurfacePanel'
 export { DenseSectionPanel } from './DenseSectionPanel'
 export { CompactMetaCard } from './CompactMetaCard'
-export { DataGridTable, DataGridRow } from './DataGridTable'
+export {
+  DataGridTable,
+  DataGridRow,
+  ResponsiveDataTable,
+  type DataTableColumn,
+  type DataTableMobileCard,
+  type DataTableSelection,
+  type DataTableSort,
+  type DataTableSortDirection,
+  type DataTableSortOption,
+  type ResponsiveDataTableProps,
+} from './DataGridTable'
 export { Tabs } from './Tabs'

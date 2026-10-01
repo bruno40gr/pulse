@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
+import { Copy, MessageCircle, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
+import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -31,6 +31,17 @@ interface InstructorInfo {
   email: string | null
 }
 
+interface InstructorStudent {
+  enrollment_id: string
+  person_id: string
+  name: string
+  client_status: string
+  instrument: string | null
+  service_type: string | null
+  lesson_day: string | null
+  lesson_time: string | null
+}
+
 interface Contact {
   id: string
   first_name: string
@@ -55,6 +66,7 @@ interface Contact {
   is_minor?: boolean
   notes_history?: NoteEntry[]
   student_notes_history?: NoteEntry[]
+  active_students?: InstructorStudent[]
 }
 
 interface TenantField {
@@ -104,7 +116,7 @@ interface ContactSlidePanelProps {
   onClose: () => void
   onUpdated: (updated: Contact) => void
   onCompose?: (contactIds: string[]) => void
-  onViewStaff?: (staffId: string) => void
+  onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
 }
 
@@ -127,9 +139,10 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewStaff, initialNotesTab = 'notes' }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes' }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
+  const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
 
@@ -153,11 +166,18 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [isEditing, setIsEditing] = useState(false)
   const [isStaffActionMenuOpen, setIsStaffActionMenuOpen] = useState(false)
   const [calling, setCalling] = useState(false)
+  const [copiedEmail, setCopiedEmail] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
 
   // ── Load insights with note context ──
   useEffect(() => {
+    if (isInstructor) {
+      setInsights([])
+      setInsightsLoading(false)
+      return
+    }
+
     const cacheKey = `pulse_contact_insights_${contact.id}`
     const cacheTimeKey = `pulse_contact_insights_time_${contact.id}`
     const cached = localStorage.getItem(cacheKey)
@@ -207,7 +227,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, studentNotesHistory])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, studentNotesHistory])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -305,6 +325,15 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     }
   }
 
+  const copyEmail = async (email: string | null) => {
+    if (!email) return
+    try {
+      await navigator.clipboard.writeText(email)
+      setCopiedEmail(true)
+      window.setTimeout(() => setCopiedEmail(false), 1800)
+    } catch {}
+  }
+
   const updateEdit = (key: string, value: string) => {
     setEdits(prev => ({ ...prev, [key]: value }))
   }
@@ -328,8 +357,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const computedIsMinor = age !== null ? age < 18 : contact.is_minor
   const ageLabel = age !== null ? `Age ${age}` : null
   const statusLabel = (contact.client_status || 'active').charAt(0).toUpperCase() + (contact.client_status || 'active').slice(1)
-  const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
   const isInstructorActive = contact.is_active !== false
+  const activeStudents = contact.active_students || []
 
   const headerIconButtonStyle: React.CSSProperties = {
     width: '32px',
@@ -356,6 +385,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           is_primary: true,
         }]
       : [])
+
+  const primaryAccountHolder = accountHolders.find(holder => holder.is_primary) || accountHolders[0]
+  const contactPhone = computedIsMinor ? (primaryAccountHolder?.phone || contact.account_holder_phone) : contact.phone
+  const contactEmail = computedIsMinor ? (primaryAccountHolder?.email || contact.account_holder_email) : contact.email
 
   const showAccountHolders = computedIsMinor
     ? accountHolders.length > 0
@@ -506,7 +539,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   return (
-    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width="min(92vw, 1320px)">
+    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width="min(75vw, 960px)">
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -528,6 +561,17 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         }
         onClose={onClose}
         toast={toastMessage || undefined}
+        titleBadge={!isInstructor ? (
+          <button
+            type="button"
+            aria-label="Edit contact"
+            title="Edit contact"
+            onClick={handleStartEditing}
+            style={headerIconButtonStyle}
+          >
+            <Pencil size={16} />
+          </button>
+        ) : undefined}
         actions={isInstructor ? (
           <>
             <button
@@ -602,6 +646,49 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         ) : undefined}
       />
 
+      {!isInstructor && <div style={{
+        display: 'flex',
+        alignItems: isMobile ? 'stretch' : 'center',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: spacing.sm,
+        flexWrap: 'wrap',
+        padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`,
+        flexShrink: 0,
+        borderBottom: `1px solid ${colors.borderLight}`,
+        background: colors.surface,
+      }}>
+        <Button
+          type="button"
+          size="md"
+          disabled={!contactPhone || calling}
+          onClick={() => void handleCall(contactPhone)}
+          style={isMobile ? mobileActionControlStyle : undefined}
+        >
+          <Phone size={16} />
+          {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          disabled={!onCompose || !contactPhone}
+          onClick={() => onCompose?.([contact.id])}
+          style={isMobile ? mobileActionControlStyle : undefined}
+        >
+          <MessageCircle size={16} />
+          Text message
+        </Button>
+        <CompactMetaCard fullWidth={isMobile} style={emailControlStyle}>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contactEmail || 'Not provided'}</span>
+          {contactEmail && (
+            <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail(contactEmail)} style={{ padding: 0, color: colors.teal }}>
+              <Copy size={15} />
+            </Button>
+          )}
+          {copiedEmail && <span role="status" style={{ color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }}>Copied</span>}
+        </CompactMetaCard>
+      </div>}
+
       {/* Body — two desktop columns, one mobile stack */}
       {insightsLoading ? panelSkeleton : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
@@ -659,9 +746,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: '12px', color: colors.textMuted }}>
-                        {ah.is_primary ? 'Account manager' : 'Additional account manager'}
-                      </div>
+                      {!ah.is_primary && <div style={{ fontSize: '12px', color: colors.textMuted }}>Additional account manager</div>}
                       {(ah.phone || ah.email) && (
                         <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: isMobile ? '6px' : '12px', minWidth: 0 }}>
                           {ah.phone ? (
@@ -689,30 +774,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </DenseSectionPanel>
           ) : null}
 
-          {(contact.phone || contact.email) && (
-            <DenseSectionPanel title="Contact" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}>
-              <div>
-                <FieldLabel>Contact</FieldLabel>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
-                  <FieldValue style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contact.phone ? displayPhone(contact.phone) : 'No phone'}</FieldValue>
-                  {contact.phone && <button
-                    type="button"
-                    onClick={() => handleCall(contact.phone)}
-                    disabled={calling}
-                    aria-label={`Call ${contact.first_name} ${contact.last_name}`}
-                    title={`Call ${displayPhone(contact.phone)}`}
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px', color: colors.textSecondary, background: 'transparent', border: 'none', cursor: calling ? 'wait' : 'pointer', opacity: calling ? 0.55 : 1 }}
-                  >
-                    <Phone size={15} strokeWidth={1.8} />
-                  </button>}
-                </div>
-                <FieldValue style={{ minWidth: 0, marginTop: spacing.xs, color: colors.textSecondary, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contact.email || 'No email'}</FieldValue>
-              </div>
-            </DenseSectionPanel>
-          )}
-
           {/* AI Insights */}
-          <DenseSectionPanel
+          {!isInstructor && <DenseSectionPanel
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: typography.sizeSm, fontWeight: 400, color: colors.textMuted }}><Sparkles size={15} /> AI highlights</div>}
             style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
           >
@@ -763,7 +826,44 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
             </div>
           )}
-          </DenseSectionPanel>
+          </DenseSectionPanel>}
+
+          {isInstructor && (
+            <DenseSectionPanel
+              title={`Active students (${activeStudents.length})`}
+              style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+              contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
+            >
+              {activeStudents.length === 0 ? (
+                <p style={{ margin: 0, fontSize: typography.sizeSm, color: colors.textMuted }}>
+                  No active students are currently subscribed to this instructor.
+                </p>
+              ) : activeStudents.map(student => (
+                <div
+                  key={student.enrollment_id}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: '10px 12px', border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => onViewInstructor?.(student.person_id)}
+                      disabled={!onViewInstructor}
+                      style={{ padding: 0, border: 'none', background: 'transparent', color: onViewInstructor ? '#2563EB' : colors.text, fontSize: typography.sizeSm, fontWeight: 600, fontFamily: typography.fontSans, textAlign: 'left', cursor: onViewInstructor ? 'pointer' : 'default', textDecoration: onViewInstructor ? 'underline' : 'none' }}
+                    >
+                      {student.name}
+                    </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', marginTop: '3px', fontSize: typography.sizeXs, color: colors.textMuted }}>
+                      {student.instrument && <span>{student.instrument}</span>}
+                      {student.service_type && <span>{student.service_type}</span>}
+                      {student.lesson_day && <span>{student.lesson_day}</span>}
+                      {student.lesson_time && <span>{student.lesson_time}</span>}
+                    </div>
+                  </div>
+                  <StatusBadge status={student.client_status} label={student.client_status.charAt(0).toUpperCase() + student.client_status.slice(1)} />
+                </div>
+              ))}
+            </DenseSectionPanel>
+          )}
 
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
@@ -798,8 +898,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                           style={{
                             fontSize: '14px',
                             fontWeight: 500,
-                            color: contact.instructor?.staff_id ? '#2563EB' : colors.text,
-                            textDecoration: contact.instructor?.staff_id ? 'underline' : 'none',
+                            color: contact.instructor?.person_id ? '#2563EB' : colors.text,
+                            textDecoration: contact.instructor?.person_id ? 'underline' : 'none',
                              minWidth: 0,
                              overflowWrap: 'anywhere',
                              wordBreak: 'break-word',
@@ -810,13 +910,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       </div>
                     )
 
-                    // Clickable only when a staff record exists to open
-                    if (contact.instructor?.staff_id) {
+                    // Open the instructor's contact card using the stable person id.
+                    if (contact.instructor?.person_id && onViewInstructor) {
                       return (
                         <div key={f.field_key}>
                           <FieldLabel>{f.field_label}</FieldLabel>
                           <button
-                            onClick={() => onViewStaff?.(contact.instructor!.staff_id)}
+                            onClick={() => onViewInstructor(contact.instructor!.person_id!)}
                             style={{
                               background: 'none', border: 'none', padding: 0,
                               cursor: 'pointer', fontFamily: typography.fontSans,
@@ -929,23 +1029,27 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       </div>
       )}
 
-      {!isInstructor && (
-        <div style={{
-          padding: isMobile ? '12px 16px' : `16px 28px`,
-          borderTop: `1px solid ${colors.borderLight}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '10px',
-          flexWrap: 'wrap',
-          minWidth: 0,
-          flexShrink: 0,
-          background: colors.surface,
-        }}>
-          <Button variant="secondary" onClick={handleStartEditing}>Edit contact</Button>
-          <Button variant="primary" onClick={() => onCompose?.([contact.id])}>Send message</Button>
-        </div>
-      )}
     </SlidePanel>
   )
+}
+
+const mobileActionControlStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+}
+
+const emailControlStyle: React.CSSProperties = {
+  gap: spacing.xs,
+  color: colors.textSecondary,
+  fontWeight: typography.weightMedium,
+  flexWrap: 'wrap',
+  minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`,
+  padding: `${spacing.sm} ${spacing.lg}`,
+  fontSize: typography.sizeBase,
+  maxWidth: '100%',
+  minWidth: 0,
+  overflow: 'hidden',
 }

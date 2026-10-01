@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -22,6 +23,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     const tenantId = getActiveTenantId()
@@ -44,7 +46,8 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
     if (!open) return
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!rootRef.current?.contains(target) && !dialogRef.current?.contains(target)) setOpen(false)
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -98,8 +101,8 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
           </span>
         )}
       </button>
-      {open && (
-        <div role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
+      {open && createPortal(
+        <div ref={dialogRef} role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 1100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, background: colors.surface }}>
             <strong style={{ fontSize: typography.sizeMd }}>Notifications</strong>
             {unreadCount > 0 && <button type="button" onClick={() => void markRead()} style={{ border: 'none', background: 'transparent', color: colors.tealDark, cursor: 'pointer', fontSize: typography.sizeSm, fontWeight: typography.weightSemibold }}>Mark all read</button>}
@@ -113,7 +116,8 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
               <div style={{ marginTop: 5, color: colors.textMuted, fontSize: typography.sizeXs }}>{new Date(item.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
