@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Lock } from 'lucide-react'
 import { Button, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -12,6 +13,8 @@ interface NoteConversationNote {
   color: string
   created_by: string | null
   updated_at: string
+  is_private: boolean
+  participant_count: number
 }
 
 interface NoteReply {
@@ -57,7 +60,7 @@ function MentionText({ body }: { body: string }) {
 interface NoteConversationPanelProps {
   note: NoteConversationNote | null
   tenantId: string
-  onReplyAdded: (noteId: string, replyCount: number) => void
+  onReplyAdded: (noteId: string, replyCount: number, participantCount?: number) => void
   onClose: () => void
 }
 
@@ -106,7 +109,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
       if (!response.ok) throw new Error(data?.error || 'Could not save reply.')
       setReplies((current) => {
         const nextReplies = [...current, data]
-        onReplyAdded(note.id, nextReplies.length)
+        onReplyAdded(note.id, nextReplies.length, typeof data.participant_count === 'number' ? data.participant_count : undefined)
         return nextReplies
       })
       setReplyBody('')
@@ -125,6 +128,32 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
       {note && (
         <>
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing['3xl'], display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+            {note.is_private && (
+              <div
+                role="note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: spacing.sm,
+                  background: colors.surfaceMuted,
+                  border: `1px solid ${colors.borderLight}`,
+                  borderRadius: radius.md,
+                  color: colors.textSecondary,
+                  fontFamily: typography.fontSans,
+                  fontSize: typography.sizeSm,
+                  lineHeight: 1.45,
+                  padding: spacing.md,
+                }}
+              >
+                <Lock size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong style={{ color: colors.text }}>This conversation is private between the people included.</strong>
+                  <div>
+                    {note.participant_count} {note.participant_count === 1 ? 'person has' : 'people have'} access. Mentioning someone in a reply will add them to the conversation.
+                  </div>
+                </div>
+              </div>
+            )}
             <article style={{ background: NOTE_COLORS[note.color] || NOTE_COLORS.white, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.md, padding: spacing.lg }}>
               {note.title && <h3 style={{ color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeMd, fontWeight: typography.weightSemibold, margin: '0 0 5px' }}>{note.title}</h3>}
               <div style={{ color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, lineHeight: 1.55, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>

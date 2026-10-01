@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, MessageCircle, Pin, Trash2 } from 'lucide-react'
+import { Check, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
 import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
 import MentionTextarea from '@/components/notes/MentionTextarea'
@@ -16,6 +16,8 @@ interface Note {
   body: string
   color: string
   pinned: boolean
+  is_private: boolean
+  participant_count: number
   created_by: string | null
   completed_at: string | null
   note_date: string
@@ -271,6 +273,12 @@ function NoteCard(props: NoteCardProps) {
         )}
       </div>
       <div style={{ width: '100%', marginTop: spacing.md, paddingTop: spacing.sm, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        {note.is_private && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: colors.textSecondary, fontSize: 11, fontWeight: typography.weightSemibold, marginBottom: spacing.xs }}>
+            <Lock size={12} aria-hidden="true" />
+            Private · {note.participant_count} {note.participant_count === 1 ? 'person' : 'people'}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
           <Button variant="ghost" size="sm" onClick={props.onReply} style={{ color: colors.textSecondary }}>
             <MessageCircle size={14} aria-hidden="true" />
@@ -300,6 +308,7 @@ export default function NotesPage() {
   const [draftMentionIds, setDraftMentionIds] = useState<string[]>([])
   const [draftColor, setDraftColor] = useState('yellow')
   const [draftPinned, setDraftPinned] = useState(false)
+  const [draftPrivate, setDraftPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -309,9 +318,17 @@ export default function NotesPage() {
   const [conversationNote, setConversationNote] = useState<Note | null>(null)
   const deepLinkedNoteHandledRef = useRef(false)
 
-  const handleReplyAdded = (noteId: string, replyCount: number) => {
-    setNotes((current) => current.map((note) => note.id === noteId ? { ...note, reply_count: replyCount } : note))
-    setConversationNote((current) => current?.id === noteId ? { ...current, reply_count: replyCount } : current)
+  const handleReplyAdded = (noteId: string, replyCount: number, participantCount?: number) => {
+    setNotes((current) => current.map((note) => note.id === noteId ? {
+      ...note,
+      reply_count: replyCount,
+      participant_count: participantCount ?? note.participant_count,
+    } : note))
+    setConversationNote((current) => current?.id === noteId ? {
+      ...current,
+      reply_count: replyCount,
+      participant_count: participantCount ?? current.participant_count,
+    } : current)
   }
 
   const closeConversation = () => {
@@ -360,15 +377,17 @@ export default function NotesPage() {
   const showToast = (message: string, undo?: () => void) => setToast({ message, undo })
 
   const resetComposer = () => {
-    setDraftTitle(''); setDraftBody(''); setDraftMentionIds([]); setDraftColor('yellow'); setDraftPinned(false)
+    setDraftTitle(''); setDraftBody(''); setDraftMentionIds([]); setDraftColor('yellow'); setDraftPinned(false); setDraftPrivate(false)
   }
 
-  const patchNote = (id: string, updates: Record<string, unknown>) => {
-    fetch(`/api/notes/${id}?tenant=${tenantId}`, {
+  const patchNote = async (id: string, updates: Record<string, unknown>) => {
+    const response = await fetch(`/api/notes/${id}?tenant=${tenantId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
-    }).catch(() => {})
+    })
+    if (!response.ok) throw new Error('Could not update note.')
+    return response.json()
   }
 
   const generateTitle = async (body: string): Promise<string | null> => {
@@ -397,7 +416,7 @@ export default function NotesPage() {
       const res = await fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, note_date: selectedDate || getLocalDateValue(), mention_membership_ids: draftMentionIds }),
+        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, is_private: draftPrivate, note_date: selectedDate || getLocalDateValue(), mention_membership_ids: draftMentionIds }),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => null)
@@ -416,12 +435,12 @@ export default function NotesPage() {
   const handlePin = (note: Note) => {
     const next = !note.pinned
     setNotes((prev) => sortNotes(prev.map((n) => (n.id === note.id ? { ...n, pinned: next } : n))))
-    patchNote(note.id, { pinned: next })
+    void patchNote(note.id, { pinned: next }).catch(() => void fetchNotes())
   }
 
   const handleColor = (note: Note, color: string) => {
     setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, color } : n)))
-    patchNote(note.id, { color })
+    void patchNote(note.id, { color }).catch(() => void fetchNotes())
   }
 
   const handleToggleComplete = (note: Note) => {
@@ -430,11 +449,16 @@ export default function NotesPage() {
       if (!showDone && completed_at) return prev.filter((entry) => entry.id !== note.id)
       return prev.map((entry) => (entry.id === note.id ? { ...entry, completed_at } : entry))
     })
-    patchNote(note.id, { completed_at })
+    void patchNote(note.id, { completed_at }).catch(() => void fetchNotes())
   }
 
   const handleDelete = (note: Note) => {
     setNotes((prev) => prev.filter((n) => n.id !== note.id))
+    if (note.is_private) {
+      showToast('Private note deleted')
+      fetch(`/api/notes/${note.id}?tenant=${tenantId}`, { method: 'DELETE' }).catch(() => {})
+      return
+    }
     showToast('Note deleted', () => {
       fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
@@ -464,7 +488,15 @@ export default function NotesPage() {
     const title = typedTitle || await generateTitle(body)
     setNotes((prev) => sortNotes(prev.map((n) => (n.id === id ? { ...n, title: title || null, body, updated_at: new Date().toISOString() } : n))))
     setEditingId(null)
-    patchNote(id, { title: title || null, body, mention_membership_ids: editMentionIds })
+    try {
+      const updated = await patchNote(id, { title: title || null, body, mention_membership_ids: editMentionIds })
+      if (typeof updated?.participant_count === 'number') {
+        setNotes((prev) => prev.map((note) => note.id === id ? { ...note, participant_count: updated.participant_count } : note))
+      }
+    } catch {
+      showToast('Could not update note')
+      void fetchNotes()
+    }
   }
 
   const composerBg = NOTE_COLORS[draftColor] || NOTE_COLORS.white
@@ -554,11 +586,64 @@ export default function NotesPage() {
             >
               <Pin size={16} fill={draftPinned ? 'currentColor' : 'none'} />
             </button>
+            <button
+              type="button"
+              onClick={() => setDraftPrivate((value) => !value)}
+              title={draftPrivate ? 'Make this note visible to everyone' : 'Only you and mentioned people can access this note'}
+              role="switch"
+              aria-checked={draftPrivate}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: spacing.xs,
+                padding: '3px 4px',
+                border: 'none',
+                background: 'transparent',
+                color: colors.text,
+                fontFamily: typography.fontSans,
+                fontSize: typography.sizeSm,
+                fontWeight: typography.weightMedium,
+                cursor: 'pointer',
+              }}
+            >
+              <span>Private</span>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                  width: 32,
+                  height: 18,
+                  borderRadius: 999,
+                  background: draftPrivate ? colors.action : colors.textMuted,
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: draftPrivate ? 16 : 2,
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: colors.surface,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                    transition: 'left 0.15s ease',
+                  }}
+                />
+              </span>
+            </button>
             <div style={{ flex: 1 }} />
             <Button variant="primary" size="sm" onClick={handleAdd} disabled={saving || (!draftTitle.trim() && !draftBody.trim())}>
               {saving ? 'Saving…' : 'Add'}
             </Button>
           </div>
+          {draftPrivate && (
+            <div style={{ color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginTop: spacing.sm }}>
+              Private: only you and people you mention can access this conversation. Reply mentions can add more people later.
+            </div>
+          )}
         </div>
       </div>
 

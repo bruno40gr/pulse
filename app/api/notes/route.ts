@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
+import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
+import { addPrivateNoteParticipants, getPrivateNoteParticipantIds } from '@/lib/note-privacy'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
-import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -25,27 +26,34 @@ export async function GET(request: Request) {
       .eq('tenant_id', tenantId)
       .order('pinned', { ascending: false })
       .order('updated_at', { ascending: false })
-
     if (noteDate) query = query.eq('note_date', noteDate)
     if (!showDone) query = query.is('completed_at', null)
-    const { data, error } = await query
 
+    const { data, error } = await query
     if (error) throw error
     const notes = data || []
-    if (notes.length === 0) return NextResponse.json(notes)
+    if (notes.length === 0) return NextResponse.json([])
+
+    const privateNoteIds = notes.filter((note) => note.is_private).map((note) => note.id)
+    const participantsByNote = await getPrivateNoteParticipantIds(tenantId, privateNoteIds)
+    const membershipId = tenantAccess.context?.membershipId
+    const visibleNotes = notes.filter((note) => !note.is_private || Boolean(membershipId && participantsByNote.get(note.id)?.has(membershipId)))
+    if (visibleNotes.length === 0) return NextResponse.json([])
 
     const { data: replyRows, error: replyError } = await supabaseAdmin
       .from('note_replies')
       .select('note_id')
       .eq('tenant_id', tenantId)
-      .in('note_id', notes.map((note) => note.id))
+      .in('note_id', visibleNotes.map((note) => note.id))
     if (replyError) throw replyError
 
     const replyCounts = new Map<string, number>()
-    for (const reply of replyRows || []) {
-      replyCounts.set(reply.note_id, (replyCounts.get(reply.note_id) || 0) + 1)
-    }
-    return NextResponse.json(notes.map((note) => ({ ...note, reply_count: replyCounts.get(note.id) || 0 })))
+    for (const reply of replyRows || []) replyCounts.set(reply.note_id, (replyCounts.get(reply.note_id) || 0) + 1)
+    return NextResponse.json(visibleNotes.map((note) => ({
+      ...note,
+      reply_count: replyCounts.get(note.id) || 0,
+      participant_count: note.is_private ? participantsByNote.get(note.id)?.size || 0 : 0,
+    })))
   } catch (error) {
     console.error('[notes][list] Error', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
@@ -58,50 +66,57 @@ export async function POST(request: Request) {
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const body = await request.json()
-
     const title = typeof body.title === 'string' ? body.title.trim() : ''
     const noteBody = typeof body.body === 'string' ? body.body.trim() : ''
-    if (!title && !noteBody) {
-      return NextResponse.json({ error: 'Note is empty.' }, { status: 400 })
-    }
+    if (!title && !noteBody) return NextResponse.json({ error: 'Note is empty.' }, { status: 400 })
 
-    const color = typeof body.color === 'string' && body.color ? body.color : 'yellow'
-    const pinned = body.pinned === true
+    const isPrivate = body.is_private === true
     const noteDate = typeof body.note_date === 'string' ? body.note_date : new Date().toISOString().slice(0, 10)
     if (!isDateValue(noteDate)) return NextResponse.json({ error: 'A valid note date is required.' }, { status: 400 })
+    if (isPrivate && !tenantAccess.context) return NextResponse.json({ error: 'A staff account is required to create a private note.' }, { status: 403 })
     const mentionMembershipIds = tenantAccess.context
       ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
       : []
 
-    const { data, error } = await supabaseAdmin
-      .from('notes')
-      .insert({
-        tenant_id: tenantId,
-        title: title || null,
-        body: noteBody,
-        color,
-        pinned,
-        note_date: noteDate,
-        created_by: tenantAccess.identity.displayName,
-        created_by_membership_id: tenantAccess.context?.membershipId || null,
-      })
-      .select()
-      .single()
-
+    const { data, error } = await supabaseAdmin.from('notes').insert({
+      tenant_id: tenantId,
+      title: title || null,
+      body: noteBody,
+      color: typeof body.color === 'string' && body.color ? body.color : 'yellow',
+      pinned: body.pinned === true,
+      is_private: isPrivate,
+      note_date: noteDate,
+      created_by: tenantAccess.identity.displayName,
+      created_by_membership_id: tenantAccess.context?.membershipId || null,
+    }).select().single()
     if (error) throw error
-    if (tenantAccess.context) {
-      await persistMentions({
-        tenantId,
-        actorMembershipId: tenantAccess.context.membershipId,
-        membershipIds: mentionMembershipIds,
-        entityType: 'dashboard_note',
-        entityId: data.id,
-        title: `${tenantAccess.identity.displayName} mentioned you in a note`,
-        body: noteBody,
-        link: `/dashboard/notes?note=${encodeURIComponent(data.id)}`,
-      })
+
+    let participantCount = 0
+    try {
+      if (isPrivate && tenantAccess.context) {
+        participantCount = await addPrivateNoteParticipants({
+          tenantId,
+          noteId: data.id,
+          membershipIds: [tenantAccess.context.membershipId, ...mentionMembershipIds],
+        })
+      }
+      if (tenantAccess.context) {
+        await persistMentions({
+          tenantId,
+          actorMembershipId: tenantAccess.context.membershipId,
+          membershipIds: mentionMembershipIds,
+          entityType: 'dashboard_note',
+          entityId: data.id,
+          title: `${tenantAccess.identity.displayName} mentioned you in a note`,
+          body: noteBody,
+          link: `/dashboard/notes?note=${encodeURIComponent(data.id)}`,
+        })
+      }
+    } catch (postCreateError) {
+      await supabaseAdmin.from('notes').delete().eq('id', data.id).eq('tenant_id', tenantId)
+      throw postCreateError
     }
-    return NextResponse.json(data)
+    return NextResponse.json({ ...data, participant_count: participantCount, reply_count: 0 })
   } catch (error) {
     console.error('[notes][create] Error', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

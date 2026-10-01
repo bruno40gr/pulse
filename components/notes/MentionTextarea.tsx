@@ -31,6 +31,7 @@ interface MentionTextareaProps {
 export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
+  const selectedMentionTokensRef = useRef(new Map<string, string>())
   const [tenantId] = useState<string>(() => getActiveTenantId())
   const [open, setOpen] = useState(false)
   const [mentionStart, setMentionStart] = useState<number | null>(null)
@@ -92,6 +93,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     const before = value.slice(0, start)
     const after = value.slice(cursorRef.current)
     const next = `${before}@${name} ${after}`
+    selectedMentionTokensRef.current.set(person.membership_id, `@${name}`)
     onChange(next)
     onMentionMembershipIdsChange?.([...new Set([...mentionMembershipIds, person.membership_id])])
     const cursor = start + 1 + name.length + 1
@@ -111,6 +113,13 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     const cursor = el.selectionStart ?? val.length
     cursorRef.current = cursor
     onChange(val)
+    if (onMentionMembershipIdsChange) {
+      const visibleIds = mentionMembershipIds.filter((membershipId) => {
+        const token = selectedMentionTokensRef.current.get(membershipId)
+        return !token || val.includes(token)
+      })
+      if (visibleIds.length !== mentionMembershipIds.length) onMentionMembershipIdsChange(visibleIds)
+    }
     detectMention(val, cursor)
   }
 

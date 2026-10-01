@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server'
+import { createReplyNotification, persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
+import { addPrivateNoteParticipants, canAccessNote, type NotePrivacyRecord } from '@/lib/note-privacy'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
-import { createReplyNotification, persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
-async function getTenantNote(id: string, tenantId: string) {
+async function getAccessibleNote(id: string, tenantId: string, membershipId: string | null | undefined) {
   const { data, error } = await supabaseAdmin
     .from('notes')
-    .select('id, created_by_membership_id')
+    .select('id, tenant_id, is_private, created_by_membership_id')
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .maybeSingle()
   if (error) throw error
+  if (!data || !await canAccessNote(data as NotePrivacyRecord, membershipId)) return null
   return data
 }
 
@@ -21,8 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
-
-    const note = await getTenantNote(id, tenantAccess.tenantId)
+    const note = await getAccessibleNote(id, tenantAccess.tenantId, tenantAccess.context?.membershipId)
     if (!note) return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
 
     const { data, error } = await supabaseAdmin
@@ -45,28 +46,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const requestBody = await request.json()
-    const { body } = requestBody
-    const replyBody = typeof body === 'string' ? body.trim() : ''
+    const replyBody = typeof requestBody.body === 'string' ? requestBody.body.trim() : ''
     if (!replyBody) return NextResponse.json({ error: 'Reply cannot be empty.' }, { status: 400 })
     const mentionMembershipIds = tenantAccess.context
       ? await validateMentionMembershipIds(tenantAccess.tenantId, requestBody.mention_membership_ids)
       : []
 
-    const note = await getTenantNote(id, tenantAccess.tenantId)
+    const note = await getAccessibleNote(id, tenantAccess.tenantId, tenantAccess.context?.membershipId)
     if (!note) return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
 
-    const { data, error } = await supabaseAdmin
-      .from('note_replies')
-      .insert({
-        tenant_id: tenantAccess.tenantId,
-        note_id: id,
-        body: replyBody,
-        created_by: tenantAccess.identity.displayName,
-        created_by_membership_id: tenantAccess.context?.membershipId || null,
+    let participantCount: number | undefined = note.is_private ? undefined : 0
+    if (note.is_private && tenantAccess.context) {
+      participantCount = await addPrivateNoteParticipants({
+        tenantId: tenantAccess.tenantId,
+        noteId: id,
+        membershipIds: mentionMembershipIds,
       })
-      .select('id, body, created_by, created_at')
-      .single()
+    }
+
+    const { data, error } = await supabaseAdmin.from('note_replies').insert({
+      tenant_id: tenantAccess.tenantId,
+      note_id: id,
+      body: replyBody,
+      created_by: tenantAccess.identity.displayName,
+      created_by_membership_id: tenantAccess.context?.membershipId || null,
+    }).select('id, body, created_by, created_at').single()
     if (error) throw error
+
     if (tenantAccess.context) {
       await persistMentions({
         tenantId: tenantAccess.tenantId,
@@ -90,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         })
       }
     }
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json({ ...data, participant_count: participantCount }, { status: 201 })
   } catch (error) {
     console.error('[notes][replies][create] Error', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: 'Could not save reply.' }, { status: 500 })
