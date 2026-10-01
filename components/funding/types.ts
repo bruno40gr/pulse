@@ -1,5 +1,31 @@
 export type FundingCaseStatus = 'needs_review' | 'waiting' | 'active' | 'paid'
 export type FundingOwner = 'Vendor' | 'Family' | 'Funder'
+export type FundingInvoiceStatus = 'draft' | 'pending' | 'overdue' | 'rejected' | 'paid'
+
+export interface FundingInvoiceStatusEvent {
+  id: string
+  fromStatus: FundingInvoiceStatus | null
+  toStatus: FundingInvoiceStatus
+  evidence: string | null
+  note: string | null
+  changedAt: string
+}
+
+export interface FundingInvoice {
+  id: string
+  invoiceNumber: string
+  servicePeriodStart: string | null
+  servicePeriodEnd: string | null
+  issuedOn: string | null
+  dueOn: string | null
+  amount: number
+  status: FundingInvoiceStatus
+  paidOn: string | null
+  rejectionEvidence: string | null
+  createdAt: string
+  updatedAt: string
+  statusEvents: FundingInvoiceStatusEvent[]
+}
 
 export interface FundingActivity {
   id: string
@@ -10,6 +36,9 @@ export interface FundingActivity {
 
 export interface FundingCase {
   id: string
+  studentId?: string
+  studentPersonId?: string | null
+  payerId?: string
   student: string
   parent: string
   fundingOrganization: string
@@ -30,6 +59,7 @@ export interface FundingCase {
   paymentMethod: string
   instructions: string
   updatedAt: string
+  invoices: FundingInvoice[]
   activity: FundingActivity[]
 }
 

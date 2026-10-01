@@ -98,8 +98,10 @@ function IndeterminateCheckbox({
   return <input ref={ref} type="checkbox" {...props} />
 }
 
-function isInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('button, a, input, select, textarea, [role="button"]'))
+function isInteractiveTarget(target: EventTarget | null, container: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  const interactive = target.closest('button, a, input, select, textarea, [role="button"]')
+  return Boolean(interactive && interactive !== container)
 }
 
 function getNextSort<SortKey extends string>(
@@ -222,11 +224,11 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   aria-label={onRowClick ? `Open ${selection?.getRowLabel(row) || 'record'}` : undefined}
                   aria-selected={selection ? selected : undefined}
                   onClick={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return
+                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return
                     onRowClick(row, index, event)
                   }}
                   onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return
+                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
                       onRowClick(row, index, event as unknown as MouseEvent<HTMLElement>)
@@ -331,7 +333,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
               role="row"
               aria-selected={selection ? selected : undefined}
               onClick={(event) => {
-                if (!onRowClick || isInteractiveTarget(event.target)) return
+                if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return
                 onRowClick(row, index, event)
               }}
               style={{

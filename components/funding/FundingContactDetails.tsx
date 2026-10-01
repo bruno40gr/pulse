@@ -1,17 +1,19 @@
 'use client'
 
-import { Badge, DenseSectionPanel, DetailField, Select } from '@/components/ui'
+import { Badge, Button, DenseSectionPanel, DetailField, Select } from '@/components/ui'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
-import type { FundingCase } from './types'
+import { INVOICE_STATUS_LABELS } from '@/lib/funding/invoice-status'
+import type { FundingCase, FundingInvoice } from './types'
 
 interface FundingContactDetailsProps {
   fundingCase: FundingCase
   onNextStepChange?: (value: string) => void
+  onInvoiceStatusChange?: (invoice: FundingInvoice) => void
   embedded?: boolean
 }
 
-export function FundingContactDetails({ fundingCase, onNextStepChange, embedded = false }: FundingContactDetailsProps) {
+export function FundingContactDetails({ fundingCase, onNextStepChange, onInvoiceStatusChange, embedded = false }: FundingContactDetailsProps) {
   const isMobile = useIsMobile()
   const statusVariant = fundingCase.status === 'paid' ? 'success' : fundingCase.status === 'needs_review' ? 'risk' : fundingCase.status === 'waiting' ? 'nudge' : 'info'
 
@@ -42,6 +44,48 @@ export function FundingContactDetails({ fundingCase, onNextStepChange, embedded 
           <DetailField label="Invoice cadence" value={fundingCase.invoiceCadence} />
           <DetailField label="Submission route" value={fundingCase.submissionRoute} />
           <DetailField label="Payment method" value={fundingCase.paymentMethod} />
+        </DenseSectionPanel>
+
+        <DenseSectionPanel
+          title="Invoices"
+          style={{ gridColumn: isMobile ? undefined : '1 / -1', borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}
+          contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}
+        >
+          {fundingCase.invoices.length === 0 ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: typography.sizeBase }}>No invoices have been recorded for this case.</p>
+          ) : fundingCase.invoices.map(invoice => (
+            <div key={invoice.id} style={{ border: `1px solid ${colors.borderLight}`, borderRadius: radius.lg, background: colors.surface, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: spacing.md, padding: spacing.lg, background: colors.surfaceMuted }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+                    <strong style={{ color: colors.text, fontSize: typography.sizeBase }}>{invoice.invoiceNumber}</strong>
+                    <InvoiceStatusBadge invoice={invoice} />
+                  </div>
+                  <div style={{ color: colors.textSecondary, fontSize: typography.sizeSm, marginTop: spacing.xs }}>
+                    {formatInvoicePeriod(invoice)} · {formatCurrency(invoice.amount)}
+                    {invoice.dueOn ? ` · Due ${formatDate(invoice.dueOn)}` : ''}
+                  </div>
+                </div>
+                {onInvoiceStatusChange && <Button size="sm" variant="secondary" onClick={() => onInvoiceStatusChange(invoice)}>Update status</Button>}
+              </div>
+              {invoice.rejectionEvidence && (
+                <div style={{ padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}`, color: colors.error, fontSize: typography.sizeSm }}>
+                  <strong>Rejection evidence:</strong> {invoice.rejectionEvidence}
+                </div>
+              )}
+              <div style={{ padding: `0 ${spacing.lg} ${spacing.sm}` }}>
+                {invoice.statusEvents.map(event => (
+                  <div key={event.id} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(150px, 0.35fr) minmax(0, 1fr)', gap: spacing.sm, padding: `${spacing.md} 0`, borderTop: `1px solid ${colors.borderLight}` }}>
+                    <div style={{ color: colors.textMuted, fontSize: typography.sizeXs }}>{formatDateTime(event.changedAt)}</div>
+                    <div style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>
+                      <strong style={{ color: colors.text }}>{event.fromStatus ? `${INVOICE_STATUS_LABELS[event.fromStatus]} → ` : ''}{INVOICE_STATUS_LABELS[event.toStatus]}</strong>
+                      {(event.note || event.evidence) && <div style={{ marginTop: spacing.xs }}>{event.note || event.evidence}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </DenseSectionPanel>
 
         <DenseSectionPanel
@@ -92,5 +136,21 @@ export function formatCurrency(value: number) {
 }
 
 export function formatDate(value: string) {
-  return new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const date = value.includes('T') ? new Date(value) : new Date(`${value}T12:00:00`)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function formatInvoicePeriod(invoice: FundingInvoice) {
+  if (invoice.servicePeriodStart && invoice.servicePeriodEnd) return `${formatDate(invoice.servicePeriodStart)}–${formatDate(invoice.servicePeriodEnd)}`
+  if (invoice.servicePeriodStart) return `From ${formatDate(invoice.servicePeriodStart)}`
+  return invoice.issuedOn ? `Issued ${formatDate(invoice.issuedOn)}` : 'Service period not recorded'
+}
+
+function InvoiceStatusBadge({ invoice }: { invoice: FundingInvoice }) {
+  const variant = invoice.status === 'paid' ? 'success' : invoice.status === 'rejected' || invoice.status === 'overdue' ? 'risk' : invoice.status === 'pending' ? 'nudge' : 'neutral'
+  return <Badge variant={variant} size="sm">{INVOICE_STATUS_LABELS[invoice.status]}</Badge>
 }

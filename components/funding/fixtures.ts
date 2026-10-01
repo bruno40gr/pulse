@@ -1,6 +1,6 @@
-import type { FundingCase, FundingProgram } from './types'
+import type { FundingCase, FundingInvoiceStatus, FundingProgram } from './types'
 
-export const fundingCases: FundingCase[] = [
+const fixtureCases: Omit<FundingCase, 'invoices'>[] = [
   {
     id: 'case-jayden-kim', student: 'Jayden Kim', parent: 'Hana Ko', fundingOrganization: 'ACE FMS', programType: 'FMS', service: 'Weekly music lessons',
     status: 'needs_review', statusLabel: 'Invoice rejected', owner: 'Vendor', nextStep: 'Review the rejected invoice and confirm the required service code.',
@@ -61,6 +61,45 @@ export const fundingCases: FundingCase[] = [
     activity: [{ id: 'a8', title: 'Purchase order confirmed', detail: 'Current authorization covers October services.', date: '2026-09-24' }],
   },
 ]
+
+function fixtureInvoiceStatus(item: Omit<FundingCase, 'invoices'>): FundingInvoiceStatus {
+  if (item.statusLabel.includes('rejected')) return 'rejected'
+  if (item.statusLabel.includes('needed') || item.statusLabel.includes('due soon') || item.statusLabel.includes('Authorization')) return 'draft'
+  if (item.status === 'paid' || item.amountPaid === item.amountExpected) return 'paid'
+  return 'pending'
+}
+
+export const fundingCases: FundingCase[] = fixtureCases.map((item, index) => {
+  const status = fixtureInvoiceStatus(item)
+  const invoiceNumber = `INV-2026-${String(index + 91).padStart(3, '0')}`
+  const changedAt = `${item.updatedAt}T16:00:00.000Z`
+  const evidence = status === 'rejected' ? 'Payer response reported that the submitted service code did not match the authorization.' : null
+  return {
+    ...item,
+    invoices: [{
+      id: `invoice-${item.id}`,
+      invoiceNumber,
+      servicePeriodStart: '2026-09-01',
+      servicePeriodEnd: '2026-09-30',
+      issuedOn: '2026-09-22',
+      dueOn: item.dueDate,
+      amount: item.amountExpected,
+      status,
+      paidOn: status === 'paid' ? item.updatedAt : null,
+      rejectionEvidence: evidence,
+      createdAt: '2026-09-22T16:00:00.000Z',
+      updatedAt: changedAt,
+      statusEvents: [{
+        id: `invoice-event-${item.id}`,
+        fromStatus: status === 'draft' ? null : 'pending',
+        toStatus: status,
+        evidence,
+        note: item.activity[0]?.detail || null,
+        changedAt,
+      }],
+    }],
+  }
+})
 
 export const fundingPrograms: FundingProgram[] = [
   { id: 'ace', name: 'ACE FMS', type: 'FMS', routing: 'Vendor portal', cadence: 'Monthly', activeCases: 1, outstanding: 480, observedPayment: '18–24 days', verification: 'Needs review' },

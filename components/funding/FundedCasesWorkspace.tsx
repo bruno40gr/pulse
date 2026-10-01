@@ -1,13 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Badge, Button, PageHeader, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { useEffect, useMemo, useState } from 'react'
+import { Badge, Button, Notice, PageHeader, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import { getActiveTenantId } from '@/lib/tenant'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { fundingCases as initialCases, fundingPrograms } from './fixtures'
 import { formatCurrency, formatDate, FundingContactDetails } from './FundingContactDetails'
-import type { FundingCase, FundingProgram } from './types'
+import { InvoiceStatusModal } from './InvoiceStatusModal'
+import type { FundingCase, FundingInvoice, FundingInvoiceStatus, FundingProgram } from './types'
 
 type WorkspaceTab = 'needs_review' | 'waiting' | 'all' | 'programs'
 type CaseSortKey = 'student' | 'organization' | 'status' | 'dueDate' | 'outstanding' | 'updatedAt'
@@ -21,6 +23,31 @@ export default function FundedCasesWorkspace() {
   const [programSort, setProgramSort] = useState<DataTableSort<ProgramSortKey>>({ key: 'name', direction: 'asc' })
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [contactCaseId, setContactCaseId] = useState<string | null>(null)
+  const [invoiceEdit, setInvoiceEdit] = useState<{ caseId: string; invoice: FundingInvoice } | null>(null)
+  const [dataSource, setDataSource] = useState<'loading' | 'persisted' | 'fixture'>('loading')
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    const tenantId = getActiveTenantId()
+    let active = true
+    fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}`)
+      .then(async response => {
+        const body = await response.json()
+        if (!response.ok) throw new Error(body?.error || 'Could not load funded cases.')
+        if (!Array.isArray(body)) throw new Error('Funding cases returned an invalid response.')
+        if (active) {
+          setCases(body)
+          setDataSource('persisted')
+        }
+      })
+      .catch(error => {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : 'Could not load funded cases.')
+          setDataSource('fixture')
+        }
+      })
+    return () => { active = false }
+  }, [])
 
   const selectedCase = cases.find(item => item.id === selectedCaseId) || null
   const contactCase = cases.find(item => item.id === contactCaseId) || null
@@ -36,8 +63,60 @@ export default function FundedCasesWorkspace() {
 
   const sortedPrograms = useMemo(() => [...fundingPrograms].sort((a, b) => comparePrograms(a, b, programSort)), [programSort])
 
-  const updateNextStep = (caseId: string, nextStep: string) => {
-    setCases(current => current.map(item => item.id === caseId ? { ...item, nextStep, updatedAt: '2026-10-01' } : item))
+  const replaceCase = (updated: FundingCase) => {
+    setCases(current => current.map(item => item.id === updated.id ? updated : item))
+  }
+
+  const updateNextStep = async (caseId: string, nextStep: string) => {
+    if (dataSource === 'persisted') {
+      const tenantId = getActiveTenantId()
+      const response = await fetch(`/api/funding/cases/${caseId}?tenant=${encodeURIComponent(tenantId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_step: nextStep }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body?.error || 'Could not update the case.')
+      replaceCase(body)
+      return
+    }
+    setCases(current => current.map(item => item.id === caseId ? { ...item, nextStep, updatedAt: new Date().toISOString() } : item))
+  }
+
+  const updateInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
+    if (!invoiceEdit) return
+    if (dataSource === 'persisted') {
+      const tenantId = getActiveTenantId()
+      const response = await fetch(`/api/funding/invoices/${invoiceEdit.invoice.id}/status?tenant=${encodeURIComponent(tenantId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: input.status, evidence: input.evidence, note: input.note, paid_on: input.paidOn }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body?.error || 'Could not update invoice status.')
+      replaceCase(body)
+      return
+    }
+    const changedAt = new Date().toISOString()
+    setCases(current => current.map(item => {
+      if (item.id !== invoiceEdit.caseId) return item
+      const invoices = item.invoices.map(invoice => invoice.id !== invoiceEdit.invoice.id ? invoice : {
+        ...invoice,
+        status: input.status,
+        paidOn: input.status === 'paid' ? input.paidOn : null,
+        rejectionEvidence: input.status === 'rejected' ? input.evidence : null,
+        updatedAt: changedAt,
+        statusEvents: [{
+          id: `fixture-event-${Date.now()}`,
+          fromStatus: invoice.status,
+          toStatus: input.status,
+          evidence: input.evidence || null,
+          note: input.note || null,
+          changedAt,
+        }, ...invoice.statusEvents],
+      })
+      return recalculateFixtureCase({ ...item, invoices, updatedAt: changedAt }, input.status, input.note || input.evidence)
+    }))
   }
 
   const caseColumns: DataTableColumn<FundingCase, CaseSortKey>[] = [
@@ -78,11 +157,17 @@ export default function FundedCasesWorkspace() {
     <div style={{ padding: isMobile ? spacing.lg : spacing['3xl'], width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <PageHeader title="Funded cases" subtitle="Track funded students, money owed, case workflows, and the next action that needs attention." />
 
+      {dataSource === 'fixture' && (
+        <Notice variant="warning" title="Prototype data shown" style={{ marginBottom: spacing.lg }}>
+          Persisted funding data is unavailable in this environment. Apply Migration 018 and ensure this account has funding permissions to enable production records. {loadError}
+        </Notice>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: spacing.md, marginBottom: spacing['2xl'] }}>
         <SummaryCard label="Needs review" value={String(needsReviewCount)} detail="Cases requiring a decision" />
         <SummaryCard label="Waiting" value={String(waitingCount)} detail="Owned by vendor, family, or payer" />
         <SummaryCard label="Outstanding" value={formatCurrency(outstanding)} detail="Expected but not yet paid" />
-        <SummaryCard label="Paid this cycle" value={formatCurrency(paidThisCycle)} detail="Across current fixture cases" />
+        <SummaryCard label="Paid this cycle" value={formatCurrency(paidThisCycle)} detail={dataSource === 'persisted' ? 'Across persisted invoices' : 'Across current prototype cases'} />
       </div>
 
       <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
@@ -140,7 +225,12 @@ export default function FundedCasesWorkspace() {
             compact={isMobile}
             actions={<Button size="sm" variant="secondary" onClick={() => { setSelectedCaseId(null); setContactCaseId(selectedCase.id) }}>View contact</Button>}
           />
-          <FundingContactDetails fundingCase={selectedCase} embedded onNextStepChange={value => updateNextStep(selectedCase.id, value)} />
+          <FundingContactDetails
+            fundingCase={selectedCase}
+            embedded
+            onNextStepChange={value => void updateNextStep(selectedCase.id, value)}
+            onInvoiceStatusChange={invoice => setInvoiceEdit({ caseId: selectedCase.id, invoice })}
+          />
         </SlidePanel>
       )}
 
@@ -153,11 +243,31 @@ export default function FundedCasesWorkspace() {
           initialPanelTab="funding"
           onClose={() => setContactCaseId(null)}
           onUpdated={() => {}}
-          onNextStepChange={value => updateNextStep(contactCase.id, value)}
+          onNextStepChange={value => void updateNextStep(contactCase.id, value)}
+          onInvoiceStatusChange={invoice => setInvoiceEdit({ caseId: contactCase.id, invoice })}
+          onFundingCaseUpdated={replaceCase}
         />
       )}
+
+      <InvoiceStatusModal invoice={invoiceEdit?.invoice || null} onClose={() => setInvoiceEdit(null)} onSave={updateInvoiceStatus} />
     </div>
   )
+}
+
+function recalculateFixtureCase(item: FundingCase, status: FundingInvoiceStatus, detail: string) {
+  const amountExpected = item.invoices.reduce((sum, invoice) => sum + invoice.amount, 0)
+  const amountPaid = item.invoices.filter(invoice => invoice.status === 'paid').reduce((sum, invoice) => sum + invoice.amount, 0)
+  const workflowStatus = status === 'paid' ? 'paid' : status === 'pending' ? 'waiting' : 'needs_review'
+  const statusLabel = status === 'rejected' ? 'Invoice rejected' : status === 'overdue' ? 'Invoice overdue' : status === 'draft' ? 'Invoice needed' : status === 'pending' ? 'Waiting on payer' : 'Paid'
+  return {
+    ...item,
+    status: workflowStatus as FundingCase['status'],
+    statusLabel,
+    amountExpected,
+    amountPaid,
+    outstanding: amountExpected - amountPaid,
+    activity: [{ id: `fixture-case-event-${Date.now()}`, title: `Invoice ${statusLabel.replace('Invoice ', '').toLowerCase()}`, detail, date: new Date().toISOString() }, ...item.activity],
+  }
 }
 
 function SummaryCard({ label, value, detail }: { label: string; value: string; detail: string }) {
