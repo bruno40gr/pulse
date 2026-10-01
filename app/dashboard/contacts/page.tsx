@@ -93,6 +93,7 @@ export default function ContactsPage() {
   const [query, setQuery] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [filterExplanation, setFilterExplanation] = useState('')
+  const [searchError, setSearchError] = useState('')
   const [displayIds, setDisplayIds] = useState<string[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
@@ -309,9 +310,11 @@ export default function ContactsPage() {
     if (!query.trim()) {
       setDisplayIds(null)
       setFilterExplanation('')
+      setSearchError('')
       return
     }
     setAiLoading(true)
+    setSearchError('')
     try {
       const res = await fetch('/api/ai-filter', {
         method: 'POST',
@@ -319,13 +322,14 @@ export default function ContactsPage() {
         body: JSON.stringify({ query, tenant: tenantId }),
       })
       const data = await res.json()
-      if (data.contact_ids) {
-        setDisplayIds(data.contact_ids)
-        setFilterExplanation(data.explanation || '')
-        setSelectedIds(new Set())
-      }
+      if (!res.ok) throw new Error(data.error || 'Search could not be completed.')
+      if (!Array.isArray(data.contact_ids)) throw new Error('Search returned an invalid response.')
+      setDisplayIds(data.contact_ids)
+      setFilterExplanation(data.explanation || query.trim())
+      setSelectedIds(new Set())
     } catch (e) {
       console.error(e)
+      setSearchError(e instanceof Error ? e.message : 'Search could not be completed.')
     } finally {
       setAiLoading(false)
     }
@@ -335,6 +339,7 @@ export default function ContactsPage() {
     setQuery('')
     setDisplayIds(null)
     setFilterExplanation('')
+    setSearchError('')
     setSelectedIds(new Set())
     setAppliedFilters({})
   }
@@ -645,6 +650,12 @@ export default function ContactsPage() {
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
       </div>
+
+      {searchError && (
+        <div style={{ marginBottom: spacing.md, padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.error}`, borderRadius: radius.md, color: colors.error, background: colors.surface, fontSize: typography.sizeSm }}>
+          {searchError}
+        </div>
+      )}
 
       {showStickyActions && selectedIds.size > 0 && (
         <div style={{

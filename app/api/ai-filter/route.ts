@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 import { assertTenantAccess } from '@/lib/access'
+import { resolveMembershipRequestContext } from '@/lib/request-context'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -20,6 +21,7 @@ You receive a natural language query about contacts and must convert it into a s
 Return ONLY valid JSON with this exact shape (no markdown, no backticks):
 {
   "instructors": [],
+  "names": [],
   "instruments": [],
   "service_types": [],
   "bands": [],
@@ -35,6 +37,7 @@ Return ONLY valid JSON with this exact shape (no markdown, no backticks):
 
 Rules:
 - Empty arrays mean "no filter on that dimension".
+- "names": substrings of contact names. A person's name such as "Harper Cole" = names ["harper cole"].
 - "instructors": substrings of instructor names (e.g. "Bridget"). "X's students" / "students of X" = instructors ["X"].
 - "instruments": lowercase instrument names (e.g. "drums", "piano", "bass", "voice"). "drum students" = instruments ["drums"].
 - "service_types": one of "private", "group", "semi-private", "band" (band = 101 classes like Bass 101, Guitar 101). "band students" = service_types ["band"].
@@ -68,6 +71,161 @@ function containsAny(haystack: string[], needles: string[]): boolean {
 
 function isInactiveLikeStatus(value: string): boolean {
   return value === 'inactive' || value === 'cancelled' || value === 'dropped'
+}
+
+type FilterSpec = {
+  instructors: string[]
+  names: string[]
+  instruments: string[]
+  service_types: string[]
+  bands: string[]
+  lesson_days: string[]
+  client_statuses: string[]
+  last_attended_months: string[]
+  cancelled_in_month: string | null
+  not_attended_days: number | null
+  has_email: boolean | null
+  no_match: boolean
+  explanation: string
+}
+
+type SearchableContact = {
+  id: string
+  student_id: string | null
+  email: string | null
+  client_status: string
+  last_attended: string | null
+  non_student_booking: boolean
+  names: string[]
+  instructors: string[]
+  instruments: string[]
+  service_types: string[]
+  bands: string[]
+  lesson_days: string[]
+}
+
+function emptyFilterSpec(explanation = ''): FilterSpec {
+  return {
+    instructors: [],
+    names: [],
+    instruments: [],
+    service_types: [],
+    bands: [],
+    lesson_days: [],
+    client_statuses: [],
+    last_attended_months: [],
+    cancelled_in_month: null,
+    not_attended_days: null,
+    has_email: null,
+    no_match: false,
+    explanation,
+  }
+}
+
+function hasFilter(spec: FilterSpec): boolean {
+  return spec.instructors.length > 0
+    || spec.names.length > 0
+    || spec.instruments.length > 0
+    || spec.service_types.length > 0
+    || spec.bands.length > 0
+    || spec.lesson_days.length > 0
+    || spec.client_statuses.length > 0
+    || spec.last_attended_months.length > 0
+    || spec.cancelled_in_month !== null
+    || spec.not_attended_days !== null
+    || spec.has_email !== null
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.map(norm).filter(value => value.length >= 2))]
+}
+
+function queryIncludesValue(query: string, value: string): boolean {
+  if (query.includes(value)) return true
+  if (value.endsWith('s') && value.length > 3 && query.includes(value.slice(0, -1))) return true
+  return false
+}
+
+function localFilterSpec(query: string, contacts: SearchableContact[]): FilterSpec {
+  const normalizedQuery = norm(query).replace(/[’']/g, "'")
+  const spec = emptyFilterSpec(query.trim())
+  const valuesFor = (key: 'names' | 'instructors' | 'instruments' | 'bands' | 'lesson_days') =>
+    unique(contacts.flatMap(contact => contact[key]))
+
+  // Match values that actually exist in this tenant. Longest-first avoids a
+  // short value winning over a more specific name such as "bass guitar".
+  for (const key of ['names', 'instructors', 'instruments', 'bands', 'lesson_days'] as const) {
+    const matches = valuesFor(key)
+      .filter(value => value.length >= 3 && queryIncludesValue(normalizedQuery, value))
+      .sort((left, right) => right.length - left.length)
+    if (matches.length > 0) spec[key] = [matches[0]]
+  }
+
+  if (/\b(101|band program|band class(?:es)?|band students?)\b/.test(normalizedQuery) && spec.bands.length === 0) {
+    spec.service_types.push('band')
+    spec.instruments = spec.instruments.filter(instrument => instrument !== 'band')
+  }
+  if (/\bsemi[ -]?private\b/.test(normalizedQuery)) spec.service_types.push('semi-private')
+  else if (/\bprivate\b/.test(normalizedQuery)) spec.service_types.push('private')
+  if (/\bgroup\b/.test(normalizedQuery)) spec.service_types.push('group')
+
+  if (/\b(active|current)\b/.test(normalizedQuery)) spec.client_statuses.push('active')
+  if (/\b(inactive|cancelled|canceled|dropped)\b/.test(normalizedQuery)) spec.client_statuses.push('inactive')
+  if (/\bprospects?\b/.test(normalizedQuery)) spec.client_statuses.push('prospect')
+  if (/\bmembers?\b/.test(normalizedQuery)) spec.client_statuses.push('member')
+
+  if (/\b(no|without|missing)\s+(an?\s+)?emails?\b/.test(normalizedQuery)) spec.has_email = false
+  else if (/\b(with|has|have)\s+(an?\s+)?emails?\b/.test(normalizedQuery)) spec.has_email = true
+
+  const absence = normalizedQuery.match(/(?:haven't|have not|not)\s+attended\s+(?:in|for)\s+(\d+)\s*(day|week|month)s?/)
+  if (absence) {
+    const amount = Number(absence[1])
+    const multiplier = absence[2] === 'week' ? 7 : absence[2] === 'month' ? 30 : 1
+    spec.not_attended_days = amount * multiplier
+  }
+
+  for (const month of MONTH_NAMES) {
+    if (!normalizedQuery.includes(month)) continue
+    if (/\b(cancelled|canceled|dropped|quit|inactive)\b/.test(normalizedQuery)) {
+      spec.cancelled_in_month = month
+      spec.client_statuses = []
+    } else if (/\b(last attended|attendance)\b/.test(normalizedQuery)) {
+      spec.last_attended_months.push(month)
+    }
+  }
+
+  spec.service_types = unique(spec.service_types)
+  spec.client_statuses = unique(spec.client_statuses)
+  spec.last_attended_months = unique(spec.last_attended_months)
+  spec.no_match = !hasFilter(spec)
+  return spec
+}
+
+function normalizeFilterSpec(value: unknown, fallback: FilterSpec): FilterSpec {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const result: FilterSpec = {
+    instructors: unique([...strArray(input.instructors), ...fallback.instructors]),
+    names: unique([...strArray(input.names), ...fallback.names]),
+    instruments: unique([...strArray(input.instruments), ...fallback.instruments]),
+    service_types: unique([...strArray(input.service_types), ...fallback.service_types]),
+    bands: unique([...strArray(input.bands), ...fallback.bands]),
+    lesson_days: unique([...strArray(input.lesson_days), ...fallback.lesson_days]),
+    client_statuses: unique([...strArray(input.client_statuses), ...fallback.client_statuses]),
+    last_attended_months: unique([...strArray(input.last_attended_months), ...fallback.last_attended_months]),
+    cancelled_in_month: typeof input.cancelled_in_month === 'string' && input.cancelled_in_month.trim()
+      ? norm(input.cancelled_in_month)
+      : fallback.cancelled_in_month,
+    not_attended_days: typeof input.not_attended_days === 'number' && Number.isFinite(input.not_attended_days)
+      ? input.not_attended_days
+      : fallback.not_attended_days,
+    has_email: typeof input.has_email === 'boolean' ? input.has_email : fallback.has_email,
+    no_match: false,
+    explanation: typeof input.explanation === 'string' && input.explanation.trim()
+      ? input.explanation.trim()
+      : fallback.explanation,
+  }
+  result.no_match = !hasFilter(result)
+  return result
 }
 
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
@@ -105,8 +263,16 @@ export async function POST(request: Request) {
     const tenantId = tenant || getTenantId(request)
     if (!query?.trim()) return NextResponse.json({ error: 'No query provided' }, { status: 400 })
 
-    const access = await assertTenantAccess(request, tenantId)
-    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+    // Demo/legacy sessions use the signed Pulse cookie. Claimed staff accounts
+    // use Supabase auth cookies, so search must accept the same two auth paths as
+    // the rest of the dashboard.
+    const legacyAccess = await assertTenantAccess(request, tenantId)
+    if (!legacyAccess.ok) {
+      const membershipAccess = await resolveMembershipRequestContext(request, tenantId)
+      if (!membershipAccess.ok) {
+        return NextResponse.json({ error: membershipAccess.error }, { status: membershipAccess.status })
+      }
+    }
 
     const profile = await getImportProfile(tenantId)
 
@@ -195,6 +361,7 @@ export async function POST(request: Request) {
         client_status: clientStatus,
         last_attended: lastAttended,
         non_student_booking: nonStudentBooking,
+        names: [norm([person.first_name, person.last_name].filter(Boolean).join(' '))].filter(Boolean),
         instructors: [...instructors],
         instruments: [...instruments],
         service_types: [...serviceTypes],
@@ -223,20 +390,35 @@ export async function POST(request: Request) {
       console.warn('roster_snapshots: table may not exist yet —', (e as Error).message)
     }
 
-    // Parse the query into a structured filter (LLM only parses intent)
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Query: "${query}"` }],
-    })
+    // Parse common queries from tenant data first. The LLM expands that intent,
+    // but search remains functional if the provider is unavailable or returns
+    // malformed output.
+    const localSpec = localFilterSpec(query, contacts)
+    let parsedSpec: unknown = null
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: `Query: "${query}"` }],
+      })
 
-    const firstBlock = response.content[0]
-    const rawText = firstBlock && firstBlock.type === 'text' ? firstBlock.text : ''
-    const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const spec = JSON.parse(cleaned)
+      const firstBlock = response.content[0]
+      const rawText = firstBlock && firstBlock.type === 'text' ? firstBlock.text : ''
+      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      parsedSpec = JSON.parse(cleaned)
+    } catch (error) {
+      console.warn('AI filter intent parsing failed; using local parser:', (error as Error).message)
+    }
+    // Local parsing is grounded in values that exist in this tenant and should
+    // not be over-constrained by extra dimensions guessed by the model. Use the
+    // model when local parsing cannot understand the request.
+    const spec = hasFilter(localSpec)
+      ? localSpec
+      : normalizeFilterSpec(parsedSpec, localSpec)
 
     const instructors = strArray(spec.instructors)
+    const names = strArray(spec.names)
     const instruments = strArray(spec.instruments)
     const serviceTypes = strArray(spec.service_types)
     const bands = strArray(spec.bands)
@@ -260,6 +442,7 @@ export async function POST(request: Request) {
     for (const c of contacts) {
       if (noMatch) break
       if (c.non_student_booking && (cancelledInMonth || clientStatuses.some(isInactiveLikeStatus))) continue
+      if (!containsAny(c.names, names)) continue
       if (!containsAny(c.instructors, instructors)) continue
       if (!containsAny(c.instruments, instruments)) continue
       if (!containsAny(c.service_types, serviceTypes)) continue
