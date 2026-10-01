@@ -69,6 +69,11 @@ function containsAny(haystack: string[], needles: string[]): boolean {
   return needles.some((needle) => haystack.some((item) => item.includes(needle)))
 }
 
+function containsExactAny(haystack: string[], needles: string[]): boolean {
+  if (needles.length === 0) return true
+  return needles.some((needle) => haystack.includes(needle))
+}
+
 function isInactiveLikeStatus(value: string): boolean {
   return value === 'inactive' || value === 'cancelled' || value === 'dropped'
 }
@@ -456,7 +461,7 @@ export async function POST(request: Request) {
       if (!containsAny(c.names, names)) continue
       if (!containsAny(c.instructors, instructors)) continue
       if (!containsAny(c.instruments, instruments)) continue
-      if (!containsAny(c.service_types, serviceTypes)) continue
+      if (!containsExactAny(c.service_types, serviceTypes)) continue
       if (!containsAny(c.bands, bands)) continue
       if (!containsAny(c.lesson_days, lessonDays)) continue
       if (applyClientStatusFilter && clientStatuses.length > 0) {
@@ -481,7 +486,10 @@ export async function POST(request: Request) {
       }
       if (lastAttendedMonths.length > 0) {
         if (!c.last_attended) continue
-        const monthName = new Date(c.last_attended).toLocaleString('en-US', { month: 'long' }).toLowerCase()
+        const dateMonth = Number(c.last_attended.slice(5, 7))
+        const monthName = Number.isInteger(dateMonth) && dateMonth >= 1 && dateMonth <= 12
+          ? MONTH_NAMES[dateMonth - 1]
+          : ''
         if (!lastAttendedMonths.includes(monthName)) continue
       }
       if (hasEmail === true && !c.email) continue
