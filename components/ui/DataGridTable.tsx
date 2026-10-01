@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type CSSProperties, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
@@ -9,12 +9,6 @@ export type DataTableSortDirection = 'asc' | 'desc'
 export type DataTableSort<SortKey extends string> = {
   key: SortKey
   direction: DataTableSortDirection
-}
-
-export type DataTableSortOption<SortKey extends string> = {
-  key: SortKey
-  label: string
-  defaultSortDirection?: DataTableSortDirection
 }
 
 export type DataTableColumn<Row, SortKey extends string> = {
@@ -27,15 +21,6 @@ export type DataTableColumn<Row, SortKey extends string> = {
   sortLabel?: string
   defaultSortDirection?: DataTableSortDirection
   render: (row: Row, index: number) => ReactNode
-}
-
-export type DataTableMobileCard = {
-  leading?: ReactNode
-  title: ReactNode
-  status?: ReactNode
-  details?: ReactNode
-  metadata?: ReactNode
-  trailing?: ReactNode
 }
 
 export type DataTableSelection<Row> = {
@@ -53,21 +38,16 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   rows: Row[]
   columns: DataTableColumn<Row, SortKey>[]
   getRowKey: (row: Row) => string
-  renderMobileCard: (row: Row, index: number) => DataTableMobileCard
   sort?: DataTableSort<SortKey>
   onSortChange?: (sort: DataTableSort<SortKey>) => void
-  mobileSortOptions?: DataTableSortOption<SortKey>[]
   selection?: DataTableSelection<Row>
   loading?: boolean
   skeletonRows?: number
   emptyContent: ReactNode
   minDesktopWidth?: number | string
   mobileBreakpoint?: number
-  mobileMode?: 'cards' | 'scroll'
-  stickyMobileColumnId?: string
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
-  getMobileCardStyle?: (row: Row, index: number) => CSSProperties | undefined
   ariaLabel?: string
   style?: CSSProperties
 }
@@ -123,33 +103,21 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   rows,
   columns,
   getRowKey,
-  renderMobileCard,
   sort,
   onSortChange,
-  mobileSortOptions,
   selection,
   loading = false,
   skeletonRows = 6,
   emptyContent,
   minDesktopWidth = 960,
   mobileBreakpoint = 960,
-  mobileMode = 'cards',
-  stickyMobileColumnId,
   onRowClick,
   getRowStyle,
-  getMobileCardStyle,
   ariaLabel = 'Data table',
   style,
 }: ResponsiveDataTableProps<Row, SortKey>) {
   const isMobile = useIsMobile(mobileBreakpoint)
-  const showMobileCards = isMobile && mobileMode === 'cards'
-  const showScrollableMobileTable = isMobile && mobileMode === 'scroll'
-  const sortableColumns = columns.filter((column) => column.sortable && column.sortKey)
-  const availableMobileSortOptions = mobileSortOptions || sortableColumns.map((column) => ({
-    key: column.sortKey as SortKey,
-    label: column.sortLabel || String(column.header),
-    defaultSortDirection: column.defaultSortDirection,
-  }))
+  const headerScrollRef = useRef<HTMLDivElement>(null)
   const columnTemplate = `${selection ? '48px ' : ''}${columns.map((column) => column.width).join(' ')}`
   const desktopMinWidth = typeof minDesktopWidth === 'number' ? `${minDesktopWidth}px` : minDesktopWidth
   const someSelected = selection?.someSelected ?? Boolean(selection && selection.selectedKeys.size > 0 && !selection.allSelected)
@@ -159,144 +127,23 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
     if (next) onSortChange?.(next)
   }
 
-  if (showMobileCards) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, width: '100%', ...style }}>
-        {(availableMobileSortOptions.length > 0 || selection) && (
-          <div style={mobileControlsStyle}>
-            {selection && (
-              <label style={mobileSelectAllStyle}>
-                <IndeterminateCheckbox
-                  checked={selection.allSelected}
-                  indeterminate={someSelected}
-                  onChange={selection.onToggleAll}
-                  aria-label={selection.selectAllLabel}
-                  style={checkboxStyle}
-                />
-                <span>{selection.allSelected ? 'Unselect all' : 'Select all'}</span>
-              </label>
-            )}
-            {availableMobileSortOptions.length > 0 && sort && onSortChange && (
-              <div style={mobileSortStyle}>
-                <label style={mobileSortLabelStyle}>
-                  <span>Sort by</span>
-                  <select
-                    value={sort.key}
-                    onChange={(event) => {
-                      const option = availableMobileSortOptions.find((candidate) => candidate.key === event.target.value)
-                      if (option) onSortChange({ key: option.key, direction: option.defaultSortDirection || 'asc' })
-                    }}
-                    style={mobileSortSelectStyle}
-                    aria-label="Sort field"
-                  >
-                    {availableMobileSortOptions.map((option) => (
-                      <option key={option.key} value={option.key}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onSortChange({ ...sort, direction: sort.direction === 'asc' ? 'desc' : 'asc' })}
-                  style={sortDirectionButtonStyle}
-                  aria-label={`Sort ${sort.direction === 'asc' ? 'descending' : 'ascending'}`}
-                >
-                  {sort.direction === 'asc' ? '↑ Asc' : '↓ Desc'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {loading ? (
-          <div style={mobileListStyle} aria-label="Loading records">
-            {Array.from({ length: skeletonRows }).map((_, index) => <MobileSkeleton key={index} />)}
-          </div>
-        ) : rows.length === 0 ? (
-          <div style={emptyStyle}>{emptyContent}</div>
-        ) : (
-          <div role="list" aria-label={ariaLabel} style={mobileListStyle}>
-            {rows.map((row, index) => {
-              const rowKey = getRowKey(row)
-              const card = renderMobileCard(row, index)
-              const selected = selection?.selectedKeys.has(rowKey) || false
-              const selectable = selection?.isSelectable?.(row) ?? true
-              return (
-                <div
-                  key={rowKey}
-                  role={onRowClick ? 'button' : 'listitem'}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  aria-label={onRowClick ? `Open ${selection?.getRowLabel(row) || 'record'}` : undefined}
-                  aria-selected={selection ? selected : undefined}
-                  onClick={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return
-                    onRowClick(row, index, event)
-                  }}
-                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onRowClick(row, index, event as unknown as MouseEvent<HTMLElement>)
-                    }
-                  }}
-                  style={{
-                    ...mobileCardStyle,
-                    background: selected ? colors.surfaceMuted : colors.surface,
-                    cursor: onRowClick ? 'pointer' : 'default',
-                    ...getMobileCardStyle?.(row, index),
-                  }}
-                >
-                  <div style={mobileCardHeaderStyle}>
-                    <div style={mobileCardIdentityStyle}>
-                      {selection && (
-                        <span style={checkboxTouchTargetStyle} onClick={(event) => event.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            disabled={!selectable}
-                            onChange={(event) => selection.onToggle(row, index, event)}
-                            aria-label={`Select ${selection.getRowLabel(row)}`}
-                            style={{ ...checkboxStyle, cursor: selectable ? 'pointer' : 'not-allowed' }}
-                          />
-                        </span>
-                      )}
-                      {card.leading && <div style={mobileLeadingStyle}>{card.leading}</div>}
-                      <div style={mobileTitleWrapStyle}>
-                        <div style={mobileTitleStyle}>{card.title}</div>
-                        {card.status && <div style={mobileStatusStyle}>{card.status}</div>}
-                      </div>
-                    </div>
-                    {card.trailing && <div style={mobileTrailingStyle}>{card.trailing}</div>}
-                  </div>
-                  {card.details && <div style={mobileDetailsStyle}>{card.details}</div>}
-                  {card.metadata && <div style={mobileMetadataStyle}>{card.metadata}</div>}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div
+      role="table"
+      aria-label={ariaLabel}
       style={{
+        ...desktopTableStyle,
         width: '100%',
         minWidth: 0,
         maxWidth: '100%',
-        boxSizing: 'border-box',
-        overflow: 'auto',
-        ...(showScrollableMobileTable ? mobileTableScrollerStyle : undefined),
         ...style,
       }}
     >
       <div
-        role="table"
-        aria-label={ariaLabel}
+        ref={headerScrollRef}
         style={{
-          ...desktopTableStyle,
-          minWidth: desktopMinWidth,
-          ...(showScrollableMobileTable ? scrollableMobileTableStyle : undefined),
+          ...stickyHeaderViewportStyle,
+          top: isMobile ? 56 : 0,
         }}
       >
         <div
@@ -304,16 +151,13 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
           style={{
             ...desktopHeaderStyle,
             gridTemplateColumns: columnTemplate,
-            ...(showScrollableMobileTable ? stickyHeaderRowStyle : undefined),
+            minWidth: desktopMinWidth,
           }}
         >
           {selection && (
             <div
               role="columnheader"
-              style={{
-                ...desktopSelectionCellStyle,
-                ...(showScrollableMobileTable ? stickyHeaderSelectionCellStyle : undefined),
-              }}
+              style={desktopSelectionCellStyle}
             >
               <IndeterminateCheckbox
                 checked={selection.allSelected}
@@ -334,9 +178,6 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 style={{
                   ...desktopCellStyle,
                   justifyContent: alignToJustify(column.align),
-                  ...(showScrollableMobileTable && column.id === stickyMobileColumnId
-                    ? getStickyHeaderColumnStyle(Boolean(selection))
-                    : undefined),
                 }}
               >
                 {column.sortable ? (
@@ -354,89 +195,91 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             )
           })}
         </div>
+      </div>
 
-        {loading ? (
-          Array.from({ length: skeletonRows }).map((_, rowIndex) => (
-            <div key={rowIndex} role="row" style={{ ...desktopRowStyle, gridTemplateColumns: columnTemplate }}>
-              {selection && (
-                <div style={showScrollableMobileTable ? stickyBodySelectionCellStyle : undefined}>
-                  <SkeletonBlock compact />
-                </div>
-              )}
-              {columns.map((column, columnIndex) => (
-                <div
-                  key={column.id}
-                  style={showScrollableMobileTable && column.id === stickyMobileColumnId
-                    ? getStickyBodyColumnStyle(Boolean(selection), colors.surface)
-                    : undefined}
-                >
-                  <SkeletonBlock compact={columnIndex !== 0} />
-                </div>
-              ))}
-            </div>
-          ))
-        ) : rows.length === 0 ? (
-          <div style={emptyStyle}>{emptyContent}</div>
-        ) : rows.map((row, index) => {
-          const rowKey = getRowKey(row)
-          const selected = selection?.selectedKeys.has(rowKey) || false
-          const selectable = selection?.isSelectable?.(row) ?? true
-          const customRowStyle = getRowStyle?.(row, index)
-          const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
-          return (
-            <div
-              key={rowKey}
-              role="row"
-              aria-selected={selection ? selected : undefined}
-              onClick={(event) => {
-                if (!onRowClick || isInteractiveTarget(event.target)) return
-                onRowClick(row, index, event)
-              }}
-              style={{
-                ...desktopRowStyle,
-                gridTemplateColumns: columnTemplate,
-                background: rowBackground,
-                cursor: onRowClick ? 'pointer' : 'default',
-                ...customRowStyle,
-              }}
-            >
-              {selection && (
-                <div
-                  role="cell"
-                  style={{
-                    ...desktopSelectionCellStyle,
-                    ...(showScrollableMobileTable ? { ...stickyBodySelectionCellStyle, background: rowBackground } : undefined),
-                  }}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    disabled={!selectable}
-                    onChange={(event) => selection.onToggle(row, index, event)}
-                    aria-label={`Select ${selection.getRowLabel(row)}`}
-                    style={{ ...checkboxStyle, cursor: selectable ? 'pointer' : 'not-allowed' }}
-                  />
-                </div>
-              )}
-              {columns.map((column) => (
-                <div
-                  key={column.id}
-                  role="cell"
-                  style={{
-                    ...desktopCellStyle,
-                    justifyContent: alignToJustify(column.align),
-                    ...(showScrollableMobileTable && column.id === stickyMobileColumnId
-                      ? getStickyBodyColumnStyle(Boolean(selection), rowBackground)
-                      : undefined),
-                  }}
-                >
-                  {column.render(row, index)}
-                </div>
-              ))}
-            </div>
-          )
-        })}
+      <div
+        onScroll={(event) => {
+          if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft
+        }}
+        style={{
+          ...tableBodyScrollerStyle,
+          ...(isMobile ? mobileTableScrollerStyle : undefined),
+        }}
+      >
+        <div style={{ minWidth: desktopMinWidth }}>
+
+          {loading ? (
+            Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+              <div key={rowIndex} role="row" style={{ ...desktopRowStyle, gridTemplateColumns: columnTemplate }}>
+                {selection && (
+                  <div>
+                    <SkeletonBlock compact />
+                  </div>
+                )}
+                {columns.map((column, columnIndex) => (
+                  <div key={column.id}>
+                    <SkeletonBlock compact={columnIndex !== 0} />
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : rows.length === 0 ? (
+            <div style={emptyStyle}>{emptyContent}</div>
+          ) : rows.map((row, index) => {
+            const rowKey = getRowKey(row)
+            const selected = selection?.selectedKeys.has(rowKey) || false
+            const selectable = selection?.isSelectable?.(row) ?? true
+            const customRowStyle = getRowStyle?.(row, index)
+            const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
+            return (
+              <div
+                key={rowKey}
+                role="row"
+                aria-selected={selection ? selected : undefined}
+                onClick={(event) => {
+                  if (!onRowClick || isInteractiveTarget(event.target)) return
+                  onRowClick(row, index, event)
+                }}
+                style={{
+                  ...desktopRowStyle,
+                  gridTemplateColumns: columnTemplate,
+                  background: rowBackground,
+                  cursor: onRowClick ? 'pointer' : 'default',
+                  ...customRowStyle,
+                }}
+              >
+                {selection && (
+                  <div
+                    role="cell"
+                    style={desktopSelectionCellStyle}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={!selectable}
+                      onChange={(event) => selection.onToggle(row, index, event)}
+                      aria-label={`Select ${selection.getRowLabel(row)}`}
+                      style={{ ...checkboxStyle, cursor: selectable ? 'pointer' : 'not-allowed' }}
+                    />
+                  </div>
+                )}
+                {columns.map((column) => (
+                  <div
+                    key={column.id}
+                    role="cell"
+                    style={{
+                      ...desktopCellStyle,
+                      justifyContent: alignToJustify(column.align),
+                    }}
+                  >
+                    {column.render(row, index)}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -450,19 +293,6 @@ function alignToJustify(align: DataTableColumn<unknown, string>['align']) {
 
 function SkeletonBlock({ compact = false }: { compact?: boolean }) {
   return <div style={{ ...skeletonBlockStyle, width: compact ? '64%' : '82%' }} />
-}
-
-function MobileSkeleton() {
-  return (
-    <div style={mobileCardStyle}>
-      <div style={mobileCardHeaderStyle}>
-        <div style={{ ...skeletonBlockStyle, width: '52%', height: 18 }} />
-        <div style={{ ...skeletonBlockStyle, width: 72, height: 22 }} />
-      </div>
-      <div style={{ ...skeletonBlockStyle, width: '74%' }} />
-      <div style={{ ...skeletonBlockStyle, width: '62%' }} />
-    </div>
-  )
 }
 
 // Low-level grid primitives retained for custom layouts.
@@ -489,61 +319,15 @@ export function DataGridRow({ columns, children, style, as = 'div', onClick }: D
   return <div style={sharedStyle}>{children}</div>
 }
 
-const desktopTableStyle: CSSProperties = { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, overflow: 'hidden', width: '100%', boxSizing: 'border-box', fontFamily: typography.fontSans }
+const desktopTableStyle: CSSProperties = { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, width: '100%', boxSizing: 'border-box', fontFamily: typography.fontSans }
 const desktopHeaderStyle: CSSProperties = { display: 'grid', gap: spacing.md, padding: spacing.md, borderBottom: `1px solid ${colors.border}`, background: colors.surfaceMuted, color: colors.textSecondary, fontSize: typography.sizeXs, fontWeight: typography.weightMedium, alignItems: 'center' }
 const desktopRowStyle: CSSProperties = { display: 'grid', gap: spacing.md, padding: spacing.md, borderBottom: `1px solid ${colors.borderLight}`, alignItems: 'center', width: '100%', minWidth: 0, boxSizing: 'border-box', color: colors.text, fontSize: typography.sizeBase, lineHeight: 1.45, transition: 'background 0.1s ease' }
 const desktopCellStyle: CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const desktopSelectionCellStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const sortableHeaderStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: spacing.xs, width: '100%', padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightMedium, cursor: 'pointer', textAlign: 'left' }
-const mobileTableScrollerStyle: CSSProperties = { maxHeight: 'min(70vh, 640px)', touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollbarGutter: 'stable' }
-const scrollableMobileTableStyle: CSSProperties = { overflow: 'visible' }
-const stickyHeaderRowStyle: CSSProperties = { position: 'sticky', top: 0, zIndex: 3 }
-const stickyHeaderSelectionCellStyle: CSSProperties = { position: 'sticky', left: 0, zIndex: 5, alignSelf: 'stretch', marginBlock: `-${spacing.md}`, paddingBlock: spacing.md, background: colors.surfaceMuted }
-const stickyBodySelectionCellStyle: CSSProperties = { position: 'sticky', left: 0, zIndex: 2, alignSelf: 'stretch', marginBlock: `-${spacing.md}`, paddingBlock: spacing.md, display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.surface }
+const mobileTableScrollerStyle: CSSProperties = { touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }
+const stickyHeaderViewportStyle: CSSProperties = { position: 'sticky', zIndex: 3, overflow: 'hidden', borderRadius: `${radius.xl} ${radius.xl} 0 0`, background: colors.surfaceMuted, boxShadow: `0 1px 0 ${colors.border}` }
+const tableBodyScrollerStyle: CSSProperties = { overflowX: 'auto', borderRadius: `0 0 ${radius.xl} ${radius.xl}` }
 const checkboxStyle: CSSProperties = { width: 18, height: 18, margin: 0, cursor: 'pointer' }
-const checkboxTouchTargetStyle: CSSProperties = { width: 40, height: 40, margin: -11, marginRight: -5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
-const mobileControlsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }
-const mobileSelectAllStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: spacing.sm, color: colors.textSecondary, fontSize: typography.sizeSm, fontFamily: typography.fontSans, cursor: 'pointer' }
-const mobileSortStyle: CSSProperties = { display: 'flex', alignItems: 'flex-end', gap: spacing.xs, marginLeft: 'auto' }
-const mobileSortLabelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.xs, color: colors.textMuted, fontSize: typography.sizeXs, fontFamily: typography.fontSans }
-const mobileSortSelectStyle: CSSProperties = { minHeight: 36, maxWidth: 170, border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface, color: colors.text, padding: `0 ${spacing.sm}`, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
-const sortDirectionButtonStyle: CSSProperties = { minHeight: 36, border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface, color: colors.textSecondary, padding: `0 ${spacing.sm}`, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer' }
-const mobileListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
-const mobileCardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, width: '100%', boxSizing: 'border-box', border: `1px solid ${colors.border}`, borderRadius: radius.lg, padding: spacing.lg, background: colors.surface, fontFamily: typography.fontSans, textAlign: 'left', transition: 'background 0.1s ease, border-color 0.1s ease', outlineOffset: 2 }
-const mobileCardHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md }
-const mobileCardIdentityStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: spacing.sm, minWidth: 0, flex: 1 }
-const mobileLeadingStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
-const mobileTitleWrapStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0, flex: 1 }
-const mobileTitleStyle: CSSProperties = { color: colors.text, fontSize: typography.sizeBase, fontWeight: typography.weightBold, lineHeight: 1.35, overflowWrap: 'anywhere' }
-const mobileStatusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' }
-const mobileTrailingStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', flexShrink: 0 }
-const mobileDetailsStyle: CSSProperties = { color: colors.textSecondary, fontSize: typography.sizeBase, lineHeight: 1.5, overflowWrap: 'anywhere' }
-const mobileMetadataStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', color: colors.textMuted, fontSize: typography.sizeSm, lineHeight: 1.45 }
 const emptyStyle: CSSProperties = { padding: '48px 24px', textAlign: 'center', color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeBase }
 const skeletonBlockStyle: CSSProperties = { height: 14, borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }
-
-function getStickyHeaderColumnStyle(hasSelection: boolean): CSSProperties {
-  return {
-    position: 'sticky',
-    left: hasSelection ? `calc(48px + ${spacing.md})` : 0,
-    zIndex: 4,
-    alignSelf: 'stretch',
-    marginBlock: `-${spacing.md}`,
-    paddingBlock: spacing.md,
-    background: colors.surfaceMuted,
-    boxShadow: `${hasSelection ? `-${spacing.md} 0 0 ${colors.surfaceMuted}, ` : ''}1px 0 0 ${colors.border}, 8px 0 12px -12px rgba(0, 0, 0, 0.45)`,
-  }
-}
-
-function getStickyBodyColumnStyle(hasSelection: boolean, background: CSSProperties['background']): CSSProperties {
-  return {
-    position: 'sticky',
-    left: hasSelection ? `calc(48px + ${spacing.md})` : 0,
-    zIndex: 1,
-    alignSelf: 'stretch',
-    marginBlock: `-${spacing.md}`,
-    paddingBlock: spacing.md,
-    background,
-    boxShadow: `${hasSelection ? `-${spacing.md} 0 0 ${String(background)}, ` : ''}1px 0 0 ${colors.borderLight}, 8px 0 12px -12px rgba(0, 0, 0, 0.4)`,
-  }
-}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Copy } from 'lucide-react'
-import { Badge, Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
+import { Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -12,14 +12,13 @@ import { LeadDetailPanel } from './LeadDetailPanel'
 import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
+import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
-type LeadSource = 'website' | 'event' | 'landing_page' | 'foot_traffic' | 'phone_call' | 'family' | 'meta' | 'google_ads' | 'linkedin' | 'yelp' | 'google_business_profile' | 'organic_search' | 'email' | 'partner_community' | 'other'
-
 type ManualLeadFormState = {
   fullName: string
   email: string
@@ -165,24 +164,6 @@ const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
 ]
 const WINBACK_STATUS_OPTIONS = ['all', 'to_contact', 'contacted', 'interested', 're_enrolled', 'closed']
 
-const LEAD_SOURCE_OPTIONS: Array<{ value: LeadSource, label: string }> = [
-  { value: 'website', label: 'Website' },
-  { value: 'meta', label: 'Meta (Facebook / Instagram)' },
-  { value: 'google_ads', label: 'Google Ads' },
-  { value: 'linkedin', label: 'LinkedIn' },
-  { value: 'yelp', label: 'Yelp' },
-  { value: 'google_business_profile', label: 'Google Business Profile' },
-  { value: 'organic_search', label: 'Organic search' },
-  { value: 'email', label: 'Email' },
-  { value: 'event', label: 'Event' },
-  { value: 'landing_page', label: 'Landing page' },
-  { value: 'foot_traffic', label: 'Walk-in / foot traffic' },
-  { value: 'phone_call', label: 'Phone call' },
-  { value: 'family', label: 'Referral' },
-  { value: 'partner_community', label: 'Partner / community organization' },
-  { value: 'other', label: 'Other' },
-]
-
 const PROMOTION_TYPE_OPTIONS = [
   { value: '', label: 'No promotion' },
   { value: 'introductory_price', label: 'Introductory price' },
@@ -244,9 +225,7 @@ function filterWinbackLeads(leads: LeadRecord[], tab: LeadTabKey, status: string
 
 function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
   const rawSource = typeof lead.payload?.source === 'string' ? lead.payload.source : lead.source
-  const source = LEAD_SOURCE_OPTIONS.some((option) => option.value === rawSource)
-    ? rawSource as LeadEditFormState['source']
-    : 'website'
+  const source = normalizeLeadSourceValue(rawSource) || 'website'
 
   return {
     fullName: lead.contact?.full_name || '',
@@ -384,12 +363,11 @@ function formatLabel(value: string | null | undefined) {
 
 function getLeadSource(lead: Pick<LeadRecord, 'source' | 'source_form' | 'source_page'>, payload?: Record<string, unknown>) {
   const value = typeof payload?.source === 'string' ? payload.source : lead.source
-  if (value) return formatLabel(value)
+  if (value) return formatLeadSource(value)
   if (lead.source_form === 'manual-phone-call') return 'Phone Call'
   if (lead.source_form === 'manual-walk-in') return 'Foot Traffic'
   if (lead.source_form === 'manual-referral') return 'Family'
   if (lead.source_form.includes('event') || lead.source_form.includes('hot_chili')) return 'Event'
-  if (lead.source_form.includes('landing') || lead.source_page?.includes('landing')) return 'Landing Page'
   return 'Website'
 }
 
@@ -1868,52 +1846,11 @@ export default function LeadsView() {
           rows={sortedLeads}
           columns={leadColumns}
           getRowKey={(lead) => lead.id}
-          renderMobileCard={(lead) => {
-            const signal = getLeadSignal(lead)
-            const followUp = getLeadFollowUpAt(lead)
-            const followUpTone = followUp ? getFollowUpTone(followUp) : null
-
-            return {
-              title: lead.contact?.full_name || 'Unknown',
-              trailing: <span style={signalCellStyle} title={signal.label} aria-label={signal.label}>{signal.emoji}</span>,
-              status: (
-                <>
-                  <StatusBadge status={lead.status} label={formatLabel(lead.status)} />
-                  {activeTab === 'winback' && <Badge size="sm" variant="info">{formatLabel(String((lead.payload?.winback as Record<string, unknown> | undefined)?.status || 'to_contact'))}</Badge>}
-                  {followUp && followUpTone && (
-                    <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
-                      ↻ {formatFollowUpDate(followUp)}
-                    </span>
-                  )}
-                </>
-              ),
-              details: (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-                  {lead.contact?.email && <a href={`mailto:${lead.contact.email}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{lead.contact.email}</a>}
-                  {lead.contact?.phone && <a href={`tel:${lead.contact.phone}`} onClick={(event) => event.stopPropagation()} style={leadCardLineStyle}>{formatPhoneNumber(lead.contact.phone)}</a>}
-                </div>
-              ),
-              metadata: (
-                <>
-                  <span>{getLeadSource(lead)}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Last activity: {formatLastActivity(lead.last_activity_at)}</span>
-                </>
-              ),
-            }
-          }}
           sort={{ key: sortKey, direction: sortDirection }}
           onSortChange={(nextSort) => {
             setSortKey(nextSort.key)
             setSortDirection(nextSort.direction)
           }}
-          mobileSortOptions={[
-            { key: 'created', label: 'Created', defaultSortDirection: 'desc' },
-            { key: 'name', label: 'Name' },
-            { key: 'followUp', label: 'Follow-up' },
-            { key: 'lastActivity', label: 'Last activity', defaultSortDirection: 'desc' },
-            { key: 'program', label: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details' },
-          ]}
           selection={{
             selectedKeys: selectedIds,
             onToggle: (lead) => toggleLeadSelection(lead.id),
@@ -1932,8 +1869,6 @@ export default function LeadsView() {
             />
           )}
           minDesktopWidth={1180}
-          mobileMode="scroll"
-          stickyMobileColumnId="name"
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead) => ({
             background: selectedIds.has(lead.id)
@@ -1943,9 +1878,6 @@ export default function LeadsView() {
                 : Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
                   ? NET_NEW_ROW_BACKGROUND
                   : colors.surface,
-          })}
-          getMobileCardStyle={(lead) => ({
-            background: selectedIds.has(lead.id) ? '#F5F8FF' : selectedLeadId === lead.id ? '#FBFCFF' : colors.surface,
           })}
           ariaLabel="Leads"
         />
@@ -2568,15 +2500,6 @@ const followUpChipsStyle: React.CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
   gap: spacing.xs,
-}
-
-const leadCardLineStyle: React.CSSProperties = {
-  fontSize: typography.sizeBase,
-  color: colors.textSecondary,
-  fontFamily: typography.fontSans,
-  textDecoration: 'none',
-  lineHeight: 1.5,
-  overflowWrap: 'anywhere',
 }
 
 const leadCardFollowUpStyle: React.CSSProperties = {

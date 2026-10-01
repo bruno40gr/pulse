@@ -830,50 +830,6 @@ export default function ContactsPage() {
           rows={visibleContacts}
           columns={contactColumns}
           getRowKey={(contact) => contact.id}
-          renderMobileCard={(contact) => {
-            const isMinor = contact.is_minor === true || contact.custom_fields?.is_minor === true
-            const phone = isMinor ? contact.account_holder_phone : contact.phone
-            const email = isMinor ? contact.account_holder_email : contact.email
-            return {
-              leading: (
-                <Avatar
-                  firstName={contact.first_name}
-                  lastName={contact.last_name}
-                  size={36}
-                  src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact) : undefined}
-                />
-              ),
-              title: (
-                <button
-                  type="button"
-                  onClick={(event) => handleNameClick(contact, event)}
-                  style={{ border: 'none', background: 'transparent', padding: 0, color: colors.text, cursor: 'pointer', textAlign: 'left', font: 'inherit', fontWeight: 'inherit' }}
-                >
-                  {contact.first_name} {contact.last_name}
-                </button>
-              ),
-              status: (
-                <>
-                  <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />
-                  {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
-                  {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
-                </>
-              ),
-              details: (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-                  <span>{phone ? formatPhoneNumber(phone) : 'No phone'}</span>
-                  <span>{email || 'No email'}</span>
-                </div>
-              ),
-              metadata: (
-                <>
-                  <span>Account manager: {contact.account_holder_name || '—'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Instructor: {contact.instructor?.name || '—'}</span>
-                </>
-              ),
-            }
-          }}
           sort={contactSort}
           onSortChange={setContactSort}
           selection={{
@@ -889,11 +845,8 @@ export default function ContactsPage() {
           skeletonRows={8}
           emptyContent="No contacts found."
           minDesktopWidth={1100}
-          mobileMode="scroll"
-          stickyMobileColumnId="name"
           onRowClick={(contact, index, event) => handleRowClick(contact, index, event)}
           getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
-          getMobileCardStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
           ariaLabel="Contacts"
         />
       )}

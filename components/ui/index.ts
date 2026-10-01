@@ -31,11 +31,9 @@ export {
   DataGridRow,
   ResponsiveDataTable,
   type DataTableColumn,
-  type DataTableMobileCard,
   type DataTableSelection,
   type DataTableSort,
   type DataTableSortDirection,
-  type DataTableSortOption,
   type ResponsiveDataTableProps,
 } from './DataGridTable'
 export { Tabs } from './Tabs'

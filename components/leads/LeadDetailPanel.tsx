@@ -6,6 +6,7 @@ import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, Sectio
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
 import { getFollowUpTone } from '@/lib/follow-up'
+import { formatLeadSource } from '@/lib/lead-sources'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
@@ -539,7 +540,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
             </DenseSectionPanel>}
             <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
               <div style={oneColumnStyle}>
-                <Field label="Source" value={typeof lead.payload.source === 'string' ? label(lead.payload.source) : ''} />
+                <Field label="Source" value={formatLeadSource(lead.payload.source)} />
                 <Field label="Campaign" value={lead.utm_campaign || ""} />
                 <Field label="Promotion type" value={typeof lead.payload.promotion_type === 'string' ? label(lead.payload.promotion_type) : ''} />
                 <Field label="Offer details" value={typeof lead.payload.promotion_offer === 'string' ? lead.payload.promotion_offer : ''} />
@@ -621,7 +622,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
               </DenseSectionPanel>}
               <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
                 <div style={twoColumnStyle}>
-                  <Field label="Source" value={typeof lead.payload.source === 'string' ? label(lead.payload.source) : ''} />
+                  <Field label="Source" value={formatLeadSource(lead.payload.source)} />
                   <Field label="Campaign" value={lead.utm_campaign || ""} />
                   <Field label="Promotion type" value={typeof lead.payload.promotion_type === 'string' ? label(lead.payload.promotion_type) : ''} />
                   <Field label="Offer details" value={typeof lead.payload.promotion_offer === 'string' ? lead.payload.promotion_offer : ''} />

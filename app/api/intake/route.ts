@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
+import { normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 
@@ -65,19 +66,14 @@ function normalizeText(value: unknown): string | null {
   return trimmed ? trimmed : null
 }
 
-const LEAD_SOURCES = ['website', 'event', 'landing_page', 'foot_traffic', 'phone_call', 'family', 'meta', 'google_ads', 'linkedin', 'yelp', 'google_business_profile', 'organic_search', 'email', 'partner_community', 'other'] as const
-
-function normalizeLeadSource(value: unknown, sourceForm: string | null, sourcePage: string | null): typeof LEAD_SOURCES[number] {
-  const normalized = normalizeText(value)?.toLowerCase().replace(/[\s-]+/g, '_')
-  if (normalized && LEAD_SOURCES.includes(normalized as typeof LEAD_SOURCES[number])) {
-    return normalized as typeof LEAD_SOURCES[number]
-  }
+function normalizeLeadSource(value: unknown, sourceForm: string | null): LeadSource {
+  const normalized = normalizeLeadSourceValue(value)
+  if (normalized) return normalized
 
   if (sourceForm === 'manual-phone-call') return 'phone_call'
   if (sourceForm === 'manual-walk-in') return 'foot_traffic'
   if (sourceForm === 'manual-referral') return 'family'
   if (sourceForm?.includes('event') || sourceForm?.includes('hot_chili')) return 'event'
-  if (sourceForm?.includes('landing') || sourcePage?.includes('landing')) return 'landing_page'
   return 'website'
 }
 
@@ -157,7 +153,7 @@ export async function POST(request: Request) {
     const phone = normalizeText(body.phone)
     const sourceSystem = normalizeText(body.source_system) || 'headliner-website'
     const sourcePage = normalizeText(body.source_page)
-    const source = normalizeLeadSource(body.source, sourceForm, sourcePage)
+    const source = normalizeLeadSource(body.source, sourceForm)
     const programLabel = normalizeText(body.program_label)
     const serviceLabel = normalizeText(body.service_label)
     const utmSource = normalizeText(body.utm_source)

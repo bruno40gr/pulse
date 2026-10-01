@@ -181,17 +181,6 @@ export default function StaffPage() {
         rows={sortedStaff}
         columns={staffColumns}
         getRowKey={(member) => member.id}
-        renderMobileCard={(member) => ({
-          leading: <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={36} />,
-          title: fullName(member),
-          status: <StatusBadge status={member.is_active ? 'active' : 'sunset'} label={member.is_active ? 'Active' : 'Sunset'} />,
-          details: (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-              <span>{member.phone ? displayPhone(member.phone) : 'No phone'}</span>
-              <span>{member.email || 'No email'}</span>
-            </div>
-          ),
-        })}
         sort={staffSort}
         onSortChange={setStaffSort}
         selection={{
@@ -212,10 +201,6 @@ export default function StaffPage() {
           if (member.person_id) void openContact(member.person_id)
         }}
         getRowStyle={(member) => ({
-          background: selectedStaffIds.has(member.id) ? colors.surfaceMuted : colors.surface,
-          cursor: member.person_id ? 'pointer' : 'default',
-        })}
-        getMobileCardStyle={(member) => ({
           background: selectedStaffIds.has(member.id) ? colors.surfaceMuted : colors.surface,
           cursor: member.person_id ? 'pointer' : 'default',
         })}
