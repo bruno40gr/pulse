@@ -161,6 +161,17 @@ function localFilterSpec(query: string, contacts: SearchableContact[]): FilterSp
     if (matches.length > 0) spec[key] = [matches[0]]
   }
 
+  // Staff members also exist as contacts, so a full instructor name can match
+  // both dimensions. Resolve that ambiguity from the wording instead of ANDing
+  // the contact-name and instructor filters together (which always returns 0).
+  const asksForInstructorRoster = /\b(students?|roster|teaches|teaching|lessons?\s+(?:with|of))\b/.test(normalizedQuery)
+    || /\bstudents?\s+of\b/.test(normalizedQuery)
+  if (spec.instructors.length > 0 && asksForInstructorRoster) {
+    spec.names = []
+  } else if (spec.names.length > 0) {
+    spec.instructors = []
+  }
+
   if (/\b(101|band program|band class(?:es)?|band students?)\b/.test(normalizedQuery) && spec.bands.length === 0) {
     spec.service_types.push('band')
     spec.instruments = spec.instruments.filter(instrument => instrument !== 'band')
