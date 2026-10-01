@@ -537,6 +537,17 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                 <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}/${getOpportunityValueUnit(lead.payload)}`} /></div>
               )}
             </DenseSectionPanel>}
+            <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
+              <div style={oneColumnStyle}>
+                <Field label="Source" value={typeof lead.payload.source === 'string' ? label(lead.payload.source) : ''} />
+                <Field label="Campaign" value={lead.utm_campaign || ""} />
+                <Field label="Promotion type" value={typeof lead.payload.promotion_type === 'string' ? label(lead.payload.promotion_type) : ''} />
+                <Field label="Offer details" value={typeof lead.payload.promotion_offer === 'string' ? lead.payload.promotion_offer : ''} />
+                <Field label="Source form" value={lead.source_form} />
+                <Field label="Landing page" value={lead.source_page || ""} />
+                <Field label="Referrer" value={lead.referrer || ""} />
+              </div>
+            </DenseSectionPanel>
             {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
               <div style={familyMembersStyle}>
                 {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
@@ -609,7 +620,15 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                 {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
               </DenseSectionPanel>}
               <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
-                <div style={twoColumnStyle}><Field label="Source form" value={lead.source_form} /><Field label="Campaign" value={lead.utm_campaign || ""} /><Field label="Landing page" value={lead.source_page || ""} /><Field label="Referrer" value={lead.referrer || ""} /></div>
+                <div style={twoColumnStyle}>
+                  <Field label="Source" value={typeof lead.payload.source === 'string' ? label(lead.payload.source) : ''} />
+                  <Field label="Campaign" value={lead.utm_campaign || ""} />
+                  <Field label="Promotion type" value={typeof lead.payload.promotion_type === 'string' ? label(lead.payload.promotion_type) : ''} />
+                  <Field label="Offer details" value={typeof lead.payload.promotion_offer === 'string' ? lead.payload.promotion_offer : ''} />
+                  <Field label="Source form" value={lead.source_form} />
+                  <Field label="Landing page" value={lead.source_page || ""} />
+                  <Field label="Referrer" value={lead.referrer || ""} />
+                </div>
               </DenseSectionPanel>
             </div>
 

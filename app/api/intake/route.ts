@@ -65,7 +65,7 @@ function normalizeText(value: unknown): string | null {
   return trimmed ? trimmed : null
 }
 
-const LEAD_SOURCES = ['website', 'event', 'landing_page', 'foot_traffic', 'phone_call', 'family'] as const
+const LEAD_SOURCES = ['website', 'event', 'landing_page', 'foot_traffic', 'phone_call', 'family', 'meta', 'google_ads', 'linkedin', 'yelp', 'google_business_profile', 'organic_search', 'email', 'partner_community', 'other'] as const
 
 function normalizeLeadSource(value: unknown, sourceForm: string | null, sourcePage: string | null): typeof LEAD_SOURCES[number] {
   const normalized = normalizeText(value)?.toLowerCase().replace(/[\s-]+/g, '_')

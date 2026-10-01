@@ -401,6 +401,7 @@ export async function PATCH(
     if (typeof body.service_label === 'string') leadUpdates.service_label = body.service_label.trim() || null
     if (typeof body.source_form === 'string') leadUpdates.source_form = body.source_form.trim() || 'manual-other'
     if (typeof body.source_page === 'string') leadUpdates.source_page = body.source_page.trim() || null
+    if (typeof body.utm_source === 'string') leadUpdates.utm_source = body.utm_source.trim() || null
     if (typeof body.utm_campaign === 'string') leadUpdates.utm_campaign = body.utm_campaign.trim() || null
     if (typeof body.referrer === 'string') leadUpdates.referrer = body.referrer.trim() || null
     if (typeof body.notes === 'string') contactUpdates.notes = body.notes

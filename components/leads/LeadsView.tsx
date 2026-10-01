@@ -18,17 +18,21 @@ type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
+type LeadSource = 'website' | 'event' | 'landing_page' | 'foot_traffic' | 'phone_call' | 'family' | 'meta' | 'google_ads' | 'linkedin' | 'yelp' | 'google_business_profile' | 'organic_search' | 'email' | 'partner_community' | 'other'
 
 type ManualLeadFormState = {
   fullName: string
   email: string
   phone: string
   intakeType: 'lesson_inquiry' | 'service_inquiry'
-  sourceForm: 'manual-phone-call' | 'manual-walk-in' | 'manual-traffic-visitor' | 'manual-referral' | 'manual-other'
+  source: LeadSource
   programLabel: string
   serviceLabel: string
   familyInterestedCount: number
   referrer: string
+  campaign: string
+  promotionType: string
+  promotionOffer: string
   message: string
 }
 
@@ -135,10 +139,12 @@ type LeadEditFormState = {
   status: string
   programLabel: string
   serviceLabel: string
-  source: 'website' | 'event' | 'landing_page' | 'foot_traffic' | 'phone_call' | 'family'
+  source: LeadSource
   sourceForm: string
   sourcePage: string
   campaign: string
+  promotionType: string
+  promotionOffer: string
   referrer: string
   opportunityValue: string
   opportunityValueUnit: OpportunityValueUnit
@@ -159,21 +165,34 @@ const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
 ]
 const WINBACK_STATUS_OPTIONS = ['all', 'to_contact', 'contacted', 'interested', 're_enrolled', 'closed']
 
-const MANUAL_LEAD_SOURCE_OPTIONS: Array<{ value: ManualLeadFormState['sourceForm'], label: string }> = [
-  { value: 'manual-phone-call', label: 'Phone call' },
-  { value: 'manual-walk-in', label: 'Foot traffic' },
-  { value: 'manual-traffic-visitor', label: 'Website' },
-  { value: 'manual-referral', label: 'Family' },
-  { value: 'manual-other', label: 'Landing page' },
-]
-
-const LEAD_SOURCE_OPTIONS: Array<{ value: LeadEditFormState['source'], label: string }> = [
+const LEAD_SOURCE_OPTIONS: Array<{ value: LeadSource, label: string }> = [
   { value: 'website', label: 'Website' },
+  { value: 'meta', label: 'Meta (Facebook / Instagram)' },
+  { value: 'google_ads', label: 'Google Ads' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'yelp', label: 'Yelp' },
+  { value: 'google_business_profile', label: 'Google Business Profile' },
+  { value: 'organic_search', label: 'Organic search' },
+  { value: 'email', label: 'Email' },
   { value: 'event', label: 'Event' },
   { value: 'landing_page', label: 'Landing page' },
-  { value: 'foot_traffic', label: 'Foot traffic' },
+  { value: 'foot_traffic', label: 'Walk-in / foot traffic' },
   { value: 'phone_call', label: 'Phone call' },
-  { value: 'family', label: 'Family' },
+  { value: 'family', label: 'Referral' },
+  { value: 'partner_community', label: 'Partner / community organization' },
+  { value: 'other', label: 'Other' },
+]
+
+const PROMOTION_TYPE_OPTIONS = [
+  { value: '', label: 'No promotion' },
+  { value: 'introductory_price', label: 'Introductory price' },
+  { value: 'percentage_discount', label: 'Percentage discount' },
+  { value: 'dollar_discount', label: 'Dollar discount' },
+  { value: 'free_class_trial', label: 'Free class or trial' },
+  { value: 'waived_fee', label: 'Waived fee' },
+  { value: 'bundle_package', label: 'Bundle or package' },
+  { value: 'giveaway', label: 'Giveaway' },
+  { value: 'other', label: 'Other promotion' },
 ]
 
 const NET_NEW_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -199,11 +218,14 @@ function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState
     email: '',
     phone: '',
     intakeType: activeTab === 'service_inquiry' ? 'service_inquiry' : 'lesson_inquiry',
-    sourceForm: 'manual-phone-call',
+    source: 'phone_call',
     programLabel: '',
     serviceLabel: '',
     familyInterestedCount: 1,
     referrer: '',
+    campaign: '',
+    promotionType: '',
+    promotionOffer: '',
     message: '',
   }
 }
@@ -237,6 +259,8 @@ function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
     sourceForm: lead.source_form || '',
     sourcePage: lead.source_page || '',
     campaign: lead.utm_campaign || '',
+    promotionType: typeof lead.payload?.promotion_type === 'string' ? lead.payload.promotion_type : '',
+    promotionOffer: typeof lead.payload?.promotion_offer === 'string' ? lead.payload.promotion_offer : '',
     referrer: lead.referrer || '',
     opportunityValue: getServiceSessionValue(lead)?.toString() || '',
     opportunityValueUnit: lead.payload?.opportunity_value_unit === 'mo' ? 'mo' : 'session',
@@ -369,12 +393,8 @@ function getLeadSource(lead: Pick<LeadRecord, 'source' | 'source_form' | 'source
   return 'Website'
 }
 
-function getManualLeadSource(sourceForm: ManualLeadFormState['sourceForm']) {
-  if (sourceForm === 'manual-phone-call') return 'phone_call'
-  if (sourceForm === 'manual-walk-in') return 'foot_traffic'
-  if (sourceForm === 'manual-referral') return 'family'
-  if (sourceForm === 'manual-other') return 'landing_page'
-  return 'website'
+function getManualLeadSourceForm(source: LeadSource) {
+  return `manual-${source.replace(/_/g, '-')}`
 }
 
 function formatSourcePage(value: string | null | undefined, fallback?: string | null) {
@@ -969,7 +989,9 @@ export default function LeadsView() {
 
     try {
       const payload: Record<string, unknown> = {
-        source: getManualLeadSource(manualLeadForm.sourceForm),
+        source: manualLeadForm.source,
+        promotion_type: manualLeadForm.promotionType || null,
+        promotion_offer: manualLeadForm.promotionOffer.trim() || null,
       }
       const trimmedMessage = manualLeadForm.message.trim()
       if (trimmedMessage) payload.message = trimmedMessage
@@ -991,13 +1013,15 @@ export default function LeadsView() {
         body: JSON.stringify({
           intake_type: manualLeadForm.intakeType,
           source_system: 'pulse-manual',
-          source_form: manualLeadForm.sourceForm,
+          source_form: getManualLeadSourceForm(manualLeadForm.source),
           source_page: null,
           full_name: manualLeadForm.fullName.trim(),
           email: manualLeadForm.email.trim() || null,
           phone: manualLeadForm.phone.trim() || null,
           program_label: manualLeadForm.intakeType === 'lesson_inquiry' ? manualLeadForm.programLabel.trim() || null : null,
           service_label: manualLeadForm.intakeType === 'service_inquiry' ? manualLeadForm.serviceLabel.trim() || null : null,
+          utm_source: manualLeadForm.source,
+          utm_campaign: manualLeadForm.campaign.trim() || null,
           referrer: manualLeadForm.referrer.trim() || null,
           payload,
         }),
@@ -1237,10 +1261,13 @@ export default function LeadsView() {
           service_label: leadEditForm.serviceLabel,
           source_form: leadEditForm.sourceForm,
           source_page: leadEditForm.sourcePage,
+          utm_source: leadEditForm.source,
           utm_campaign: leadEditForm.campaign,
           referrer: leadEditForm.referrer,
           payload: {
             source: leadEditForm.source,
+            promotion_type: leadEditForm.promotionType || null,
+            promotion_offer: leadEditForm.promotionOffer.trim() || null,
             ...(selectedLead?.intake_type === 'service_inquiry' ? {
               session_value: leadEditForm.opportunityValue.trim() && Number.isFinite(opportunityValue) ? Math.max(0, opportunityValue) : null,
               opportunity_value_unit: leadEditForm.opportunityValueUnit,
@@ -1264,6 +1291,7 @@ export default function LeadsView() {
         source: typeof data.payload?.source === 'string' ? data.payload.source : lead.source,
         source_form: data.source_form,
         source_page: data.source_page,
+        utm_source: data.utm_source,
         program_label: data.program_label,
         service_label: data.service_label,
         utm_campaign: data.utm_campaign,
@@ -1956,10 +1984,10 @@ export default function LeadsView() {
             />
             <Select
               label="Source"
-              value={manualLeadForm.sourceForm}
-              onChange={(event) => updateManualLeadField('sourceForm', event.target.value as ManualLeadFormState['sourceForm'])}
+              value={manualLeadForm.source}
+              onChange={(event) => updateManualLeadField('source', event.target.value as LeadSource)}
             >
-              {MANUAL_LEAD_SOURCE_OPTIONS.map((option) => (
+              {LEAD_SOURCE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
@@ -2026,6 +2054,25 @@ export default function LeadsView() {
               value={manualLeadForm.referrer}
               onChange={(event) => updateManualLeadField('referrer', event.target.value)}
               placeholder="Google, parent referral, flyer…"
+            />
+            <Input
+              label="Campaign"
+              value={manualLeadForm.campaign}
+              onChange={(event) => updateManualLeadField('campaign', event.target.value)}
+              placeholder="Hot Chili Cool Cars"
+            />
+            <Select
+              label="Promotion type"
+              value={manualLeadForm.promotionType}
+              onChange={(event) => updateManualLeadField('promotionType', event.target.value)}
+            >
+              {PROMOTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+            <Input
+              label="Offer details"
+              value={manualLeadForm.promotionOffer}
+              onChange={(event) => updateManualLeadField('promotionOffer', event.target.value)}
+              placeholder="$5 first class or 40% off first month"
             />
           </div>
 
@@ -2209,7 +2256,11 @@ export default function LeadsView() {
               </Select>
               <Input label="Source form" value={leadEditForm.sourceForm} onChange={(event) => updateLeadEditField('sourceForm', event.target.value)} placeholder="hot_chili_cool_cars_offer_form" />
               <Input label="Landing page" value={leadEditForm.sourcePage} onChange={(event) => updateLeadEditField('sourcePage', event.target.value)} placeholder="/special-offer" />
-              <Input label="Campaign" value={leadEditForm.campaign} onChange={(event) => updateLeadEditField('campaign', event.target.value)} placeholder="campaign_name" />
+              <Input label="Campaign" value={leadEditForm.campaign} onChange={(event) => updateLeadEditField('campaign', event.target.value)} placeholder="Hot Chili Cool Cars" />
+              <Select label="Promotion type" value={leadEditForm.promotionType} onChange={(event) => updateLeadEditField('promotionType', event.target.value)}>
+                {PROMOTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Input label="Offer details" value={leadEditForm.promotionOffer} onChange={(event) => updateLeadEditField('promotionOffer', event.target.value)} placeholder="$5 first class or 40% off first month" />
               <Input label="Referrer" value={leadEditForm.referrer} onChange={(event) => updateLeadEditField('referrer', event.target.value)} placeholder="Google, event booth, family referral…" />
             </div>
             <div style={manualLeadFooterStyle}>
