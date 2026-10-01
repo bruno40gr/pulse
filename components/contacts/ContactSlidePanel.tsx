@@ -6,6 +6,8 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
+import type { FundingCase } from '@/components/funding/types'
 
 interface AccountHolder {
   name: string | null
@@ -118,6 +120,9 @@ interface ContactSlidePanelProps {
   onCompose?: (contactIds: string[]) => void
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
+  mockFundingCase?: FundingCase
+  initialPanelTab?: 'profile' | 'funding'
+  onNextStepChange?: (value: string) => void
 }
 
 const inputStyle: React.CSSProperties = {
@@ -139,7 +144,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes' }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onNextStepChange }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
@@ -169,9 +174,16 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
+  const [activePanelTab, setActivePanelTab] = useState<'profile' | 'funding'>(mockFundingCase ? initialPanelTab : 'profile')
 
   // ── Load insights with note context ──
   useEffect(() => {
+    if (mockFundingCase) {
+      setInsights([])
+      setInsightsLoading(false)
+      return
+    }
+
     if (isInstructor) {
       setInsights([])
       setInsightsLoading(false)
@@ -227,7 +239,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, studentNotesHistory])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -689,8 +701,24 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </CompactMetaCard>
       </div>}
 
+      {mockFundingCase && (
+        <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0 }}>
+          <Tabs
+            items={[
+              { key: 'profile', label: 'Profile' },
+              { key: 'funding', label: 'Funding' },
+            ]}
+            activeKey={activePanelTab}
+            onChange={setActivePanelTab}
+            compact={isMobile}
+          />
+        </div>
+      )}
+
       {/* Body — two desktop columns, one mobile stack */}
-      {insightsLoading ? panelSkeleton : (
+      {activePanelTab === 'funding' && mockFundingCase ? (
+        <FundingContactDetails fundingCase={mockFundingCase} embedded onNextStepChange={onNextStepChange} />
+      ) : insightsLoading ? panelSkeleton : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
         <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
