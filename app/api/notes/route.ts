@@ -92,15 +92,20 @@ export async function POST(request: Request) {
     if (error) throw error
 
     let participantCount = 0
-    try {
-      if (isPrivate && tenantAccess.context) {
+    if (isPrivate && tenantAccess.context) {
+      try {
         participantCount = await addPrivateNoteParticipants({
           tenantId,
           noteId: data.id,
           membershipIds: [tenantAccess.context.membershipId, ...mentionMembershipIds],
         })
+      } catch (privacyError) {
+        await supabaseAdmin.from('notes').delete().eq('id', data.id).eq('tenant_id', tenantId)
+        throw privacyError
       }
-      if (tenantAccess.context) {
+    }
+    if (tenantAccess.context) {
+      try {
         await persistMentions({
           tenantId,
           actorMembershipId: tenantAccess.context.membershipId,
@@ -111,10 +116,12 @@ export async function POST(request: Request) {
           body: noteBody,
           link: `/dashboard/notes?note=${encodeURIComponent(data.id)}`,
         })
+      } catch (mentionError) {
+        console.error('[notes][create] Note saved but mentions could not be persisted', {
+          noteId: data.id,
+          error: mentionError instanceof Error ? mentionError.message : mentionError,
+        })
       }
-    } catch (postCreateError) {
-      await supabaseAdmin.from('notes').delete().eq('id', data.id).eq('tenant_id', tenantId)
-      throw postCreateError
     }
     return NextResponse.json({ ...data, participant_count: participantCount, reply_count: 0 })
   } catch (error) {

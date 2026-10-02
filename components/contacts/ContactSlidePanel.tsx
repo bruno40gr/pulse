@@ -161,8 +161,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   const [insights, setInsights] = useState<Insight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
-  const [studentNotesSaving] = useState(false)
-  const [internalNotesSaving] = useState(false)
+  const [studentNotesSaving, setStudentNotesSaving] = useState(false)
+  const [internalNotesSaving, setInternalNotesSaving] = useState(false)
   const [studentNotesHistory, setStudentNotesHistory] = useState<NoteEntry[]>(
     Array.isArray(contact.student_notes_history) ? contact.student_notes_history : []
   )
@@ -180,6 +180,12 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [activePanelTab, setActivePanelTab] = useState<'profile' | 'funding'>(mockFundingCase ? initialPanelTab : 'profile')
   const [fundingCase, setFundingCase] = useState<FundingCase | null>(mockFundingCase || null)
   const [invoiceEdit, setInvoiceEdit] = useState<FundingInvoice | null>(null)
+
+  useEffect(() => {
+    setStudentNotesHistory(Array.isArray(contact.student_notes_history) ? contact.student_notes_history : [])
+    setInternalNotesHistory(Array.isArray(contact.notes_history) ? contact.notes_history : [])
+    setActiveNotesTab(initialNotesTab)
+  }, [contact.id, contact.notes_history, contact.student_notes_history, initialNotesTab])
 
   useEffect(() => {
     setFundingCase(mockFundingCase || null)
@@ -1067,19 +1073,45 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 addLabel="Add a note"
                 saving={studentNotesSaving}
                 showHeader={false}
-                onSave={(text) => {
-                  const newEntry = { text, timestamp: new Date().toISOString() }
-                  const updated = [newEntry, ...studentNotesHistory]
-                  patch({ student_notes_history: updated }, true)
-                  setStudentNotesHistory(updated)
-                  showToast('changes saved')
+                onSave={async (text) => {
+                  setStudentNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not save note')
+                      return false
+                    }
+                    setStudentNotesHistory(Array.isArray(result.student_notes_history) ? result.student_notes_history : [])
+                    showToast('changes saved')
+                    return true
+                  } finally {
+                    setStudentNotesSaving(false)
+                  }
                 }}
-                onToggleComplete={(index) => {
-                  const updated = studentNotesHistory.map((entry, noteIndex) => noteIndex === index
-                    ? { ...entry, completed_at: entry.completed_at ? null : new Date().toISOString() }
-                    : entry)
-                  patch({ student_notes_history: updated }, true)
-                  setStudentNotesHistory(updated)
+                onToggleComplete={async (index) => {
+                  const entry = studentNotesHistory[index]
+                  if (!entry) return
+                  setStudentNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not update note')
+                      return
+                    }
+                    setStudentNotesHistory(Array.isArray(result.student_notes_history) ? result.student_notes_history : [])
+                  } finally {
+                    setStudentNotesSaving(false)
+                  }
                 }}
               />
             ) : (
@@ -1096,26 +1128,44 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                 showHeader={false}
                 mentionsEnabled
                 onSave={async (text, mentionMembershipIds) => {
-                  const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, mention_membership_ids: mentionMembershipIds }),
-                  })
-                  const newEntry = await response.json()
-                  if (!response.ok) {
-                    showToast(newEntry?.error || 'Could not save note')
-                    return false
+                  setInternalNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text, mention_membership_ids: mentionMembershipIds }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not save note')
+                      return false
+                    }
+                    setInternalNotesHistory(Array.isArray(result.notes_history) ? result.notes_history : [])
+                    showToast('changes saved')
+                    return true
+                  } finally {
+                    setInternalNotesSaving(false)
                   }
-                  setInternalNotesHistory((current) => [newEntry, ...current])
-                  showToast('changes saved')
-                  return true
                 }}
-                onToggleComplete={(index) => {
-                  const updated = internalNotesHistory.map((entry, noteIndex) => noteIndex === index
-                    ? { ...entry, completed_at: entry.completed_at ? null : new Date().toISOString() }
-                    : entry)
-                  patch({ notes_history: updated }, true)
-                  setInternalNotesHistory(updated)
+                onToggleComplete={async (index) => {
+                  const entry = internalNotesHistory[index]
+                  if (!entry) return
+                  setInternalNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not update note')
+                      return
+                    }
+                    setInternalNotesHistory(Array.isArray(result.notes_history) ? result.notes_history : [])
+                  } finally {
+                    setInternalNotesSaving(false)
+                  }
                 }}
               />
             )}

@@ -29,7 +29,7 @@ interface NotesSectionProps {
   onDraftChange?: (draft: string) => void
   mentionsEnabled?: boolean
   onSave: (text: string, mentionMembershipIds: string[]) => boolean | void | Promise<boolean | void>
-  onToggleComplete?: (index: number) => void
+  onToggleComplete?: (index: number) => void | Promise<void>
 }
 
 function formatNoteTimestamp(ts: string) {

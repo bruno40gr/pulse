@@ -664,6 +664,9 @@ export default function LeadsView() {
   const prefetchedTabsRef = useRef(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const selectedLeadIdRef = useRef<string | null>(null)
+  const leadDetailRequestRef = useRef(0)
+  const leadSaveRequestRef = useRef(0)
   const deepLinkedLeadHandledRef = useRef(false)
   const [composeLead, setComposeLead] = useState<LeadDetail | null>(null)
   const [isBulkComposeOpen, setIsBulkComposeOpen] = useState(false)
@@ -887,12 +890,14 @@ export default function LeadsView() {
   }
 
   const fetchLeadDetail = async (leadId: string, intakeType?: string) => {
+    const requestId = ++leadDetailRequestRef.current
     setDetailLoading(true)
     setDetailError('')
     try {
       const params = new URLSearchParams()
       if (intakeType) params.set('intake_type', intakeType)
       const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}?${params.toString()}`)
+      if (requestId !== leadDetailRequestRef.current || selectedLeadIdRef.current !== leadId) return
       setSelectedLead(data)
       setStatusValue(data.status || 'new')
       setNotesValue(data.contact?.notes || '')
@@ -901,13 +906,16 @@ export default function LeadsView() {
       setFollowUpNote(getLeadFollowUpNote(data))
       setLessonOpportunity(getLessonOpportunityState(data))
     } catch (error: unknown) {
-      setDetailError(getErrorMessage(error, 'Could not load lead'))
+      if (requestId === leadDetailRequestRef.current && selectedLeadIdRef.current === leadId) {
+        setDetailError(getErrorMessage(error, 'Could not load lead'))
+      }
     } finally {
-      setDetailLoading(false)
+      if (requestId === leadDetailRequestRef.current && selectedLeadIdRef.current === leadId) setDetailLoading(false)
     }
   }
 
   const openLead = async (leadId: string, intakeType?: string) => {
+    selectedLeadIdRef.current = leadId
     setSelectedLeadId(leadId)
     await fetchLeadDetail(leadId, intakeType)
   }
@@ -1079,6 +1087,9 @@ export default function LeadsView() {
   }
 
   const closeLead = () => {
+    selectedLeadIdRef.current = null
+    leadDetailRequestRef.current += 1
+    leadSaveRequestRef.current += 1
     setSelectedLeadId(null)
     setSelectedLead(null)
     removeCurrentSearchParam('lead')
@@ -1106,11 +1117,13 @@ export default function LeadsView() {
   })
 
   const saveDetail = async (extra: { add_note?: string, mention_membership_ids?: string[], status?: string, payload?: Record<string, unknown> } = {}) => {
-    if (!selectedLeadId) return false
+    const leadId = selectedLeadIdRef.current
+    if (!leadId) return false
+    const requestId = ++leadSaveRequestRef.current
     setDetailSaving(true)
     setDetailError('')
     try {
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
+      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1118,6 +1131,7 @@ export default function LeadsView() {
         }),
       })
 
+      if (requestId !== leadSaveRequestRef.current || selectedLeadIdRef.current !== leadId) return true
       setSelectedLead(data)
       setNotesValue(data.contact?.notes || '')
       setShowStatusEditor(false)
@@ -1125,7 +1139,7 @@ export default function LeadsView() {
       setFollowUpNote(getLeadFollowUpNote(data))
       setLessonOpportunity(getLessonOpportunityState(data))
       setLeads((current) => current.map((lead) => (
-        lead.id === selectedLeadId
+        lead.id === leadId
           ? {
               ...lead,
               status: data.status,
@@ -1149,10 +1163,12 @@ export default function LeadsView() {
       invalidateLeadListCache()
       return true
     } catch (error: unknown) {
-      setDetailError(getErrorMessage(error, 'Could not save lead'))
+      if (requestId === leadSaveRequestRef.current && selectedLeadIdRef.current === leadId) {
+        setDetailError(getErrorMessage(error, 'Could not save lead'))
+      }
       return false
     } finally {
-      setDetailSaving(false)
+      if (requestId === leadSaveRequestRef.current && selectedLeadIdRef.current === leadId) setDetailSaving(false)
     }
   }
 

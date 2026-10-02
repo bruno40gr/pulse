@@ -277,15 +277,28 @@ export async function GET(
       LEAD_DETAIL_TIMEOUT_MS,
       'lead events query',
     )
+    const notesResultPromise = withTimeout(
+      crmSupabaseAdmin
+        .from('lead_events')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('lead_intake_id', id)
+        .eq('event_type', 'note_added')
+        .order('created_at', { ascending: false }),
+      LEAD_DETAIL_TIMEOUT_MS,
+      'lead notes query',
+    )
 
-    const [leadResult, eventsResult] = await Promise.all([leadResultPromise, eventsResultPromise])
+    const [leadResult, eventsResult, notesResult] = await Promise.all([leadResultPromise, eventsResultPromise, notesResultPromise])
     const { data: lead, error: leadError } = leadResult as { data: LeadRecord, error: { message: string } | null }
     if (leadError) throw leadError
 
     const { data: events, error: eventsError } = eventsResult as { data: LeadEvent[] | null, error: { message: string } | null }
     if (eventsError) throw eventsError
+    const { data: noteEvents, error: notesError } = notesResult as { data: LeadEvent[] | null, error: { message: string } | null }
+    if (notesError) throw notesError
 
-    const notes_history = normalizeNotesHistory(events || [])
+    const notes_history = normalizeNotesHistory(noteEvents || [])
 
     console.info('[leads][detail]', {
       requestId: requestLog.requestId,
@@ -438,9 +451,18 @@ export async function PATCH(
     }
 
     const addNote = typeof body.add_note === 'string' ? body.add_note.trim() : ''
-    const mentionMembershipIds = addNote && tenantAccess.context
-      ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
-      : []
+    let mentionMembershipIds: string[] = []
+    if (addNote && tenantAccess.context) {
+      try {
+        mentionMembershipIds = await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
+      } catch (mentionError) {
+        console.error('[leads][update] Could not validate note mentions', {
+          requestId: requestLog.requestId,
+          leadId: id,
+          error: getErrorMessage(mentionError),
+        })
+      }
+    }
 
     const followUpChanged = Boolean(
       body.payload &&
@@ -549,17 +571,26 @@ export async function PATCH(
 
       if (result.error) throw result.error
       if (tenantAccess.context && result.data?.id) {
-        await persistMentions({
-          tenantId,
-          actorMembershipId: tenantAccess.context.membershipId,
-          membershipIds: mentionMembershipIds,
-          entityType: 'lead_note',
-          entityId: result.data.id,
-          parentEntityId: id,
-          title: `${tenantAccess.identity.displayName} mentioned you on a lead`,
-          body: addNote,
-          link: `/dashboard/leads?lead=${encodeURIComponent(id)}`,
-        })
+        try {
+          await persistMentions({
+            tenantId,
+            actorMembershipId: tenantAccess.context.membershipId,
+            membershipIds: mentionMembershipIds,
+            entityType: 'lead_note',
+            entityId: result.data.id,
+            parentEntityId: id,
+            title: `${tenantAccess.identity.displayName} mentioned you on a lead`,
+            body: addNote,
+            link: `/dashboard/leads?lead=${encodeURIComponent(id)}`,
+          })
+        } catch (mentionError) {
+          console.error('[leads][update] Note saved but mentions could not be persisted', {
+            requestId: requestLog.requestId,
+            leadId: id,
+            noteId: result.data.id,
+            error: getErrorMessage(mentionError),
+          })
+        }
       }
     }
 
@@ -676,22 +707,37 @@ export async function PATCH(
     const { data: refreshedLead, error: refreshedLeadError } = refreshedLeadResult as { data: LeadRecord, error: { message: string } | null }
     if (refreshedLeadError) throw refreshedLeadError
 
-    const refreshedEventsResult = await withTimeout<any>(
-      crmSupabaseAdmin
-        .from('lead_events')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('lead_intake_id', id)
-        .order('created_at', { ascending: false })
-        .limit(LEAD_EVENTS_LIMIT),
-      LEAD_DETAIL_TIMEOUT_MS,
-      'refreshed lead events query',
-    )
+    const [refreshedEventsResult, refreshedNotesResult] = await Promise.all([
+      withTimeout<any>(
+        crmSupabaseAdmin
+          .from('lead_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('lead_intake_id', id)
+          .order('created_at', { ascending: false })
+          .limit(LEAD_EVENTS_LIMIT),
+        LEAD_DETAIL_TIMEOUT_MS,
+        'refreshed lead events query',
+      ),
+      withTimeout(
+        crmSupabaseAdmin
+          .from('lead_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('lead_intake_id', id)
+          .eq('event_type', 'note_added')
+          .order('created_at', { ascending: false }),
+        LEAD_DETAIL_TIMEOUT_MS,
+        'refreshed lead notes query',
+      ),
+    ])
 
     const { data: refreshedEvents, error: refreshedEventsError } = refreshedEventsResult as { data: LeadEvent[] | null, error: { message: string } | null }
     if (refreshedEventsError) throw refreshedEventsError
+    const { data: refreshedNoteEvents, error: refreshedNotesError } = refreshedNotesResult as { data: LeadEvent[] | null, error: { message: string } | null }
+    if (refreshedNotesError) throw refreshedNotesError
 
-    const notes_history = normalizeNotesHistory(refreshedEvents || [])
+    const notes_history = normalizeNotesHistory(refreshedNoteEvents || [])
 
     console.info('[leads][update]', {
       requestId: requestLog.requestId,
