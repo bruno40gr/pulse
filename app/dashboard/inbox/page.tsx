@@ -76,11 +76,13 @@ function InboxPageInner() {
   const replyInputRef = useRef<HTMLTextAreaElement>(null)
   const markingReadThreadKeysRef = useRef(new Set<string>())
   const mobileThreadHistoryRef = useRef(false)
+  const profileRequestRef = useRef(0)
   const searchParams = useSearchParams()
   const router = useRouter()
   const campaignId = searchParams.get('campaign')
 
   const closeProfileState = () => {
+    profileRequestRef.current += 1
     setSelectedContact(null)
     setSelectedLead(null)
     setProfileError('')
@@ -150,6 +152,7 @@ function InboxPageInner() {
 
   const handleViewProfile = async () => {
     if (!activeThread?.profile_id || !activeThread.profile_type) return
+    const requestId = ++profileRequestRef.current
     setProfileLoading(true)
     setProfileError('')
     try {
@@ -160,6 +163,7 @@ function InboxPageInner() {
         const response = await fetch(`/api/leads/${activeThread.profile_id}?${params.toString()}`)
         const data = await response.json()
         if (!response.ok) throw new Error(data?.error || 'Could not load lead')
+        if (requestId !== profileRequestRef.current) return
         setSelectedLead(data)
         setLeadPanelDraft({})
         return
@@ -168,25 +172,27 @@ function InboxPageInner() {
       const response = await fetch(`/api/contacts/${activeThread.profile_id}?tenant=${tenantId}`)
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || 'Could not load contact')
+      if (requestId !== profileRequestRef.current) return
       setSelectedContact(data)
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Could not load profile')
+      if (requestId === profileRequestRef.current) setProfileError(error instanceof Error ? error.message : 'Could not load profile')
     } finally {
-      setProfileLoading(false)
+      if (requestId === profileRequestRef.current) setProfileLoading(false)
     }
   }
 
   const patchSelectedLead = async (patch: Record<string, unknown>) => {
     if (!selectedLead) return false
+    const leadId = selectedLead.id
     try {
-      const response = await fetch(`/api/leads/${selectedLead.id}?tenant=${tenantId}`, {
+      const response = await fetch(`/api/leads/${leadId}?tenant=${tenantId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || 'Could not save lead')
-      setSelectedLead(data)
+      setSelectedLead((current) => current?.id === leadId ? data : current)
       return true
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Could not save lead')

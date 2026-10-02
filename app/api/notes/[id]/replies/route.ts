@@ -74,25 +74,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) throw error
 
     if (tenantAccess.context) {
-      await persistMentions({
-        tenantId: tenantAccess.tenantId,
-        actorMembershipId: tenantAccess.context.membershipId,
-        membershipIds: mentionMembershipIds,
-        entityType: 'note_reply',
-        entityId: data.id,
-        parentEntityId: id,
-        title: `${tenantAccess.identity.displayName} mentioned you in a reply`,
-        body: replyBody,
-        link: `/dashboard/notes?note=${encodeURIComponent(id)}`,
-      })
-      if (!note.created_by_membership_id || !mentionMembershipIds.includes(note.created_by_membership_id)) {
-        await createReplyNotification({
+      try {
+        await persistMentions({
           tenantId: tenantAccess.tenantId,
           actorMembershipId: tenantAccess.context.membershipId,
-          recipientMembershipId: note.created_by_membership_id,
+          membershipIds: mentionMembershipIds,
+          entityType: 'note_reply',
+          entityId: data.id,
+          parentEntityId: id,
+          title: `${tenantAccess.identity.displayName} mentioned you in a reply`,
+          body: replyBody,
+          link: `/dashboard/notes?note=${encodeURIComponent(id)}`,
+        })
+        if (!note.created_by_membership_id || !mentionMembershipIds.includes(note.created_by_membership_id)) {
+          await createReplyNotification({
+            tenantId: tenantAccess.tenantId,
+            actorMembershipId: tenantAccess.context.membershipId,
+            recipientMembershipId: note.created_by_membership_id,
+            noteId: id,
+            replyId: data.id,
+            body: replyBody,
+          })
+        }
+      } catch (notificationError) {
+        console.error('[notes][replies][create] Reply saved but notifications could not be persisted', {
           noteId: id,
           replyId: data.id,
-          body: replyBody,
+          error: notificationError instanceof Error ? notificationError.message : notificationError,
         })
       }
     }

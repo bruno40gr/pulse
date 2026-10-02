@@ -129,6 +129,7 @@ function NoteCard(props: NoteCardProps) {
     marginBottom: spacing.lg,
     width: '100%',
     maxWidth: 390,
+    minHeight: 300,
     maxHeight: 460,
     boxSizing: 'border-box',
     overflowX: 'hidden',
@@ -154,7 +155,10 @@ function NoteCard(props: NoteCardProps) {
   const completionButton = (
     <button
       type="button"
-      onClick={props.onToggleComplete}
+      onClick={(event) => {
+        event.stopPropagation()
+        props.onToggleComplete()
+      }}
       title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
       aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
       style={{
@@ -176,7 +180,10 @@ function NoteCard(props: NoteCardProps) {
       <div style={{ ...cardStyle, position: 'relative', overflowY: 'auto' }}>
         <button
           type="button"
-          onClick={props.onPin}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onPin()
+          }}
           title={note.pinned ? 'Unpin note' : 'Pin note'}
           aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
           style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
@@ -212,7 +219,10 @@ function NoteCard(props: NoteCardProps) {
               <button
                 key={key}
                 type="button"
-                onClick={() => props.onColor(key)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  props.onColor(key)
+                }}
                 title={`Set color to ${key}`}
                 aria-label={`Set color to ${key}`}
                 style={{
@@ -226,7 +236,10 @@ function NoteCard(props: NoteCardProps) {
           <div style={{ flex: 1 }} />
           <button
             type="button"
-            onClick={props.onDelete}
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onDelete()
+            }}
             title="Delete note"
             aria-label="Delete note"
             style={{ ...iconBtnStyle, color: '#B91C1C' }}
@@ -241,17 +254,23 @@ function NoteCard(props: NoteCardProps) {
   }
 
   return (
-    <div style={{ ...cardStyle, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+    <div
+      onClick={props.onStartEdit}
+      style={{ ...cardStyle, position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'text' }}
+    >
       <button
         type="button"
-        onClick={props.onPin}
+        onClick={(event) => {
+          event.stopPropagation()
+          props.onPin()
+        }}
         title={note.pinned ? 'Unpin note' : 'Pin note'}
         aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
         style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
       >
         <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
       </button>
-      <div style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
+      <div onClick={(event) => event.stopPropagation()} style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
         {completionButton}
       </div>
       <div style={{ minHeight: 0, flex: '1 1 auto', paddingTop: 34, overflow: 'hidden' }}>
@@ -280,11 +299,11 @@ function NoteCard(props: NoteCardProps) {
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
-          <Button variant="ghost" size="sm" onClick={props.onReply} style={{ color: colors.textSecondary }}>
+          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onReply() }} style={{ color: colors.textSecondary }}>
             <MessageCircle size={14} aria-hidden="true" />
             {note.reply_count > 0 ? <strong>Replies {note.reply_count}</strong> : 'Reply'}
           </Button>
-          <Button variant="ghost" size="sm" onClick={props.onStartEdit}>
+          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onStartEdit() }}>
             Edit
           </Button>
         </div>
@@ -534,15 +553,54 @@ export default function NotesPage() {
             All dates
           </Button>
         )}
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm, minHeight: 36, color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={showDone}
-            onChange={(event) => setShowDone(event.target.checked)}
-            style={{ width: 16, height: 16, accentColor: colors.action, cursor: 'pointer' }}
-          />
-          Show done notes
-        </label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showDone}
+          onClick={() => setShowDone((value) => !value)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: spacing.sm,
+            minHeight: 36,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            color: colors.text,
+            fontFamily: typography.fontSans,
+            fontSize: typography.sizeSm,
+            cursor: 'pointer',
+          }}
+        >
+          <span>Show notes marked &lsquo;done&rsquo;</span>
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'relative',
+              display: 'inline-block',
+              width: 36,
+              height: 20,
+              borderRadius: 999,
+              background: showDone ? colors.action : colors.textMuted,
+              transition: 'background 0.15s ease',
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: showDone ? 18 : 2,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: colors.surface,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                transition: 'left 0.15s ease',
+              }}
+            />
+          </span>
+        </button>
       </div>
 
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>

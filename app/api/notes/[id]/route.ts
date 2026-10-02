@@ -50,16 +50,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     let participantCount: number | undefined = existingNote.is_private ? undefined : 0
     if ('body' in body && tenantAccess.context) {
       if (existingNote.is_private) participantCount = await addPrivateNoteParticipants({ tenantId, noteId: id, membershipIds: mentionMembershipIds })
-      await persistMentions({
-        tenantId,
-        actorMembershipId: tenantAccess.context.membershipId,
-        membershipIds: mentionMembershipIds,
-        entityType: 'dashboard_note',
-        entityId: id,
-        title: `${tenantAccess.identity.displayName} mentioned you in a note`,
-        body: typeof body.body === 'string' ? body.body : '',
-        link: `/dashboard/notes?note=${encodeURIComponent(id)}`,
-      })
+      try {
+        await persistMentions({
+          tenantId,
+          actorMembershipId: tenantAccess.context.membershipId,
+          membershipIds: mentionMembershipIds,
+          entityType: 'dashboard_note',
+          entityId: id,
+          title: `${tenantAccess.identity.displayName} mentioned you in a note`,
+          body: typeof body.body === 'string' ? body.body : '',
+          link: `/dashboard/notes?note=${encodeURIComponent(id)}`,
+        })
+      } catch (mentionError) {
+        console.error('[notes][update] Note saved but mentions could not be persisted', {
+          noteId: id,
+          error: mentionError instanceof Error ? mentionError.message : mentionError,
+        })
+      }
     }
     return NextResponse.json({ ...data, participant_count: participantCount })
   } catch (error) {
