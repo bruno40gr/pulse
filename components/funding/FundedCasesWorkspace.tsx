@@ -9,6 +9,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { fundingCases as initialCases, fundingPrograms } from './fixtures'
 import { formatCurrency, formatDate, FundingContactDetails } from './FundingContactDetails'
 import { InvoiceStatusModal } from './InvoiceStatusModal'
+import { NewFundedCaseModal } from './NewFundedCaseModal'
 import type { FundingCase, FundingInvoice, FundingInvoiceStatus, FundingProgram } from './types'
 
 type WorkspaceTab = 'needs_review' | 'waiting' | 'all' | 'programs'
@@ -26,6 +27,7 @@ export default function FundedCasesWorkspace() {
   const [invoiceEdit, setInvoiceEdit] = useState<{ caseId: string; invoice: FundingInvoice } | null>(null)
   const [dataSource, setDataSource] = useState<'loading' | 'persisted' | 'fixture'>('loading')
   const [loadError, setLoadError] = useState('')
+  const [showNewCase, setShowNewCase] = useState(false)
 
   useEffect(() => {
     const tenantId = getActiveTenantId()
@@ -81,6 +83,20 @@ export default function FundedCasesWorkspace() {
       return
     }
     setCases(current => current.map(item => item.id === caseId ? { ...item, nextStep, updatedAt: new Date().toISOString() } : item))
+  }
+
+  const archiveCase = async (fundingCase: FundingCase) => {
+    if (dataSource !== 'persisted' || !window.confirm(`Archive ${fundingCase.student}'s case with ${fundingCase.fundingOrganization}?`)) return
+    const tenantId = getActiveTenantId()
+    const response = await fetch(`/api/funding/cases/${fundingCase.id}?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lifecycle_status: 'archived', note: 'Archived from the funded cases workspace.' }),
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body?.error || 'Could not archive the case.')
+    setCases(current => current.filter(item => item.id !== fundingCase.id))
+    setSelectedCaseId(null)
   }
 
   const updateInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
@@ -155,7 +171,11 @@ export default function FundedCasesWorkspace() {
 
   return (
     <div style={{ padding: isMobile ? spacing.lg : spacing['3xl'], width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      <PageHeader title="Funded cases" subtitle="Track funded students, money owed, case workflows, and the next action that needs attention." />
+      <PageHeader
+        title="Funded cases"
+        subtitle="Track funded students, money owed, case workflows, and the next action that needs attention."
+        right={<Button onClick={() => setShowNewCase(true)} disabled={dataSource !== 'persisted'}>New funded case</Button>}
+      />
 
       {dataSource === 'fixture' && (
         <Notice variant="warning" title="Prototype data shown" style={{ marginBottom: spacing.lg }}>
@@ -208,7 +228,10 @@ export default function FundedCasesWorkspace() {
             badge={<><FundingStatusBadge item={selectedCase} /><Badge variant="neutral">Waiting on {selectedCase.owner}</Badge></>}
             onClose={() => setSelectedCaseId(null)}
             compact={isMobile}
-            actions={<Button size="sm" variant="secondary" onClick={() => { setSelectedCaseId(null); setContactCaseId(selectedCase.id) }}>View contact</Button>}
+            actions={<>
+              <Button size="sm" variant="secondary" onClick={() => { setSelectedCaseId(null); setContactCaseId(selectedCase.id) }}>View contact</Button>
+              <Button size="sm" variant="destructive" onClick={() => void archiveCase(selectedCase)}>Archive</Button>
+            </>}
           />
           <FundingContactDetails
             fundingCase={selectedCase}
@@ -235,6 +258,15 @@ export default function FundedCasesWorkspace() {
       )}
 
       <InvoiceStatusModal invoice={invoiceEdit?.invoice || null} onClose={() => setInvoiceEdit(null)} onSave={updateInvoiceStatus} />
+      <NewFundedCaseModal
+        isOpen={showNewCase}
+        onClose={() => setShowNewCase(false)}
+        onCreated={fundingCase => {
+          setCases(current => [fundingCase, ...current])
+          setSelectedCaseId(fundingCase.id)
+          setActiveTab('all')
+        }}
+      />
     </div>
   )
 }

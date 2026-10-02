@@ -17,7 +17,7 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 )
 
-const created = { cases: [], studentPayers: [], payers: [] }
+const created = { cases: [], organizations: [], studentPayers: [], payers: [] }
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -116,13 +116,21 @@ async function createOtherTenantCase(studentId, link, suffix) {
 }
 
 async function cleanup() {
+  const { data: verifierOrganizations, error: organizationLookupError } = await supabase
+    .from('funding_organizations')
+    .select('id, legacy_payer_id')
+    .like('name', 'Funding verifier %')
+  if (organizationLookupError && organizationLookupError.code !== 'PGRST205') throw organizationLookupError
+  const organizationIds = [...new Set([...(verifierOrganizations || []).map(item => item.id), ...created.organizations])]
+  const canonicalPayerIds = (verifierOrganizations || []).map(item => item.legacy_payer_id).filter(Boolean)
+
   const { data: verifierPayers, error: payerLookupError } = await supabase
     .from('payers')
     .select('id')
     .like('name', 'Funding verifier %')
   if (payerLookupError) throw payerLookupError
 
-  const payerIds = [...new Set([...(verifierPayers || []).map(payer => payer.id), ...created.payers])]
+  const payerIds = [...new Set([...(verifierPayers || []).map(payer => payer.id), ...canonicalPayerIds, ...created.payers])]
   if (!payerIds.length) return
 
   const { data: verifierLinks, error: linkLookupError } = await supabase
@@ -139,19 +147,25 @@ async function cleanup() {
     if (linkError) throw linkError
   }
 
+  if (organizationIds.length) {
+    const { error: organizationError } = await supabase.from('funding_organizations').delete().in('id', organizationIds)
+    if (organizationError) throw organizationError
+  }
+
   const { error: payerError } = await supabase.from('payers').delete().in('id', payerIds)
   if (payerError) throw payerError
 
   created.cases.length = 0
+  created.organizations.length = 0
   created.studentPayers.length = 0
   created.payers.length = 0
 }
 
 async function main() {
-  const schemaCheck = await supabase.from('funding_cases').select('id').limit(1)
+  const schemaCheck = await supabase.from('funding_cases').select('id, funding_organization_id, current_profile_version_id').limit(1)
   if (schemaCheck.error) {
-    if (schemaCheck.error.code === 'PGRST205' || /schema cache|does not exist/i.test(schemaCheck.error.message)) {
-      throw new Error('Funding workflow schema is unavailable. Apply scripts/migration-018-funding-invoice-workflow.sql to an approved development Supabase environment first.')
+    if (['PGRST204', 'PGRST205'].includes(schemaCheck.error.code) || /schema cache|does not exist|could not find/i.test(schemaCheck.error.message)) {
+      throw new Error('Durable funding onboarding schema is unavailable. Apply scripts/migration-019-funding-onboarding-foundation.sql to an approved development Supabase environment first.')
     }
     throw schemaCheck.error
   }
@@ -161,23 +175,49 @@ async function main() {
   const suffix = randomUUID().slice(0, 8)
   const cookie = accessCookie(await ownerActor())
   const studentId = await firstStudent(HEADLINER_TENANT_ID)
-  const link = await createPayerLink(HEADLINER_TENANT_ID, studentId, suffix)
+  const onboardingPayload = {
+    student_id: studentId,
+    organization: { name: `Funding verifier ${suffix}`, organization_type: 'fms' },
+    profile: {
+      program_name: 'Verification program',
+      change_note: 'Initial verifier profile.',
+      recipient_routing: 'portal_file_upload',
+      payment_terms: { invoice_cadence: 'Monthly', stated_days_to_pay: 30 },
+      submission_config: { instructions: 'Upload one PDF through the verification portal.' },
+      organization_rules: { payment_method: 'Direct deposit' },
+      invoice_requirements: { required_fields: ['authorization_reference'] },
+      verified: true,
+    },
+    contact: { name: 'Verifier Coordinator', role: 'Vendor support', email: `verifier-${suffix}@example.com`, purpose: 'case_onboarding' },
+    case: {
+      service_description: 'Verifier service',
+      service_codes: ['VERIFY-101'],
+      authorization_reference: `AUTH-${suffix}`,
+      lifecycle_status: 'active',
+      waiting_on: 'Vendor',
+      next_step: 'Verify the invoice workflow.',
+      next_step_options: ['Verify the invoice workflow.'],
+      coverage_percent: 100,
+      profile_overrides: {},
+    },
+    source: { type: 'tracker_import', reference: `verifier-${suffix}.csv`, row_key: 'row-1', metadata: { verifier: true } },
+  }
 
   const createdCase = await request(`/api/funding/cases?tenant=${HEADLINER_TENANT_ID}`, cookie, {
     method: 'POST',
-    body: JSON.stringify({
-      student_id: studentId,
-      payer_id: link.payerId,
-      student_payer_id: link.studentPayerId,
-      program_type: 'Verification',
-      service_description: 'Verifier service',
-      next_step: 'Verify the invoice workflow.',
-      next_step_options: ['Verify the invoice workflow.'],
-      waiting_on: 'Vendor',
-    }),
+    body: JSON.stringify(onboardingPayload),
   })
   assert(createdCase.status === 201, `Case creation failed (${createdCase.status}): ${createdCase.body.error || 'unknown error'}`)
   created.cases.push(createdCase.body.id)
+  created.organizations.push(createdCase.body.fundingOrganizationId)
+  assert(createdCase.body.fundingOrganizationId, 'Canonical onboarding must reference a funding organization.')
+  assert(createdCase.body.profileVersion === 1 && createdCase.body.profileVersionId, 'Canonical onboarding must reference immutable profile v1.')
+  assert(createdCase.body.authorization === `AUTH-${suffix}`, 'Student-specific authorization must remain on the case.')
+
+  const duplicateCase = await request(`/api/funding/cases?tenant=${HEADLINER_TENANT_ID}`, cookie, {
+    method: 'POST', body: JSON.stringify(onboardingPayload),
+  })
+  assert(duplicateCase.status === 409, 'Replaying the same student, organization, and source row must be rejected idempotently.')
 
   const createdInvoice = await request(`/api/funding/cases/${createdCase.body.id}/invoices?tenant=${HEADLINER_TENANT_ID}`, cookie, {
     method: 'POST',
@@ -187,6 +227,41 @@ async function main() {
   const invoice = createdInvoice.body.invoices?.[0]
   assert(invoice?.status === 'pending', 'Created invoice must be pending.')
   assert(invoice.statusEvents?.length === 1 && invoice.statusEvents[0].fromStatus === null, 'Invoice creation must create initial status history atomically.')
+  const { data: persistedInvoice, error: persistedInvoiceError } = await supabase
+    .from('funding_invoices')
+    .select('funding_profile_version_id, case_configuration_snapshot, generation_snapshot')
+    .eq('id', invoice.id)
+    .single()
+  if (persistedInvoiceError) throw persistedInvoiceError
+  assert(persistedInvoice.funding_profile_version_id === createdCase.body.profileVersionId, 'Invoice must reference the governing profile version.')
+  assert(persistedInvoice.case_configuration_snapshot.authorization_reference === `AUTH-${suffix}`, 'Invoice must snapshot case authorization configuration.')
+  assert(persistedInvoice.generation_snapshot.invoice_requirements.required_fields[0] === 'authorization_reference', 'Invoice must snapshot profile generation requirements.')
+
+  const profileV2 = await request(`/api/funding/organizations/${createdCase.body.fundingOrganizationId}/profiles?tenant=${HEADLINER_TENANT_ID}`, cookie, {
+    method: 'POST',
+    body: JSON.stringify({
+      change_note: 'Verifier routing change.',
+      profile: { program_name: 'Verification program', recipient_routing: 'direct_to_fms', payment_terms: { invoice_cadence: 'Monthly' } },
+    }),
+  })
+  assert(profileV2.status === 201 && profileV2.body.version_number === 2, 'Profile edits must create a new immutable version.')
+  const { error: immutableError } = await supabase.from('funding_profile_versions').update({ program_name: 'Mutated in place' }).eq('id', createdCase.body.profileVersionId)
+  assert(immutableError, 'Historical profile versions must reject in-place mutation.')
+  const { data: invoiceAfterProfileChange, error: invoiceAfterProfileChangeError } = await supabase
+    .from('funding_invoices').select('funding_profile_version_id, generation_snapshot').eq('id', invoice.id).single()
+  if (invoiceAfterProfileChangeError) throw invoiceAfterProfileChangeError
+  assert(invoiceAfterProfileChange.funding_profile_version_id === createdCase.body.profileVersionId, 'A later profile version must not rewrite invoice history.')
+
+  const onboardingOptions = await request(`/api/funding/onboarding-options?tenant=${HEADLINER_TENANT_ID}`, cookie)
+  assert(onboardingOptions.status === 200, `Onboarding options failed (${onboardingOptions.status}).`)
+  const organizationOption = onboardingOptions.body.organizations?.find(item => item.id === createdCase.body.fundingOrganizationId)
+  assert(organizationOption?.activeProfile?.id === profileV2.body.id && organizationOption.activeProfile.version === 2,
+    'Onboarding options must expose the organization active profile version.')
+
+  const organizations = await request(`/api/funding/organizations?tenant=${HEADLINER_TENANT_ID}`, cookie)
+  assert(organizations.status === 200, `Funding organization listing failed (${organizations.status}).`)
+  const listedOrganization = organizations.body.find?.(item => item.id === createdCase.body.fundingOrganizationId)
+  assert(listedOrganization?.profiles?.length === 2, 'Funding organization history must retain both immutable profile versions.')
 
   const rejectedWithoutEvidence = await request(`/api/funding/invoices/${invoice.id}/status?tenant=${HEADLINER_TENANT_ID}`, cookie, {
     method: 'PATCH', body: JSON.stringify({ status: 'rejected' }),
@@ -214,6 +289,51 @@ async function main() {
   })
   assert(paid.status === 200, `Paid transition failed (${paid.status}).`)
   assert(paid.body.status === 'paid' && paid.body.outstanding === 0 && paid.body.amountPaid === 125, 'Paid transition must reconcile the case totals.')
+
+  const archived = await request(`/api/funding/cases/${createdCase.body.id}?tenant=${HEADLINER_TENANT_ID}`, cookie, {
+    method: 'PATCH', body: JSON.stringify({ lifecycle_status: 'archived', note: 'Verifier archive test.' }),
+  })
+  assert(archived.status === 200, `Case archive failed (${archived.status}).`)
+  assert(archived.body.activity.some(event => event.title === 'Case archived'), 'Archiving must append case activity.')
+
+  const activeCases = await request(`/api/funding/cases?tenant=${HEADLINER_TENANT_ID}`, cookie)
+  assert(activeCases.status === 200, `Funding case listing failed (${activeCases.status}).`)
+  assert(!activeCases.body.some(item => item.id === createdCase.body.id), 'Archived cases must leave normal dashboard lists.')
+
+  const archivedById = await request(`/api/funding/cases/${createdCase.body.id}?tenant=${HEADLINER_TENANT_ID}`, cookie)
+  assert(archivedById.status === 200 && archivedById.body.id === createdCase.body.id,
+    'Archived cases must remain retrievable by ID for audit history.')
+
+  const reusedOrganizationPayload = {
+    student_id: studentId,
+    organization: {
+      id: createdCase.body.fundingOrganizationId,
+      profile_version_id: profileV2.body.id,
+    },
+    profile: {},
+    case: {
+      service_description: 'Verifier service after archive',
+      service_codes: ['VERIFY-REUSE'],
+      lifecycle_status: 'active',
+      waiting_on: 'Funder',
+      next_step: 'Verify existing organization reuse.',
+      coverage_percent: 100,
+      profile_overrides: {},
+    },
+    source: { type: 'manual', metadata: { verifier: true, reused_organization: true } },
+  }
+  const reusedCase = await request(`/api/funding/cases?tenant=${HEADLINER_TENANT_ID}`, cookie, {
+    method: 'POST', body: JSON.stringify(reusedOrganizationPayload),
+  })
+  assert(reusedCase.status === 201, `Existing organization reuse failed (${reusedCase.status}): ${reusedCase.body.error || 'unknown error'}`)
+  created.cases.push(reusedCase.body.id)
+  assert(reusedCase.body.fundingOrganizationId === createdCase.body.fundingOrganizationId && reusedCase.body.profileVersionId === profileV2.body.id,
+    'Reused onboarding must reference the selected existing organization and profile version.')
+
+  const duplicateReusedCase = await request(`/api/funding/cases?tenant=${HEADLINER_TENANT_ID}`, cookie, {
+    method: 'POST', body: JSON.stringify(reusedOrganizationPayload),
+  })
+  assert(duplicateReusedCase.status === 409, 'A second active student and organization case must be rejected.')
 
   const otherStudentId = await firstStudent(OTHER_TENANT_ID)
   const otherLink = await createPayerLink(OTHER_TENANT_ID, otherStudentId, `${suffix}-other`)

@@ -39,6 +39,9 @@ export interface FundingCase {
   studentId?: string
   studentPersonId?: string | null
   payerId?: string
+  fundingOrganizationId?: string | null
+  profileVersionId?: string | null
+  profileVersion?: number | null
   student: string
   parent: string
   fundingOrganization: string

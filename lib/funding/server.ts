@@ -25,6 +25,10 @@ const FUNDING_CASE_SELECT = `
     accounts ( name )
   ),
   payer:payers ( id, name, type, program_name ),
+  organization:funding_organizations ( id, name, organization_type ),
+  current_profile:funding_profile_versions!funding_cases_current_profile_version_id_fkey (
+    id, version_number, program_name, recipient_routing, payment_terms, submission_config, organization_rules
+  ),
   invoices:funding_invoices (
     *,
     status_events:funding_invoice_status_events (*)
@@ -40,6 +44,16 @@ interface StudentRow {
   accounts: AccountRow | AccountRow[] | null
 }
 interface PayerRow { id: string; name: string; type: string; program_name: string | null }
+interface OrganizationRow { id: string; name: string; organization_type: string }
+interface ProfileRow {
+  id: string
+  version_number: number
+  program_name: string | null
+  recipient_routing: string | null
+  payment_terms: Record<string, unknown> | null
+  submission_config: Record<string, unknown> | null
+  organization_rules: Record<string, unknown> | null
+}
 interface InvoiceEventRow {
   id: string
   from_status: FundingInvoiceStatusEvent['fromStatus']
@@ -68,6 +82,7 @@ interface FundingCaseRow {
   id: string
   student_id: string
   payer_id: string
+  funding_organization_id: string | null
   program_type: string
   service_description: string
   workflow_status: FundingCase['status']
@@ -80,9 +95,15 @@ interface FundingCaseRow {
   submission_route: string | null
   payment_method: string | null
   instructions: string | null
+  lifecycle_status: string | null
+  blocker_type: string | null
+  service_codes: unknown
+  profile_overrides: Record<string, unknown> | null
   updated_at: string
   student: StudentRow | StudentRow[] | null
   payer: PayerRow | PayerRow[] | null
+  organization: OrganizationRow | OrganizationRow[] | null
+  current_profile: ProfileRow | ProfileRow[] | null
   invoices: InvoiceRow[] | null
   events: CaseEventRow[] | null
 }
@@ -109,6 +130,8 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
   const student = one(row.student)
   const person = one(student?.person)
   const payer = one(row.payer)
+  const organization = one(row.organization)
+  const profile = one(row.current_profile)
   const account = one(student?.accounts)
   const invoices = (row.invoices || []).map((invoice): FundingInvoice => ({
     id: invoice.id,
@@ -145,10 +168,13 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
     studentId: row.student_id,
     studentPersonId: person?.id || null,
     payerId: row.payer_id,
+    fundingOrganizationId: row.funding_organization_id,
+    profileVersionId: profile?.id || null,
+    profileVersion: profile?.version_number || null,
     student: `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || 'Unknown student',
     parent: account?.name || 'Not provided',
-    fundingOrganization: payer?.name || 'Unknown payer',
-    programType: row.program_type || payer?.program_name || payer?.type || 'Other',
+    fundingOrganization: organization?.name || payer?.name || 'Unknown payer',
+    programType: profile?.program_name || row.program_type || organization?.organization_type || payer?.program_name || payer?.type || 'Other',
     service: row.service_description,
     status: row.workflow_status,
     statusLabel: workflowLabel(row.workflow_status, invoices),
@@ -160,10 +186,10 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
     amountPaid,
     outstanding: amountExpected - amountPaid,
     authorization: row.authorization_reference || 'Not provided',
-    invoiceCadence: row.invoice_cadence || 'Not provided',
-    submissionRoute: row.submission_route || 'Not provided',
-    paymentMethod: row.payment_method || 'Not provided',
-    instructions: row.instructions || 'No special instructions recorded.',
+    invoiceCadence: row.invoice_cadence || String(profile?.payment_terms?.invoice_cadence || 'Not provided'),
+    submissionRoute: row.submission_route || profile?.recipient_routing || 'Not provided',
+    paymentMethod: row.payment_method || String(profile?.organization_rules?.payment_method || 'Not provided'),
+    instructions: row.instructions || String(profile?.submission_config?.instructions || 'No special instructions recorded.'),
     updatedAt: row.updated_at,
     invoices,
     activity: (row.events || []).sort((a, b) => b.created_at.localeCompare(a.created_at)).map(event => ({
@@ -178,6 +204,7 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
 export async function loadFundingCases(tenantId: string, caseId?: string, studentPersonId?: string) {
   let query = supabaseAdmin.from('funding_cases').select(FUNDING_CASE_SELECT).eq('tenant_id', tenantId)
   if (caseId) query = query.eq('id', caseId)
+  else query = query.is('archived_at', null)
   if (studentPersonId) {
     const { data: student, error: studentError } = await supabaseAdmin
       .from('students').select('id').eq('tenant_id', tenantId).eq('person_id', studentPersonId).maybeSingle()

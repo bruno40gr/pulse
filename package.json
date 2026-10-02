@@ -12,7 +12,8 @@
     "verify:account-claim": "node scripts/verify-account-claim.mjs",
     "verify:scanner-safe-auth": "node scripts/verify-scanner-safe-auth-links.mjs",
     "verify:staff-emails": "node scripts/verify-staff-email-readiness.mjs",
-    "verify:funding-invoices": "node scripts/verify-funding-invoice-workflow.mjs"
+    "verify:funding-invoices": "node scripts/verify-funding-invoice-workflow.mjs",
+    "verify:funding-onboarding": "node scripts/verify-funding-invoice-workflow.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
