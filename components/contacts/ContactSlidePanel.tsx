@@ -6,6 +6,9 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
+import { InvoiceStatusModal } from '@/components/funding/InvoiceStatusModal'
+import type { FundingCase, FundingInvoice, FundingInvoiceStatus } from '@/components/funding/types'
 
 interface AccountHolder {
   name: string | null
@@ -118,6 +121,11 @@ interface ContactSlidePanelProps {
   onCompose?: (contactIds: string[]) => void
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
+  mockFundingCase?: FundingCase
+  initialPanelTab?: 'profile' | 'funding'
+  onNextStepChange?: (value: string) => void
+  onInvoiceStatusChange?: (invoice: FundingInvoice) => void
+  onFundingCaseUpdated?: (fundingCase: FundingCase) => void
 }
 
 const inputStyle: React.CSSProperties = {
@@ -139,7 +147,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes' }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onNextStepChange, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
@@ -169,9 +177,75 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
+  const [activePanelTab, setActivePanelTab] = useState<'profile' | 'funding'>(mockFundingCase ? initialPanelTab : 'profile')
+  const [fundingCase, setFundingCase] = useState<FundingCase | null>(mockFundingCase || null)
+  const [invoiceEdit, setInvoiceEdit] = useState<FundingInvoice | null>(null)
+
+  useEffect(() => {
+    setFundingCase(mockFundingCase || null)
+  }, [mockFundingCase])
+
+  useEffect(() => {
+    if (mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
+    let active = true
+    fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
+      .then(async response => {
+        const body = await response.json()
+        if (!response.ok) throw new Error(body?.error || 'Could not load funding case.')
+        if (active) setFundingCase(Array.isArray(body) ? body[0] || null : null)
+      })
+      .catch(() => {
+        if (active) setFundingCase(null)
+      })
+    return () => { active = false }
+  }, [contact.id, isInstructor, mockFundingCase, tenantId])
+
+  const applyFundingCase = (updated: FundingCase) => {
+    setFundingCase(updated)
+    onFundingCaseUpdated?.(updated)
+  }
+
+  const updateFundingNextStep = async (value: string) => {
+    if (onNextStepChange) {
+      onNextStepChange(value)
+      return
+    }
+    if (!fundingCase) return
+    const response = await fetch(`/api/funding/cases/${fundingCase.id}?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ next_step: value }),
+    })
+    const body = await response.json()
+    if (!response.ok) {
+      showToast(body?.error || 'Could not update the case')
+      return
+    }
+    applyFundingCase(body)
+    showToast('changes saved')
+  }
+
+  const saveInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
+    if (!invoiceEdit) return
+    const response = await fetch(`/api/funding/invoices/${invoiceEdit.id}/status?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: input.status, evidence: input.evidence, note: input.note, paid_on: input.paidOn }),
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body?.error || 'Could not update invoice status.')
+    applyFundingCase(body)
+    showToast('invoice status saved')
+  }
 
   // ── Load insights with note context ──
   useEffect(() => {
+    if (mockFundingCase) {
+      setInsights([])
+      setInsightsLoading(false)
+      return
+    }
+
     if (isInstructor) {
       setInsights([])
       setInsightsLoading(false)
@@ -227,7 +301,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, studentNotesHistory])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -689,8 +763,29 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </CompactMetaCard>
       </div>}
 
+      {fundingCase && (
+        <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0 }}>
+          <Tabs
+            items={[
+              { key: 'profile', label: 'Profile' },
+              { key: 'funding', label: 'Funding' },
+            ]}
+            activeKey={activePanelTab}
+            onChange={setActivePanelTab}
+            compact={isMobile}
+          />
+        </div>
+      )}
+
       {/* Body — two desktop columns, one mobile stack */}
-      {insightsLoading ? panelSkeleton : (
+      {activePanelTab === 'funding' && fundingCase ? (
+        <FundingContactDetails
+          fundingCase={fundingCase}
+          embedded
+          onNextStepChange={value => void updateFundingNextStep(value)}
+          onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+        />
+      ) : insightsLoading ? panelSkeleton : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
         <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
@@ -1029,6 +1124,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       </div>
       )}
 
+      <InvoiceStatusModal invoice={invoiceEdit} onClose={() => setInvoiceEdit(null)} onSave={saveInvoiceStatus} />
     </SlidePanel>
   )
 }

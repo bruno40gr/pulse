@@ -18,6 +18,8 @@ export const PERMISSIONS = {
   tenantSettingsManage: 'tenant_settings.manage',
   auditRead: 'audit.read',
   dataMigrationsRun: 'data_migrations.run',
+  fundingRead: 'funding.read',
+  fundingManage: 'funding.manage',
 } as const
 
 export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS]

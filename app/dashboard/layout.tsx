@@ -21,6 +21,7 @@ const NAV_LINKS = [
   { href: '/dashboard/leads', label: 'Leads' },
   { href: '/dashboard/notes', label: 'Notes' },
   { href: '/dashboard/contacts', label: 'Contacts' },
+  { href: '/dashboard/funded-cases', label: 'Funded Cases' },
   { href: '/dashboard/inbox', label: 'Conversations' },
   { href: '/dashboard/history', label: 'Campaigns' },
   { href: '/dashboard/staff', label: 'Staff' },
