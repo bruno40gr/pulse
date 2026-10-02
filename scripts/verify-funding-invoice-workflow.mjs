@@ -116,18 +116,35 @@ async function createOtherTenantCase(studentId, link, suffix) {
 }
 
 async function cleanup() {
-  if (created.cases.length) {
-    const { error } = await supabase.from('funding_cases').delete().in('id', created.cases)
-    if (error) throw error
+  const { data: verifierPayers, error: payerLookupError } = await supabase
+    .from('payers')
+    .select('id')
+    .like('name', 'Funding verifier %')
+  if (payerLookupError) throw payerLookupError
+
+  const payerIds = [...new Set([...(verifierPayers || []).map(payer => payer.id), ...created.payers])]
+  if (!payerIds.length) return
+
+  const { data: verifierLinks, error: linkLookupError } = await supabase
+    .from('student_payers')
+    .select('id')
+    .in('payer_id', payerIds)
+  if (linkLookupError) throw linkLookupError
+
+  const studentPayerIds = [...new Set([...(verifierLinks || []).map(link => link.id), ...created.studentPayers])]
+  if (studentPayerIds.length) {
+    const { error: caseError } = await supabase.from('funding_cases').delete().in('student_payer_id', studentPayerIds)
+    if (caseError) throw caseError
+    const { error: linkError } = await supabase.from('student_payers').delete().in('id', studentPayerIds)
+    if (linkError) throw linkError
   }
-  if (created.studentPayers.length) {
-    const { error } = await supabase.from('student_payers').delete().in('id', created.studentPayers)
-    if (error) throw error
-  }
-  if (created.payers.length) {
-    const { error } = await supabase.from('payers').delete().in('id', created.payers)
-    if (error) throw error
-  }
+
+  const { error: payerError } = await supabase.from('payers').delete().in('id', payerIds)
+  if (payerError) throw payerError
+
+  created.cases.length = 0
+  created.studentPayers.length = 0
+  created.payers.length = 0
 }
 
 async function main() {
@@ -138,6 +155,8 @@ async function main() {
     }
     throw schemaCheck.error
   }
+
+  await cleanup()
 
   const suffix = randomUUID().slice(0, 8)
   const cookie = accessCookie(await ownerActor())

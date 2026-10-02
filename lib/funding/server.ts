@@ -22,7 +22,7 @@ const FUNDING_CASE_SELECT = `
   student:students (
     id,
     person:people ( id, first_name, last_name ),
-    student_accounts ( is_primary, account:accounts ( name ) )
+    accounts ( name )
   ),
   payer:payers ( id, name, type, program_name ),
   invoices:funding_invoices (
@@ -34,11 +34,10 @@ const FUNDING_CASE_SELECT = `
 
 interface PersonRow { id: string; first_name: string | null; last_name: string | null }
 interface AccountRow { name: string | null }
-interface StudentAccountRow { is_primary: boolean | null; account: AccountRow | AccountRow[] | null }
 interface StudentRow {
   id: string
   person: PersonRow | PersonRow[] | null
-  student_accounts: StudentAccountRow[] | null
+  accounts: AccountRow | AccountRow[] | null
 }
 interface PayerRow { id: string; name: string; type: string; program_name: string | null }
 interface InvoiceEventRow {
@@ -110,7 +109,7 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
   const student = one(row.student)
   const person = one(student?.person)
   const payer = one(row.payer)
-  const primaryAccount = student?.student_accounts?.find(item => item.is_primary) || student?.student_accounts?.[0]
+  const account = one(student?.accounts)
   const invoices = (row.invoices || []).map((invoice): FundingInvoice => ({
     id: invoice.id,
     invoiceNumber: invoice.invoice_number,
@@ -147,7 +146,7 @@ export function serializeFundingCase(row: FundingCaseRow): FundingCase {
     studentPersonId: person?.id || null,
     payerId: row.payer_id,
     student: `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || 'Unknown student',
-    parent: one(primaryAccount?.account)?.name || 'Not provided',
+    parent: account?.name || 'Not provided',
     fundingOrganization: payer?.name || 'Unknown payer',
     programType: row.program_type || payer?.program_name || payer?.type || 'Other',
     service: row.service_description,
