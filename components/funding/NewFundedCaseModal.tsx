@@ -1,260 +1,142 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, Select, Textarea } from '@/components/ui'
+import { Button, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, Select } from '@/components/ui'
 import { getActiveTenantId } from '@/lib/tenant'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
-import type { FundingCase } from './types'
+import { colors, spacing, typography } from '@/lib/tokens'
+import type { FundingCase, FundingStudentRequirement } from './types'
 
-interface StudentOption { id: string; name: string; accountName: string | null; status: string | null }
-interface ProfileOption {
-  id: string
-  version: number
-  programName: string | null
-  recipientRouting: string | null
-  paymentTerms: Record<string, unknown>
-  submissionConfig: Record<string, unknown>
+interface StudentOption { id: string; accountId: string | null; name: string; accountName: string | null; status: string | null }
+interface AccountContactOption { id: string; name: string; relationship: string | null; email: string | null; phone: string | null }
+interface ProgramOption {
+  id: string; organizationId: string; organizationName: string; organizationType: string; name: string; version: number
+  affiliationStatus: 'established'; studentRequirements: FundingStudentRequirement[]; requiredDocuments: string[]; serviceCodes: string[]
 }
-interface OrganizationOption { id: string; name: string; organizationType: string; activeProfile: ProfileOption | null }
-interface OnboardingOptions { students: StudentOption[]; organizations: OrganizationOption[] }
+interface OnboardingOptions { students: StudentOption[]; programs: ProgramOption[] }
 
-const emptyForm = {
-  studentId: '', organizationChoice: '', organizationName: '', organizationType: 'other', programName: '',
-  recipientRouting: '', invoiceCadence: '', paymentMethod: '', profileInstructions: '',
-  contactName: '', contactRole: '', contactEmail: '', contactPhone: '',
-  serviceDescription: '', serviceCodes: '', authorizationReference: '', authorizationStartDate: '', authorizationEndDate: '',
-  authorizedAmount: '', coverageCap: '', coveragePercent: '100', lifecycleStatus: 'active', blockerType: '', waitingOn: 'Vendor',
-  nextStep: '', dueDate: '', caseInstructions: '',
-}
-
-export function NewFundedCaseModal({ isOpen, onClose, onCreated }: {
-  isOpen: boolean
-  onClose: () => void
-  onCreated: (fundingCase: FundingCase) => void
+export function NewFundedCaseModal({ isOpen, preferredProgramId, onClose, onCreated, onManagePrograms }: {
+  isOpen: boolean; preferredProgramId: string | null; onClose: () => void
+  onCreated: (fundingCase: FundingCase) => void; onManagePrograms: () => void
 }) {
   const [options, setOptions] = useState<OnboardingOptions | null>(null)
-  const [form, setForm] = useState(emptyForm)
-  const [loadingOptions, setLoadingOptions] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const selectedOrganization = useMemo(
-    () => options?.organizations.find(item => item.id === form.organizationChoice) || null,
-    [form.organizationChoice, options],
-  )
-  const creatingOrganization = form.organizationChoice === 'new'
+  const [studentId, setStudentId] = useState(''); const [programId, setProgramId] = useState('')
+  const [serviceDescription, setServiceDescription] = useState(''); const [serviceCode, setServiceCode] = useState('')
+  const [authorizationReference, setAuthorizationReference] = useState(''); const [authorizationStartDate, setAuthorizationStartDate] = useState(''); const [authorizationEndDate, setAuthorizationEndDate] = useState('')
+  const [coveragePercent, setCoveragePercent] = useState(''); const [coverageCap, setCoverageCap] = useState('')
+  const [contacts, setContacts] = useState<AccountContactOption[]>([]); const [contactId, setContactId] = useState(''); const [contactPurpose, setContactPurpose] = useState<'family_contact' | 'coordinator_contact'>('family_contact')
+  const [addingContact, setAddingContact] = useState(false); const [newContactName, setNewContactName] = useState(''); const [newContactRelationship, setNewContactRelationship] = useState(''); const [newContactEmail, setNewContactEmail] = useState(''); const [newContactPhone, setNewContactPhone] = useState('')
+  const [documentsAcknowledged, setDocumentsAcknowledged] = useState(false)
+  const [loadingOptions, setLoadingOptions] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
-    setError('')
-    setLoadingOptions(true)
+    setError(''); setLoadingOptions(true)
     const tenantId = getActiveTenantId()
     fetch(`/api/funding/onboarding-options?tenant=${encodeURIComponent(tenantId)}`)
       .then(async response => {
         const body = await response.json()
-        if (!response.ok) throw new Error(body?.error || 'Could not load onboarding options.')
+        if (!response.ok) throw new Error(body?.error || 'Could not load students and funding programs.')
         setOptions(body)
+        setProgramId(body.programs?.some((program: ProgramOption) => program.id === preferredProgramId) && preferredProgramId ? preferredProgramId : '')
       })
-      .catch(caught => setError(caught instanceof Error ? caught.message : 'Could not load onboarding options.'))
+      .catch(caught => setError(caught instanceof Error ? caught.message : 'Could not load students and funding programs.'))
       .finally(() => setLoadingOptions(false))
-  }, [isOpen])
+  }, [isOpen, preferredProgramId])
+
+  const program = options?.programs.find(item => item.id === programId) || null
+  const student = options?.students.find(item => item.id === studentId) || null
+  const requiredFields = useMemo(() => new Set((program?.studentRequirements || []).filter(item => item.required).map(item => item.field)), [program])
+  const needsAuthorizationDates = requiredFields.has('authorization_start_date') || requiredFields.has('authorization_end_date')
+  const needsCaseContact = requiredFields.has('coordinator_contact') || requiredFields.has('family_contact')
+  const needsDocuments = requiredFields.has('required_documents') || Boolean(program?.requiredDocuments.length)
 
   useEffect(() => {
-    if (!selectedOrganization?.activeProfile) return
-    const profile = selectedOrganization.activeProfile
-    setForm(current => ({
-      ...current,
-      programName: profile.programName || '',
-      recipientRouting: profile.recipientRouting || '',
-      invoiceCadence: typeof profile.paymentTerms?.invoice_cadence === 'string' ? profile.paymentTerms.invoice_cadence : '',
-      profileInstructions: typeof profile.submissionConfig?.instructions === 'string' ? profile.submissionConfig.instructions : '',
-    }))
-  }, [selectedOrganization])
+    setContacts([]); setContactId(''); setAddingContact(false)
+    if (!student?.accountId) return
+    const tenantId = getActiveTenantId()
+    fetch(`/api/funding/account-contacts?tenant=${encodeURIComponent(tenantId)}&account_id=${encodeURIComponent(student.accountId)}`)
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body?.error || 'Could not load people of contact.'); setContacts(Array.isArray(body) ? body : []) })
+      .catch(caught => setError(caught instanceof Error ? caught.message : 'Could not load people of contact.'))
+  }, [student?.accountId])
 
-  const set = (key: keyof typeof emptyForm, value: string) => setForm(current => ({ ...current, [key]: value }))
-
-  const close = () => {
-    if (saving) return
-    setForm(emptyForm)
-    setError('')
-    onClose()
+  const reset = () => {
+    setStudentId(''); setProgramId(''); setServiceDescription(''); setServiceCode(''); setAuthorizationReference('')
+    setAuthorizationStartDate(''); setAuthorizationEndDate(''); setCoveragePercent(''); setCoverageCap(''); setContacts([]); setContactId(''); setContactPurpose('family_contact')
+    setAddingContact(false); setNewContactName(''); setNewContactRelationship(''); setNewContactEmail(''); setNewContactPhone('')
+    setDocumentsAcknowledged(false); setError('')
   }
+  const close = () => { if (!saving) { reset(); onClose() } }
 
   const submit = async () => {
-    setError('')
-    setSaving(true)
+    if (!studentId || !program) return setError('Choose a student and ready-to-use funding program.')
+    setError(''); setSaving(true)
     try {
       const tenantId = getActiveTenantId()
       const response = await fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          student_id: form.studentId,
-          organization: creatingOrganization ? {
-            name: form.organizationName,
-            organization_type: form.organizationType,
-          } : {
-            id: form.organizationChoice,
-            profile_version_id: selectedOrganization?.activeProfile?.id,
-          },
-          profile: creatingOrganization ? {
-            program_name: form.programName,
-            change_note: 'Initial profile created during manual case onboarding.',
-            recipient_routing: form.recipientRouting,
-            payment_terms: { invoice_cadence: form.invoiceCadence },
-            submission_config: { instructions: form.profileInstructions },
-            organization_rules: { payment_method: form.paymentMethod },
-            field_metadata: {},
-          } : {},
-          contact: creatingOrganization && form.contactName ? {
-            name: form.contactName,
-            role: form.contactRole,
-            email: form.contactEmail,
-            phone: form.contactPhone,
-            contact_type: 'organization_contact',
-            purpose: 'case_onboarding',
-          } : undefined,
+          student_id: studentId, organization: { id: program.organizationId, profile_version_id: program.id }, profile: {},
           case: {
-            service_description: form.serviceDescription,
-            service_codes: form.serviceCodes.split(',').map(value => value.trim()).filter(Boolean),
-            lifecycle_status: form.lifecycleStatus,
-            blocker_type: form.lifecycleStatus === 'blocked' ? form.blockerType : undefined,
-            waiting_on: form.waitingOn,
-            next_step: form.nextStep,
-            next_step_options: form.nextStep ? [form.nextStep] : [],
-            due_date: form.dueDate || undefined,
-            authorization_reference: form.authorizationReference,
-            authorization_start_date: form.authorizationStartDate || undefined,
-            authorization_end_date: form.authorizationEndDate || undefined,
-            authorized_amount: form.authorizedAmount || undefined,
-            coverage_cap: form.coverageCap || undefined,
-            coverage_percent: form.coveragePercent || undefined,
-            case_instructions: form.caseInstructions,
-            profile_overrides: {},
+            service_description: serviceDescription, service_codes: serviceCode ? [serviceCode] : [], authorization_reference: authorizationReference,
+            authorization_start_date: authorizationStartDate, authorization_end_date: authorizationEndDate,
+            coverage_percent: coveragePercent === '' ? undefined : Number(coveragePercent), coverage_cap: coverageCap === '' ? undefined : Number(coverageCap),
+            contact_assignments: contactId ? [{ account_contact_id: contactId, purpose: contactPurpose }] : [], lifecycle_status: 'active', waiting_on: 'Vendor',
           },
-          source: { type: 'manual', metadata: { entry_point: 'funded_cases_workspace' } },
+          source: { type: 'manual', metadata: { entry_point: 'funding_workspace', documents_acknowledged: documentsAcknowledged } },
         }),
       })
       const body = await response.json()
-      if (!response.ok) throw new Error(body?.error || 'Could not create the funded case.')
-      onCreated(body)
-      setForm(emptyForm)
-      setError('')
-      onClose()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not create the funded case.')
-    } finally {
-      setSaving(false)
-    }
+      if (!response.ok) throw new Error(body?.error || 'Could not add the funded student.')
+      onCreated(body); reset(); onClose()
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not add the funded student.') } finally { setSaving(false) }
   }
 
-  return (
-    <Modal isOpen={isOpen} onClose={close} size="wide" ariaLabel="New funded case">
-      <ModalHeader title="New funded case" description="Link an existing student to a durable funding organization profile. Organization defaults remain reusable; authorization details stay on this case." onClose={close} />
-      <ModalBody>
-        {error && <Notice variant="error" title="Could not continue" style={{ marginBottom: spacing.lg }}>{error}</Notice>}
-        {loadingOptions ? <p style={mutedStyle}>Loading students and funding organizations…</p> : (
-          <div style={{ display: 'grid', gap: spacing.xl }}>
-            <FormSection title="Student and funding organization" description="Students are always matched to existing Pulse records; this workflow never creates a duplicate student.">
-              <FieldGrid>
-                <Select label="Existing student" value={form.studentId} onChange={event => set('studentId', event.target.value)} required>
-                  <option value="">Select a student</option>
-                  {options?.students.map(student => <option key={student.id} value={student.id}>{student.name}{student.accountName ? ` — ${student.accountName}` : ''}</option>)}
-                </Select>
-                <Select label="Funding organization" value={form.organizationChoice} onChange={event => set('organizationChoice', event.target.value)} required>
-                  <option value="">Select an organization</option>
-                  {options?.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-                  <option value="new">Create a new organization</option>
-                </Select>
-              </FieldGrid>
-              {selectedOrganization?.activeProfile && (
-                <Notice title={`Using profile v${selectedOrganization.activeProfile.version}`}>
-                  {selectedOrganization.activeProfile.programName || selectedOrganization.organizationType} · {routeLabel(selectedOrganization.activeProfile.recipientRouting)}. Profile defaults are referenced, not copied into a second settings record.
-                </Notice>
-              )}
-            </FormSection>
+  const createContact = async () => {
+    if (!student?.accountId) return setError('Choose a student with a customer account before adding a person of contact.')
+    if (!newContactName.trim()) return setError('Contact name is required.')
+    setSaving(true); setError('')
+    try {
+      const tenantId = getActiveTenantId()
+      const response = await fetch(`/api/funding/account-contacts?tenant=${encodeURIComponent(tenantId)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: student.accountId, name: newContactName, relationship: newContactRelationship, email: newContactEmail, phone: newContactPhone }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body?.error || 'Could not add the person of contact.')
+      setContacts(current => [...current, body].sort((a, b) => a.name.localeCompare(b.name)))
+      setContactId(body.id); setAddingContact(false); setNewContactName(''); setNewContactRelationship(''); setNewContactEmail(''); setNewContactPhone('')
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not add the person of contact.') } finally { setSaving(false) }
+  }
 
-            {creatingOrganization && (
-              <FormSection title="Organization profile" description="These are reusable operational facts. Future edits create a new immutable profile version.">
-                <FieldGrid>
-                  <Input label="Organization name" value={form.organizationName} onChange={event => set('organizationName', event.target.value)} required />
-                  <Select label="Organization type" value={form.organizationType} onChange={event => set('organizationType', event.target.value)}>
-                    <option value="fms">FMS</option><option value="regional_center">Regional center</option><option value="charter">Charter</option><option value="other">Other</option>
-                  </Select>
-                  <Input label="Program or profile name" value={form.programName} onChange={event => set('programName', event.target.value)} placeholder="Optional operational label" />
-                  <Select label="Recipient routing" value={form.recipientRouting} onChange={event => set('recipientRouting', event.target.value)}>
-                    <option value="">Not yet confirmed</option><option value="direct_to_fms">Direct to FMS</option><option value="portal_file_upload">Portal — file upload</option><option value="portal_manual_entry">Portal — manual entry</option><option value="family_routed">Family-routed</option><option value="card_on_file_charge">Card-on-file charge</option>
-                  </Select>
-                  <Input label="Invoice cadence" value={form.invoiceCadence} onChange={event => set('invoiceCadence', event.target.value)} placeholder="e.g. Monthly" />
-                  <Input label="Payment method" value={form.paymentMethod} onChange={event => set('paymentMethod', event.target.value)} placeholder="e.g. Direct deposit" />
-                </FieldGrid>
-                <Textarea label="Submission instructions" value={form.profileInstructions} onChange={event => set('profileInstructions', event.target.value)} rows={3} />
-              </FormSection>
-            )}
-
-            {creatingOrganization && (
-              <FormSection title="Organization contact" description="Contacts remain separate from family accounts and can be reused across cases.">
-                <FieldGrid>
-                  <Input label="Contact name" value={form.contactName} onChange={event => set('contactName', event.target.value)} />
-                  <Input label="Role" value={form.contactRole} onChange={event => set('contactRole', event.target.value)} placeholder="Billing, coordinator, vendor support…" />
-                  <Input label="Email" type="email" value={form.contactEmail} onChange={event => set('contactEmail', event.target.value)} />
-                  <Input label="Phone" value={form.contactPhone} onChange={event => set('contactPhone', event.target.value)} />
-                </FieldGrid>
-              </FormSection>
-            )}
-
-            <FormSection title="Authorization and service" description="These facts are specific to this student’s case and do not alter the organization profile.">
-              <FieldGrid>
-                <Input label="Service description" value={form.serviceDescription} onChange={event => set('serviceDescription', event.target.value)} required />
-                <Input label="Service codes" value={form.serviceCodes} onChange={event => set('serviceCodes', event.target.value)} hint="Comma-separated; multiple codes are supported." />
-                <Input label="Authorization or PO reference" value={form.authorizationReference} onChange={event => set('authorizationReference', event.target.value)} />
-                <Input label="Authorized amount" type="number" min="0" step="0.01" value={form.authorizedAmount} onChange={event => set('authorizedAmount', event.target.value)} />
-                <Input label="Authorization start" type="date" value={form.authorizationStartDate} onChange={event => set('authorizationStartDate', event.target.value)} />
-                <Input label="Authorization end" type="date" value={form.authorizationEndDate} onChange={event => set('authorizationEndDate', event.target.value)} />
-                <Input label="Coverage cap" type="number" min="0" step="0.01" value={form.coverageCap} onChange={event => set('coverageCap', event.target.value)} />
-                <Input label="Coverage percent" type="number" min="0" max="100" value={form.coveragePercent} onChange={event => set('coveragePercent', event.target.value)} />
-              </FieldGrid>
-              <Textarea label="Case-specific instructions or exception" value={form.caseInstructions} onChange={event => set('caseInstructions', event.target.value)} rows={3} hint="Use only for student-specific facts. Reusable rules belong on the profile." />
-            </FormSection>
-
-            <FormSection title="First workflow step" description="Set the case lifecycle separately from invoice payment status.">
-              <FieldGrid>
-                <Select label="Lifecycle" value={form.lifecycleStatus} onChange={event => set('lifecycleStatus', event.target.value)}>
-                  <option value="discovery">Discovery</option><option value="blocked">Blocked</option><option value="active">Active</option><option value="inactive">Inactive</option>
-                </Select>
-                {form.lifecycleStatus === 'blocked' ? (
-                  <Select label="Blocker" value={form.blockerType} onChange={event => set('blockerType', event.target.value)} required>
-                    <option value="">Choose a blocker</option><option value="vendor_approval_pending">Vendor approval pending</option><option value="student_linking_pending">Student linking pending</option><option value="document_task_pending">Document task pending</option><option value="authorization_pending">Authorization pending</option><option value="other">Other</option>
-                  </Select>
-                ) : <div />}
-                <Select label="Next action owner" value={form.waitingOn} onChange={event => set('waitingOn', event.target.value)}>
-                  <option value="Vendor">Vendor</option><option value="Family">Family</option><option value="Funder">Funder</option>
-                </Select>
-                <Input label="Due date" type="date" value={form.dueDate} onChange={event => set('dueDate', event.target.value)} />
-              </FieldGrid>
-              <Input label="Next step" value={form.nextStep} onChange={event => set('nextStep', event.target.value)} placeholder="Describe the next concrete action." />
-            </FormSection>
+  return <Modal isOpen={isOpen} onClose={close} size="lg" ariaLabel="Add student">
+    <ModalHeader title="Add student" description="Choose a student and a ready-to-use funding program. Everything else is optional and can be recorded later." onClose={close} />
+    <ModalBody><div style={{ display: 'grid', gap: spacing.xl }}>
+      {error && <Notice variant="error">{error}</Notice>}
+      <Select label="Student or family" value={studentId} onChange={event => setStudentId(event.target.value)} disabled={loadingOptions} required><option value="">Choose a student</option>{(options?.students || []).map(student => <option key={student.id} value={student.id}>{student.name}{student.accountName ? ` — ${student.accountName}` : ''}</option>)}</Select>
+      <div style={{ display: 'grid', gap: spacing.sm }}><Select label="Funding program" value={programId} onChange={event => { setProgramId(event.target.value); setDocumentsAcknowledged(false) }} disabled={loadingOptions} required><option value="">Choose a ready-to-use funding program</option>{(options?.programs || []).map(item => <option key={item.id} value={item.id}>{item.name} — {item.organizationName}</option>)}</Select>{!loadingOptions && options?.programs.length === 0 && <Notice variant="warning" title="No programs are ready to use">Complete vendor setup in Funding programs before assigning a student.</Notice>}<button type="button" onClick={() => { close(); onManagePrograms() }} style={linkStyle}>Manage funding programs</button></div>
+      {program && <>
+        <div><div style={sectionTitleStyle}>Optional funding details</div><div style={requirementDescriptionStyle}>Only the student and funding program are required. Add these now if you know them, or fill them in later from the student’s Funding tab.</div></div>
+        <Input label="Service description" value={serviceDescription} onChange={event => setServiceDescription(event.target.value)} />
+        {(requiredFields.has('service_code') || program.serviceCodes.length > 0) && (program.serviceCodes.length > 0 ? <Select label="Service code" value={serviceCode} onChange={event => setServiceCode(event.target.value)}><option value="">Choose a service code</option>{program.serviceCodes.map(code => <option key={code} value={code}>{code}</option>)}</Select> : <Input label="Service code" value={serviceCode} onChange={event => setServiceCode(event.target.value)} />)}
+        <Input label="Authorization or purchase-order reference" value={authorizationReference} onChange={event => setAuthorizationReference(event.target.value)} />
+        {needsAuthorizationDates && <div style={twoColumnStyle}><Input label="Coverage start" type="date" value={authorizationStartDate} onChange={event => setAuthorizationStartDate(event.target.value)} /><Input label="Coverage end" type="date" value={authorizationEndDate} onChange={event => setAuthorizationEndDate(event.target.value)} /></div>}
+        {(requiredFields.has('coverage_percent') || requiredFields.has('coverage_cap')) && <div style={twoColumnStyle}><Input label="Coverage percent" type="number" min="0" max="100" value={coveragePercent} onChange={event => setCoveragePercent(event.target.value)} /><Input label="Coverage cap" type="number" min="0" step="0.01" value={coverageCap} onChange={event => setCoverageCap(event.target.value)} /></div>}
+        {(needsCaseContact || program.studentRequirements.some(item => item.field === 'coordinator_contact' || item.field === 'family_contact')) && <div style={{ display: 'grid', gap: spacing.md }}>
+          <div style={twoColumnStyle}>
+            <Select label="Person of contact" value={contactId} onChange={event => setContactId(event.target.value)} required={needsCaseContact} disabled={!student?.accountId}><option value="">Choose a person</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}{contact.relationship ? ` — ${contact.relationship}` : ''}</option>)}</Select>
+            <Select label="Contact purpose" value={contactPurpose} onChange={event => setContactPurpose(event.target.value as 'family_contact' | 'coordinator_contact')}><option value="family_contact">Family contact</option><option value="coordinator_contact">Coordinator contact</option></Select>
           </div>
-        )}
-      </ModalBody>
-      <ModalFooter leading={<span style={mutedStyle}>Manual and retrospective imports use this same onboarding contract.</span>}>
-        <Button type="button" variant="secondary" onClick={close} disabled={saving}>Cancel</Button>
-        <LoadingButton type="button" loading={saving} loadingLabel="Creating funded case" onClick={() => void submit()} disabled={loadingOptions || !options}>Create funded case</LoadingButton>
-      </ModalFooter>
-    </Modal>
-  )
+          {!student?.accountId ? <Notice variant="warning">This student does not have a customer account to attach people of contact to.</Notice> : !addingContact ? <button type="button" onClick={() => setAddingContact(true)} style={linkStyle}>Add a new person of contact</button> : <div style={{ display: 'grid', gap: spacing.md, padding: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: 8 }}><div style={sectionTitleStyle}>New person of contact</div><div style={twoColumnStyle}><Input label="Name" value={newContactName} onChange={event => setNewContactName(event.target.value)} required /><Input label="Relationship" value={newContactRelationship} onChange={event => setNewContactRelationship(event.target.value)} /></div><div style={twoColumnStyle}><Input label="Email" type="email" value={newContactEmail} onChange={event => setNewContactEmail(event.target.value)} /><Input label="Phone" value={newContactPhone} onChange={event => setNewContactPhone(event.target.value)} /></div><div style={{ display: 'flex', gap: spacing.sm }}><Button type="button" size="sm" variant="secondary" onClick={() => setAddingContact(false)} disabled={saving}>Cancel</Button><LoadingButton type="button" size="sm" loading={saving} loadingLabel="Adding contact" onClick={() => void createContact()}>Add person</LoadingButton></div></div>}
+        </div>}
+        {needsDocuments && <label style={checkboxStyle}><input type="checkbox" checked={documentsAcknowledged} onChange={event => setDocumentsAcknowledged(event.target.checked)} /><span>I confirmed the applicable student documents{program.requiredDocuments.length ? `: ${program.requiredDocuments.join(', ')}` : ''}.</span></label>}
+      </>}
+    </div></ModalBody>
+    <ModalFooter><Button type="button" variant="secondary" onClick={close} disabled={saving}>Cancel</Button><LoadingButton type="button" loading={saving} loadingLabel="Adding student" onClick={() => void submit()} disabled={loadingOptions || !studentId || !programId}>Add student</LoadingButton></ModalFooter>
+  </Modal>
 }
 
-function FormSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return <section style={{ display: 'grid', gap: spacing.md, padding: spacing.lg, border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, background: colors.surface }}><div><h3 style={{ margin: 0, color: colors.text, fontSize: typography.sizeLg }}>{title}</h3><p style={{ ...mutedStyle, margin: `${spacing.xs} 0 0` }}>{description}</p></div>{children}</section>
-}
-
-function FieldGrid({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: spacing.md }}>{children}</div>
-}
-
-function routeLabel(value: string | null) {
-  if (!value) return 'Routing not confirmed'
-  return value.replaceAll('_', ' ').replace(/\b\w/g, character => character.toUpperCase())
-}
-
-const mutedStyle: React.CSSProperties = { color: colors.textSecondary, fontSize: typography.sizeSm, lineHeight: 1.5 }
+const linkStyle: React.CSSProperties = { justifySelf: 'start', border: 'none', background: 'transparent', color: colors.tealDark, padding: 0, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }
+const sectionTitleStyle: React.CSSProperties = { color: colors.text, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
+const requirementDescriptionStyle: React.CSSProperties = { color: colors.textSecondary, marginTop: 2 }
+const checkboxStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: spacing.sm, color: colors.text, fontSize: typography.sizeSm, lineHeight: 1.5, cursor: 'pointer' }
+const twoColumnStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }

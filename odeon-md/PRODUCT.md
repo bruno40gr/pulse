@@ -1,7 +1,7 @@
 # ODEON — Product Roadmap & Context
 
 **Headliner Music Academy · Internal Admin Platform**
-*Last updated: July 6, 2026*
+*Last updated: October 2, 2026*
 
 > ODEON is the laboratory inside **Layered Labs**. It is Headliner's operating system and the proving ground for standalone products. For company strategy and the extraction candidate roadmap, see `LAYERED_LABS_VISION.md`.
 
@@ -49,7 +49,10 @@ Everything in ODEON is built around these entities. Every phase expands capabili
 | **Families** | Grouped contacts sharing billing and account management |
 | **Enrollments** | A student enrolled in a service — the central transactional record |
 | **Services** | Parametric service templates (private lessons, band, camps, etc.) |
-| **Programs** | Institutional program configurations (Alta California Regional Center, other SDP/FMS and charter programs) |
+| **Funding organizations** | Durable institutional entities that may act as funding source, administrator, FMS, or another role |
+| **Funding programs / arrangements** | Versioned operating rules connecting participating organizations, submission, approval, settlement, and invoice requirements |
+| **Tenant affiliations** | Headliner's setup state and reusable vendor-specific relationship with a funding program or arrangement |
+| **Funded cases & authorizations** | A student's participation in an arrangement, with bounded service authorization and case-specific exceptions |
 | **Bands** | Band profiles, members, stage status, setlists — built on top of enrollments |
 | **Communications** | All outbound messages — campaigns, smart drafts, reminders |
 | **Billing** | Invoices, payments, credits, payroll |
@@ -67,6 +70,7 @@ Everything in ODEON is built around these entities. Every phase expands capabili
 | **History** | ✅ Built | View past campaign sends. |
 | **Auth** | ✅ Built | Login page with Supabase Auth. |
 | **Admin Dashboard** | ❌ Not built | Redirects to campaigns for now. |
+| **CharterFlow foundation** | 🟡 Partially built | Funding organizations, immutable profile versions, organization roles, funded cases, scalar authorization/coverage fields, invoice/status history, catalog bootstrap, and funding-program UI exist. Billing generation, documents, durable tenant affiliations, authorization collections, invoice allocations, and payment-event accounting remain unfinished. |
 
 ### Current Data Model
 
@@ -204,28 +208,44 @@ Build the complete ODEON sidebar and navigation shell. All tabs present, most as
 ---
 
 ### Phase 1 — Funded-Student Pipeline (CharterFlow)
-**Status:** 🔜 After Phase 0.5
+**Status:** 🟡 Foundation implemented; billing, documents, and settlement modeling unfinished
 **Priority:** #1 — revenue-blocking, no Opus equivalent
-**Dependencies:** Phase 0 (family model, programs table), Phase 0.5 (shell)
+**Dependencies:** Account/family foundation and shell are sufficiently established for current funded-case work; native services and billing remain later dependencies for replacing bridge data.
 **Canonical spec:** `CharterFlow_BRD.md` — this section is the ODEON-integration summary; the BRD is the source of truth for the domain model.
 
 Replaces email-based back-and-forth for ALL third-party-funded students — charter school instructional funds (South Sutter, Visions — unverified, see decision log) **and** SDP/Regional Center funding via FMS providers and regional centers (Alta California Regional Center, Mains'l, ACE FMS, Aveanna). Built generically: every funding organization is configuration, not code. Scope decision (July 2026): both funding worlds in from day one. They differ in regulator and mechanics but share the same operational shape for the vendor; building charter-only and retrofitting FMS later hits exactly the retrofitting pain Phase 0 exists to prevent.
 
 **The problem it solves:** Every funded student requires enrollment forms, compliance documents, correctly-coded invoices, submission in that funder's required channel, and payment tracking — currently managed via email with the rules living in staff memory. The rules genuinely differ per organization (submission channel, invoice format, service codes, payment cadence, approval gates) and even per rep within one organization.
 
-**Core model (see BRD §4 for full detail):**
-- **Case = one student × one funding organization.** Not per family (siblings can be on different funders; authorizations/POs are per child per funder).
-- **Case states:** Discovery (unknown funder — build profile or decline) → Blocked → Active. Blocked splits into three owned sub-states: *vendor approval pending* (once per funder, unblocks all cases with it), *student linking pending* (per student, often family-owned — e.g. adding the vendor in the FMS portal), *document task pending* (one-off form/signature, assigned to vendor or family).
-- **Invoice states:** Pending → Overdue → Rejected → Paid. Action-oriented — each state implies a next move. No flat "sent" status.
-- **Invoice generation:** pull raw billing data (Opus CSV bridge now; native ODEON billing after Phase 4 replaces it) → match to case → enrich with case data (service code, PO/auth number) and program rules (aggregation grain, format, numbering constraints) → generate compliant document → deliver per the program's recipient routing.
+**Core model (see BRD §6 for full detail):**
+- **Target hierarchy:** funding organization → program/arrangement → tenant affiliation → student case → authorization(s) → invoice → responsibility allocations/payment events.
+- **Case = one student × one program/arrangement.** Not per family. The implemented student × funding-organization uniqueness rule is transitional while active profiles stand in for arrangements.
+- **Case states:** Discovery → Blocked → Active. Blockers have an explicit owner. Vendor approval is affiliation-level; student linking, authorization, and document tasks are case-level.
+- **Invoice workflow states:** Pending → Overdue → Rejected → Paid. Submission and approval are events, not substitutes for payment state. “Partially paid” is derived from allocations rather than added as a status.
+- **Money-movement vocabulary:** submission mechanism, approval workflow, settlement mechanism, payment instrument, and payment responsibility are separate concepts. Family participation in routing or approval does not prove family responsibility, while uncovered balances can make a family financially responsible.
+- **Invoice generation:** pull raw billing data → match to case and authorization → apply arrangement rules → calculate responsibility allocations → generate an artifact or portal-entry payload → submit → track approval and settlement.
 - **Delivery = scoped links, no logins.** One envelope per event: onboarding envelope (vendor-level + case-level docs bundled on first case with a new funder; vendor docs included on every later case until that funder is *observed* accepting reuse — never assumed), then long-lived per-invoice links for the recurring cycle. Confirmed existing decision: caseworker/FMS access is a shareable link, not an account.
-- **Programs are versioned living profiles**, per-field confidence and source metadata, observed behavior (actual days-to-pay) tracked separately from stated terms.
+- **Programs/arrangements are versioned living profiles**, per-field confidence and source metadata, participating organization roles, and observed behavior tracked separately from stated terms.
+
+**Implemented foundation as of October 2, 2026:**
+- Durable tenant-scoped `funding_organizations`, organization roles, contacts, immutable `funding_profile_versions`, and profile-to-organization role links.
+- Funded cases referencing an organization and profile version, with lifecycle/blocker fields and scalar authorization, date, service-code, coverage-percent, and coverage-cap fields.
+- Funding invoices with normalized workflow statuses, status-event history, profile/configuration snapshots, and submission/approval/expected-pay-date columns.
+- Catalog-backed organization bootstrap and a Headliner-only established-program allowlist used as a temporary affiliation gate.
+- Funding-program and funded-case UI/API surfaces sufficient for onboarding and manual invoice-status verification.
+
+**Still required to complete Phase 1:**
+- Validate Headliner's organization-specific submission, approval, card, cadence, and responsibility claims against correspondence or staff confirmation.
+- Generate compliant invoice artifacts or portal-entry payloads from billing data and preserve invoice line detail.
+- Implement document/envelope delivery and bounded family/approver actions.
+- Replace bootstrap affiliation inference when the product needs durable tenant affiliation state.
+- Add first-class authorization collections, invoice responsibility allocations, and payment events when real workflows require them; do not introduce these through an unreviewed large migration.
 
 **Key features (updated):**
-- Configurable funding org setup (documents, routing, invoice rules, conditional payment cadence — see programs table, Phase 0)
+- Configurable funding arrangement setup (participating organizations, documents, submission, approval, settlement, invoice rules, and verified cadence)
 - Pipeline board: one row per case, action states as columns — Kanban or table view
 - Admin action log per case — no more referencing emails
-- Family flow via scoped link, no account: complete document task → fill/sign in-browser → approve/attest where the funder requires it (Mains'l-style approval, Aveanna-style family-routed submission)
+- Family flow via scoped link, no account: complete document task → fill/sign in-browser → approve/attest where verified arrangement rules require it; separately show any uncovered balance allocated to the family
 - Document hub per student (existing decision — confirmed, now per case where a student has multiple funders)
 - Multi-month invoice generation: admin selects case + date range, generates all invoices at once
 - Auto-follow-up: nudge when a case stalls in any state beyond X days (feeds Phase 6)
@@ -582,13 +602,15 @@ ODEON is the first product inside Layered Labs. Every architectural decision —
 | Jul 6, 2026 | Document hub per student, not per family | A family may have children in different programs. Keep pipeline per student. |
 | Jul 6, 2026 | Create PRODUCT.md as single source of truth | Avoid losing context between sessions. Hand to Cline at start of every session. |
 | Jul 13, 2026 | Phase 1 scope: charter AND SDP/FMS from day one | Same operational shape for the vendor; charter-only would force the exact retrofitting Phase 0 warns about. CharterFlow_BRD.md is canonical spec. |
-| Jul 13, 2026 | Case = student × funding org, not per family | Authorizations/POs are per child per funder; siblings can be on different programs. Extends the existing "document hub per student" decision. |
+| Jul 13, 2026 | Case = student × funding org, not per family *(superseded Oct 2, 2026)* | Correctly rejected family-level cases, but organization was still too coarse. The target identity is student × program/arrangement; the implemented student × organization rule remains transitional. |
 | Jul 13, 2026 | Programs table: payment_terms text → jsonb; add org_type, recipient_routing, profile_version, field_metadata | Real Mains'l/ACE FMS/Aveanna correspondence shows flat fields can't hold tiered cadence, routing, or per-field confidence. Profiles are versioned, never overwritten. |
 | Jul 13, 2026 | Action states replace linear pipeline stages | "Sent" implies nothing; Blocked (3 owned sub-types) / Pending / Overdue / Rejected each imply a next move. |
 | Jul 13, 2026 | Fund-holding / payout smoothing explicitly deferred | Money transmitter territory. Legal review required before any design work. |
 | Jul 13, 2026 | **Correction:** Alta is Alta California Regional Center (SDP/FMS side), not a charter school | Confirmed with Bruno after documents consistently showed Alta issuing SDP authorizations (Kaleb Borja, Service Coordinator) and never appearing in any charter-side document. Prior drafts of PRODUCT.md and CharterFlow_BRD.md listed it alongside South Sutter/Visions as a charter example — corrected everywhere. **Open:** South Sutter, Visions, Pacific Coast Academy, and Horizon have also never appeared in a real document; provenance is early illustrative brainstorming, not confirmed fact. Do not treat as real until verified. |
 | Jul 13, 2026 | Confirmed via email search: three additional real SDP/FMS entities — On My Own Independent Living Services, Accura FMS, Public Partnerships (PPL) | Web-verified as real, active CA SDP FMS providers (not yet cross-checked against actual correspondence content). Brings confirmed SDP-side organizations to seven (Alta California Regional Center, Mains'l, ACE FMS, Aveanna, On My Own, Accura FMS, PPL) against zero confirmed charter organizations. Phase 0's "five hand-built profiles" placeholder is now understated on the SDP side and unfounded on the charter side — prioritize the actual five-to-seven by real case volume per funder, not by which names surfaced first, and resolve the charter-side question before assuming any charter profiles belong in the initial set. |
-| Jul 13, 2026 | **Guardrail:** funding organizations must never be modeled as a type of account holder | A separate session proposed adding Alta/ACE FMS/Mains'l to the `accounts` table as `account_type = 'institution'` with flat `institution_code`/`billing_contact_*` columns, alongside private-pay parents and self-pay adults. Rejected — this collapses the entire `programs` table design (recipient routing, conditional cadence, versioned profiles, per-field confidence) into a few text columns, and repeats the Alta-is-a-charter-school error already corrected once. Account holders (who pays, simple) and funding organizations (`programs` table, §6.2 of the BRD) are structurally different entities and must stay separate tables. If a shared payer reference is needed on a case, it's a `payer_type` field pointing to either `accounts` or `programs`, never a merge. Any future session proposing to fold funding orgs into a generic accounts/entities table should be pointed to this entry and to CharterFlow_BRD.md §6.2 before proceeding. **The legitimate underlying need (admin sees a student's funding context at a glance; correspondence links to the right student+institution) is already served by the `case` entity (student_id + program_id), not by tagging the student or account. Solve it by surfacing case summaries on the student's ODEON profile and letting Pulse messages optionally link to a `case_id`, not by adding new fields to `accounts`.** |
+| Jul 13, 2026 | **Guardrail:** funding organizations must never be modeled as a type of account holder | A separate session proposed adding Alta/ACE FMS/Mains'l to the `accounts` table as `account_type = 'institution'` with flat `institution_code`/`billing_contact_*` columns, alongside private-pay parents and self-pay adults. Rejected — this collapses arrangement rules, organization roles, versioned profiles, provenance, and tenant affiliation into a few account columns. Family/account identity, funding-organization identity, and payment responsibility are separate concerns even when a family owes an uncovered balance. Any future session proposing to fold funding organizations into `accounts` should be pointed to CharterFlow_BRD.md §6 and `docs/charterflow-domain-alignment.md`. The legitimate need to show a student's funding context is served by the funded case and its arrangement, not by tagging the student or family account as the institution. |
+| Oct 2, 2026 | Separate payment operations into five concepts | Submission mechanism, approval workflow, settlement mechanism, payment instrument, and payment responsibility must not be collapsed into `recipient_routing` or `payment_method`. Family participation does not rule out an uncovered family balance, and split responsibility must become allocations rather than a status. |
+| Oct 2, 2026 | Treat the current funding schema as an implemented foundation, not the final hierarchy | `funding_organizations`, immutable profile versions, cases, and invoice status history are real. Active profiles currently stand in for programs/arrangements; a Headliner allowlist stands in for tenant affiliations; case columns stand in for authorization records; invoice totals/statuses stand in for allocations and payment events. Validate workflows before designing a later migration. |
 
 ---
 

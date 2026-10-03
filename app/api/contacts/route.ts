@@ -151,6 +151,24 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
+    // Bulk-resolve which contacts already have an active funded-student case so the
+    // contacts table can render a Funded badge without a request per row. A missing or
+    // unmigrated funding schema simply means nobody is marked as funded.
+    const fundedPersonIds = new Set<string>()
+    const { data: fundedRows, error: fundedError } = await supabaseAdmin
+      .from('funding_cases')
+      .select('student:students ( person_id )')
+      .eq('tenant_id', tenantId)
+      .is('archived_at', null)
+    if (fundedError) {
+      console.warn('Funding membership lookup unavailable; omitting Funded badges:', fundedError.message)
+    } else {
+      for (const row of (fundedRows || []) as Array<{ student: { person_id: string | null } | { person_id: string | null }[] | null }>) {
+        const students = Array.isArray(row.student) ? row.student : row.student ? [row.student] : []
+        for (const student of students) if (student?.person_id) fundedPersonIds.add(student.person_id)
+      }
+    }
+
     // Verification fixtures are operational test data, not user-facing contacts.
     // Keep them out of the product even if a local verification process is interrupted
     // before its cleanup block can run.
@@ -244,6 +262,7 @@ export async function GET(request: Request) {
         account_id: student.account_id,
         staff_id: staffId,
         is_active: isActive,
+        funded: fundedPersonIds.has(person.id),
         account_holder_name: nonStudentBooking ? null : account.name,
         account_holder_phone: nonStudentBooking ? null : account.phone,
         account_holder_email: nonStudentBooking ? null : account.email,

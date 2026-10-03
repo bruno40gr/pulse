@@ -39,6 +39,7 @@ interface Contact {
   } | null
   staff_id?: string | null
   is_active?: boolean
+  funded?: boolean
 }
 
 type ContactSortKey = 'name' | 'status' | 'accountManager' | 'contact' | 'instructor'
@@ -499,6 +500,14 @@ export default function ContactsPage() {
       sortable: true,
       sortKey: 'status',
       render: (contact) => <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
+    },
+    {
+      id: 'funded',
+      header: 'Funding',
+      width: '100px',
+      render: (contact) => contact.funded
+        ? <Badge size="sm" variant="success">Funded</Badge>
+        : <span style={{ color: colors.textMuted }}>—</span>,
     },
     {
       id: 'accountManager',

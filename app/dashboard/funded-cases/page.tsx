@@ -1,5 +1,5 @@
-import FundedCasesWorkspace from '@/components/funding/FundedCasesWorkspace'
+import { redirect } from 'next/navigation'
 
 export default function FundedCasesPage() {
-  return <FundedCasesWorkspace />
+  redirect('/dashboard/funding/students')
 }

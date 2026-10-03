@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { PERMISSIONS } from '@/lib/permissions'
 import { authorizeFunding, loadFundingCase, loadFundingCases } from '@/lib/funding/server'
 import { fundingOnboardingError, onboardFundingCase, parseOnboardFundingCaseInput } from '@/lib/funding/onboarding'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export async function GET(request: Request) {
   try {
@@ -22,6 +23,21 @@ export async function POST(request: Request) {
     const parsed = parseOnboardFundingCaseInput(await request.json())
     if (!parsed.success) return NextResponse.json({ error: parsed.errors[0], errors: parsed.errors }, { status: 400 })
     const caseId = await onboardFundingCase(access.tenantId, access.context.membershipId, parsed.data)
+    const assignments = parsed.data.case.contact_assignments || []
+    if (assignments.length > 0) {
+      const { error: assignmentError } = await supabaseAdmin.from('funding_case_contacts').insert(assignments.map(assignment => ({
+        tenant_id: access.tenantId,
+        funding_case_id: caseId,
+        account_contact_id: assignment.account_contact_id,
+        purpose: assignment.purpose,
+        created_by_membership_id: access.context.membershipId,
+      })))
+      if (assignmentError) {
+        const { error: rollbackError } = await supabaseAdmin.from('funding_cases').delete().eq('id', caseId).eq('tenant_id', access.tenantId)
+        if (rollbackError) console.error('[funding][cases][create][rollback]', rollbackError)
+        throw assignmentError
+      }
+    }
     const fundingCase = await loadFundingCase(access.tenantId, caseId)
     return NextResponse.json(fundingCase, { status: 201 })
   } catch (error) {

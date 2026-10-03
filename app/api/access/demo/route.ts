@@ -6,7 +6,7 @@ import {
   createAccessSession,
   type PulseActor,
 } from '@/lib/access'
-import { ensureDemoFixtures } from '@/lib/demo-fixtures'
+import { ensureDemoFixtures, ensureDemoFundingMembership } from '@/lib/demo-fixtures'
 
 export async function POST(request: Request) {
   try {
@@ -32,10 +32,11 @@ export async function POST(request: Request) {
     }
 
     await ensureDemoFixtures(tenant.id)
+    const demoFunding = await ensureDemoFundingMembership(tenant.id)
 
     const actor: PulseActor = {
       instructorId: `demo-${tenant.id}`,
-      personId: 'demo',
+      personId: demoFunding.personId,
       fullName: 'Demo',
       displayName: 'Demo',
       access: { kind: 'demo', tenantId: tenant.id },

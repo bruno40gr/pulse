@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Copy, MessageCircle, Pencil, Phone } from 'lucide-react'
-import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, SectionTitle, Select, SlidePanelHeader, Textarea } from '@/components/ui'
+import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
 import { getFollowUpTone } from '@/lib/follow-up'
@@ -112,16 +112,11 @@ function label(value: string) {
   return value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
 }
 
-function isUrgentFollowUp(tone: ReturnType<typeof getFollowUpTone>) {
-  return tone.urgency === 'today' || tone.urgency === 'overdue'
-}
-
-function getFollowUpCardStyle(tone: ReturnType<typeof getFollowUpTone>): CSSProperties {
-  if (!isUrgentFollowUp(tone)) return {}
-  return {
-    background: tone.background,
-    borderColor: tone.borderColor,
-  }
+// Future follow-ups stay neutral, today is a nudge, and overdue is a problem.
+function followUpCardTone(urgency: ReturnType<typeof getFollowUpTone>['urgency']): NotificationTone {
+  if (urgency === 'overdue') return 'danger'
+  if (urgency === 'today') return 'warning'
+  return 'neutral'
 }
 
 function dateLabel(value: string) {
@@ -466,8 +461,8 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
             boxSizing: "border-box",
           }}>
             <div style={oneColumnStyle}>
-              <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
-              <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, ...getFollowUpCardStyle(urgency) }}><div><div style={metricLabelStyle}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color, fontWeight: isUrgentFollowUp(urgency) ? typography.weightBold : typography.weightNormal }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div></div></CompactMetaCard>
+              <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
+              <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} />
             </div>
             <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
             {winback && (
@@ -576,8 +571,8 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
           <div style={columnsStyle}>
             <div style={columnStyle}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
-                <CompactMetaCard fullWidth align="start" style={metricCardStyle}><div><div style={metricLabelStyle}>Opportunity value</div><div style={metricValueStyle}>{opportunity == null ? "Not provided" : `$${opportunity.toLocaleString()}${opportunityUnit}`}</div>{isLesson && <div style={metricCaptionStyle}>{`${familyMembers.length + 1} student${familyMembers.length === 0 ? "" : "s"}`}</div>}</div></CompactMetaCard>
-                <CompactMetaCard fullWidth align="start" style={{ ...metricCardStyle, ...getFollowUpCardStyle(urgency) }}><div><div style={metricLabelStyle}>Next follow-up</div><div style={{ ...metricValueStyle, color: urgency.color, fontWeight: isUrgentFollowUp(urgency) ? typography.weightBold : typography.weightNormal }}>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : "Not scheduled"}</div></div></CompactMetaCard>
+                <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
+                <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} />
               </div>
               {winback && (
                 <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
@@ -692,10 +687,6 @@ const familySectionStyle: CSSProperties = { order: 4 }
 const sourceSectionStyle: CSSProperties = { order: 5 }
 const followUpSectionStyle: CSSProperties = { order: 5 }
 const activitySectionStyle: CSSProperties = { order: 6 }
-const metricCardStyle: CSSProperties = { minHeight: `calc(${typography.sizeLg} + ${spacing['3xl']})`, padding: spacing.lg }
-const metricCaptionStyle: CSSProperties = { color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginTop: spacing.md, paddingTop: spacing.sm, borderTop: `1px solid ${colors.borderLight}` }
-const metricLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }
-const metricValueStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, marginTop: spacing.xs }
 const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
 const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
 const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }

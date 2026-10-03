@@ -1,6 +1,6 @@
 # Synthetic funded-cases test data
 
-These records are entirely fictional and intended only for Charterflow/Pulse testing. They do not represent real students, families, funding organizations, authorizations, or contact details.
+These records are entirely fictional and intended only for Charterflow/Pulse testing. They do not represent real students, families, funding organizations, authorizations, or contact details. The CSV is an optional test fixture for populating fictional students; it does not prescribe a production workflow.
 
 ## Safety characteristics
 
@@ -9,81 +9,55 @@ These records are entirely fictional and intended only for Charterflow/Pulse tes
 - All email addresses use the reserved `example.com` domain.
 - Phone numbers use the fictional North American `202-555-01xx` range.
 - The `instructor` column is intentionally blank so importing the file does not create synthetic staff/instructor records.
-- No funded cases or invoices are created merely by importing the CSV. The import creates student/contact, family account, and enrollment records; funded cases are created separately in the Funded Cases workspace.
+- No funded students or invoices are created merely by importing the CSV. The import creates student/contact, family account, and enrollment records; funding assignments are created separately in the **Funding** workspace.
 
-## Import instructions
+## Optional test-fixture setup
 
 1. Open **Contacts**.
 2. Choose **Import CSV**.
 3. Upload `docs/test-data/funded-cases-synthetic-students.csv`.
 4. Confirm the suggested mappings. The headers intentionally use the importer's canonical field names.
 5. Keep `external_id` mapped so rerunning the same file updates the synthetic records instead of duplicating them.
-6. Complete the import, then open **Funded Cases** and choose **New funded case**.
+6. Complete the import, then open **Funding** and choose **Add funded student**.
 
 The file contains 12 students across 11 family/account arrangements. Demo Maya Testwood and Demo Leo Testwood intentionally share one account holder to exercise sibling/family behavior. Demo Marcus Ellis is an adult student with no separate account-holder fields.
 
-## Suggested fictional funding organizations
+## Funding program setup
 
-Create these organizations through the funded-case onboarding form as needed. Reuse them for later students rather than creating duplicates.
+Use **Funding → Funding programs → Add funding program** to choose an organization from the product catalog. Use **Don’t see your organization? Request it** for missing entities. A request does not create a selectable production program until product review is complete.
 
-### Northstar Family Management Services
+Tenant admins may add tenant-specific contacts, identifiers, notes, and student exceptions. They do not author portal URLs, public instructions, or global payment rules.
 
-- Organization type: `fms`
-- Program name: `Participant-directed music services`
-- Recipient routing: `portal_file_upload`
-- Invoice cadence: `Monthly`
-- Payment method: `Direct deposit`
-- Profile instructions: `Upload one invoice per student and include the authorization reference and service period.`
-- Contact: `Demo Nora Fields`, `Vendor support`, `nora.fields@example.com`, `202-555-0151`
+Program-level values (submission route, invoice cadence, payment method, program contacts) are reusable defaults. A funded student's case only shows an override when it differs from the program default. Program-level contacts cover the financial agent, billing, and vendor representative; the student case carries the assigned coordinator and family contact.
 
-### Riverbend Charter Academy
+## Funded Students and Contacts surfaces
 
-- Organization type: `charter`
-- Program name: `Enrichment purchase order program`
-- Recipient routing: `portal_manual_entry`
-- Invoice cadence: `Monthly after attendance confirmation`
-- Payment method: `ACH`
-- Profile instructions: `Confirm attendance and use the active purchase order on every invoice.`
-- Contact: `Demo Adrian Moss`, `Vendor coordinator`, `adrian.moss@example.com`, `202-555-0152`
+- **Funded Students** opens on the **All students** tab and shows no summary tiles. Selecting a row opens the student's contact record directly on the **Funding Program** tab.
+- Billing and invoices live on the contact record's **Billing** tab. The embedded Funding Program tab deliberately omits them so the same data is never shown twice.
+- **Suggested next step** is a read-only, prescriptive checklist derived from the student's outstanding funding details; it is no longer an editable dropdown.
+- The **Contacts** table shows a **Funded** badge for any contact with an active funded-student case. The badge comes from one bulk membership lookup per page load, not a request per row.
+- Funding program guidance records its official source and review date. Open the linked source on any vendor-setup step to read the primary document.
 
-### Evergreen Regional Services
-
-- Organization type: `regional_center`
-- Program name: `Individual music instruction`
-- Recipient routing: `direct_to_fms`
-- Invoice cadence: `Monthly in arrears`
-- Payment method: `Direct deposit`
-- Profile instructions: `Submit authorized service units with the assigned service code.`
-- Contact: `Demo Priya Shah`, `Service coordinator`, `priya.shah@example.com`, `202-555-0153`
-
-### FamilyBridge Supports
-
-- Organization type: `fms`
-- Program name: `Family-routed reimbursement services`
-- Recipient routing: `family_routed`
-- Invoice cadence: `Monthly`
-- Payment method: `Family reimbursement`
-- Profile instructions: `Send the invoice to the family contact for approval before submission.`
-- Contact: `Demo Owen Reed`, `Family liaison`, `owen.reed@example.com`, `202-555-0154`
+Apply funding migrations through `scripts/migration-024-account-people-of-contact.sql` before testing funded-student contact assignment. Re-apply it if it was applied before this revision: its validation triggers previously referenced the optional `student_accounts` table, which fails every `account_contacts` insert on schemas that do not have that table. The onboarding flow can reuse an existing person of contact from the selected student's customer account or create one inline and assign it as a family or coordinator contact.
 
 ## Test scenario matrix
 
 All dates below are examples for the October 2026 test cycle.
 
-| Student | Scenario | Organization | Suggested case values | Expected result |
+| Student | Scenario | Organization | Suggested funding details | Expected result |
 |---|---|---|---|---|
-| Demo Maya Testwood | New organization and first profile | Northstar Family Management Services | Service `Weekly private piano instruction`; code `MUSIC-PIANO-30`; authorization `NSFMS-1001`; authorization dates `2026-09-01`–`2026-12-31`; amount/cap `$480`; coverage `100%`; lifecycle `Active`; next step `Prepare October invoice.` | Creates the organization, profile v1, organization contact, compatibility payer link, and active funded case. |
-| Demo Leo Testwood | Existing organization/profile reuse and sibling account | Northstar Family Management Services | Service `Youth rock band participation`; code `MUSIC-BAND-01`; authorization `NSFMS-1002`; amount/cap `$325`; coverage `100%` | Reuses Northstar rather than creating a duplicate organization; confirms sibling students remain separate funded cases. |
-| Demo Sofia Calder | Blocked onboarding | Riverbend Charter Academy | Service `Weekly private voice instruction`; code `ENRICH-VOICE`; lifecycle `Blocked`; blocker `Authorization pending`; waiting on `Funder`; next step `Request the active purchase order from the charter.` | Appears as a blocked case without confusing the blocker with invoice payment status. |
-| Demo Amir Bennett | Regional-service workflow | Evergreen Regional Services | Service `Weekly private drum instruction`; code `SRV-DRUM-45`; authorization `EVR-2048`; coverage `100%`; waiting on `Vendor` | Creates a regional-services case using a different routing and cadence profile. |
-| Demo Evelyn Park | Family-routed workflow | FamilyBridge Supports | Service `Beginning semi-private strings`; code `STRINGS-BEGIN`; authorization `FBS-3301`; coverage `100%`; waiting on `Family`; next step `Send the draft invoice to the family for approval.` | Exercises the Family owner and family-routed profile. |
-| Demo Noah Rivera | Partial funding | Northstar Family Management Services | Service `Youth rock band participation`; code `MUSIC-BAND-01`; authorized amount `$450`; coverage cap `$337.50`; coverage `75%`; case instruction `Family is responsible for the remaining 25%.` | Confirms student-specific coverage and exceptions remain on the case rather than changing the shared organization profile. |
-| Demo Zoe Martin | Archive and reopen | Riverbend Charter Academy | First case authorization `RBCA-OLD-77`; archive it; then create a new case using authorization `RBCA-NEW-91` | Archived case disappears from the active list but remains retrievable; replacement active case succeeds. |
-| Demo Caleb Brooks | Duplicate prevention | Evergreen Regional Services | Create one active case, then try to create another active case for the same student and organization | Second concurrent active case is rejected. |
-| Demo Luna Patel | Invoice rejection and resubmission | Northstar Family Management Services | Use a `$520` invoice; reject with evidence `Authorization code did not match the payer record.`; then return it to Pending | Rejection requires evidence, preserves outstanding value, and records status/audit history. |
-| Demo Theo Nguyen | Paid invoice reconciliation | Evergreen Regional Services | Use a `$360` invoice, move it to Pending, then Paid with the actual test date | Paid amount becomes `$360`, outstanding becomes `$0`, and the case reconciles to Paid. |
-| Demo Isla Johnson | Prospect filtering | Do not create a funded case initially | Search Contacts for `prospects with piano` | Exercises AI/contact filtering while proving the imported dataset is useful outside the funded-case workspace. |
-| Demo Marcus Ellis | Adult/self-account student | FamilyBridge Supports or a new fictional organization | Service `Adult voice coaching`; no separate family contact | Confirms onboarding options handle a student whose account falls back to the student's own identity. |
+| Demo Maya Testwood | Minimal assignment, then incremental completion | ACE FMS | First assign only the student and program. Then add service `Weekly private piano instruction`, code `MUSIC-PIANO-30`, authorization `DEMO-1001`, authorization dates `2026-09-01`–`2026-12-31`, amount/cap `$480`, and coverage `100%`. | Appears immediately under **Funded students** with **Action needed**, then becomes complete without placeholder values. |
+| Demo Leo Testwood | Existing program reuse and sibling account | ACE FMS | Service `Youth rock band participation`; code `MUSIC-BAND-01`; authorization `DEMO-1002`; amount/cap `$325`; coverage `100%` | Reuses the selected catalog program rather than creating duplicate organization configuration; confirms sibling students remain separate funding relationships. |
+| Demo Sofia Calder | Blocked onboarding | Alta California Regional Center | Service `Weekly private voice instruction`; lifecycle `Blocked`; blocker `Authorization pending`; waiting on `Funder`; next step `Request the active authorization.` | Appears as a blocked funding relationship without confusing the blocker with invoice payment status. |
+| Demo Amir Bennett | Multi-role organization | Mains'l | Service `Weekly private drum instruction`; authorization `DEMO-2048`; coverage `100%`; waiting on `Vendor` | Shows the organization’s role-backed program while keeping student authorization data on the case. |
+| Demo Evelyn Park | Family-owned task | Aveanna | Service `Beginning semi-private strings`; authorization `DEMO-3301`; coverage `100%`; waiting on `Family`; next step `Ask the family to complete the assigned task.` | Exercises the Family owner without changing shared product guidance. |
+| Demo Noah Rivera | Partial funding | ACE FMS | Service `Youth rock band participation`; authorized amount `$450`; coverage cap `$337.50`; coverage `75%`; student-specific instruction `Family is responsible for the remaining 25%.` | Confirms student-specific coverage and exceptions remain on the funding relationship rather than changing the shared program. |
+| Demo Zoe Martin | Archive and reopen | Alta California Regional Center | First case authorization `DEMO-OLD-77`; archive it; then create a new case using authorization `DEMO-NEW-91` | Archived case disappears from the active list but remains retrievable; replacement active case succeeds. |
+| Demo Caleb Brooks | Duplicate prevention | Public Partnerships | Create one active case, then try to create another active case for the same student and organization | Second concurrent active case is rejected. |
+| Demo Luna Patel | Invoice rejection and resubmission | ACE FMS | Use a `$520` invoice; reject with evidence `Authorization code did not match the payer record.`; then return it to Pending | Rejection requires evidence, preserves outstanding value, and records status/audit history. |
+| Demo Theo Nguyen | Paid invoice reconciliation | Public Partnerships | Use a `$360` invoice, move it to Pending, then Paid with the actual test date | Paid amount becomes `$360`, outstanding becomes `$0`, and the case reconciles to Paid. |
+| Demo Isla Johnson | Prospect filtering | Do not add as a funded student initially | Search Contacts for `prospects with piano` | Exercises AI/contact filtering while proving the imported dataset is useful outside the Funding workspace. |
+| Demo Marcus Ellis | Adult/self-account student | Accura FMS | Service `Adult voice coaching`; no separate family contact | Confirms onboarding options handle a student whose account falls back to the student's own identity. |
 
 ## Invoice records versus invoice documents
 
@@ -111,7 +85,7 @@ Send it as an authenticated `POST` to:
 
 ## Useful AI/contact search checks
 
-After importing, try queries such as:
+If you import the fixture, try queries such as:
 
 - `active funded-test students`
 - `piano students with Monday lessons`

@@ -39,7 +39,7 @@ export interface OnboardFundingCaseInput {
     notes?: string
   }
   case: {
-    service_description: string
+    service_description?: string
     service_codes?: string[]
     lifecycle_status?: string
     blocker_type?: string
@@ -55,6 +55,10 @@ export interface OnboardFundingCaseInput {
     coverage_percent?: number
     case_instructions?: string
     profile_overrides?: JsonObject
+    contact_assignments?: Array<{
+      account_contact_id: string
+      purpose: 'family_contact' | 'coordinator_contact' | 'authorization_contact' | 'other'
+    }>
   }
   source: {
     type: 'manual' | 'tracker_import' | 'migration'
@@ -110,7 +114,6 @@ export function parseOnboardFundingCaseInput(value: unknown): { success: true; d
   if (organizationId && !uuidPattern.test(organizationId)) errors.push('Choose a valid funding organization.')
   if (profileVersionId && !uuidPattern.test(profileVersionId)) errors.push('Choose a valid funding profile.')
   if (!organizationId && !organizationName) errors.push('Choose or create a funding organization.')
-  if (!serviceDescription) errors.push('Service description is required.')
   if (!FUNDING_LIFECYCLE_STATUSES.includes(lifecycleStatus as typeof FUNDING_LIFECYCLE_STATUSES[number])) errors.push('Choose a valid case lifecycle status.')
   if (lifecycleStatus === 'blocked' && !FUNDING_BLOCKER_TYPES.includes(blockerType as typeof FUNDING_BLOCKER_TYPES[number])) errors.push('Choose why the case is blocked.')
   if (!FUNDING_WAITING_OWNERS.includes(waitingOn as typeof FUNDING_WAITING_OWNERS[number])) errors.push('Choose who owns the next action.')
@@ -150,7 +153,7 @@ export function parseOnboardFundingCaseInput(value: unknown): { success: true; d
       notes: text(contact.notes) || undefined,
     } : undefined,
     case: {
-      service_description: serviceDescription,
+      service_description: serviceDescription || undefined,
       service_codes: Array.isArray(caseInput.service_codes) ? caseInput.service_codes.map(text).filter(Boolean) : [],
       lifecycle_status: lifecycleStatus,
       blocker_type: blockerType || undefined,
@@ -166,6 +169,16 @@ export function parseOnboardFundingCaseInput(value: unknown): { success: true; d
       coverage_percent: coveragePercent,
       case_instructions: text(caseInput.case_instructions) || undefined,
       profile_overrides: object(caseInput.profile_overrides),
+      contact_assignments: Array.isArray(caseInput.contact_assignments)
+        ? caseInput.contact_assignments.flatMap(value => {
+          const assignment = object(value)
+          const contactId = text(assignment.account_contact_id)
+          const purpose = text(assignment.purpose)
+          if (!uuidPattern.test(contactId)) return []
+          if (!['family_contact', 'coordinator_contact', 'authorization_contact', 'other'].includes(purpose)) return []
+          return [{ account_contact_id: contactId, purpose: purpose as 'family_contact' | 'coordinator_contact' | 'authorization_contact' | 'other' }]
+        })
+        : [],
     },
     source: {
       type: sourceType as OnboardFundingCaseInput['source']['type'],
@@ -191,7 +204,7 @@ export function fundingOnboardingError(error: unknown) {
   const candidate = error as { code?: string; message?: string }
   if (candidate.code === '23505') {
     if (candidate.message?.includes('funding_cases_source_row_unique')) return { status: 409, message: 'This import row has already been onboarded.' }
-    return { status: 409, message: 'This student already has an active case with that funding organization.' }
+    return { status: 409, message: 'This student is already assigned to that funding program.' }
   }
-  return { status: 500, message: candidate.message || 'Could not onboard the funded case.' }
+  return { status: 500, message: candidate.message || 'Could not add the funded student.' }
 }

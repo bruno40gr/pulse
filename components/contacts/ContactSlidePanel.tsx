@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Copy, MessageCircle, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
+import { CalendarDays, Copy, CreditCard, Landmark, MessageCircle, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
+import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -122,11 +122,12 @@ interface ContactSlidePanelProps {
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
   mockFundingCase?: FundingCase
-  initialPanelTab?: 'profile' | 'funding'
-  onNextStepChange?: (value: string) => void
+  initialPanelTab?: ContactPanelTab
   onInvoiceStatusChange?: (invoice: FundingInvoice) => void
   onFundingCaseUpdated?: (fundingCase: FundingCase) => void
 }
+
+type ContactPanelTab = 'profile' | 'scheduling' | 'billing' | 'funding'
 
 const inputStyle: React.CSSProperties = {
   border: `1px solid ${colors.border}`,
@@ -147,7 +148,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onNextStepChange, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
@@ -177,7 +178,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
-  const [activePanelTab, setActivePanelTab] = useState<'profile' | 'funding'>(mockFundingCase ? initialPanelTab : 'profile')
+  const [activePanelTab, setActivePanelTab] = useState<ContactPanelTab>(initialPanelTab)
   const [fundingCase, setFundingCase] = useState<FundingCase | null>(mockFundingCase || null)
   const [invoiceEdit, setInvoiceEdit] = useState<FundingInvoice | null>(null)
 
@@ -185,7 +186,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     setStudentNotesHistory(Array.isArray(contact.student_notes_history) ? contact.student_notes_history : [])
     setInternalNotesHistory(Array.isArray(contact.notes_history) ? contact.notes_history : [])
     setActiveNotesTab(initialNotesTab)
-  }, [contact.id, contact.notes_history, contact.student_notes_history, initialNotesTab])
+    setActivePanelTab(initialPanelTab)
+  }, [contact.id, contact.notes_history, contact.student_notes_history, initialNotesTab, initialPanelTab])
 
   useEffect(() => {
     setFundingCase(mockFundingCase || null)
@@ -197,7 +199,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
       .then(async response => {
         const body = await response.json()
-        if (!response.ok) throw new Error(body?.error || 'Could not load funding case.')
+        if (!response.ok) throw new Error(body?.error || 'Could not load funding details.')
         if (active) setFundingCase(Array.isArray(body) ? body[0] || null : null)
       })
       .catch(() => {
@@ -209,26 +211,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   const applyFundingCase = (updated: FundingCase) => {
     setFundingCase(updated)
     onFundingCaseUpdated?.(updated)
-  }
-
-  const updateFundingNextStep = async (value: string) => {
-    if (onNextStepChange) {
-      onNextStepChange(value)
-      return
-    }
-    if (!fundingCase) return
-    const response = await fetch(`/api/funding/cases/${fundingCase.id}?tenant=${encodeURIComponent(tenantId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ next_step: value }),
-    })
-    const body = await response.json()
-    if (!response.ok) {
-      showToast(body?.error || 'Could not update the case')
-      return
-    }
-    applyFundingCase(body)
-    showToast('changes saved')
   }
 
   const saveInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
@@ -769,28 +751,60 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </CompactMetaCard>
       </div>}
 
-      {fundingCase && (
-        <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0 }}>
+      <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
           <Tabs
             items={[
               { key: 'profile', label: 'Profile' },
-              { key: 'funding', label: 'Funding' },
+              { key: 'scheduling', label: 'Scheduling' },
+              { key: 'billing', label: 'Billing' },
+              { key: 'funding', label: 'Funding Program' },
             ]}
             activeKey={activePanelTab}
             onChange={setActivePanelTab}
             compact={isMobile}
+            style={isMobile ? { minWidth: 430 } : undefined}
           />
-        </div>
-      )}
+      </div>
 
       {/* Body — two desktop columns, one mobile stack */}
-      {activePanelTab === 'funding' && fundingCase ? (
-        <FundingContactDetails
-          fundingCase={fundingCase}
-          embedded
-          onNextStepChange={value => void updateFundingNextStep(value)}
-          onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+      {activePanelTab === 'scheduling' ? (
+        <ContactModuleEmptyState
+          icon={<CalendarDays size={32} />}
+          title="Scheduling coming soon"
+          description="Lessons, appointments, and attendance will be available here."
         />
+      ) : activePanelTab === 'billing' ? (
+        fundingCase ? (
+          <FundingContactDetails
+            fundingCase={fundingCase}
+            embedded
+            sections="billing"
+            onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+            onFundingDetailsUpdated={applyFundingCase}
+          />
+        ) : (
+          <ContactModuleEmptyState
+            icon={<CreditCard size={32} />}
+            title="No billing activity yet"
+            description="Invoices and payments will appear here once this student is assigned to a funding program."
+          />
+        )
+      ) : activePanelTab === 'funding' ? (
+        fundingCase ? (
+          <FundingContactDetails
+            fundingCase={fundingCase}
+            embedded
+            showBilling={false}
+            onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+            onFundingDetailsUpdated={applyFundingCase}
+          />
+        ) : (
+          <ContactModuleEmptyState
+            icon={<Landmark size={32} />}
+            title="No funding program assigned"
+            description="Funding authorization and coverage details will appear here when this student is assigned to a funding program."
+          />
+        )
       ) : insightsLoading ? panelSkeleton : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
@@ -1176,6 +1190,20 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
       <InvoiceStatusModal invoice={invoiceEdit} onClose={() => setInvoiceEdit(null)} onSave={saveInvoiceStatus} />
     </SlidePanel>
+  )
+}
+
+function ContactModuleEmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 320, padding: spacing.xl, background: colors.background }}>
+      <div style={{ width: '100%', maxWidth: 520, border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, background: colors.surface, boxShadow: shadows.sm }}>
+        <EmptyState
+          icon={<span style={{ display: 'inline-flex', color: colors.teal }}>{icon}</span>}
+          title={title}
+          description={description}
+        />
+      </div>
+    </div>
   )
 }
 
