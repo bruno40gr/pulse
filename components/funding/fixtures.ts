@@ -1,6 +1,8 @@
 import type { FundingCase, FundingInvoiceStatus, FundingProgram } from './types'
 
-const fixtureCases: Omit<FundingCase, 'invoices'>[] = [
+type FixtureCase = Omit<FundingCase, 'invoices' | 'contacts' | 'missingDetails' | 'authorizationStartDate' | 'authorizationEndDate' | 'coveragePercent' | 'coverageCap'>
+
+const fixtureCases: FixtureCase[] = [
   {
     id: 'case-jayden-kim', student: 'Jayden Kim', parent: 'Hana Ko', fundingOrganization: 'ACE FMS', programType: 'FMS', service: 'Weekly music lessons',
     status: 'needs_review', statusLabel: 'Invoice rejected', owner: 'Vendor', nextStep: 'Review the rejected invoice and confirm the required service code.',
@@ -62,7 +64,7 @@ const fixtureCases: Omit<FundingCase, 'invoices'>[] = [
   },
 ]
 
-function fixtureInvoiceStatus(item: Omit<FundingCase, 'invoices'>): FundingInvoiceStatus {
+function fixtureInvoiceStatus(item: FixtureCase): FundingInvoiceStatus {
   if (item.statusLabel.includes('rejected')) return 'rejected'
   if (item.statusLabel.includes('needed') || item.statusLabel.includes('due soon') || item.statusLabel.includes('Authorization')) return 'draft'
   if (item.status === 'paid' || item.amountPaid === item.amountExpected) return 'paid'
@@ -76,6 +78,12 @@ export const fundingCases: FundingCase[] = fixtureCases.map((item, index) => {
   const evidence = status === 'rejected' ? 'Payer response reported that the submitted service code did not match the authorization.' : null
   return {
     ...item,
+    contacts: [],
+    missingDetails: [],
+    authorizationStartDate: null,
+    authorizationEndDate: null,
+    coveragePercent: null,
+    coverageCap: null,
     invoices: [{
       id: `invoice-${item.id}`,
       invoiceNumber,
@@ -102,10 +110,29 @@ export const fundingCases: FundingCase[] = fixtureCases.map((item, index) => {
 })
 
 export const fundingPrograms: FundingProgram[] = [
-  { id: 'ace', name: 'ACE FMS', type: 'FMS', routing: 'Vendor portal', cadence: 'Monthly', activeCases: 1, outstanding: 480, observedPayment: '18–24 days', verification: 'Needs review' },
-  { id: 'alta', name: 'Alta California Regional Center', type: 'Regional center', routing: 'Coordinator email', cadence: 'Monthly', activeCases: 1, outstanding: 360, observedPayment: '30–45 days', verification: 'Verified Sep 2026' },
-  { id: 'mainsl', name: "Mains'l", type: 'FMS', routing: 'Family-routed', cadence: 'Monthly', activeCases: 1, outstanding: 440, observedPayment: '12–20 days', verification: 'Verified Sep 2026' },
-  { id: 'omo', name: 'On My Own', type: 'FMS', routing: 'Card + receipt', cadence: 'Monthly', activeCases: 1, outstanding: 0, observedPayment: 'Immediate charge', verification: 'Needs review' },
-  { id: 'ppl', name: 'Public Partnerships', type: 'FMS', routing: 'Portal manual entry', cadence: 'Monthly', activeCases: 1, outstanding: 0, observedPayment: '21–28 days', verification: 'Verified Aug 2026' },
-  { id: 'south-sutter', name: 'South Sutter', type: 'Charter funds', routing: 'Charter portal', cadence: 'Monthly', activeCases: 1, outstanding: 0, observedPayment: '25–35 days', verification: 'Profile draft' },
+  fixtureProgram('ace', 'ACE FMS', 'FMS', 'Vendor portal', 480),
+  fixtureProgram('alta', 'Alta California Regional Center', 'Regional center', 'Coordinator email', 360),
+  fixtureProgram('mainsl', "Mains'l", 'FMS', 'Family-routed', 440),
+  fixtureProgram('omo', 'On My Own', 'FMS', 'Card + receipt', 0),
+  fixtureProgram('ppl', 'Public Partnerships', 'FMS', 'Portal manual entry', 0),
+  fixtureProgram('south-sutter', 'South Sutter', 'Charter funds', 'Charter portal', 0),
 ]
+
+function fixtureProgram(id: string, name: string, type: string, routing: string, outstanding: number): FundingProgram {
+  return {
+    id, organizationId: id, profileVersionId: `${id}-profile`, name, organizationName: name, type, routing,
+    cadence: 'Monthly', activeCases: 1, outstanding, observedPayment: 'Not enough data', verification: 'Product review needed', affiliationStatus: 'setup_required',
+    catalogKey: null, roles: [type === 'Regional center' || type === 'Charter funds' ? 'funding_source' : 'fms'], provenanceLabel: 'Prototype fixture only',
+    portalUrl: null, instructions: 'Add the portal workflow and submission instructions for this program.',
+    requiredDocuments: [], serviceCodes: [], paymentTiming: null, lastReviewedAt: null, contacts: [],
+    affiliationSteps: [
+      { id: `${id}-access`, title: 'Access the portal', description: 'Document how staff sign in and find the program workspace.', mediaUrl: null, actionLabel: null, actionUrl: null },
+    ],
+    studentRequirements: [
+      { id: `${id}-student`, field: 'authorization_reference', required: true, title: 'Student authorization', description: 'Record the authorization for this funded student.', mediaUrl: null, actionLabel: null, actionUrl: null },
+    ],
+    billingGuidance: [
+      { id: `${id}-billing`, title: 'Submit billing', description: 'Explain the required fields, documents, and confirmation step.', mediaUrl: null, actionLabel: null, actionUrl: null },
+    ],
+  }
+}

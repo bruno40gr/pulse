@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { assertTenantAccess } from '@/lib/access'
+import { requirePermission } from '@/lib/request-context'
+import { PERMISSIONS } from '@/lib/permissions'
+
+// Legacy (door-code) sessions carry the signed Pulse cookie; claimed staff accounts
+// authenticate with Supabase cookies instead. assertTenantAccess only understands the
+// legacy cookie, so a claimed account used to get a misleading 401
+// "Pulse access required." when opening a staff profile.
+async function authorizeStaffAccess(request: Request, tenantId: string) {
+  const legacyAccess = await assertTenantAccess(request, tenantId)
+  if (legacyAccess.ok) return legacyAccess
+  return requirePermission(request, tenantId, PERMISSIONS.staffRead)
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Staff not found' }, { status: 404 })
     }
 
-    const access = await assertTenantAccess(request, instructorRecord.tenant_id)
+    const access = await authorizeStaffAccess(request, instructorRecord.tenant_id)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     const person = Array.isArray(instructorRecord.person) ? instructorRecord.person[0] : instructorRecord.person

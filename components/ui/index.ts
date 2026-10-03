@@ -26,6 +26,7 @@ export { NotesSection } from './NotesSection'
 export { SurfacePanel } from './SurfacePanel'
 export { DenseSectionPanel } from './DenseSectionPanel'
 export { CompactMetaCard } from './CompactMetaCard'
+export { NotificationCard, type NotificationCardProps, type NotificationTone } from './NotificationCard'
 export {
   DataGridTable,
   DataGridRow,

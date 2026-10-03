@@ -8,7 +8,7 @@ import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
 import DemoBanner from '@/components/ui/DemoBanner'
 import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
-import { colors, typography, radius } from '@/lib/tokens'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 import NotificationBell from '@/components/notifications/NotificationBell'
@@ -16,15 +16,26 @@ import { getActiveTenantId } from '@/lib/tenant'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
-const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/dashboard/leads', label: 'Leads' },
-  { href: '/dashboard/notes', label: 'Notes' },
-  { href: '/dashboard/contacts', label: 'Contacts' },
-  { href: '/dashboard/funded-cases', label: 'Funded Cases' },
-  { href: '/dashboard/inbox', label: 'Conversations' },
-  { href: '/dashboard/history', label: 'Campaigns' },
-  { href: '/dashboard/staff', label: 'Staff' },
+const NAV_GROUPS = [
+  {
+    label: 'Operations',
+    links: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/dashboard/leads', label: 'Leads' },
+      { href: '/dashboard/notes', label: 'Notes' },
+      { href: '/dashboard/contacts', label: 'Contacts' },
+      { href: '/dashboard/inbox', label: 'Conversations' },
+      { href: '/dashboard/history', label: 'Campaigns' },
+      { href: '/dashboard/staff', label: 'Staff' },
+    ],
+  },
+  {
+    label: 'Funding',
+    links: [
+      { href: '/dashboard/funding/students', label: 'Funded Students' },
+      { href: '/dashboard/funding/programs', label: 'Funding Programs' },
+    ],
+  },
 ]
 
 const navLinkStyle: React.CSSProperties = {
@@ -146,31 +157,36 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       )}
       <nav style={{ flex: 1, padding: '12px 8px' }}>
         <NotificationBell inverse variant="nav" onNavigate={onNavigate} />
-        {NAV_LINKS.map(({ href, label }) => {
-          const active = isNavLinkActive(href, pathname)
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              style={{
-                ...navLinkStyle,
-                ...(active
-                  ? { background: 'rgba(255,255,255,0.08)', color: colors.surface, fontWeight: typography.weightSemibold }
-                  : {}),
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>{label}</span>
-                {href === '/dashboard/inbox' && conversationCount > 0 && (
-                  <span style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
-                    {conversationCount > 99 ? '99+' : conversationCount}
+        {NAV_GROUPS.map(group => (
+          <div key={group.label} style={{ marginTop: spacing.md }}>
+            <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
+            {group.links.map(({ href, label }) => {
+              const active = isNavLinkActive(href, pathname)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  style={{
+                    ...navLinkStyle,
+                    ...(active
+                      ? { background: 'rgba(255,255,255,0.08)', color: colors.surface, fontWeight: typography.weightSemibold }
+                      : {}),
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{label}</span>
+                    {href === '/dashboard/inbox' && conversationCount > 0 && (
+                      <span style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+                        {conversationCount > 99 ? '99+' : conversationCount}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-            </Link>
-          )
-        })}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Link

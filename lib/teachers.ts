@@ -4,31 +4,24 @@ import { formatTeacherDisplayName, type PulseActor } from '@/lib/access'
 export const HEADLINER_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 const HEADLINER_TIME_ZONE = 'America/Los_Angeles'
 
-export const ACTIVE_TEACHERS = [
-  { firstName: 'Alyssa', lastName: 'Abbott' },
-  { firstName: 'Bruno', lastName: 'Wong' },
-  { firstName: 'Cohen', lastName: 'Roden' },
-  { firstName: 'Collin', lastName: 'Franks' },
-  { firstName: 'David', lastName: 'James' },
-  { firstName: 'Drew', lastName: 'Johnson' },
-  { firstName: 'Isaias', lastName: 'Pallib' },
-  { firstName: 'Jacob', lastName: 'Rogelstad' },
-  { firstName: 'Jessica', lastName: 'Suase' },
-  { firstName: 'Josh', lastName: 'Brent' },
-  { firstName: 'Lorena', lastName: 'Rudha' },
-  { firstName: 'Mae', lastName: 'Strider' },
-  { firstName: 'Marshall', lastName: 'James-Solano' },
-  { firstName: 'Mel', lastName: 'Solano-Rojas' },
-  { firstName: 'Noah', lastName: 'Campos' },
-  { firstName: 'Scott', lastName: 'Gaona' },
-  { firstName: 'Vitto', lastName: 'Trinchese' },
-  { firstName: 'Alex', lastName: 'Bird', startsOn: '2026-10-05' },
-] as const
+/**
+ * The sign-in roster is derived from the database (instructors joined to people),
+ * never from a hardcoded name list. A name list silently drops a staff member the
+ * moment their person row is edited — for example "Drew Johnson" stored as
+ * first_name "Andrew" / last_name "Dylan Johnson" — which removes them from the
+ * picker and locks them out of the product entirely.
+ *
+ * This map is the only override: staff who should not appear until a given date
+ * (Headliner local time). Keys are normalized "first last". Anyone not listed here
+ * is available immediately, so a data edit can never hide someone by accident.
+ */
+const TEACHER_START_DATES: Record<string, string> = {
+  'alex bird': '2026-10-05',
+}
 
-const teacherEligibilityByKey = new Map(ACTIVE_TEACHERS.map(teacher => [
-  `${teacher.firstName.toLowerCase()}|${teacher.lastName.toLowerCase()}`,
-  'startsOn' in teacher ? teacher.startsOn : null,
-]))
+function normalizeTeacherKey(firstName: string, lastName: string) {
+  return `${firstName} ${lastName}`.trim().toLowerCase().replace(/\s+/g, ' ')
+}
 
 function currentHeadlinerDate() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -66,13 +59,14 @@ export async function getActiveTeachers(): Promise<PulseActor[]> {
         personId: row.person_id,
         fullName: `${firstName} ${lastName}`.trim(),
         displayName: formatTeacherDisplayName(firstName, lastName),
-        key: `${firstName.toLowerCase()}|${lastName.toLowerCase()}`,
+        key: normalizeTeacherKey(firstName, lastName),
         isActive: (person?.custom_fields?.staff_status ?? 'active') !== 'sunset',
       }
     })
     .filter((teacher) => {
-      const startsOn = teacherEligibilityByKey.get(teacher.key)
-      return startsOn !== undefined && teacher.isActive && (!startsOn || startsOn <= today)
+      if (!teacher.isActive) return false
+      const startsOn = TEACHER_START_DATES[teacher.key]
+      return !startsOn || startsOn <= today
     })
     .map(teacher => ({
       instructorId: teacher.instructorId,

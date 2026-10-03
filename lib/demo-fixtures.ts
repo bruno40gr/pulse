@@ -104,6 +104,39 @@ export async function ensureDemoFixtures(tenantId: string): Promise<void> {
   ])
 }
 
+export async function ensureDemoFundingMembership(tenantId: string) {
+  if (!FIXTURES[tenantId]) throw new Error('Funding demo access is limited to configured demo tenants.')
+  const personId = `50000000-0000-4000-8000-${tenantId.slice(-12)}`
+  const { error: personError } = await supabaseAdmin.from('people').upsert({
+    id: personId,
+    tenant_id: tenantId,
+    first_name: 'Demo',
+    last_name: 'Staff',
+    custom_fields: { staff_status: 'active', fixture: 'funding_demo' },
+  }, { onConflict: 'id' })
+  if (personError) throw personError
+
+  const { data: role, error: roleError } = await supabaseAdmin.from('roles').upsert({
+    tenant_id: tenantId,
+    key: 'owner',
+    name: 'Owner',
+    description: 'Demo owner role.',
+    is_system: true,
+  }, { onConflict: 'tenant_id,key' }).select('id').single()
+  if (roleError) throw roleError
+
+  const { data: membership, error: membershipError } = await supabaseAdmin.from('tenant_memberships').upsert({
+    tenant_id: tenantId,
+    person_id: personId,
+    role_id: role.id,
+    status: 'active',
+    legacy_access_enabled: true,
+    activated_at: new Date().toISOString(),
+  }, { onConflict: 'tenant_id,person_id' }).select('id').single()
+  if (membershipError) throw membershipError
+  return { personId, membershipId: membership.id }
+}
+
 async function ensureCrmDemoTenant(tenantId: string) {
   const tenant = CRM_DEMO_TENANTS[tenantId]
   if (!tenant) return
