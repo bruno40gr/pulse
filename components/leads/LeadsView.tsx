@@ -13,6 +13,7 @@ import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
+import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS } from '@/lib/lead-value'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -101,6 +102,8 @@ type LeadDetail = LeadRecord & {
 type LeadListResponse = {
   leads: LeadRecord[]
   counts: Record<LeadTabKey, number>
+  pipelineValue?: number
+  closedSinceOct1?: number
 }
 
 type LeadListCacheEntry = {
@@ -153,7 +156,6 @@ const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'processing', 
 const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
 const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
-const DEFAULT_LESSON_BASE_VALUE = 160
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
 const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_INSTRUMENT_OPTIONS
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
@@ -178,15 +180,6 @@ const PROMOTION_TYPE_OPTIONS = [
 
 const NET_NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const NET_NEW_ROW_BACKGROUND = '#EAF2FF'
-
-const SERVICE_TYPE_OPTIONS: Array<{ value: string, label: string, fee: number | null, keywords: string[] }> = [
-  { value: 'rehearsal-room', label: 'Rehearsal room', fee: 50, keywords: ['rehearsal'] },
-  { value: 'recording-studio', label: 'Recording studio', fee: 240, keywords: ['recording', 'recording session', 'studio session'] },
-  { value: 'private-events-parties', label: 'Private events & parties', fee: 350, keywords: ['private event', 'private events', 'birthday', 'party', 'parties', 'event', 'events'] },
-  { value: 'pa-rental', label: 'PA rental', fee: 500, keywords: ['pa rental', 'pa system', 'rental', 'sound'] },
-  { value: 'instrument-setup', label: 'Instrument setup', fee: 70, keywords: ['instrument setup', 'instrument', 'setup', 'gear'] },
-  { value: 'other', label: 'Other', fee: null, keywords: [] },
-]
 
 const LEAD_DETAIL_PANEL_TABS: Array<{ key: LeadDetailPanelTabKey, label: string }> = [
   { key: 'details', label: 'Details' },
@@ -652,6 +645,8 @@ export default function LeadsView() {
     job_application: 0,
     winback: 0,
   })
+  const [pipelineValue, setPipelineValue] = useState(0)
+  const [closedSinceOct1, setClosedSinceOct1] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -788,6 +783,8 @@ export default function LeadsView() {
       if (requestId !== leadListRequestRef.current) return
       setLeads(visibleLeads)
       setTabCounts(data.counts)
+      setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
+      setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
 
       if (!prefetchedTabsRef.current) {
         prefetchedTabsRef.current = true
@@ -1823,6 +1820,19 @@ export default function LeadsView() {
           )}
         />
 
+        <div style={kpiRowStyle}>
+          <div style={valueCardStyle}>
+            <div style={valueCardLabelStyle}>In pipeline</div>
+            <div style={valueCardAmountStyle}>{formatCurrency(pipelineValue)}</div>
+            <div style={valueCardMetaStyle}>Open service & lesson opportunity value</div>
+          </div>
+          <div style={valueCardStyle}>
+            <div style={valueCardLabelStyle}>Closed since Oct 1</div>
+            <div style={valueCardAmountStyle}>{formatCurrency(closedSinceOct1)}</div>
+            <div style={valueCardMetaStyle}>Won opportunities</div>
+          </div>
+        </div>
+
         <div style={{ overflowX: isMobileLayout ? 'hidden' : 'auto', marginBottom: spacing.lg }}>
           <Tabs
             items={leadTabItems}
@@ -2526,6 +2536,13 @@ const leadCardFollowUpStyle: React.CSSProperties = {
   lineHeight: 1.45,
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
+}
+
+const kpiRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: spacing.md,
+  marginBottom: spacing.lg,
 }
 
 const valueCardStyle: React.CSSProperties = {

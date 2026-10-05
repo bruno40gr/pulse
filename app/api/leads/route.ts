@@ -4,6 +4,7 @@ import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/reque
 import { resolveRequestTenant } from '@/lib/tenant-access'
 import { requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getLeadOpportunityValue, OPEN_LEAD_STATUSES, WON_STATUS } from '@/lib/lead-value'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
@@ -72,6 +73,20 @@ type LeadActivityEvent = {
   lead_intake_id: string
   event_type: string
   payload: Record<string, unknown> | null
+  created_at: string
+}
+
+type PipelineTotalsRow = {
+  id: string
+  intake_type: string
+  status: string
+  service_label: string | null
+  payload: Record<string, unknown> | null
+  updated_at: string
+}
+
+type WonEventRow = {
+  lead_intake_id: string
   created_at: string
 }
 
@@ -196,6 +211,62 @@ function formatLeadRow(row: LeadListRow) {
   }
 }
 
+async function getPipelineTotals(tenantId: string) {
+  const [leadsResult, wonEventsResult] = await Promise.all([
+    withTimeout(
+      crmSupabaseAdmin
+        .from('lead_intakes')
+        .select('id, intake_type, status, service_label, payload, updated_at')
+        .eq('tenant_id', tenantId),
+      LEADS_QUERY_TIMEOUT_MS,
+      'pipeline totals leads query',
+    ),
+    withTimeout(
+      crmSupabaseAdmin
+        .from('lead_events')
+        .select('lead_intake_id, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('payload->>next_status', 'won')
+        .order('created_at', { ascending: false }),
+      LEADS_QUERY_TIMEOUT_MS,
+      'pipeline totals won events query',
+    ),
+  ])
+
+  if (leadsResult.error) throw leadsResult.error
+  if (wonEventsResult.error) throw wonEventsResult.error
+
+  const leads = (leadsResult.data as PipelineTotalsRow[]) || []
+  const wonEvents = (wonEventsResult.data as WonEventRow[]) || []
+
+  const oct1 = new Date(new Date().getFullYear(), 9, 1)
+  const latestWonAt = new Map<string, string>()
+  for (const event of wonEvents) {
+    if (!latestWonAt.has(event.lead_intake_id)) latestWonAt.set(event.lead_intake_id, event.created_at)
+  }
+
+  let pipelineValue = 0
+  let closedSinceOct1 = 0
+
+  for (const lead of leads) {
+    const value = getLeadOpportunityValue({
+      intakeType: lead.intake_type,
+      payload: lead.payload,
+      serviceLabel: lead.service_label,
+    })
+
+    if (OPEN_LEAD_STATUSES.includes(lead.status)) pipelineValue += value
+
+    if (lead.status === WON_STATUS) {
+      const wonAtRaw = latestWonAt.get(lead.id) || lead.updated_at
+      const wonAt = wonAtRaw ? new Date(wonAtRaw) : null
+      if (wonAt && !Number.isNaN(wonAt.getTime()) && wonAt >= oct1) closedSinceOct1 += value
+    }
+  }
+
+  return { pipelineValue, closedSinceOct1 }
+}
+
 export async function GET(request: Request) {
   const requestLog = createRequestLogContext()
 
@@ -210,6 +281,7 @@ export async function GET(request: Request) {
     const includeCounts = url.searchParams.get('include_counts') === '1'
     const includeActivity = url.searchParams.get('include_activity') !== '0'
     const countsPromise = includeCounts ? getLeadTabCounts(tenantId, status) : null
+    const totalsPromise = includeCounts ? getPipelineTotals(tenantId) : null
 
     if (intakeType === 'job_application') {
       let query = crmSupabaseAdmin
@@ -288,8 +360,9 @@ export async function GET(request: Request) {
       }))
       const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
 
-      if (!countsPromise) return NextResponse.json(formatted)
-      return NextResponse.json({ leads: formatted, counts: await countsPromise })
+      if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
+      const [counts, totals] = await Promise.all([countsPromise, totalsPromise])
+      return NextResponse.json({ leads: formatted, counts, pipelineValue: totals.pipelineValue, closedSinceOct1: totals.closedSinceOct1 })
     }
 
     let query = crmSupabaseAdmin
@@ -355,8 +428,9 @@ export async function GET(request: Request) {
 
     const baseRows = (data || []).map((row) => formatLeadRow(row as LeadListRow))
     const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
-    if (!countsPromise) return NextResponse.json(formatted)
-    return NextResponse.json({ leads: formatted, counts: await countsPromise })
+    if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
+    const [counts, totals] = await Promise.all([countsPromise, totalsPromise])
+    return NextResponse.json({ leads: formatted, counts, pipelineValue: totals.pipelineValue, closedSinceOct1: totals.closedSinceOct1 })
   } catch (error) {
     console.error('[leads][list] Error fetching leads', {
       requestId: requestLog.requestId,
