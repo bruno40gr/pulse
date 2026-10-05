@@ -426,7 +426,7 @@ export async function PATCH(
     if (typeof body.email === 'string') contactUpdates.email = body.email.trim().toLowerCase() || null
     if (typeof body.phone === 'string') contactUpdates.phone = body.phone.trim() || null
 
-    if (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)) {
+    if (requestedStatus === 'won' || (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload))) {
       const existingPayloadResult = await withTimeout<any>(
         crmSupabaseAdmin
           .from('lead_intakes')
@@ -447,6 +447,7 @@ export async function PATCH(
       leadUpdates.payload = {
         ...currentPayload,
         ...body.payload,
+        ...(requestedStatus === 'won' ? { follow_up_at: null, follow_up_note: null } : {}),
       }
     }
 
@@ -464,7 +465,7 @@ export async function PATCH(
       }
     }
 
-    const followUpChanged = Boolean(
+    const followUpChanged = requestedStatus === 'won' || Boolean(
       body.payload &&
       typeof body.payload === 'object' &&
       !Array.isArray(body.payload) &&
@@ -595,7 +596,7 @@ export async function PATCH(
     }
 
     if (followUpChanged) {
-      const followUpPayload = body.payload as Record<string, unknown>
+      const followUpPayload = leadUpdates.payload as Record<string, unknown>
       const followUpAt = typeof followUpPayload.follow_up_at === 'string' ? followUpPayload.follow_up_at : null
       const followUpNote = typeof followUpPayload.follow_up_note === 'string' ? followUpPayload.follow_up_note : null
 

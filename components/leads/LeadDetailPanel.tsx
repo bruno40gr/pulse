@@ -296,6 +296,15 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
     if (saved) onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
   }
 
+  const clearFollowUp = async () => {
+    const saved = await onPatch({ payload: { follow_up_at: null, follow_up_note: null } })
+    if (saved) {
+      setFollowUpDate('')
+      setFollowUpNote('')
+      onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
+    }
+  }
+
   const resetServiceEditor = () => {
     setServiceEditor({
       types: getServiceTypes(lead),
@@ -462,7 +471,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
           }}>
             <div style={oneColumnStyle}>
               <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
-              <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} />
+              <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
             </div>
             <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
             {winback && (
@@ -572,7 +581,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
             <div style={columnStyle}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
                 <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
-                <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} />
+                <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
               </div>
               {winback && (
                 <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
