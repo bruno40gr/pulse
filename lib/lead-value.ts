@@ -79,7 +79,7 @@ export function getLeadOpportunityValue(input: {
   if (input.intakeType === 'service_inquiry') {
     return getServiceSessionValue(input.payload, input.serviceLabel)
   }
-  if (input.intakeType === 'lesson_inquiry') {
+  if (input.intakeType === 'lesson_inquiry' || input.intakeType === 'tour_request') {
     return getLessonOpportunityValue(input.payload)
   }
   return 0

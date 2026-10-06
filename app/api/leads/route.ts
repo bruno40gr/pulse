@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { LESSON_LEAD_TYPES } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
@@ -136,7 +137,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .from('lead_intakes')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
-    .eq('intake_type', 'lesson_inquiry')
+    .in('intake_type', LESSON_LEAD_TYPES)
     .neq('source_form', WINBACK_SOURCE_FORM)
   const serviceQuery = crmSupabaseAdmin
     .from('lead_intakes')
@@ -410,7 +411,7 @@ export async function GET(request: Request) {
     if (category) query = query.eq('category', category)
     if (intakeType === 'winback') query = query.eq('source_form', WINBACK_SOURCE_FORM)
     else if (intakeType) {
-      query = query.eq('intake_type', intakeType)
+      query = intakeType === 'lesson_inquiry' ? query.in('intake_type', LESSON_LEAD_TYPES) : query.eq('intake_type', intakeType)
       if (intakeType === 'lesson_inquiry') query = query.neq('source_form', WINBACK_SOURCE_FORM)
     }
 
@@ -489,7 +490,7 @@ export async function DELETE(request: Request) {
 
     if (!isJobApplication) {
       if (intakeType === 'winback') selectedRecordQuery = selectedRecordQuery.eq('source_form', WINBACK_SOURCE_FORM)
-      else if (intakeType === 'lesson_inquiry') selectedRecordQuery = selectedRecordQuery.eq('intake_type', intakeType).neq('source_form', WINBACK_SOURCE_FORM)
+      else if (intakeType === 'lesson_inquiry') selectedRecordQuery = selectedRecordQuery.in('intake_type', LESSON_LEAD_TYPES).neq('source_form', WINBACK_SOURCE_FORM)
       else if (intakeType === 'service_inquiry') selectedRecordQuery = selectedRecordQuery.eq('intake_type', intakeType)
     }
 

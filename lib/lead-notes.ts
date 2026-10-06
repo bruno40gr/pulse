@@ -9,7 +9,7 @@ type NoteEvent = {
 // Expose them without a backfill or a second, non-transactional database write.
 export function getLeadNotesHistory(
   events: NoteEvent[],
-  lead: { id: string, created_at: string, payload: Record<string, unknown> | null },
+  lead: { id: string, created_at: string, intake_type?: string, payload: Record<string, unknown> | null },
 ) {
   const notes = events.filter(event => event.event_type === 'note_added').map(event => {
     const actor = event.payload?.actor
@@ -24,6 +24,9 @@ export function getLeadNotesHistory(
   const message = typeof lead.payload?.message === 'string' ? lead.payload.message.trim() : ''
   if (message) {
     notes.push({ id: `intake-message-${lead.id}`, text: message, timestamp: lead.created_at, actor_name: null })
+  }
+  if (lead.intake_type === 'tour_request') {
+    notes.push({ id: `tour-request-${lead.id}`, text: 'Tour request', timestamp: lead.created_at, actor_name: null })
   }
   return notes.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isLessonLead, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -21,11 +22,11 @@ type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
-type ManualLeadFormState = {
+type ManualLeadFormState = LessonRequestFields & {
   fullName: string
   email: string
   phone: string
-  intakeType: 'lesson_inquiry' | 'service_inquiry'
+  intakeType: 'lesson_inquiry' | 'tour_request' | 'service_inquiry'
   source: LeadSource
   programLabel: string
   serviceLabel: string
@@ -137,7 +138,7 @@ type LessonOpportunityState = {
   siblings: LessonSiblingEntry[]
 }
 
-type LeadEditFormState = {
+type LeadEditFormState = LessonRequestFields & {
   fullName: string
   email: string
   phone: string
@@ -160,7 +161,7 @@ const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'processing', 
 const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
-const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_INSTRUMENT_OPTIONS
+const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_PROGRAM_OPTIONS
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
   { key: 'service_inquiry', label: 'Service inquiries' },
@@ -191,6 +192,7 @@ const LEAD_DETAIL_PANEL_TABS: Array<{ key: LeadDetailPanelTabKey, label: string 
 
 function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState {
   return {
+    ...readLessonRequestFields(null),
     fullName: '',
     email: '',
     phone: '',
@@ -224,6 +226,7 @@ function createLeadEditForm(lead: LeadDetail): LeadEditFormState {
   const source = normalizeLeadSourceValue(rawSource) || 'website'
 
   return {
+    ...readLessonRequestFields(lead.payload),
     fullName: lead.contact?.full_name || '',
     email: lead.contact?.email || '',
     phone: lead.contact?.phone || '',
@@ -1049,7 +1052,7 @@ export default function LeadsView() {
       [field]: value,
       ...(field === 'intakeType'
         ? {
-            programLabel: value === 'lesson_inquiry' ? current.programLabel : '',
+            programLabel: isLessonLead(String(value)) ? current.programLabel : '',
             serviceLabel: value === 'service_inquiry' ? current.serviceLabel : '',
           }
         : null),
@@ -1068,7 +1071,10 @@ export default function LeadsView() {
       }
       const trimmedMessage = manualLeadForm.message.trim()
       if (trimmedMessage) payload.message = trimmedMessage
-      if (manualLeadForm.intakeType === 'lesson_inquiry') payload.family_members_interested = manualLeadForm.familyInterestedCount
+      if (isLessonLead(manualLeadForm.intakeType)) {
+        payload.family_members_interested = manualLeadForm.familyInterestedCount
+        Object.assign(payload, lessonRequestPayload(manualLeadForm), { parent_name: manualLeadForm.fullName.trim() })
+      }
       if (manualLeadForm.intakeType === 'service_inquiry') {
         const serviceType = getServiceTypeByLabel(manualLeadForm.serviceLabel)
         if (serviceType) {
@@ -1091,7 +1097,7 @@ export default function LeadsView() {
           full_name: manualLeadForm.fullName.trim(),
           email: manualLeadForm.email.trim() || null,
           phone: manualLeadForm.phone.trim() || null,
-          program_label: manualLeadForm.intakeType === 'lesson_inquiry' ? manualLeadForm.programLabel.trim() || null : null,
+          program_label: isLessonLead(manualLeadForm.intakeType) ? manualLeadForm.programLabel.trim() || null : null,
           service_label: manualLeadForm.intakeType === 'service_inquiry' ? manualLeadForm.serviceLabel.trim() || null : null,
           utm_source: manualLeadForm.source,
           utm_campaign: manualLeadForm.campaign.trim() || null,
@@ -1106,8 +1112,9 @@ export default function LeadsView() {
       setManualLeadForm(createInitialManualLeadForm(activeTab))
 
       if (response.lead_intake_id) {
-        if (manualLeadForm.intakeType !== activeTab) setActiveTab(manualLeadForm.intakeType)
-        await openLead(response.lead_intake_id, manualLeadForm.intakeType)
+        const targetTab = isLessonLead(manualLeadForm.intakeType) ? 'lesson_inquiry' : 'service_inquiry'
+        if (targetTab !== activeTab) setActiveTab(targetTab)
+        await openLead(response.lead_intake_id, targetTab)
       }
     } catch (error: unknown) {
       setManualLeadError(getErrorMessage(error, 'Could not create lead'))
@@ -1351,6 +1358,7 @@ export default function LeadsView() {
           utm_campaign: leadEditForm.campaign,
           referrer: leadEditForm.referrer,
           payload: {
+            ...(isLessonLead(selectedLead?.intake_type) ? { ...lessonRequestPayload(leadEditForm), parent_name: leadEditForm.fullName.trim() } : {}),
             source: leadEditForm.source,
             promotion_type: leadEditForm.promotionType || null,
             promotion_offer: leadEditForm.promotionOffer.trim() || null,
@@ -1546,12 +1554,9 @@ export default function LeadsView() {
     if (typeof match === 'string' && match.trim()) return `${match.trim()} y.o`
     return '—'
   })()
-  const lessonDays = Array.isArray(selectedLead?.payload?.preferred_days)
-    ? selectedLead?.payload?.preferred_days.join(', ')
-    : '—'
-  const lessonTimes = Array.isArray(selectedLead?.payload?.preferred_times)
-    ? selectedLead?.payload?.preferred_times.join(', ')
-    : '—'
+  const lessonRequest = readLessonRequestFields(selectedLead?.payload)
+  const lessonDays = lessonRequest.preferredDays || '—'
+  const lessonTimes = lessonRequest.preferredTimes || '—'
   const serviceMessage = typeof selectedLead?.payload?.message === 'string' ? selectedLead.payload.message : '—'
   const applicationPositions = Array.isArray(selectedLead?.payload?.positions)
     ? selectedLead?.payload?.positions.join(', ')
@@ -1648,12 +1653,16 @@ export default function LeadsView() {
         </div>
       </DenseSectionPanel>
 
-      {selectedLead.intake_type === 'lesson_inquiry' && (
+      {isLessonLead(selectedLead.intake_type) && (
         <>
           <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Lesson details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
             <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
-              <Detail label="Instrument" value={lessonInstrument} />
-              <Detail label="Experience" value={typeof selectedLead.payload?.experience === 'string' ? selectedLead.payload.experience : '—'} />
+              <Detail label="Program or instrument" value={lessonInstrument} />
+              <Detail label="Student name" value={lessonRequest.studentName || '—'} />
+              <Detail label="Age" value={lessonRequest.studentAge || '—'} />
+              <Detail label="Preferred date" value={lessonRequest.preferredDate || '—'} />
+              <Detail label="Time window" value={lessonRequest.timeWindow || '—'} />
+              <Detail label="Experience" value={lessonRequest.experience || '—'} />
               <Detail label="Preferred days" value={lessonDays} />
               <Detail label="Preferred times" value={lessonTimes} />
             </div>
@@ -1781,7 +1790,7 @@ export default function LeadsView() {
         </>
       )}
 
-      {selectedLead.intake_type !== 'lesson_inquiry' && (
+      {!isLessonLead(selectedLead.intake_type) && (
         <>
           {selectedLead.intake_type === 'service_inquiry' && (
             <>
@@ -2013,7 +2022,7 @@ export default function LeadsView() {
 
           <div style={manualLeadFormGridStyle}>
             <Input
-              label="Full name"
+              label={isLessonLead(manualLeadForm.intakeType) ? "Parent / contact name" : "Full name"}
               value={manualLeadForm.fullName}
               onChange={(event) => updateManualLeadField('fullName', event.target.value)}
               placeholder="Jane Smith"
@@ -2025,6 +2034,7 @@ export default function LeadsView() {
               onChange={(event) => updateManualLeadField('intakeType', event.target.value as ManualLeadFormState['intakeType'])}
             >
               <option value="lesson_inquiry">Lesson inquiry</option>
+              <option value="tour_request">Tour request</option>
               <option value="service_inquiry">Service inquiry</option>
             </Select>
             <Input
@@ -2033,7 +2043,7 @@ export default function LeadsView() {
               value={manualLeadForm.email}
               onChange={(event) => updateManualLeadField('email', event.target.value)}
               placeholder="name@example.com"
-              hint="Email or phone is required for matching."
+              hint="Email or phone is required for follow-up."
             />
             <Input
               label="Phone"
@@ -2052,7 +2062,7 @@ export default function LeadsView() {
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
-            {manualLeadForm.intakeType === 'lesson_inquiry' ? (
+            {isLessonLead(manualLeadForm.intakeType) ? (
               <>
                 <Select
                   label="Program or instrument"
@@ -2064,6 +2074,7 @@ export default function LeadsView() {
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </Select>
+                <LessonRequestInputs value={manualLeadForm} onChange={updateManualLeadField} />
                 <div style={manualLeadStepperWrapStyle}>
                   <FieldLabel style={manualLeadStepperLabelStyle}>Family members interested</FieldLabel>
                   <div style={manualLeadStepperRowStyle}>
@@ -2294,7 +2305,7 @@ export default function LeadsView() {
           <div style={manualLeadPanelBodyStyle}>
             {leadEditError && <MessageBox>{leadEditError}</MessageBox>}
             <div style={manualLeadFormGridStyle}>
-              <Input label="Full name" value={leadEditForm.fullName} onChange={(event) => updateLeadEditField('fullName', event.target.value)} error={!leadEditForm.fullName.trim() ? 'Required' : undefined} />
+              <Input label={isLessonLead(selectedLead?.intake_type) ? "Parent / contact name" : "Full name"} value={leadEditForm.fullName} onChange={(event) => updateLeadEditField('fullName', event.target.value)} error={!leadEditForm.fullName.trim() ? 'Required' : undefined} />
               <Input label="Email" type="email" value={leadEditForm.email} onChange={(event) => updateLeadEditField('email', event.target.value)} />
               <Input label="Phone" type="tel" value={leadEditForm.phone} onChange={(event) => updateLeadEditField('phone', formatPhoneNumber(event.target.value))} />
               <Select label="Status" value={leadEditForm.status} onChange={(event) => updateLeadEditField('status', event.target.value)}>
@@ -2310,7 +2321,11 @@ export default function LeadsView() {
                   </Select>
                 </>
               ) : (
-                <Input label="Program or instrument" value={leadEditForm.programLabel} onChange={(event) => updateLeadEditField('programLabel', event.target.value)} />
+                <>
+                  <Input label="Program or instrument" list="lead-program-options" value={leadEditForm.programLabel} onChange={(event) => updateLeadEditField('programLabel', event.target.value)} />
+                  <datalist id="lead-program-options">{LESSON_PROGRAM_OPTIONS.map(option => <option key={option} value={option} />)}</datalist>
+                  {isLessonLead(selectedLead?.intake_type) && <LessonRequestInputs value={leadEditForm} onChange={updateLeadEditField} />}
+                </>
               )}
               <Select label="Source" value={leadEditForm.source} onChange={(event) => updateLeadEditField('source', event.target.value as LeadEditFormState['source'])}>
                 {LEAD_SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -2333,6 +2348,21 @@ export default function LeadsView() {
       </SlidePanel>
     </>
   )
+}
+
+function LessonRequestInputs({ value, onChange }: {
+  value: LessonRequestFields
+  onChange: (field: keyof LessonRequestFields, value: string) => void
+}) {
+  return <>
+    <Input label="Student name" value={value.studentName} onChange={e => onChange('studentName', e.target.value)} />
+    <Input label="Student age" value={value.studentAge} onChange={e => onChange('studentAge', e.target.value)} />
+    <Input label="Experience" value={value.experience} onChange={e => onChange('experience', e.target.value)} />
+    <Input label="Available days" placeholder="Monday, Wednesday" value={value.preferredDays} onChange={e => onChange('preferredDays', e.target.value)} />
+    <Input label="Preferred times" placeholder="After school, mornings" value={value.preferredTimes} onChange={e => onChange('preferredTimes', e.target.value)} />
+    <Input label="Preferred date" type="date" value={value.preferredDate} onChange={e => onChange('preferredDate', e.target.value)} />
+    <Input label="Time window" placeholder="Evening (4pm to 8pm)" value={value.timeWindow} onChange={e => onChange('timeWindow', e.target.value)} />
+  </>
 }
 
 function Detail({ label, value }: { label: string, value: string }) {

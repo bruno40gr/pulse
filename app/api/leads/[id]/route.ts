@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isLessonLead } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
@@ -501,7 +502,7 @@ export async function PATCH(
     }
 
     if (requestedStatus) {
-      const isPipelineLead = existingLead.intake_type === 'lesson_inquiry' || existingLead.intake_type === 'service_inquiry'
+      const isPipelineLead = isLessonLead(existingLead.intake_type) || existingLead.intake_type === 'service_inquiry'
       if (isPipelineLead) {
         if (!LEAD_STATUSES.includes(requestedStatus)) {
           return NextResponse.json({ error: 'A valid lead status is required.' }, { status: 400 })

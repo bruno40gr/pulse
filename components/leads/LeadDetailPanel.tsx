@@ -7,6 +7,7 @@ import { colors, radius, semanticColors, spacing, typography } from '@/lib/token
 import { formatPhoneNumber } from '@/lib/phone'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatLeadSource } from '@/lib/lead-sources'
+import { isLessonLead, readLessonRequestFields } from '@/lib/lead-lesson-details'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
@@ -132,10 +133,6 @@ function dateInputValue(value: Date) {
   return `${year}-${month}-${day}`
 }
 
-function asArray(value: unknown) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-}
-
 type StatusTone = 'booked' | keyof Pick<typeof semanticColors, 'success' | 'danger' | 'warning'>
 
 const STATUS_TONE_BY_STATUS: Record<string, StatusTone> = {
@@ -245,7 +242,8 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
 
-  const isLesson = lead.intake_type === 'lesson_inquiry'
+  const isLesson = isLessonLead(lead.intake_type)
+  const lessonRequest = readLessonRequestFields(lead.payload)
   const isService = lead.intake_type === 'service_inquiry'
   const enrollmentValue = getNumericPayloadValue(lead.payload, 'potential_value_base') ?? 160
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
@@ -262,9 +260,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
     setLesson({
       accountHolderName: typeof lead.payload.account_holder_name === 'string' ? lead.payload.account_holder_name : '',
       instrument: typeof lead.payload.instrument === 'string' ? lead.payload.instrument : '',
-      experience: typeof lead.payload.experience === 'string' ? lead.payload.experience : '',
-      days: asArray(lead.payload.preferred_days).join(', '),
-      times: asArray(lead.payload.preferred_times).join(', '),
+      experience: readLessonRequestFields(lead.payload).experience,
+      days: readLessonRequestFields(lead.payload).preferredDays,
+      times: readLessonRequestFields(lead.payload).preferredTimes,
     })
     setFamilyMembers(Array.isArray(lead.payload.siblings) ? lead.payload.siblings.map(getFamilyMember).filter((member): member is FamilyMember => Boolean(member)) : [])
     setServiceEditor({
@@ -488,7 +486,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
               </DenseSectionPanel>
             )}
             {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-              <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
+              <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
             </DenseSectionPanel>}
             {isService && <DenseSectionPanel
               title={<SectionTitle>Service details</SectionTitle>}
@@ -597,7 +595,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                 </DenseSectionPanel>
               )}
               {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-                <div style={twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Instrument" value={lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Preferred days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /></div>
+                <div style={twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
               </DenseSectionPanel>}
               {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
