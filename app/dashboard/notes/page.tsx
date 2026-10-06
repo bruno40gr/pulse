@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
-import { Button, EmptyState, PageContainer, PageHeader } from '@/components/ui'
+import { Button, EmptyState, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader } from '@/components/ui'
 import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
@@ -329,6 +329,10 @@ export default function NotesPage() {
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'range'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [rangeOpen, setRangeOpen] = useState(false)
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo] = useState('')
+  const closeRange = useCallback(() => setRangeOpen(false), [])
   const [showDone, setShowDone] = useState(true)
   const [donePreferenceReady, setDonePreferenceReady] = useState(false)
   const boardRef = useRef<HTMLDivElement>(null)
@@ -604,7 +608,7 @@ export default function NotesPage() {
       />
 
       <div style={{
-        display: 'flex', alignItems: 'end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`,
+        display: 'flex', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`,
         marginBottom: spacing.xl,
       }}>
         {([
@@ -612,23 +616,43 @@ export default function NotesPage() {
           ['week', 'Last week'], ['range', 'Date range'],
         ] as const).map(([value, label]) => (
           <Button key={value} size="sm" variant={dateFilter === value ? 'primary' : 'secondary'}
-            aria-pressed={dateFilter === value} onClick={() => setDateFilter(value)}>
+            aria-pressed={dateFilter === value} onClick={() => {
+              if (value === 'range') {
+                setRangeFrom(dateFrom || getLocalDateValue())
+                setRangeTo(dateTo || getLocalDateValue())
+                setRangeOpen(true)
+              } else setDateFilter(value)
+            }}>
             {label}
           </Button>
         ))}
-        {dateFilter === 'range' && (['from', 'to'] as const).map((bound) => (
+        <Modal isOpen={rangeOpen} onClose={closeRange} size="sm" ariaLabel="Notes date range">
+          <ModalHeader title="Date range" onClose={closeRange} />
+          <ModalBody>
+          {(['from', 'to'] as const).map((bound) => (
           <label key={bound} style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs,
             color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs }}>
             {bound === 'from' ? 'From' : 'To'}
-            <input type="date" value={bound === 'from' ? dateFrom : dateTo}
-              min={bound === 'to' ? dateFrom || undefined : undefined}
-              max={bound === 'from' ? dateTo || undefined : undefined}
-              onChange={(event) => bound === 'from' ? setDateFrom(event.target.value) : setDateTo(event.target.value)}
+            <input type="date" value={bound === 'from' ? rangeFrom : rangeTo}
+              min={bound === 'to' ? rangeFrom || undefined : undefined}
+              max={bound === 'from' ? rangeTo || undefined : undefined}
+              onChange={(event) => bound === 'from' ? setRangeFrom(event.target.value) : setRangeTo(event.target.value)}
               style={{ minHeight: 36, border: `1px solid ${colors.border}`, borderRadius: radius.md,
                 background: colors.surface, color: colors.text, padding: `0 ${spacing.md}`,
                 fontFamily: typography.fontSans, fontSize: typography.sizeSm }} />
           </label>
-        ))}
+          ))}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={closeRange}>Cancel</Button>
+            <Button disabled={!rangeFrom || !rangeTo || rangeFrom > rangeTo} onClick={() => {
+              setDateFrom(rangeFrom)
+              setDateTo(rangeTo)
+              setDateFilter('range')
+              closeRange()
+            }}>Apply</Button>
+          </ModalFooter>
+        </Modal>
         <button
           type="button"
           role="switch"
@@ -638,7 +662,8 @@ export default function NotesPage() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: spacing.sm,
-            minHeight: 36,
+            height: 36,
+            whiteSpace: 'nowrap',
             padding: 0,
             border: 'none',
             background: 'transparent',
