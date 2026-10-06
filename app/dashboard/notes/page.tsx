@@ -328,7 +328,27 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState('')
   const [showDone, setShowDone] = useState(true)
+  const [donePreferenceReady, setDonePreferenceReady] = useState(false)
   const [sortOrder, setSortOrder] = useState<'newest' | 'pinned'>('newest')
+
+  useEffect(() => {
+    try {
+      setShowDone(localStorage.getItem(`notes:hide-done:${tenantId}`) !== 'true')
+    } catch {
+      // Storage may be unavailable; keep the default of showing all notes.
+    }
+    setDonePreferenceReady(true)
+  }, [tenantId])
+
+  const toggleHideDone = () => {
+    const nextShowDone = !showDone
+    setShowDone(nextShowDone)
+    try {
+      localStorage.setItem(`notes:hide-done:${tenantId}`, String(!nextShowDone))
+    } catch {
+      // The toggle still works for this visit if storage is unavailable.
+    }
+  }
 
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
@@ -400,9 +420,10 @@ export default function NotesPage() {
   }, [selectedDate, showDone, tenantId])
 
   useEffect(() => {
+    if (!donePreferenceReady) return
     setLoading(true)
     fetchNotes()
-  }, [fetchNotes])
+  }, [fetchNotes, donePreferenceReady])
 
   useEffect(() => {
     if (deepLinkedNoteHandledRef.current || loading) return
@@ -600,8 +621,8 @@ export default function NotesPage() {
         <button
           type="button"
           role="switch"
-          aria-checked={showDone}
-          onClick={() => setShowDone((value) => !value)}
+          aria-checked={!showDone}
+          onClick={toggleHideDone}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -616,7 +637,7 @@ export default function NotesPage() {
             cursor: 'pointer',
           }}
         >
-          <span>Show notes marked &lsquo;done&rsquo;</span>
+          <span>Hide notes marked &lsquo;done&rsquo;</span>
           <span
             aria-hidden="true"
             style={{
@@ -625,7 +646,7 @@ export default function NotesPage() {
               width: 36,
               height: 20,
               borderRadius: 999,
-              background: showDone ? colors.action : colors.textMuted,
+              background: !showDone ? colors.action : colors.textMuted,
               transition: 'background 0.15s ease',
               flexShrink: 0,
             }}
@@ -634,7 +655,7 @@ export default function NotesPage() {
               style={{
                 position: 'absolute',
                 top: 2,
-                left: showDone ? 18 : 2,
+                left: !showDone ? 18 : 2,
                 width: 16,
                 height: 16,
                 borderRadius: '50%',
