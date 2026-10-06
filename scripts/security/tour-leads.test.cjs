@@ -2,6 +2,26 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness, HEAD } = require('./synthetic-harness.cjs')
 
+test('tour detail stays in the lesson tab; unrelated tabs still dismiss it', () => {
+  const { leadBelongsToTab } = createHarness().load('lib/lead-lesson-details.ts')
+  assert.equal(leadBelongsToTab({ intake_type: 'tour_request' }, 'lesson_inquiry'), true)
+  assert.equal(leadBelongsToTab({ intake_type: 'lesson_inquiry' }, 'lesson_inquiry'), true)
+  assert.equal(leadBelongsToTab({ intake_type: 'tour_request' }, 'service_inquiry'), false)
+  assert.equal(leadBelongsToTab({ intake_type: 'service_inquiry' }, 'lesson_inquiry'), false)
+  assert.equal(leadBelongsToTab({ intake_type: 'job_application' }, 'job_application'), true)
+  assert.equal(leadBelongsToTab({ intake_type: 'lesson_inquiry', category: 'winback' }, 'winback'), true)
+  assert.equal(leadBelongsToTab({ intake_type: 'lesson_inquiry', source_form: '2026-disenrollment-import' }, 'winback'), true)
+  assert.equal(leadBelongsToTab({ intake_type: 'tour_request' }, 'winback'), false)
+})
+
+test('detail auto-dismiss uses shared tab membership rather than exact intake type', () => {
+  const fs = process.getBuiltinModule('fs')
+  const path = process.getBuiltinModule('path')
+  const source = fs.readFileSync(path.resolve(__dirname, '../../components/leads/LeadsView.tsx'), 'utf8')
+  assert.ok(source.includes('selectedLead && !leadBelongsToTab(selectedLead, activeTab)'))
+  assert.ok(!source.includes('selectedLead.intake_type !== activeTab'))
+})
+
 test('program choices include both early-childhood programs', () => {
   const details = createHarness().load('lib/lead-lesson-details.ts')
   assert.ok(details.LESSON_PROGRAM_OPTIONS.includes('Little Rockers'))

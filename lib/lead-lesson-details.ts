@@ -6,6 +6,17 @@ export function isLessonLead(intakeType: string | undefined) {
   return !!intakeType && LESSON_LEAD_TYPES.includes(intakeType)
 }
 
+export function leadBelongsToTab(
+  lead: { intake_type: string; category?: string | null; source_form?: string | null },
+  tab: string,
+): boolean {
+  if (tab === 'winback') {
+    return lead.category === 'winback' || lead.source_form === '2026-disenrollment-import'
+  }
+  if (tab === 'lesson_inquiry') return isLessonLead(lead.intake_type)
+  return lead.intake_type === tab
+}
+
 export type LessonRequestFields = {
   studentName: string
   studentAge: string

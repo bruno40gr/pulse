@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isLessonLead, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
+import { isLessonLead, leadBelongsToTab, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -1412,7 +1412,7 @@ export default function LeadsView() {
   }, [fetchLeads])
 
   useEffect(() => {
-    if (selectedLead && selectedLead.intake_type !== activeTab && !(activeTab === 'winback' && (selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import'))) {
+    if (selectedLead && !leadBelongsToTab(selectedLead, activeTab)) {
       closeLead()
     }
   }, [activeTab, selectedLead])
