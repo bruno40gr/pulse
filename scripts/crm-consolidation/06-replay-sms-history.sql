@@ -42,7 +42,8 @@ BEGIN
     digits := regexp_replace(sender,'[^0-9]','','g');
     IF length(digits)=11 AND left(digits,1)='1' THEN digits:=substr(digits,2); END IF;
     SELECT array_agg(id) INTO matches FROM public.crm_contacts
-      WHERE tenant_id=q.tenant_id AND phone IN (sender,digits);
+      WHERE tenant_id=q.tenant_id AND regexp_replace(
+        regexp_replace(coalesce(phone,''),'[^0-9]','','g'), '^1([0-9]{10})$', '\1')=digits;
     IF cardinality(matches)>1 THEN RAISE EXCEPTION 'Ambiguous SMS contact'; END IF;
     contact := matches[1];
     -- Keep unmatched messages pending for reviewed reconciliation, never silently discard.

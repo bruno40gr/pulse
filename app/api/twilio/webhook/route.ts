@@ -39,6 +39,19 @@ export async function POST(request: Request) {
     }
     const tenantId = config.tenant_id
 
+    // Enable only after installing 11-sms-reliability.sql. Remains enabled after
+    // CRM cutover: inbox delivery must not depend on CRM availability.
+    const durableSms = process.env.ODEON_DURABLE_SMS?.trim()
+    if (durableSms && durableSms !== 'enabled') throw new Error('Invalid durable SMS configuration')
+    if (durableSms === 'enabled') {
+      const { data: outcome, error } = await supabaseAdmin.rpc('odeon_sms_receive', {
+        p_tenant_id: tenantId,
+        p_payload: { message_sid: messageSid, from_phone: from, to_phone: to, body },
+      })
+      if (error || !['saved', 'existing', 'deleted'].includes(outcome)) throw new Error('SMS receipt failed')
+      return twiml()
+    }
+
     if (crmCallbackCaptureEnabled()) {
       // Install draft RPCs and rehearse drain/abort before enabling this mode.
       const { data: queueId, error: captureError } = await supabaseAdmin.rpc('odeon_crm_capture', {

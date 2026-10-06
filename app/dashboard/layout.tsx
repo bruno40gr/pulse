@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
@@ -56,6 +56,19 @@ function isNavLinkActive(href: string, pathname: string) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Mounts after login (including personal-auth redirects); entering Conversations
+  // also checks. The server shares one five-minute throttle across all staff.
+  const pathname = usePathname()
+  const recoveryChecked = useRef(false)
+  useEffect(() => {
+    if (recoveryChecked.current && pathname !== '/dashboard/inbox') return
+    recoveryChecked.current = true
+    void fetch(`/api/inbox/reconcile?tenant=${getActiveTenantId()}`, { method: 'POST' })
+      .then(response => {
+        if (!response.ok && response.status !== 403) console.warn('Message recovery check unavailable.')
+      }).catch(() => console.warn('Message recovery check unavailable.'))
+  }, [pathname])
 
   useEffect(() => {
     applyDisplayFontSize(readDisplayFontSize())

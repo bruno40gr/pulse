@@ -1,8 +1,23 @@
+# Live cutover result — October 6, 2026
+
+- Source `xxyncvaulboqytovgfrh` frozen with the write barrier; retained for recovery.
+- Destination `jbrntsxmibfldocsuslt` imported 140 contacts, 140 inquiries, 696 events, and zero applications. Every typed record matched the fresh frozen snapshot through the hosted API before replay; all four embedding/query-shape checks passed.
+- Production CRM URL and service key now target main. Normal intake mode deployed; durable SMS remains enabled. Canonical direct-intake acceptance returned 200 and created an independent contact, inquiry, initial note, and exactly one creation event in main.
+- Six captured items accounted for: two inquiries replayed, one customer SMS history projected, and three staff/test SMS explicitly resolved after confirming inbox persistence and absence of a CRM contact. No inbox messages deleted. Queue empty at final check; this is not a permanent guarantee against future arrivals.
+- Final observed totals: 143 contacts, 143 inquiries, 700 events, zero applications. All frozen-snapshot IDs retained. Sandy/Meghha contact separation verified.
+- Two labeled migration-verification inquiries are retained; not real customers. Review/archive through normal staff workflow, not silent database deletion.
+- Prior cutover and SMS deployments return 401 at generated URLs. Canonical app responds successfully. Owner confirmed live acceptance: a website lead submission worked, past leads looked correct, and SMS looked correct. Staff may resume normal work; source remains frozen and retained.
+- Private final snapshot, source/main archives, and operator SQL retained outside Git in `/Users/brunowong/odeon-final-crm.X0yYEv`.
+- Phone matching in SMS history replay now normalizes formatting. Exact replacement SQL and duplicate replay tested in disposable PostgreSQL before successful live installation.
+- Durable SMS continues to queue CRM history independently of inbox receipt. Future history projection requires ongoing reviewed draining/resolution; login reconciliation restores inbox messages but does not automatically drain CRM history. Do not purge pending receipts.
+- Production environment switched; local `.env.local` and historical private operator configurations were not switched. Do not run old CRM maintenance tools against the frozen source.
+- Do not reverse environment variables as a rollback: destination now contains post-snapshot activity. Use guarded reverse reconciliation if recovery is required. Retire source only with separate owner approval after observation and acceptance.
+
 # CRM consolidation: read-only inventory
 
 ## Scope and status
 
-Consolidate the four CRM tables into Odeon's main database without merging contact identities. No CRM import, database connection switch, or project deletion has occurred. Live changes are tracked separately below; older rehearsal sections describe their historical status.
+The four CRM tables have been consolidated into Odeon's main database without merging contact identities. Import, production connection switch, queue resolution, and owner live acceptance are complete. The old project has not been paused or deleted. Older rehearsal sections below describe their historical status; the live cutover result above is authoritative.
 
 ### Live progress — October 5, 2026
 
@@ -10,7 +25,12 @@ Consolidate the four CRM tables into Odeon's main database without merging conta
 - Owner executed the guarded Sandy contact repair; independent read-only API checks confirmed separate contacts, preserved Meghha contact ID, consistent Sandy history links, and one repair audit event.
 - Owner installed `10-install-capture.sql` on main; SQL output ended in COMMIT.
 - Independent hosted checks passed: queue columns readable with service role, capture/SMS RPCs exposed, anonymous capture refused (401).
-- Production callback mode verified as legacy. Capture has not been enabled; source is not frozen and normal workflows remain active.
+- Tonight: production callback mode set to capture and current production revision redeployed Ready (`dpl_7jFjrExeAAW8b6QCXpPgPe3DgVH3`). Staff pause acknowledged by owner. Source remains unfrozen; no import or CRM connection switch has occurred.
+- Public intake acceptance passed: synthetic labeled inquiry returned 202, its durable main queue receipt was verified, and retry returned the same receipt. Synthetic item retained for replay, receipt stored privately in `/tmp/odeon-capture-test-receipt.json`.
+- BLOCKER before source freeze: three known older deployment URLs still execute intake (invalid-body POST returned 400, not deployment protection). Older deployed environments are immutable and bypass current capture. Must protect/retire old intake endpoints and verify website/callback destinations before freezing; do not mistake canonical-alias capture for complete writer fencing.
+- Owner enabled Standard Protection. Three previously exposed older deployment URLs now refuse unauthenticated POST (401); canonical intake still returns the same verified durable 202 receipt.
+- Provider check found SMS webhook pointing at the protected project-generated domain (302). Updated only SMS URL/method to canonical `https://app.headlinerma.com/api/twilio/webhook` / POST and independently reread provider configuration; voice/fallback/status URLs unchanged. Private pre-change copy: `/Users/brunowong/odeon-twilio-cutover.x9fjpM/number-before.json`.
+- Production signature base confirmed as `https://app.headlinerma.com`. Real signed SMS acceptance remains the next gate. Source remains unfrozen; no record import or connection switch.
 - Capture-capable isolated release deployed Ready (`dpl_EmCw1BJvp5skgasnPdmwmfaLNcps`) on app.headlinerma.com. App HTTP check passed (200); unsigned form-encoded SMS/voice callbacks refused (403). Signed delivery and durable intake acceptance remain to be verified after activation.
 - A fresh final CRM snapshot must include the repaired identities; historical counts/backups are not the final migration baseline.
 

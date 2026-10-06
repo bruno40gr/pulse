@@ -84,3 +84,21 @@ test('invalid callback mode refuses processing', async () => {
   assert.equal((await POST(request(getExpectedTwilioSignature(token, url, params)))).status, 503)
   assert.equal(h.getWrites().length, 0)
 })
+
+test('permanent durable SMS storage is independent of CRM callback mode', async () => {
+  for (const mode of ['capture', undefined]) {
+    for (const outcome of ['saved', 'existing', 'deleted']) {
+      const { h, POST } = setup({}, {}, { env: { ODEON_DURABLE_SMS: 'enabled', ODEON_CRM_CALLBACK_MODE: mode },
+        rpcResults: { odeon_sms_receive: outcome } })
+      assert.equal((await POST(request('forged'))).status, 403)
+      assert.equal((await POST(request(getExpectedTwilioSignature(token, url, params)))).status, 200)
+      assert.deepEqual(h.getWrites().map(q => q.table), ['odeon_sms_receive'])
+    }
+  }
+})
+test('durable SMS failure never acknowledges success or falls back to CRM', async () => {
+  const { h, POST } = setup({}, {}, { env: { ODEON_DURABLE_SMS: 'enabled' },
+    rpcErrors: { odeon_sms_receive: { message: 'private error' } } })
+  assert.equal((await POST(request(getExpectedTwilioSignature(token, url, params)))).status, 503)
+  assert.deepEqual(h.getWrites().map(q => q.table), ['odeon_sms_receive'])
+})
