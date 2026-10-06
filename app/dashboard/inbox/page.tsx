@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, Suspense, type ComponentProps } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, SquarePen, Trash2 } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Sparkles, SquarePen, Trash2 } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { Avatar, Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, PageContainer, PageHeader, SlidePanel, Textarea } from '@/components/ui'
@@ -11,6 +11,7 @@ import ComposeModal from '@/components/inbox/ComposeModal'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { displayMessageStatus } from '@/lib/message-status'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
+import { formatFullTimestamp, formatPresentationDate } from '@/lib/presentation-date'
 
 interface Message {
   id: string
@@ -39,6 +40,7 @@ interface Thread {
   last_message_body: string
   last_message_direction: string
   has_unread: boolean
+  unread_count: number
   profile_type: 'contact' | 'lead' | null
   profile_id: string | null
   profile_intake_type: string | null
@@ -100,7 +102,7 @@ function InboxPageInner() {
       : `/api/inbox?tenant=${tenantId}`
     const data = await fetch(url).then(r => r.json())
     const result = Array.isArray(data)
-      ? data.map((thread: Thread) => markingReadThreadKeysRef.current.has(thread.thread_key) ? { ...thread, has_unread: false } : thread)
+      ? data.map((thread: Thread) => markingReadThreadKeysRef.current.has(thread.thread_key) ? { ...thread, has_unread: false, unread_count: 0 } : thread)
       : []
     setThreads(result)
     return result
@@ -279,27 +281,15 @@ function InboxPageInner() {
     }
   }
 
-  const formatTime = (ts: string) =>
-    new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-
-  const formatDay = (ts: string) => {
-    const d = new Date(ts)
-    const today = new Date()
-    const diff = Math.floor((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
-    if (diff === 0) return 'Today'
-    if (diff === 1) return 'Yesterday'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
   const handleSelectThread = (thread: Thread) => {
-    const openedThread = thread.has_unread ? { ...thread, has_unread: false } : thread
+    const openedThread = thread.has_unread ? { ...thread, has_unread: false, unread_count: 0 } : thread
     setActiveThread(openedThread)
     setProfileError('')
 
     if (thread.has_unread) {
       markingReadThreadKeysRef.current.add(thread.thread_key)
-      setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: false } : item))
-      window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: -1 } }))
+      setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: false, unread_count: 0 } : item))
+      window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: -thread.unread_count, threadKey: thread.thread_key, pending: true } }))
       void fetch(`/api/inbox?tenant=${tenantId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -310,12 +300,13 @@ function InboxPageInner() {
         throw new Error(data?.error || 'Could not mark conversation as read')
       }).then(() => {
         markingReadThreadKeysRef.current.delete(thread.thread_key)
+        window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { threadKey: thread.thread_key, pending: false } }))
       }).catch((error) => {
         markingReadThreadKeysRef.current.delete(thread.thread_key)
         console.error(error)
-        setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: true } : item))
-        setActiveThread((current) => current?.thread_key === thread.thread_key ? { ...current, has_unread: true } : current)
-        window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: 1 } }))
+        setThreads((current) => current.map((item) => item.thread_key === thread.thread_key ? { ...item, has_unread: true, unread_count: thread.unread_count } : item))
+        setActiveThread((current) => current?.thread_key === thread.thread_key ? { ...current, has_unread: true, unread_count: thread.unread_count } : current)
+        window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT, { detail: { delta: thread.unread_count, threadKey: thread.thread_key, pending: false } }))
       })
     }
 
@@ -424,11 +415,11 @@ function InboxPageInner() {
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                    <span style={{ fontSize: typography.sizeMd, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
+                    <span style={{ fontSize: typography.sizeMd, fontWeight: thread.has_unread ? typography.weightBold : typography.weightNormal, color: colors.text, fontFamily: typography.fontSans }}>
                       {thread.display_name}
                     </span>
                     <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans, flexShrink: 0, marginLeft: spacing.sm }}>
-                      {thread.last_message_at ? formatDay(thread.last_message_at) : ''}
+                      {thread.last_message_at ? <time dateTime={thread.last_message_at} title={formatFullTimestamp(thread.last_message_at)} aria-label={formatFullTimestamp(thread.last_message_at)}>{formatPresentationDate(thread.last_message_at)}</time> : ''}
                     </span>
                   </div>
                   {thread.account_holder_name && thread.account_holder_name !== thread.student_name && (
@@ -436,12 +427,17 @@ function InboxPageInner() {
                       {thread.account_holder_name}
                     </div>
                   )}
-                  <div style={{ fontSize: typography.sizeSm, color: colors.textSecondary, fontFamily: typography.fontSans, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {thread.last_message_direction === 'outbound' ? 'You: ' : ''}{thread.last_message_body}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, fontSize: typography.sizeSm, color: colors.textSecondary, fontFamily: typography.fontSans, minWidth: 0 }}>
+                    {(thread.last_message_direction === 'outbound' || thread.last_message_direction === 'inbound') && (
+                      <span role="img" aria-label={thread.last_message_direction === 'outbound' ? 'Last message sent' : 'Last message received'} title={thread.last_message_direction === 'outbound' ? 'Last message sent' : 'Last message received'} style={{ display: 'inline-flex', flexShrink: 0 }}>
+                        {thread.last_message_direction === 'outbound' ? <ArrowUpRight size={14} aria-hidden="true" /> : <ArrowDownLeft size={14} aria-hidden="true" />}
+                      </span>
+                    )}
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.last_message_direction === 'outbound' ? 'You: ' : ''}{thread.last_message_body}</span>
                   </div>
                 </div>
-                {thread.has_unread && (
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.crimson, flexShrink: 0, marginTop: '6px' }} />
+                {thread.unread_count > 0 && (
+                  <span aria-label={`${thread.unread_count} unread messages`} title={`${thread.unread_count} unread messages`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: '9999px', background: colors.crimson, color: colors.surface, fontSize: typography.sizeXs, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center', flexShrink: 0, marginTop: '6px' }}>{thread.unread_count}</span>
                 )}
               </div>
             ))
@@ -596,7 +592,7 @@ function InboxPageInner() {
                       marginTop: '4px',
                       textAlign: msg.direction === 'outbound' ? 'right' : 'left',
                     }}>
-                      {formatTime(msg.created_at)}
+                      <time dateTime={msg.created_at} title={formatFullTimestamp(msg.created_at)} aria-label={formatFullTimestamp(msg.created_at)}>{formatPresentationDate(msg.created_at)}</time>
                       {msg.direction === 'outbound' && msg.status ? ` · ${displayMessageStatus(msg.status)}` : ''}
                       {msg.direction === 'outbound' && msg.error_message ? ` · ${msg.error_message}` : ''}
                     </div>

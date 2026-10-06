@@ -34,6 +34,7 @@ type InboxThread = {
   last_message_body: string | null
   last_message_direction: string | null
   has_unread: boolean
+  unread_count: number
   profile_type: 'contact' | 'lead' | null
   profile_id: string | null
   profile_intake_type: string | null
@@ -90,13 +91,13 @@ export async function GET(request: Request) {
       const { data: inboundMessages, error: countError } = await countQuery
       if (countError) throw countError
 
-      const attentionThreads = new Set<string>()
+      let unreadCount = 0
       for (const message of inboundMessages || []) {
         if (message.status === 'read') continue
         const otherPhone = normalizePhoneNumber(message.from_phone)
-        if (otherPhone) attentionThreads.add(otherPhone)
+        if (otherPhone) unreadCount += 1
       }
-      return NextResponse.json({ count: attentionThreads.size })
+      return NextResponse.json({ count: unreadCount })
     }
 
     // Step 1: Get all messages
@@ -257,6 +258,7 @@ export async function GET(request: Request) {
           last_message_body: null,
           last_message_direction: null,
           has_unread: false,
+          unread_count: 0,
           profile_type: person ? 'contact' : leadProfile ? 'lead' : null,
           profile_id: person?.id || leadProfile?.id || null,
           profile_intake_type: leadProfile?.intake_type || null,
@@ -284,7 +286,10 @@ export async function GET(request: Request) {
         thread.last_message_direction = msg.direction
       }
 
-      if (msg.direction === 'inbound' && msg.status !== 'read') thread.has_unread = true
+      if (msg.direction === 'inbound' && msg.status !== 'read') {
+        thread.has_unread = true
+        thread.unread_count += 1
+      }
     }
 
     const sorted = Array.from(threads.values()).sort(

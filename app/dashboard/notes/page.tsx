@@ -8,6 +8,8 @@ import MentionTextarea from '@/components/notes/MentionTextarea'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
+import { sortNotes } from '@/lib/note-order'
+import { formatFullTimestamp, formatPresentationDate } from '@/lib/presentation-date'
 
 interface Note {
   id: string
@@ -49,23 +51,6 @@ function getLocalDateValue(date = new Date()): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-function sortNotes(notes: Note[]): Note[] {
-  return [...notes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      || a.id.localeCompare(b.id)
-  })
-}
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }
 
 const iconBtnStyle: React.CSSProperties = {
@@ -132,8 +117,6 @@ function NoteCard(props: NoteCardProps) {
   const bg = NOTE_COLORS[note.color] || NOTE_COLORS.white
   const isWhite = note.color === 'white'
   const cardStyle: React.CSSProperties = {
-    breakInside: 'avoid',
-    marginBottom: spacing.md,
     width: '100%',
     maxWidth: 390,
     minHeight: 300,
@@ -315,7 +298,7 @@ function NoteCard(props: NoteCardProps) {
           </Button>
         </div>
         <span style={{ display: 'block', fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {note.created_by || 'You'} · {formatTimestamp(note.updated_at)}
+          {note.created_by || 'You'} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)} aria-label={formatFullTimestamp(note.created_at)}>{formatPresentationDate(note.created_at)}</time>
         </span>
       </div>
     </div>
@@ -335,20 +318,6 @@ export default function NotesPage() {
   const closeRange = useCallback(() => setRangeOpen(false), [])
   const [showDone, setShowDone] = useState(true)
   const [donePreferenceReady, setDonePreferenceReady] = useState(false)
-  const boardRef = useRef<HTMLDivElement>(null)
-  const [boardColumns, setBoardColumns] = useState(1)
-
-  useEffect(() => {
-    const board = boardRef.current
-    if (!board) return
-    const observer = new ResizeObserver(([entry]) => {
-      const gap = parseFloat(spacing.md)
-      setBoardColumns(Math.max(1, Math.floor((entry.contentRect.width + gap) / (390 + gap))))
-    })
-    observer.observe(board)
-    return () => observer.disconnect()
-  }, [])
-
   useEffect(() => {
     try {
       setShowDone(localStorage.getItem(`notes:hide-done:${tenantId}`) !== 'true')
@@ -806,7 +775,7 @@ export default function NotesPage() {
         </div>
       </div>
 
-      <div ref={boardRef} style={{ width: '100%', minWidth: 0 }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
       {loading ? (
         <div style={{ fontSize: typography.sizeBase, color: colors.textMuted }}>Loading notes…</div>
       ) : notes.length === 0 ? (
@@ -816,10 +785,12 @@ export default function NotesPage() {
         />
       ) : (
         <div style={{
-          width: boardColumns * 390 + (boardColumns - 1) * parseFloat(spacing.md),
-          maxWidth: '100%',
-          columnCount: boardColumns,
-          columnGap: spacing.md,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(0, min(100%, 390px)))',
+          gridAutoFlow: 'row',
+          gap: spacing.md,
+          alignItems: 'start',
+          justifyContent: 'start',
         }}>
           {sortNotes(notes).map((note) => (
             <NoteCard

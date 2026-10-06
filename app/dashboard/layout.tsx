@@ -130,18 +130,27 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
 
   useEffect(() => {
     let cancelled = false
+    let countRevision = 0
+    const pendingReads = new Set<string>()
     const loadCount = async () => {
+      if (pendingReads.size > 0) return
+      const revision = ++countRevision
       try {
         const tenantId = getActiveTenantId()
         const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store' })
         const data = await response.json()
-        if (!cancelled && response.ok) setConversationCount(typeof data.count === 'number' ? data.count : 0)
+        if (!cancelled && response.ok && revision === countRevision && pendingReads.size === 0) setConversationCount(typeof data.count === 'number' ? data.count : 0)
       } catch {}
     }
 
     void loadCount()
     const interval = window.setInterval(loadCount, 5000)
     const handleCountChange = (event: Event) => {
+      countRevision += 1
+      if (event instanceof CustomEvent && typeof event.detail?.threadKey === 'string') {
+        if (event.detail.pending) pendingReads.add(event.detail.threadKey)
+        else pendingReads.delete(event.detail.threadKey)
+      }
       const delta = event instanceof CustomEvent && typeof event.detail?.delta === 'number'
         ? event.detail.delta
         : null
@@ -150,6 +159,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         return
       }
       setConversationCount((current) => Math.max(0, current + delta))
+      if (pendingReads.size === 0) void loadCount()
     }
     window.addEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     return () => {
@@ -190,8 +200,8 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>{label}</span>
                     {href === '/dashboard/inbox' && conversationCount > 0 && (
-                      <span style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
-                        {conversationCount > 99 ? '99+' : conversationCount}
+                      <span aria-label={`${conversationCount} unread messages`} title={`${conversationCount} unread messages`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+                        {conversationCount}
                       </span>
                     )}
                   </span>
