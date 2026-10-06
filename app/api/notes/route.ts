@@ -18,6 +18,11 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const noteDate = url.searchParams.get('date')
     if (noteDate && !isDateValue(noteDate)) return NextResponse.json({ error: 'A valid note date is required.' }, { status: 400 })
+    const dateFrom = url.searchParams.get('date_from')
+    const dateTo = url.searchParams.get('date_to')
+    if ((dateFrom && !isDateValue(dateFrom)) || (dateTo && !isDateValue(dateTo)) || (dateFrom && dateTo && dateFrom > dateTo)) {
+      return NextResponse.json({ error: 'A valid chronological date range is required.' }, { status: 400 })
+    }
     const showDone = url.searchParams.get('show_done') === 'true'
 
     let query = supabaseAdmin
@@ -25,8 +30,10 @@ export async function GET(request: Request) {
       .select('*')
       .eq('tenant_id', tenantId)
       .order('pinned', { ascending: false })
-      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
     if (noteDate) query = query.eq('note_date', noteDate)
+    if (dateFrom) query = query.gte('note_date', dateFrom)
+    if (dateTo) query = query.lte('note_date', dateTo)
     if (!showDone) query = query.is('completed_at', null)
 
     const { data, error } = await query

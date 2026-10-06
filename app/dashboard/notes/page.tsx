@@ -51,9 +51,9 @@ function getLocalDateValue(date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
-function sortNotes(notes: Note[], order: 'newest' | 'pinned' = 'newest'): Note[] {
+function sortNotes(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
-    if (order === 'pinned' && a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       || a.id.localeCompare(b.id)
   })
@@ -326,10 +326,11 @@ export default function NotesPage() {
   const [tenantId] = useState<string>(() => getActiveTenantId())
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState('')
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'range'>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [showDone, setShowDone] = useState(true)
   const [donePreferenceReady, setDonePreferenceReady] = useState(false)
-  const [sortOrder, setSortOrder] = useState<'newest' | 'pinned'>('newest')
   const boardRef = useRef<HTMLDivElement>(null)
   const [boardColumns, setBoardColumns] = useState(1)
 
@@ -419,7 +420,17 @@ export default function NotesPage() {
   const fetchNotes = useCallback(async () => {
     try {
       const params = new URLSearchParams({ tenant: tenantId })
-      if (selectedDate) params.set('date', selectedDate)
+      if (dateFilter === 'range') {
+        if (dateFrom) params.set('date_from', dateFrom)
+        if (dateTo) params.set('date_to', dateTo)
+      } else if (dateFilter !== 'all') {
+        const end = new Date()
+        if (dateFilter !== 'today') end.setDate(end.getDate() - 1)
+        const start = new Date(end)
+        if (dateFilter === 'week') start.setDate(start.getDate() - 6)
+        params.set('date_from', getLocalDateValue(start))
+        params.set('date_to', getLocalDateValue(end))
+      }
       if (showDone) params.set('show_done', 'true')
       const res = await fetch(`/api/notes?${params.toString()}`)
       if (!res.ok) throw new Error()
@@ -430,7 +441,7 @@ export default function NotesPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedDate, showDone, tenantId])
+  }, [dateFilter, dateFrom, dateTo, showDone, tenantId])
 
   useEffect(() => {
     if (!donePreferenceReady) return
@@ -496,7 +507,7 @@ export default function NotesPage() {
       const res = await fetch(`/api/notes?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, is_private: draftPrivate, note_date: selectedDate || getLocalDateValue(), mention_membership_ids: draftMentionIds }),
+        body: JSON.stringify({ title, body, color: draftColor, pinned: draftPinned, is_private: draftPrivate, note_date: getLocalDateValue(), mention_membership_ids: draftMentionIds }),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => null)
@@ -596,41 +607,28 @@ export default function NotesPage() {
         display: 'flex', alignItems: 'end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`,
         marginBottom: spacing.xl,
       }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>
-          Date {selectedDate ? '' : '(all dates)'}
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
-            aria-label="Notes date"
-            style={{
-              minHeight: 36, border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface,
-              color: colors.text, padding: '0 10px', fontFamily: typography.fontSans, fontSize: typography.sizeSm,
-            }}
-          />
-        </label>
-        {selectedDate && (
-          <Button variant="ghost" size="sm" onClick={() => setSelectedDate('')}>
-            All dates
+        {([
+          ['all', 'All dates'], ['today', 'Today'], ['yesterday', 'Yesterday'],
+          ['week', 'Last week'], ['range', 'Date range'],
+        ] as const).map(([value, label]) => (
+          <Button key={value} size="sm" variant={dateFilter === value ? 'primary' : 'secondary'}
+            aria-pressed={dateFilter === value} onClick={() => setDateFilter(value)}>
+            {label}
           </Button>
-        )}
-        <Button
-          variant={sortOrder === 'newest' ? 'primary' : 'secondary'}
-          size="sm"
-          aria-pressed={sortOrder === 'newest'}
-          onClick={() => setSortOrder('newest')}
-          title="Order by creation time, newest first, regardless of pins"
-        >
-          Newest first
-        </Button>
-        <Button
-          variant={sortOrder === 'pinned' ? 'primary' : 'secondary'}
-          size="sm"
-          aria-pressed={sortOrder === 'pinned'}
-          onClick={() => setSortOrder('pinned')}
-        >
-          Pinned first
-        </Button>
+        ))}
+        {dateFilter === 'range' && (['from', 'to'] as const).map((bound) => (
+          <label key={bound} style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs,
+            color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs }}>
+            {bound === 'from' ? 'From' : 'To'}
+            <input type="date" value={bound === 'from' ? dateFrom : dateTo}
+              min={bound === 'to' ? dateFrom || undefined : undefined}
+              max={bound === 'from' ? dateTo || undefined : undefined}
+              onChange={(event) => bound === 'from' ? setDateFrom(event.target.value) : setDateTo(event.target.value)}
+              style={{ minHeight: 36, border: `1px solid ${colors.border}`, borderRadius: radius.md,
+                background: colors.surface, color: colors.text, padding: `0 ${spacing.md}`,
+                fontFamily: typography.fontSans, fontSize: typography.sizeSm }} />
+          </label>
+        ))}
         <button
           type="button"
           role="switch"
@@ -798,7 +796,7 @@ export default function NotesPage() {
           columnCount: boardColumns,
           columnGap: spacing.md,
         }}>
-          {sortNotes(notes, sortOrder).map((note) => (
+          {sortNotes(notes).map((note) => (
             <NoteCard
               key={note.id}
               note={note}
