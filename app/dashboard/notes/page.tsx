@@ -133,7 +133,7 @@ function NoteCard(props: NoteCardProps) {
   const isWhite = note.color === 'white'
   const cardStyle: React.CSSProperties = {
     breakInside: 'avoid',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     width: '100%',
     maxWidth: 390,
     minHeight: 300,
@@ -330,6 +330,19 @@ export default function NotesPage() {
   const [showDone, setShowDone] = useState(true)
   const [donePreferenceReady, setDonePreferenceReady] = useState(false)
   const [sortOrder, setSortOrder] = useState<'newest' | 'pinned'>('newest')
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [boardColumns, setBoardColumns] = useState(1)
+
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+    const observer = new ResizeObserver(([entry]) => {
+      const gap = parseFloat(spacing.md)
+      setBoardColumns(Math.max(1, Math.floor((entry.contentRect.width + gap) / (390 + gap))))
+    })
+    observer.observe(board)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     try {
@@ -573,7 +586,7 @@ export default function NotesPage() {
   }
 
   return (
-    <PageContainer>
+    <PageContainer style={{ boxSizing: 'border-box', minWidth: 0 }}>
       <PageHeader
         title="Notes"
         subtitle="Quick thoughts, names, phone numbers. Jot it down."
@@ -770,6 +783,7 @@ export default function NotesPage() {
         </div>
       </div>
 
+      <div ref={boardRef} style={{ width: '100%', minWidth: 0 }}>
       {loading ? (
         <div style={{ fontSize: typography.sizeBase, color: colors.textMuted }}>Loading notes…</div>
       ) : notes.length === 0 ? (
@@ -778,7 +792,12 @@ export default function NotesPage() {
           description="Capture a quick thought, a name, or a phone number and it will live here as a sticky note."
         />
       ) : (
-        <div style={{ columnWidth: 390, columnGap: spacing.lg }}>
+        <div style={{
+          width: boardColumns * 390 + (boardColumns - 1) * parseFloat(spacing.md),
+          maxWidth: '100%',
+          columnCount: boardColumns,
+          columnGap: spacing.md,
+        }}>
           {sortNotes(notes, sortOrder).map((note) => (
             <NoteCard
               key={note.id}
@@ -802,6 +821,7 @@ export default function NotesPage() {
           ))}
         </div>
       )}
+      </div>
 
       <NoteConversationPanel
         note={conversationNote}
