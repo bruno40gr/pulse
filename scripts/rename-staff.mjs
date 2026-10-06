@@ -30,7 +30,7 @@ if (!personId || !firstName || !lastName) {
 
 const { data: person, error } = await supabase
   .from('people')
-  .select('id, tenant_id, first_name, last_name, email')
+  .select('id, tenant_id, first_name, last_name, email, custom_fields')
   .eq('id', personId)
   .maybeSingle()
 
@@ -47,10 +47,28 @@ if (!APPLY) {
   process.exit(0)
 }
 
+// Record the old name as an alias so future roster imports keep resolving this
+// person under their old label ("Andrew Dylan Johnson") instead of re-creating
+// a duplicate because the name no longer matches.
+const oldFirst = (person.first_name || '').trim().toLowerCase()
+const oldLastTokens = (person.last_name || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
+const oldLastToken = oldLastTokens[oldLastTokens.length - 1] || ''
+const oldFull = `${person.first_name || ''} ${person.last_name || ''}`.trim().toLowerCase()
+const oldAliases = [oldFull]
+if (oldFirst && oldLastToken && `${oldFirst} ${oldLastToken}` !== oldFull) {
+  oldAliases.push(`${oldFirst} ${oldLastToken}`)
+}
+const existingAliases = Array.isArray(person.custom_fields?.name_aliases)
+  ? person.custom_fields.name_aliases.filter((a) => typeof a === 'string')
+  : []
+const nameAliases = [...new Set([...existingAliases, ...oldAliases])]
+const customFields = { ...(person.custom_fields || {}), name_aliases: nameAliases }
+
 const { error: updateError } = await supabase
   .from('people')
-  .update({ first_name: firstName, last_name: lastName })
+  .update({ first_name: firstName, last_name: lastName, custom_fields: customFields })
   .eq('id', personId)
 
 if (updateError) { console.error('update error:', updateError.message); process.exit(1) }
+console.log(`  aliases kept: ${JSON.stringify(nameAliases)}`)
 console.log('\nDone.')

@@ -113,34 +113,45 @@ async function loadMembershipContext(input: {
   }
 }
 
+/** Resolve an explicit selection or the identity's sole membership; never a school default. */
 export async function resolveMembershipRequestContext(
   request: Request,
-  tenantId: string,
+  tenantId?: string,
 ): Promise<RequestContextResult> {
   const legacyActor = await getRequestActor(request)
-  if (legacyActor) {
-    if (getAccessScope(legacyActor).kind === 'demo') {
-      return { ok: false, status: 403, error: 'Staff account access is required.' }
-    }
-
-    const legacyResult = await loadMembershipContext({
-      tenantId,
-      authSource: 'legacy',
-      authUserId: null,
-      legacyActor,
-    })
-    if (legacyResult.ok) return legacyResult
+  if (legacyActor && getAccessScope(legacyActor).kind === 'demo') {
+    return { ok: false, status: 403, error: 'Staff account access is required.' }
   }
 
-  const authUserId = await getSupabaseAuthUserId(request)
-  if (!authUserId) return { ok: false, status: 401, error: 'Sign in is required.' }
+  async function resolveIdentity(input: {
+    authSource: AuthenticationSource
+    authUserId: string | null
+    legacyActor: PulseActor | null
+  }): Promise<RequestContextResult> {
+    let selectedTenant = tenantId
+    if (!selectedTenant) {
+      let query = supabaseAdmin.from('tenant_memberships').select('tenant_id')
+      query = input.authUserId
+        ? query.eq('auth_user_id', input.authUserId).eq('status', 'active')
+        : query.eq('person_id', input.legacyActor!.personId)
+          .eq('legacy_access_enabled', true).in('status', ['unclaimed', 'invited', 'active'])
+      const { data, error } = await query.limit(2)
+      if (error) throw error
+      if (!data?.length) return { ok: false, status: 403, error: 'An active staff membership is required.' }
+      if (data.length !== 1) return { ok: false, status: 400, error: 'Select an account before continuing.' }
+      selectedTenant = data[0].tenant_id
+    }
+    return loadMembershipContext({ tenantId: selectedTenant!, ...input })
+  }
 
-  return loadMembershipContext({
-    tenantId,
-    authSource: 'supabase',
-    authUserId,
-    legacyActor: null,
-  })
+  const legacyResult = legacyActor
+    ? await resolveIdentity({ authSource: 'legacy', authUserId: null, legacyActor })
+    : null
+  if (legacyResult?.ok) return legacyResult
+
+  const authUserId = await getSupabaseAuthUserId(request)
+  if (!authUserId) return legacyResult || { ok: false, status: 401, error: 'Sign in is required.' }
+  return resolveIdentity({ authSource: 'supabase', authUserId, legacyActor: null })
 }
 
 export async function resolveLegacyActorContext(

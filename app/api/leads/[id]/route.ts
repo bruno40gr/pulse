@@ -3,6 +3,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
+import { getLeadNotesHistory } from '@/lib/lead-notes'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -90,24 +91,6 @@ function splitName(fullName: string) {
   }
 }
 
-function getEventActorName(payload: Record<string, unknown> | null) {
-  const actor = payload?.actor
-  return actor && typeof actor === 'object' && typeof (actor as Record<string, unknown>).displayName === 'string'
-    ? (actor as Record<string, string>).displayName
-    : null
-}
-
-function normalizeNotesHistory(events: LeadEvent[]) {
-  return (events || [])
-    .filter((event) => event.event_type === 'note_added')
-    .map((event) => ({
-      id: event.id,
-      text: typeof event.payload?.text === 'string' ? event.payload.text : '',
-      timestamp: event.created_at,
-      actor_name: getEventActorName(event.payload),
-    }))
-}
-
 function getFollowUpFromPayload(payload: Record<string, unknown> | null, key: 'follow_up_at' | 'follow_up_note') {
   const value = payload?.[key]
   return typeof value === 'string' ? value : null
@@ -189,7 +172,10 @@ async function getJobApplicationDetail(tenantId: string, id: string) {
     updated_at: application.updated_at,
     contact: unwrapContact(application.crm_contacts),
     events: [],
-    notes_history: [],
+    notes_history: getLeadNotesHistory([], {
+      id: application.id, created_at: application.created_at,
+      payload: { ...application.payload, message: application.message || application.payload?.message },
+    }),
   }
 }
 
@@ -298,7 +284,7 @@ export async function GET(
     const { data: noteEvents, error: notesError } = notesResult as { data: LeadEvent[] | null, error: { message: string } | null }
     if (notesError) throw notesError
 
-    const notes_history = normalizeNotesHistory(noteEvents || [])
+    const notes_history = getLeadNotesHistory(noteEvents || [], lead)
 
     console.info('[leads][detail]', {
       requestId: requestLog.requestId,
@@ -489,6 +475,30 @@ export async function PATCH(
     }
 
     if (existingLeadError) throw existingLeadError
+
+    // Legacy inquiries may share one contact. Do not let a correction to one
+    // person's identity silently change every inquiry linked to that contact.
+    if (['full_name', 'email', 'phone'].some(key => key in contactUpdates)) {
+      const { data: currentContact, error: contactError } = await crmSupabaseAdmin
+        .from('crm_contacts').select('full_name, email, phone')
+        .eq('tenant_id', tenantId).eq('id', existingLead.contact_id).single()
+      if (contactError) throw contactError
+      const identityChanged = (['full_name', 'email', 'phone'] as const)
+        .some(key => key in contactUpdates && contactUpdates[key] !== currentContact?.[key])
+      if (identityChanged) {
+        const [inquiries, applications] = await Promise.all([
+          crmSupabaseAdmin.from('lead_intakes').select('id').eq('tenant_id', tenantId).eq('contact_id', existingLead.contact_id),
+          crmSupabaseAdmin.from('job_applications').select('id').eq('tenant_id', tenantId).eq('contact_id', existingLead.contact_id),
+        ])
+        if (inquiries.error) throw inquiries.error
+        if (applications.error) throw applications.error
+        if ((inquiries.data?.length || 0) + (applications.data?.length || 0) > 1) {
+          return NextResponse.json({
+            error: 'This contact is shared by multiple inquiries. Separate the incorrectly linked inquiries before changing the name, email, or phone.',
+          }, { status: 409 })
+        }
+      }
+    }
 
     if (requestedStatus) {
       const isPipelineLead = existingLead.intake_type === 'lesson_inquiry' || existingLead.intake_type === 'service_inquiry'
@@ -738,7 +748,7 @@ export async function PATCH(
     const { data: refreshedNoteEvents, error: refreshedNotesError } = refreshedNotesResult as { data: LeadEvent[] | null, error: { message: string } | null }
     if (refreshedNotesError) throw refreshedNotesError
 
-    const notes_history = normalizeNotesHistory(refreshedNoteEvents || [])
+    const notes_history = getLeadNotesHistory(refreshedNoteEvents || [], refreshedLead)
 
     console.info('[leads][update]', {
       requestId: requestLog.requestId,

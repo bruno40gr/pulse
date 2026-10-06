@@ -1,6 +1,7 @@
-import { canAccessTenant, formatTeacherDisplayName, getAccessScope, getRequestActor } from '@/lib/access'
-import { resolveMembershipRequestContext, type MembershipRequestContext } from '@/lib/request-context'
+import { formatTeacherDisplayName, getAccessScope, getRequestActor } from '@/lib/access'
+import type { MembershipRequestContext } from '@/lib/request-context'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 
 export type RequestIdentity = {
   instructorId: string | null
@@ -16,33 +17,17 @@ export async function resolveRequestTenant(
   request: Request,
   defaultTenantId: string,
 ): Promise<TenantAccessResult> {
+  // Retained for caller compatibility only; never use a hardcoded default as authorization.
+  void defaultTenantId
   const actor = await getRequestActor(request)
-  const requestedTenantId = new URL(request.url).searchParams.get('tenant')
-  const scope = actor ? getAccessScope(actor) : null
-
-  // A demo session's tenant comes exclusively from its signed cookie. This
-  // deliberately prevents a missing or manipulated query parameter from
-  // falling back to Headliner data.
-  if (actor && scope?.kind === 'demo') {
-    if (requestedTenantId && requestedTenantId !== scope.tenantId) {
-      return { ok: false, status: 403, error: 'You do not have access to this account.' }
-    }
-
-    return { ok: true, tenantId: scope.tenantId, identity: actor, context: null }
+  const access = await authorizeTenantRequest(request, { allowDemo: true })
+  if (!access.ok) return access
+  const tenantId = access.tenantId
+  if (actor && getAccessScope(actor).kind === 'demo') {
+    return { ok: true, tenantId, identity: actor, context: null }
   }
-
-  const tenantId = requestedTenantId || defaultTenantId
-  if (actor) {
-    if (!canAccessTenant(actor, tenantId)) {
-      return { ok: false, status: 403, error: 'You do not have access to this account.' }
-    }
-    const membership = await resolveMembershipRequestContext(request, tenantId)
-    if (!membership.ok) return { ok: false, status: membership.status, error: membership.error }
-    return { ok: true, tenantId, identity: actor, context: membership.context }
-  }
-
-  const membership = await resolveMembershipRequestContext(request, tenantId)
-  if (!membership.ok) return { ok: false, status: membership.status, error: membership.error }
+  const membership = { context: access.context! }
+  if (actor) return { ok: true, tenantId, identity: actor, context: membership.context }
 
   const [{ data: person, error: personError }, { data: instructor, error: instructorError }] = await Promise.all([
     supabaseAdmin

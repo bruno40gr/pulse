@@ -1,14 +1,15 @@
+import { authorizeTenantRequest } from '@/lib/tenant-request'
+import { PERMISSIONS } from '@/lib/permissions'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
-
 export async function POST(request: Request) {
-  const url = new URL(request.url)
-  const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
 
   try {
     const body = await request.json()
+    const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsManage, body })
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+    const tenantId = access.tenantId
     const first_name = String(body.first_name ?? '').trim()
     const last_name = String(body.last_name ?? '').trim()
 

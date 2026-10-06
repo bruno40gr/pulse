@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   // Twilio cannot present a Pulse session. These handlers authenticate requests
   // using Twilio's signed webhook headers, so bypass session middleware entirely.
-  if (pathname === '/api/twilio/webhook' || pathname === '/api/twilio/status') {
+  if (pathname === '/api/twilio/webhook' || pathname === '/api/twilio/status' || pathname === '/api/calls/status') {
     return NextResponse.next({ request })
   }
   const isPublicPath = pathname === '/login'

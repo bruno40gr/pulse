@@ -1,15 +1,12 @@
+import { authorizeTenantRequest } from '@/lib/tenant-request'
+import { PERMISSIONS } from '@/lib/permissions'
 import { NextResponse } from 'next/server'
 import { getMediaSuggestions, type MessageIntent } from '@/lib/media-catalog'
 
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
-
-function getTenantIdFromRequest(request: Request) {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
-}
-
 export async function GET(request: Request) {
-  const tenantId = getTenantIdFromRequest(request)
+  const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsRead, allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   const url = new URL(request.url)
   const message = url.searchParams.get('message') || ''
   const context = url.searchParams.get('context') || ''
@@ -22,8 +19,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsRead, allowDemo: true, body })
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
     return NextResponse.json(getMediaSuggestions({
-      tenantId: body.tenantId || DEFAULT_TENANT_ID,
+      tenantId: access.tenantId,
       message: body.message || '',
       context: body.context || '',
       source: body.source || 'manual',

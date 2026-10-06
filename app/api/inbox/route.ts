@@ -1,3 +1,4 @@
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
@@ -6,8 +7,6 @@ import { getAccessScope, getRequestActor } from '@/lib/access'
 import { PERMISSIONS } from '@/lib/permissions'
 import { requireAccountAdministrator, requirePermission } from '@/lib/request-context'
 import { attributeInboundMessagesToCampaigns } from '@/lib/campaign-message-attribution'
-
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 type InboxPerson = {
   id: string
@@ -55,11 +54,6 @@ type LeadProfile = {
   created_at: string
 }
 
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
-}
-
 function getCampaignId(request: Request): string | null {
   const url = new URL(request.url)
   return url.searchParams.get('campaign_id') || null
@@ -77,8 +71,10 @@ async function authorizeInboxRead(request: Request, tenantId: string) {
 }
 
 export async function GET(request: Request) {
+  const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsRead, allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   try {
-    const tenantId = getTenantId(request)
     const countOnly = new URL(request.url).searchParams.get('count_only') === '1'
 
     const campaignId = getCampaignId(request)
@@ -302,8 +298,10 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const access = await authorizeTenantRequest(request, { allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   try {
-    const tenantId = getTenantId(request)
     const access = await authorizeInboxRead(request, tenantId)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
@@ -338,8 +336,10 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const access = await authorizeTenantRequest(request, { allowDemo: false })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   try {
-    const tenantId = getTenantId(request)
     const access = await requireAccountAdministrator(request, tenantId)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 

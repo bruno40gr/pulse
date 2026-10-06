@@ -14,6 +14,7 @@ import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
 import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS } from '@/lib/lead-value'
+import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -109,6 +110,8 @@ type LeadListResponse = {
 type LeadListCacheEntry = {
   leads: LeadRecord[]
   fetchedAt: number
+  nextOffset: number
+  hasMore: boolean
 }
 
 type LeadPanelDraft = {
@@ -648,6 +651,9 @@ export default function LeadsView() {
   const [pipelineValue, setPipelineValue] = useState(0)
   const [closedSinceOct1, setClosedSinceOct1] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState<LeadSortKey>('created')
@@ -677,6 +683,7 @@ export default function LeadsView() {
   })
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false)
   const [leadEditForm, setLeadEditForm] = useState<LeadEditFormState | null>(null)
+  const [leadEditTargetId, setLeadEditTargetId] = useState<string | null>(null)
   const [leadEditError, setLeadEditError] = useState('')
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
   const [manualLeadForm, setManualLeadForm] = useState<ManualLeadFormState>(() => createInitialManualLeadForm('lesson_inquiry'))
@@ -757,6 +764,7 @@ export default function LeadsView() {
 
     if (cached) {
       setLeads(cached.leads)
+      setHasMore(cached.hasMore)
       setLoading(false)
     } else {
       setLoading(true)
@@ -777,11 +785,12 @@ export default function LeadsView() {
       const returnedLeads = Array.isArray(data.leads) ? data.leads : []
       const visibleLeads = filterWinbackLeads(returnedLeads, requestedTab, requestedStatus)
       if (cacheGeneration === leadListCacheGenerationRef.current) {
-        leadListCacheRef.current.set(cacheKey, { leads: visibleLeads, fetchedAt: Date.now() })
+        leadListCacheRef.current.set(cacheKey, { leads: visibleLeads, fetchedAt: Date.now(), nextOffset: returnedLeads.length, hasMore: returnedLeads.length === 100 })
       }
 
       if (requestId !== leadListRequestRef.current) return
       setLeads(visibleLeads)
+      setHasMore(returnedLeads.length === 100)
       setTabCounts(data.counts)
       setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
       setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
@@ -804,6 +813,8 @@ export default function LeadsView() {
                 leadListCacheRef.current.set(prefetchKey, {
                   leads: Array.isArray(prefetchedLeads) ? prefetchedLeads : [],
                   fetchedAt: Date.now(),
+                  nextOffset: prefetchedLeads.length,
+                  hasMore: prefetchedLeads.length === 100,
                 })
               })
               .catch(() => {})
@@ -823,6 +834,78 @@ export default function LeadsView() {
     leadListCacheGenerationRef.current += 1
     leadListCacheRef.current.clear()
     prefetchedTabsRef.current = false
+  }
+
+  const loadMoreLeads = async () => {
+    const key = getLeadListCacheKey(activeTab, statusFilter)
+    const cached = leadListCacheRef.current.get(key)
+    if (!cached || loadingMore) return
+    const generation = leadListCacheGenerationRef.current
+    const requestId = leadListRequestRef.current
+    setLoadingMore(true)
+    try {
+      const params = new URLSearchParams({ intake_type: activeTab, include_activity: '0', offset: String(cached.nextOffset) })
+      if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
+      const rows = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params}`)
+      if (generation !== leadListCacheGenerationRef.current || requestId !== leadListRequestRef.current) return
+      const merged = Array.from(new Map([...cached.leads, ...filterWinbackLeads(rows, activeTab, statusFilter)].map((lead) => [lead.id, lead])).values())
+      const next = { leads: merged, fetchedAt: Date.now(), nextOffset: cached.nextOffset + rows.length, hasMore: rows.length === 100 }
+      leadListCacheRef.current.set(key, next)
+      setLeads(merged)
+      setHasMore(next.hasMore)
+    } catch (error: unknown) {
+      if (requestId === leadListRequestRef.current) setError(getErrorMessage(error, 'Could not load more leads'))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const exportLeads = async () => {
+    setExporting(true)
+    setError('')
+    try {
+      const allRows: LeadRecord[] = []
+      let offset = 0
+      while (true) {
+        const params = new URLSearchParams({ intake_type: activeTab, include_activity: '0', offset: String(offset), limit: '500' })
+        if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
+        const rows = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params}`)
+        allRows.push(...filterWinbackLeads(rows, activeTab, statusFilter))
+        offset += rows.length
+        if (rows.length < 500) break
+      }
+      const csv = Papa.unparse(allRows.map((lead) => ({
+        Name: lead.contact?.full_name || '',
+        Email: lead.contact?.email || '',
+        Phone: lead.contact?.phone || '',
+        Status: formatLabel(lead.status),
+        Program: lead.program_label || '',
+        Service: lead.service_label || '',
+        Source: getLeadSource(lead, lead.payload),
+        Campaign: lead.utm_campaign || '',
+        'Promotion type': lead.payload.promotion_type || '',
+        Offer: lead.payload.promotion_offer || '',
+        'Opportunity value': lead.payload.session_value ?? '',
+        'Value period': lead.payload.opportunity_value_unit || '',
+        'Follow-up date': lead.follow_up_at || '',
+        'Follow-up reminder': lead.follow_up_note || '',
+        Created: lead.created_at,
+        'Last activity': lead.last_activity_at,
+        'Lead ID': lead.id,
+      })), { escapeFormulae: true })
+      const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `leads-${activeTab}-${statusFilter}-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, 'Could not export leads'))
+    } finally {
+      setExporting(false)
+    }
   }
 
   const toggleLeadSelection = (leadId: string) => {
@@ -1231,6 +1314,7 @@ export default function LeadsView() {
 
   const openLeadEditor = () => {
     if (!selectedLead) return
+    setLeadEditTargetId(selectedLead.id)
     setLeadEditForm(createLeadEditForm(selectedLead))
     setLeadEditError('')
     setIsEditLeadOpen(true)
@@ -1242,12 +1326,16 @@ export default function LeadsView() {
 
   const saveLeadEditor = async () => {
     if (!selectedLeadId || !leadEditForm || !leadEditForm.fullName.trim()) return
+    if (leadEditTargetId !== selectedLeadId || selectedLead?.id !== leadEditTargetId) {
+      setLeadEditError('The selected inquiry changed. Close this editor and reopen it for the correct inquiry.')
+      return
+    }
     setDetailSaving(true)
     setLeadEditError('')
 
     try {
       const opportunityValue = Number(leadEditForm.opportunityValue)
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
+      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadEditTargetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1844,6 +1932,9 @@ export default function LeadsView() {
         </div>
 
         <div style={filterBarStyle}>
+          <Button type="button" variant="secondary" size="sm" onClick={exportLeads} disabled={exporting}>
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </Button>
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -1907,6 +1998,9 @@ export default function LeadsView() {
           })}
           ariaLabel="Leads"
         />
+        {hasMore && <Button type="button" variant="secondary" onClick={loadMoreLeads} disabled={loading || loadingMore} style={{ marginTop: spacing.lg }}>
+          {loadingMore ? 'Loading…' : 'Load more leads'}
+        </Button>}
       </div>
 
       <SlidePanel isOpen={isAddLeadOpen} onClose={closeAddLead} width="min(92vw, 640px)">

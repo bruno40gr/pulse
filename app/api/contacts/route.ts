@@ -1,3 +1,5 @@
+import { PERMISSIONS } from '@/lib/permissions'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { parseCSV, type FieldMapping, type ParsedContact } from '@/lib/csv-parser'
@@ -5,13 +7,6 @@ import { resolveInstructor, type ResolvedInstructor } from '@/lib/instructors'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { getImportProfile, saveImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
-
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
-
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
-}
 
 type DedupPerson = {
   id: string
@@ -127,7 +122,9 @@ function mergeContactRows(rows: ParsedContact[]): ParsedContact {
 }
 
 export async function GET(request: Request) {
-  const tenantId = getTenantId(request)
+  const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsRead, allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
 
   try {
     // Actual schema: people → students → enrollments (instructor_person_id → people)
@@ -298,11 +295,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { csv, mappings, profile: profileUpdate, snapshot_month } = await request.json()
+    const body = await request.json()
+    const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsManage, body })
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+    const tenantId = access.tenantId
+    const { csv, mappings, profile: profileUpdate, snapshot_month } = body
     if (!csv) return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 })
-
-    const url = new URL(request.url)
-    const tenantId = url.searchParams.get('tenant') || DEFAULT_TENANT_ID
 
     // Load the tenant's import profile (active/cancelled vocabulary); save if the client provided an update.
     const profile = await getImportProfile(tenantId)
@@ -345,6 +343,16 @@ export async function POST(request: Request) {
       const pk = normalizePhoneForDedup(p.phone)
       if (pk && !phoneMap.has(pk)) phoneMap.set(pk, p)
     }
+
+    // Staff (instructors) must never have their identity rewritten by a roster import.
+    // A CSV student row can otherwise match an instructor by email/name and overwrite
+    // their canonical name (e.g. a renamed "Drew Johnson" reverted to "Andrew Dylan
+    // Johnson"). Collect instructor person ids so identity fields are skipped below.
+    const { data: instructorRows } = await supabaseAdmin
+      .from('instructors')
+      .select('person_id')
+      .eq('tenant_id', tenantId)
+    const staffPersonIds = new Set<string>((instructorRows || []).map((r) => r.person_id as string))
 
     // Fetch existing accounts so siblings can share one family account across imports.
     const { data: existingAccounts } = await supabaseAdmin
@@ -485,8 +493,15 @@ export async function POST(request: Request) {
       let studentId: string | null = null
 
       if (existing) {
+        const isStaff = staffPersonIds.has(existing.id)
         const cleanPersonFields = Object.fromEntries(
-          Object.entries(personFields).filter(([, v]) => v !== null && v !== undefined && v !== '')
+          Object.entries(personFields).filter(([k, v]) => {
+            if (v === null || v === undefined || v === '') return false
+            // Staff identities are owned by the Staff UI. A roster import must never
+            // rewrite an instructor's name/email/phone from a matching student row.
+            if (isStaff && (k === 'first_name' || k === 'last_name' || k === 'email' || k === 'phone' || k === 'date_of_birth')) return false
+            return true
+          })
         )
         const mergedPersonCustomFields = normExternalId
           ? { ...(existing.custom_fields || {}), external_id: normExternalId }

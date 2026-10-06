@@ -1,16 +1,13 @@
+import { PERMISSIONS } from '@/lib/permissions'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
-
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  return url.searchParams.get('tenant') || DEFAULT_TENANT_ID
-}
-
 export async function GET(request: Request) {
+  const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.tenantSettingsRead, allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   try {
-    const tenantId = getTenantId(request)
     const { data, error } = await supabaseAdmin
       .from('tenants')
       .select('last_synced_at, is_demo')

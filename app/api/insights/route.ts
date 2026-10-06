@@ -1,19 +1,9 @@
+import { PERMISSIONS } from '@/lib/permissions'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import Anthropic from '@anthropic-ai/sdk'
 import { isNonStudentBooking } from '@/lib/contact-kind'
-
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
-
-function getTenantId(request: Request): string {
-  const url = new URL(request.url)
-  const tenant = url.searchParams.get('tenant')
-  // Return the default UUID if tenant is 'demo' or invalid uuid length
-  if (!tenant || tenant === 'demo' || tenant.length !== 36) {
-    return DEFAULT_TENANT_ID
-  }
-  return tenant
-}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -128,8 +118,10 @@ function computeAttendanceSignals(value: unknown) {
 }
 
 export async function GET(request: Request) {
+  const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsRead, allowDemo: true })
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+  const tenantId = access.tenantId
   try {
-    const tenantId = getTenantId(request)
     const forceRefresh = new URL(request.url).searchParams.get('refresh') === 'true'
 
     const { data: cached, error: cacheError } = await supabaseAdmin

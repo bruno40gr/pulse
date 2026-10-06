@@ -280,6 +280,11 @@ export async function GET(request: Request) {
     const intakeType = url.searchParams.get('intake_type') || 'lesson_inquiry'
     const includeCounts = url.searchParams.get('include_counts') === '1'
     const includeActivity = url.searchParams.get('include_activity') !== '0'
+    const offset = Number(url.searchParams.get('offset') || '0')
+    const limit = Number(url.searchParams.get('limit') || LEADS_LIST_LIMIT)
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      return NextResponse.json({ error: 'Invalid pagination parameters' }, { status: 400 })
+    }
     const countsPromise = includeCounts ? getLeadTabCounts(tenantId, status) : null
     const totalsPromise = includeCounts ? getPipelineTotals(tenantId) : null
 
@@ -313,7 +318,8 @@ export async function GET(request: Request) {
         `)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
-        .limit(LEADS_LIST_LIMIT)
+        .order('id', { ascending: false })
+        .range(offset, offset + limit - 1)
 
       if (status) query = query.eq('status', status)
 
@@ -397,7 +403,8 @@ export async function GET(request: Request) {
       `)
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
-      .limit(LEADS_LIST_LIMIT)
+      .order('id', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (status) query = query.eq('status', status)
     if (category) query = query.eq('category', category)
