@@ -38,6 +38,12 @@ const NOTE_COLORS: Record<string, string> = {
 }
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 
+function getDailyNoteColor(date = new Date()): string {
+  // Use the local calendar date, with UTC arithmetic to avoid daylight-saving drift.
+  const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000)
+  return NOTE_COLOR_KEYS[((day % NOTE_COLOR_KEYS.length) + NOTE_COLOR_KEYS.length) % NOTE_COLOR_KEYS.length]
+}
+
 function getLocalDateValue(date = new Date()): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -45,10 +51,11 @@ function getLocalDateValue(date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
-function sortNotes(notes: Note[]): Note[] {
+function sortNotes(notes: Note[], order: 'newest' | 'pinned' = 'newest'): Note[] {
   return [...notes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    if (order === 'pinned' && a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      || a.id.localeCompare(b.id)
   })
 }
 
@@ -321,14 +328,33 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState('')
   const [showDone, setShowDone] = useState(true)
+  const [sortOrder, setSortOrder] = useState<'newest' | 'pinned'>('newest')
 
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
   const [draftMentionIds, setDraftMentionIds] = useState<string[]>([])
   const [draftColor, setDraftColor] = useState('yellow')
+  const draftColorChosenRef = useRef(false)
   const [draftPinned, setDraftPinned] = useState(false)
   const [draftPrivate, setDraftPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const updateDailyColor = () => {
+      if (!draftColorChosenRef.current) setDraftColor(getDailyNoteColor())
+      const now = new Date()
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+      clearTimeout(timer)
+      timer = setTimeout(updateDailyColor, midnight.getTime() - now.getTime() + 100)
+    }
+    updateDailyColor()
+    window.addEventListener('focus', updateDailyColor)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', updateDailyColor)
+    }
+  }, [])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -396,7 +422,8 @@ export default function NotesPage() {
   const showToast = (message: string, undo?: () => void) => setToast({ message, undo })
 
   const resetComposer = () => {
-    setDraftTitle(''); setDraftBody(''); setDraftMentionIds([]); setDraftColor('yellow'); setDraftPinned(false); setDraftPrivate(false)
+    draftColorChosenRef.current = false
+    setDraftTitle(''); setDraftBody(''); setDraftMentionIds([]); setDraftColor(getDailyNoteColor()); setDraftPinned(false); setDraftPrivate(false)
   }
 
   const patchNote = async (id: string, updates: Record<string, unknown>) => {
@@ -553,6 +580,23 @@ export default function NotesPage() {
             All dates
           </Button>
         )}
+        <Button
+          variant={sortOrder === 'newest' ? 'primary' : 'secondary'}
+          size="sm"
+          aria-pressed={sortOrder === 'newest'}
+          onClick={() => setSortOrder('newest')}
+          title="Order by creation time, newest first, regardless of pins"
+        >
+          Newest first
+        </Button>
+        <Button
+          variant={sortOrder === 'pinned' ? 'primary' : 'secondary'}
+          size="sm"
+          aria-pressed={sortOrder === 'pinned'}
+          onClick={() => setSortOrder('pinned')}
+        >
+          Pinned first
+        </Button>
         <button
           type="button"
           role="switch"
@@ -625,7 +669,7 @@ export default function NotesPage() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setDraftColor(key)}
+                  onClick={() => { draftColorChosenRef.current = true; setDraftColor(key) }}
                   title={key}
                   style={{
                     width: 20, height: 20, borderRadius: '50%', background: NOTE_COLORS[key],
@@ -714,7 +758,7 @@ export default function NotesPage() {
         />
       ) : (
         <div style={{ columnWidth: 390, columnGap: spacing.lg }}>
-          {notes.map((note) => (
+          {sortNotes(notes, sortOrder).map((note) => (
             <NoteCard
               key={note.id}
               note={note}
