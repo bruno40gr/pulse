@@ -18,6 +18,7 @@ import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValu
 import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
+import { getLeadSignal } from '@/lib/lead-signal'
 import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
@@ -540,103 +541,6 @@ function getServiceSessionValue(lead: LeadDetail | null): number | null {
 
 function getStartOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
-}
-
-function isWeekendDay(value: Date) {
-  const day = value.getDay()
-  return day === 0 || day === 6
-}
-
-function getBusinessDaysBetween(start: Date, end: Date) {
-  const startDay = getStartOfLocalDay(start)
-  const endDay = getStartOfLocalDay(end)
-
-  if (endDay.getTime() <= startDay.getTime()) return 0
-
-  const cursor = new Date(startDay)
-  let businessDays = 0
-
-  while (cursor.getTime() < endDay.getTime()) {
-    cursor.setDate(cursor.getDate() + 1)
-    if (!isWeekendDay(cursor)) businessDays += 1
-  }
-
-  return businessDays
-}
-
-function getLeadSignal(lead: LeadRecord) {
-  const createdAt = new Date(lead.created_at)
-  const updatedAt = new Date(lead.updated_at)
-  const createdAtMs = createdAt.getTime()
-  const updatedAtMs = updatedAt.getTime()
-  const now = new Date()
-  const nowMs = Date.now()
-  const dayMs = 24 * 60 * 60 * 1000
-  const ageMs = nowMs - createdAtMs
-  const isRecentlyCreated = Number.isFinite(createdAtMs) && ageMs >= 0 && ageMs <= dayMs
-  const status = lead.status.trim().toLowerCase()
-  const temperature = lead.temperature.trim().toLowerCase()
-  const contactLagMs = Math.max(0, updatedAtMs - createdAtMs)
-  const sinceLastUpdateMs = Math.max(0, nowMs - updatedAtMs)
-  const firstFollowUpBusinessDays = getBusinessDaysBetween(createdAt, updatedAt)
-  const businessDaysSinceLastUpdate = getBusinessDaysBetween(updatedAt, now)
-  const pipelineOrder: Record<string, number> = { new: 0, contacted: 1, booked: 2, processing: 3, won: 4 }
-  const lastStatusChange = lead.last_status_change
-  const movedForward = Boolean(
-    lastStatusChange &&
-    pipelineOrder[lastStatusChange.previous_status] != null &&
-    pipelineOrder[lastStatusChange.next_status] != null &&
-    pipelineOrder[lastStatusChange.next_status] > pipelineOrder[lastStatusChange.previous_status] &&
-    !(lastStatusChange.previous_status === 'new' && lastStatusChange.next_status === 'contacted'),
-  )
-
-  if (status === 'won') {
-    return { emoji: '🏆', label: 'Won' }
-  }
-
-  if (status === 'lost') {
-    return { emoji: '💀', label: 'Lost' }
-  }
-
-  if (status === 'ghosted_us' || status === 'ghosted') {
-    return { emoji: '👻', label: 'Ghosted us' }
-  }
-
-  if (status === 'spam') {
-    return { emoji: '🗑️', label: 'Spam' }
-  }
-
-  if (movedForward) {
-    return { emoji: '🔥🔥', label: 'Latest status change moved this lead forward' }
-  }
-
-  if (lead.last_inbound_at) {
-    return { emoji: '🔥🔥', label: 'Lead replied' }
-  }
-
-  if (status === 'processing') {
-    return { emoji: '⏳', label: 'Enrolling and due for follow-up' }
-  }
-
-  if (isRecentlyCreated) {
-    return { emoji: '🔥🔥', label: 'New and needs fast follow-up' }
-  }
-
-  if (status === 'contacted') {
-    return { emoji: '🧊🧊', label: 'Outreach attempted; awaiting engagement' }
-  }
-
-  if (status === 'new') {
-    if (temperature === 'hot') {
-      return { emoji: '🔥🔥', label: 'New and needs fast follow-up' }
-    }
-    if (ageMs <= 3 * dayMs) {
-      return { emoji: '🔥🧊', label: 'New, but cooling' }
-    }
-    return { emoji: '🧊🧊', label: 'Still uncontacted' }
-  }
-
-  return { emoji: '🧊🧊', label: 'No verified engagement signal' }
 }
 
 export default function LeadsView() {
