@@ -2,6 +2,7 @@
 // Server-safe: no React or 'use client' dependencies.
 
 import { normalizeFamilyMembers } from '@/lib/lead-family'
+import { LEAD_PIPELINE } from '@/lib/lead-status'
 
 export const DEFAULT_LESSON_BASE_VALUE = 160
 
@@ -22,7 +23,7 @@ export const SERVICE_TYPE_OPTIONS: ServiceTypeOption[] = [
 ]
 
 // Statuses that still represent an open (not yet won/lost) opportunity.
-export const OPEN_LEAD_STATUSES = ['new', 'contacted', 'booked', 'processing']
+export const OPEN_LEAD_STATUSES = LEAD_PIPELINE.filter(status => status !== 'won')
 export const WON_STATUS = 'won'
 
 function parseCurrency(value: string): number {

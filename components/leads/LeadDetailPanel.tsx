@@ -10,6 +10,8 @@ import { formatLeadSource } from '@/lib/lead-sources'
 import { isLessonLead, readLessonRequestFields, LESSON_PROGRAM_OPTIONS } from '@/lib/lead-lesson-details'
 import { getLeadOpportunityValue } from '@/lib/lead-value'
 import { familyMembersChanged, normalizeFamilyMembers } from '@/lib/lead-family'
+import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
+import { readStatusAutomation } from '@/lib/lead-status-automation'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
@@ -57,8 +59,6 @@ interface LeadDetailPanelProps {
   onDraftChange: (draft: LeadDraft) => void
 }
 
-const PIPELINE = ['new', 'contacted', 'booked', 'processing', 'won']
-const LEAD_STATUSES = [...PIPELINE, 'lost', 'spam', 'ghosted_us']
 const LOST_REASONS = [
   { value: 'ghosted', label: 'Ghosted' },
   { value: 'not_interested', label: 'Not interested' },
@@ -111,8 +111,7 @@ function getOpportunityValueUnit(payload: Record<string, unknown>): OpportunityV
 }
 
 function label(value: string) {
-  if (value === 'processing') return 'Enrolling'
-  return value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+  return formatLeadStatus(value)
 }
 
 // Future follow-ups stay neutral, today is a nudge, and overdue is a problem.
@@ -170,7 +169,7 @@ function getLeadAge(payload: Record<string, unknown>) {
 }
 
 function statusLabel(status: string, payload: Record<string, unknown>) {
-  if (status !== 'lost') return status === 'won' ? 'Completed' : label(status)
+  if (status !== 'lost') return label(status)
   const lostReason = typeof payload.lost_reason === 'string' ? LOST_REASONS.find((reason) => reason.value === payload.lost_reason)?.label : undefined
   return lostReason ? `Lost — ${lostReason}` : 'Lost'
 }
@@ -255,6 +254,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
   const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
+  const automation = readStatusAutomation(lead.payload)
+  const automationEligible = (isLesson || isService) && !winback && lead.source_form !== '2026-disenrollment-import'
+  const automaticChange = automation.last_change
+  const canUndoAutomaticChange = !automation.paused && automaticChange && lead.status === automaticChange.next_status
   const winbackStatus = typeof winback?.status === 'string' ? winback.status : 'to_contact'
   const disenrollmentDate = typeof winback?.disenrollment_date === 'string' ? winback.disenrollment_date : ''
   const disenrollmentMonth = typeof winback?.disenrollment_month === 'string' ? winback.disenrollment_month : ''
@@ -380,7 +383,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
       }}
     >
       <option value="" disabled>Change status</option>
-      {LEAD_STATUSES.map((stage) => <option key={stage} value={stage}>{stage === 'won' ? 'Completed' : label(stage)}</option>)}
+      {LEAD_STATUSES.map((stage) => <option key={stage} value={stage}>{label(stage)}</option>)}
     </Select>
   )
 
@@ -443,6 +446,18 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
         {isMobile && statusControls && (
           <div style={{ padding: '12px 16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             {statusControls}
+          </div>
+        )}
+
+        {automationEligible && (
+          <div style={{ padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0`, fontSize: typography.sizeSm, color: colors.textSecondary }}>
+            {canUndoAutomaticChange && automaticChange ? (
+              <div role="status" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span title={automaticChange.evidence}>Automatically moved to {formatLeadStatus(automaticChange.next_status)} — {automaticChange.reason}.</span>
+                <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void onPatch({ status_automation_action: 'undo', status_automation_change_id: automaticChange.id })}>Undo</Button>
+              </div>
+            ) : <span>{automation.paused ? 'Automatic status updates paused after a manual override.' : 'Clear outreach and booking notes can automatically advance this lead. Manual status changes pause automation.'}</span>}
+            <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void onPatch({ status_automation_action: automation.paused ? 'resume' : 'pause' })}>{automation.paused ? 'Resume automatic updates' : 'Pause automatic updates'}</Button>
           </div>
         )}
 

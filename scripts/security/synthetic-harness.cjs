@@ -39,6 +39,8 @@ function createHarness() {
         let builder
         const result = () => {
           queries.push({ database, table, operation, filters: [...filters], payload })
+          const override = scenario.queryResult?.({ database, table, operation, filters: [...filters], payload })
+          if (override) return override
           const error = scenario.errors?.[table] || null
           let data = structuredClone(scenario.fixtures?.[table] || [])
           if (operation === 'insert' || operation === 'upsert') {

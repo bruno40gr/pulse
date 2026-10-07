@@ -16,6 +16,7 @@ import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
 import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValue } from '@/lib/lead-value'
 import { normalizeFamilyMembers } from '@/lib/lead-family'
+import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
@@ -157,8 +158,8 @@ type LeadEditFormState = LessonRequestFields & {
   opportunityValueUnit: OpportunityValueUnit
 }
 
-const LEAD_STATUS_OPTIONS = ['all', 'new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
-const LEAD_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
+const LEAD_STATUS_OPTIONS = ['all', ...LEAD_STATUSES]
+const LEAD_DETAIL_STATUS_OPTIONS = LEAD_STATUSES
 const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
@@ -355,10 +356,7 @@ function getQuickFollowUpDates(today: Date = new Date()): Array<{ label: string;
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return '—'
-  if (value === 'processing') return 'Enrolling'
-  return value
-    .replace(/[_-]/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
+  return formatLeadStatus(value)
 }
 
 function getLeadSource(lead: Pick<LeadRecord, 'source' | 'source_form' | 'source_page'>, payload?: Record<string, unknown>) {
@@ -1350,7 +1348,7 @@ export default function LeadsView() {
           full_name: leadEditForm.fullName,
           email: leadEditForm.email,
           phone: leadEditForm.phone,
-          status: leadEditForm.status,
+          ...(leadEditForm.status !== selectedLead.status ? { status: leadEditForm.status } : {}),
           program_label: leadEditForm.programLabel,
           service_label: leadEditForm.serviceLabel,
           source_form: leadEditForm.sourceForm,

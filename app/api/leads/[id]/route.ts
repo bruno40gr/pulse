@@ -5,11 +5,13 @@ import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/reque
 import { resolveRequestTenant } from '@/lib/tenant-access'
 import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 import { getLeadNotesHistory } from '@/lib/lead-notes'
+import { LEAD_STATUSES } from '@/lib/lead-status'
+import { readStatusAutomation } from '@/lib/lead-status-automation'
+import { applySavedNoteStatus } from '@/lib/lead-status-automation-server'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
 const LEAD_EVENTS_LIMIT = 100
-const LEAD_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won', 'lost', 'spam', 'ghosted_us']
 const LOST_REASONS = ['ghosted', 'not_interested', 'price', 'competitor', 'scheduling_conflict', 'teacher_match', 'other', 'disenrolled']
 
 type LeadEvent = {
@@ -389,7 +391,14 @@ export async function PATCH(
     const leadUpdates: Record<string, unknown> = {}
     const contactUpdates: Record<string, unknown> = {}
 
-    const requestedStatus = typeof body.status === 'string' ? body.status.trim() : ''
+    let requestedStatus = typeof body.status === 'string' ? body.status.trim() : ''
+    const automationAction = body.status_automation_action
+    if (automationAction !== undefined && !['pause', 'resume', 'undo'].includes(automationAction)) {
+      return NextResponse.json({ error: 'Invalid status automation action.' }, { status: 400 })
+    }
+    if (automationAction && requestedStatus) {
+      return NextResponse.json({ error: 'Choose either a status or an automation action.' }, { status: 400 })
+    }
     const requestedLostReason = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
       ? (body.payload as Record<string, unknown>).lost_reason
       : null
@@ -436,6 +445,12 @@ export async function PATCH(
         ...body.payload,
         ...(requestedStatus === 'won' ? { follow_up_at: null, follow_up_note: null } : {}),
       }
+      // Automation metadata is server-managed, never accepted from generic payload edits.
+      if ('status_automation' in currentPayload) {
+        (leadUpdates.payload as Record<string, unknown>).status_automation = currentPayload.status_automation
+      } else {
+        delete (leadUpdates.payload as Record<string, unknown>).status_automation
+      }
     }
 
     const addNote = typeof body.add_note === 'string' ? body.add_note.trim() : ''
@@ -462,7 +477,7 @@ export async function PATCH(
     const existingLeadResult = await withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
-          .select('id, contact_id, intake_type, status, priority, category, source_form')
+          .select('id, contact_id, intake_type, status, priority, category, source_form, payload, updated_at')
         .eq('tenant_id', tenantId)
         .eq('id', id)
         .single(),
@@ -471,11 +486,39 @@ export async function PATCH(
     )
 
     const { data: existingLead, error: existingLeadError } = existingLeadResult as {
-      data: { id: string, contact_id: string, intake_type: string, status: string, priority: string, category: string, source_form: string },
+      data: { id: string, contact_id: string, intake_type: string, status: string, priority: string, category: string, source_form: string, payload: Record<string, unknown>, updated_at?: string },
       error: { message: string } | null,
     }
 
     if (existingLeadError) throw existingLeadError
+
+    const automation = readStatusAutomation(existingLead.payload)
+    const pipelineLead = isLessonLead(existingLead.intake_type) || existingLead.intake_type === 'service_inquiry'
+    if (automationAction && (!pipelineLead || existingLead.source_form === '2026-disenrollment-import' || existingLead.payload?.winback)) {
+      return NextResponse.json({ error: 'Status automation is not available for this record.' }, { status: 400 })
+    }
+    if (automationAction === 'undo') {
+      const change = automation.last_change
+      if (!change || body.status_automation_change_id !== change.id || existingLead.status !== change.next_status || automation.paused) {
+        return NextResponse.json({ error: 'This automatic change can no longer be undone. Refresh the lead or set its status manually.' }, { status: 409 })
+      }
+      requestedStatus = change.previous_status
+      leadUpdates.status = requestedStatus
+    }
+    if ((requestedStatus && pipelineLead) || automationAction) {
+      leadUpdates.payload = {
+        ...existingLead.payload,
+        ...(leadUpdates.payload as Record<string, unknown> | undefined),
+        status_automation: {
+          ...automation,
+          paused: automationAction !== 'resume',
+          // Human edits invalidate old Undo controls. Resume does not replay old notes.
+          last_change: null,
+          changed_at: new Date().toISOString(),
+          changed_by: actorPayload,
+        },
+      }
+    }
 
     // Legacy inquiries may share one contact. Do not let a correction to one
     // person's identity silently change every inquiry linked to that contact.
@@ -515,20 +558,23 @@ export async function PATCH(
       }
     }
 
-    const statusChanged = typeof requestedStatus === 'string' && requestedStatus !== existingLead.status
+    const statusChanged = Boolean(requestedStatus) && requestedStatus !== existingLead.status
 
     if (Object.keys(leadUpdates).length > 0) {
+      let updateQuery = crmSupabaseAdmin
+        .from('lead_intakes')
+        .update(leadUpdates)
+        .eq('tenant_id', tenantId)
+        .eq('id', id)
+      if (existingLead.updated_at) updateQuery = updateQuery.eq('updated_at', existingLead.updated_at)
       const result = await withTimeout<any>(
-        crmSupabaseAdmin
-          .from('lead_intakes')
-          .update(leadUpdates)
-          .eq('tenant_id', tenantId)
-          .eq('id', id),
+        updateQuery.select('id').maybeSingle(),
         LEAD_DETAIL_TIMEOUT_MS,
         'lead update',
       )
 
       if (result.error) throw result.error
+      if (!result.data) return NextResponse.json({ error: 'The lead changed while saving. Refresh and try again.' }, { status: 409 })
     }
 
     if (requestedStatus === 'lost') {
@@ -582,6 +628,15 @@ export async function PATCH(
       )
 
       if (result.error) throw result.error
+      if (result.data?.id && !requestedStatus && !automationAction) {
+        try {
+          await applySavedNoteStatus({ tenantId, leadId: id, noteId: result.data.id, note: addNote, actor: actorPayload })
+        } catch (automationError) {
+          console.error('[leads] Note saved; automatic status evaluation failed', {
+            leadId: id, requestId: requestLog.requestId, error: getErrorMessage(automationError),
+          })
+        }
+      }
       if (tenantAccess.context && result.data?.id) {
         try {
           await persistMentions({
@@ -642,6 +697,7 @@ export async function PATCH(
             payload: {
               updates: leadUpdates,
               ...(statusChanged ? { previous_status: existingLead.status, next_status: requestedStatus } : {}),
+              ...(automationAction ? { status_automation_action: automationAction } : requestedStatus ? { status_automation_action: 'manual_override' } : {}),
               actor: actorPayload,
             },
           }),
