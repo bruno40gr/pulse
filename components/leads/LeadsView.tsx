@@ -14,7 +14,8 @@ import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
-import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS } from '@/lib/lead-value'
+import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValue } from '@/lib/lead-value'
+import { normalizeFamilyMembers } from '@/lib/lead-family'
 import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
@@ -1569,13 +1570,12 @@ export default function LeadsView() {
   const applicationResume = typeof selectedLead?.payload?.resume_link === 'string' ? selectedLead.payload.resume_link : '—'
   const applicationMessage = typeof selectedLead?.payload?.message === 'string' ? selectedLead.payload.message : '—'
   const lessonBaseValue = parseCurrency(lessonOpportunity.baseValue)
-  const lessonSiblingCount = lessonOpportunity.siblings.length
-  const lessonOpportunityTotal = lessonBaseValue <= 0
-    ? 0
-    : lessonBaseValue + lessonOpportunity.siblings.reduce(
-      (sum) => sum + (lessonOpportunity.siblingDiscountEnabled ? lessonBaseValue * 0.9 : lessonBaseValue),
-      0,
-    )
+  const lessonSiblingCount = normalizeFamilyMembers(lessonOpportunity.siblings).length
+  const lessonOpportunityTotal = getLeadOpportunityValue({ intakeType: 'lesson_inquiry', payload: {
+    potential_value_base: lessonBaseValue,
+    discount_offer_applied: lessonOpportunity.siblingDiscountEnabled,
+    siblings: lessonOpportunity.siblings,
+  } })
   const lessonSiblingDiscountLabel = lessonOpportunity.siblingDiscountEnabled ? '10% sibling offer applied' : 'No sibling offer applied'
   const serviceSessionValue = selectedLead?.intake_type === 'service_inquiry'
     ? getServiceSessionValue(selectedLead)
@@ -1778,7 +1778,7 @@ export default function LeadsView() {
                     potential_value_total: Math.round(lessonOpportunityTotal),
                     discount_offer_applied: lessonOpportunity.siblingDiscountEnabled,
                     sibling_count: lessonSiblingCount,
-                    siblings: lessonOpportunity.siblings,
+                    siblings: normalizeFamilyMembers(lessonOpportunity.siblings),
                   },
                 })}
                 disabled={detailSaving}

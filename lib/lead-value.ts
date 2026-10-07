@@ -1,6 +1,8 @@
 // Shared opportunity-value helpers for lead pipeline KPI aggregation.
 // Server-safe: no React or 'use client' dependencies.
 
+import { normalizeFamilyMembers } from '@/lib/lead-family'
+
 export const DEFAULT_LESSON_BASE_VALUE = 160
 
 export type ServiceTypeOption = {
@@ -66,7 +68,7 @@ function getLessonOpportunityValue(payload: Record<string, unknown> | null | und
       : DEFAULT_LESSON_BASE_VALUE
   if (!(base > 0)) return 0
 
-  const siblings = Array.isArray(payload?.siblings) ? payload.siblings : []
+  const siblings = normalizeFamilyMembers(payload?.siblings)
   const siblingDiscountEnabled = payload?.discount_offer_applied !== false
   return base + siblings.length * (siblingDiscountEnabled ? base * 0.9 : base)
 }

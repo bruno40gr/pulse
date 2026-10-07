@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, Suspense, type ComponentProps } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Sparkles, SquarePen, Trash2 } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Mail, Sparkles, SquarePen, Trash2 } from 'lucide-react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { Avatar, Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, PageContainer, PageHeader, SlidePanel, Textarea } from '@/components/ui'
@@ -72,6 +72,8 @@ function InboxPageInner() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [markingUnread, setMarkingUnread] = useState(false)
+  const [readStateError, setReadStateError] = useState('')
   const isMobile = useIsMobile()
   const tenantId = getActiveTenantId()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -281,7 +283,33 @@ function InboxPageInner() {
     }
   }
 
+  const handleMarkUnread = async () => {
+    if (!activeThread || markingUnread || markingReadThreadKeysRef.current.has(activeThread.thread_key)) return
+    const threadKey = activeThread.thread_key
+    setMarkingUnread(true)
+    setReadStateError('')
+    try {
+      const response = await fetch(`/api/inbox?tenant=${tenantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ other_phone: activeThread.other_phone, action: 'mark_unread' }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Could not mark conversation as unread.')
+      const updated = await fetchThreads()
+      const refreshed = updated.find(thread => thread.thread_key === threadKey)
+      if (refreshed) setActiveThread(current => current?.thread_key === threadKey ? refreshed : current)
+      window.dispatchEvent(new CustomEvent(CONVERSATION_COUNT_EVENT))
+    } catch (error) {
+      setReadStateError(error instanceof Error ? error.message : 'Could not mark conversation as unread.')
+    } finally {
+      setMarkingUnread(false)
+    }
+  }
+
   const handleSelectThread = (thread: Thread) => {
+    if (markingUnread) return
+    setReadStateError('')
     const openedThread = thread.has_unread ? { ...thread, has_unread: false, unread_count: 0 } : thread
     setActiveThread(openedThread)
     setProfileError('')
@@ -430,7 +458,7 @@ function InboxPageInner() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, fontSize: typography.sizeSm, color: colors.textSecondary, fontFamily: typography.fontSans, minWidth: 0 }}>
                     {(thread.last_message_direction === 'outbound' || thread.last_message_direction === 'inbound') && (
                       <span role="img" aria-label={thread.last_message_direction === 'outbound' ? 'Last message sent' : 'Last message received'} title={thread.last_message_direction === 'outbound' ? 'Last message sent' : 'Last message received'} style={{ display: 'inline-flex', flexShrink: 0 }}>
-                        {thread.last_message_direction === 'outbound' ? <ArrowUpRight size={14} aria-hidden="true" /> : <ArrowDownLeft size={14} aria-hidden="true" />}
+                        {thread.last_message_direction === 'outbound' ? <ArrowUpRight size={14} aria-hidden="true" /> : <ArrowDownLeft size={14} color={colors.greenDark} aria-hidden="true" />}
                       </span>
                     )}
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.last_message_direction === 'outbound' ? 'You: ' : ''}{thread.last_message_body}</span>
@@ -532,6 +560,9 @@ function InboxPageInner() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, flexShrink: 0, marginLeft: isMobile ? spacing.sm : undefined }}>
+              <Button type="button" variant="ghost" size="sm" title="Mark unread" aria-label="Mark conversation unread" disabled={markingUnread || markingReadThreadKeysRef.current.has(activeThread.thread_key) || !activeThread.messages.some(message => message.direction === 'inbound')} onClick={() => void handleMarkUnread()}>
+                <Mail size={17} />{!isMobile && (markingUnread ? 'Marking…' : 'Mark unread')}
+              </Button>
               {canDeleteConversations && (
                 <button
                   type="button"
@@ -547,6 +578,7 @@ function InboxPageInner() {
           </div>
 
           {/* Messages */}
+          {readStateError && <div role="alert" style={{ padding: spacing.sm, color: colors.error }}>{readStateError}</div>}
           <div style={{ flex: 1, minHeight: isMobile ? 0 : undefined, overflowY: 'auto', padding: isMobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
             {activeThread.messages
               .slice()

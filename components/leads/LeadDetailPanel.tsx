@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Copy, MessageCircle, Pencil, Phone } from 'lucide-react'
+import { Copy, MessageCircle, Pencil, Phone, Trash2 } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatLeadSource } from '@/lib/lead-sources'
-import { isLessonLead, readLessonRequestFields } from '@/lib/lead-lesson-details'
+import { isLessonLead, readLessonRequestFields, LESSON_PROGRAM_OPTIONS } from '@/lib/lead-lesson-details'
+import { getLeadOpportunityValue } from '@/lib/lead-value'
+import { familyMembersChanged, normalizeFamilyMembers } from '@/lib/lead-family'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type FamilyMember = { name: string; age: string; instrument_interest: string }
@@ -73,7 +75,7 @@ const WINBACK_STATUSES = [
   { value: 're_enrolled', label: 'Re-enrolled' },
   { value: 'closed', label: 'Closed' },
 ]
-const INSTRUMENTS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
+const INSTRUMENTS = LESSON_PROGRAM_OPTIONS
 const QUICK_FOLLOW_UPS = [
   { value: 'tomorrow', label: 'Tomorrow', days: 1 },
   { value: 'next_week', label: 'Next week', days: 7 },
@@ -245,9 +247,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
   const isLesson = isLessonLead(lead.intake_type)
   const lessonRequest = readLessonRequestFields(lead.payload)
   const isService = lead.intake_type === 'service_inquiry'
-  const enrollmentValue = getNumericPayloadValue(lead.payload, 'potential_value_base') ?? 160
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
-  const opportunity = isLesson ? enrollmentValue * (familyMembers.length + 1) : isService ? serviceValue : null
+  const opportunity = isLesson ? getLeadOpportunityValue({ intakeType: lead.intake_type, payload: { ...lead.payload, siblings: familyMembers } }) : isService ? serviceValue : null
+  const familyMemberCount = normalizeFamilyMembers(familyMembers).length
+  const familyDirty = familyMembersChanged(familyMembers, lead.payload.siblings)
   const opportunityUnit = isLesson ? '/mo' : isService ? `/${getOpportunityValueUnit(lead.payload)}` : ''
   const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
@@ -333,12 +336,24 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
   }
 
   const saveFamilyMembers = async () => {
-    await onPatch({
+    const members = normalizeFamilyMembers(familyMembers)
+    const saved = await onPatch({
       payload: {
-        siblings: familyMembers,
-        sibling_count: familyMembers.length,
+        siblings: members,
+        sibling_count: members.length,
       },
     })
+    if (saved) setFamilyMembers(members)
+  }
+
+  const deleteFamilyMember = async (index: number) => {
+    const members = familyMembers.filter((_, memberIndex) => memberIndex !== index)
+    const savedMembers = Array.isArray(lead.payload.siblings) ? lead.payload.siblings : []
+    if (index < savedMembers.length) {
+      const saved = await onPatch({ payload: { siblings: normalizeFamilyMembers(members), sibling_count: normalizeFamilyMembers(members).length } })
+      if (!saved) return
+    }
+    setFamilyMembers(members)
   }
 
   const statusTone = getStatusTone(lead.status)
@@ -468,7 +483,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
             boxSizing: "border-box",
           }}>
             <div style={oneColumnStyle}>
-              <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
+              <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
               <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
             </div>
             <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
@@ -486,7 +501,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
               </DenseSectionPanel>
             )}
             {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-              <div style={oneColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
+              <div style={oneColumnStyle}><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
             </DenseSectionPanel>}
             {isService && <DenseSectionPanel
               title={<SectionTitle>Service details</SectionTitle>}
@@ -558,27 +573,23 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                   const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
                   return (
                     <div key={index} style={familyMemberStyle}>
-                      <div style={familyMemberHeaderStyle}>
-                        <div style={familyMemberNameStyle}>Family member {index + 1}</div>
-                        <button type="button" disabled={saving} onClick={() => setFamilyMembers((current) => current.filter((_, memberIndex) => memberIndex !== index))} style={removeFamilyMemberButtonStyle}>Remove</button>
-                      </div>
-                      <div style={oneColumnStyle}>
+                      <div style={familyMemberRowStyle}>
                         <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
                         <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                        <Select label="Instrument interest" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select instrument</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select>
+                        <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><button type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} style={{ ...removeFamilyMemberButtonStyle, minHeight: 36, padding: 4 }}><Trash2 size={15} /></button>
                       </div>
                     </div>
                   )
                 })}
               </div>
-              {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+              {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary" style={{ background: '#000' }} size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
             </DenseSectionPanel>}
           </div>
         ) : (
           <div style={columnsStyle}>
             <div style={columnStyle}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
-                <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMembers.length + 1} student${familyMembers.length === 0 ? '' : 's'}` : undefined} />
+                <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
                 <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
               </div>
               {winback && (
@@ -595,7 +606,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                 </DenseSectionPanel>
               )}
               {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-                <div style={twoColumnStyle}><Field label="Account holder name" value={lesson.accountHolderName} /><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
+                <div style={twoColumnStyle}><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
               </DenseSectionPanel>}
               {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
@@ -607,20 +618,16 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                     const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
                     return (
                       <div key={index} style={familyMemberStyle}>
-                        <div style={familyMemberHeaderStyle}>
-                          <div style={familyMemberNameStyle}>Family member {index + 1}</div>
-                          <button type="button" disabled={saving} onClick={() => setFamilyMembers((current) => current.filter((_, memberIndex) => memberIndex !== index))} style={removeFamilyMemberButtonStyle}>Remove</button>
-                        </div>
-                        <div style={oneColumnStyle}>
+                        <div style={familyMemberRowStyle}>
                           <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
                           <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                          <Select label="Instrument interest" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select instrument</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select>
+                          <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><button type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} style={{ ...removeFamilyMemberButtonStyle, minHeight: 36, padding: 4 }}><Trash2 size={15} /></button>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-                {familyMembers.length > 0 && <div style={actionRowStyle}><Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+                {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary" style={{ background: '#000' }} size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
               </DenseSectionPanel>}
               <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
                 <div style={twoColumnStyle}>
@@ -698,8 +705,7 @@ const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: ty
 const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
 const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const familyMemberStyle: CSSProperties = { padding: spacing.sm, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }
-const familyMemberHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.sm }
-const familyMemberNameStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
+const familyMemberRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(40px, 0.35fr) minmax(0, 1.2fr) auto', gap: spacing.xs, alignItems: 'end' }
 const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none', background: 'transparent', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeSm, textDecoration: 'underline', cursor: 'pointer' }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
 const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }

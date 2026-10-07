@@ -4,6 +4,7 @@ import { Check, Shield } from 'lucide-react'
 import { Button, Textarea } from '@/components/ui'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { getNoteAuthorInitials } from '@/lib/note-author'
 
 interface NoteEntry {
   id?: string
@@ -40,7 +41,6 @@ function formatNoteTimestamp(ts: string) {
 export function NotesSection({
   title,
   notes,
-  avatarInitial,
   avatarBg,
   cardBg,
   addLabel = 'Add a note',
@@ -166,7 +166,7 @@ export function NotesSection({
                 color: 'white',
                 flexShrink: 0,
                 marginTop: '1px',
-              }}>{avatarInitial}</div>
+              }} title={entry.actor_name || 'Author not recorded'}>{getNoteAuthorInitials(entry.actor_name)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}

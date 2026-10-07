@@ -310,7 +310,11 @@ export async function PATCH(request: Request) {
     const access = await authorizeInboxRead(request, tenantId)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
-    const body = await request.json().catch(() => ({})) as { other_phone?: unknown }
+    const body = await request.json().catch(() => ({})) as { other_phone?: unknown; action?: unknown }
+    if (body.action !== undefined && body.action !== 'mark_read' && body.action !== 'mark_unread') {
+      return NextResponse.json({ error: 'Invalid conversation action.' }, { status: 400 })
+    }
+    const markUnread = body.action === 'mark_unread'
     const normalizedTarget = normalizePhoneNumber(typeof body.other_phone === 'string' ? body.other_phone : null)
     if (!normalizedTarget) return NextResponse.json({ error: 'A valid conversation phone number is required.' }, { status: 400 })
 
@@ -322,19 +326,20 @@ export async function PATCH(request: Request) {
     if (lookupError) throw lookupError
 
     const messageIds = (inboundMessages || [])
-      .filter((message) => message.status !== 'read' && normalizePhoneNumber(message.from_phone) === normalizedTarget)
+      .filter((message) => (markUnread ? message.status === 'read' : message.status !== 'read') && normalizePhoneNumber(message.from_phone) === normalizedTarget)
       .map((message) => message.id)
 
     if (messageIds.length > 0) {
       const { error: updateError } = await supabaseAdmin
         .from('messages')
-        .update({ status: 'read' })
+        .update({ status: markUnread ? 'received' : 'read' })
         .eq('tenant_id', tenantId)
+        .eq('direction', 'inbound')
         .in('id', messageIds)
       if (updateError) throw updateError
     }
 
-    return NextResponse.json({ marked_read: messageIds.length })
+    return NextResponse.json(markUnread ? { marked_unread: messageIds.length } : { marked_read: messageIds.length })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
