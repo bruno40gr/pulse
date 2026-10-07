@@ -17,11 +17,12 @@ import { formatLeadSource, LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue, type L
 import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValue } from '@/lib/lead-value'
 import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
+import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
 import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
-type LeadSortKey = 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
+type LeadSortKey = 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
 type ManualLeadFormState = LessonRequestFields & {
@@ -158,9 +159,7 @@ type LeadEditFormState = LessonRequestFields & {
   opportunityValueUnit: OpportunityValueUnit
 }
 
-const LEAD_STATUS_OPTIONS = ['all', ...LEAD_STATUSES]
 const LEAD_DETAIL_STATUS_OPTIONS = LEAD_STATUSES
-const JOB_APPLICATION_STATUS_OPTIONS = ['all', 'new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
 const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_PROGRAM_OPTIONS
@@ -170,7 +169,6 @@ const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'job_application', label: 'Teacher applications' },
   { key: 'winback', label: 'Win-back' },
 ]
-const WINBACK_STATUS_OPTIONS = ['all', 'to_contact', 'contacted', 'interested', 're_enrolled', 'closed']
 
 const PROMOTION_TYPE_OPTIONS = [
   { value: '', label: 'No promotion' },
@@ -404,8 +402,7 @@ function getActivityActor(event: { payload?: Record<string, unknown> | null }) {
 }
 
 function getStatusOptionsForTab(tab: LeadTabKey) {
-  if (tab === 'winback') return WINBACK_STATUS_OPTIONS
-  return tab === 'job_application' ? JOB_APPLICATION_STATUS_OPTIONS : LEAD_STATUS_OPTIONS
+  return ['all', ...getStatusSortOrder(tab)]
 }
 
 function getDetailStatusOptions(intakeType: string | null | undefined) {
@@ -719,6 +716,7 @@ export default function LeadsView() {
     const direction = sortDirection === 'asc' ? 1 : -1
 
     return [...leads].sort((left, right) => {
+      if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
       if (sortKey === 'program') comparison = compareText(left.program_label || left.service_label || '', right.program_label || right.service_label || '')
@@ -737,7 +735,7 @@ export default function LeadsView() {
       if (comparison === 0) comparison = compareNumbers(new Date(right.created_at).getTime(), new Date(left.created_at).getTime())
       return comparison * direction
     })
-  }, [leads, sortDirection, sortKey])
+  }, [activeTab, leads, sortDirection, sortKey])
 
   const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
     setLeadPanelDrafts((current) => {
@@ -1470,6 +1468,10 @@ export default function LeadsView() {
       id: 'status',
       header: 'Status',
       width: 'minmax(86px, 0.72fr)',
+      sortable: true,
+      sortKey: 'status',
+      defaultSortDirection: 'asc',
+      sortLabel: 'Status, pipeline order from Won to Ghosted',
       render: (lead) => (
         <div style={tableStatusCellStyle}>
           <StatusBadge
@@ -1943,6 +1945,7 @@ export default function LeadsView() {
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
           <Select
+            aria-label="Filter leads by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={selectStyle}
