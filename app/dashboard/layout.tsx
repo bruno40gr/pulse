@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
+import SignedInUser from '@/components/layout/SignedInUser'
 import DemoBanner from '@/components/ui/DemoBanner'
 import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -90,11 +91,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Mobile top bar */}
       {isMobile && (
-        <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '56px', background: colors.action, display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', zIndex: 30 }}>
+        <header style={{ position: 'fixed', top: 0, left: 0, right: 0, minHeight: '72px', background: colors.action, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 16px', boxSizing: 'border-box', zIndex: 30 }}>
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', display: 'flex', padding: '4px' }}>
             <Menu size={22} />
           </button>
-          <TenantBrand height={28} maxWidth="150px" width="150px" />
+          <div style={{ flex: '0 1 110px', minWidth: 0 }}><TenantBrand height={28} maxWidth="100%" width="100%" /></div>
+          <div style={{ flex: 1, minWidth: 0 }}><SignedInUser compact /></div>
         </header>
       )}
 
@@ -115,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main content */}
-      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '56px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
+      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
         <DemoBanner />
         {children}
       </main>
@@ -212,6 +214,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ))}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <SignedInUser />
         <Link
           href="/dashboard/settings"
           onClick={onNavigate}
