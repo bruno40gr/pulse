@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { Button, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import MentionTextarea from '@/components/notes/MentionTextarea'
+import { Avatar } from '@/components/ui/Avatar'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 interface NoteConversationNote {
@@ -167,8 +169,16 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
               <div style={{ color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }}>No replies yet. Start the conversation below.</div>
             ) : replies.map((reply) => (
               <article key={reply.id} style={{ alignSelf: 'flex-start', width: 'min(100%, 500px)', background: colors.surfaceMuted, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, padding: spacing.lg }}>
-                <div style={{ color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightSemibold, marginBottom: spacing.xs }}>
-                  {reply.created_by} · {formatTimestamp(reply.created_at)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+                  <Avatar
+                    firstName={reply.created_by?.trim().split(/\s+/)[0] || 'Unknown'}
+                    lastName={reply.created_by?.trim().split(/\s+/).slice(1).join(' ') || ''}
+                    size={28}
+                    src={getStaffAvatarUrl(tenantId, reply.created_by)}
+                  />
+                  <div style={{ minWidth: 0, overflowWrap: 'anywhere', color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>
+                    {reply.created_by || 'Unknown author'} · {formatTimestamp(reply.created_at)}
+                  </div>
                 </div>
                 <div style={{ color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeBase, lineHeight: 1.55, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
                   <MentionText body={reply.body} />

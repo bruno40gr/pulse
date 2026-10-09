@@ -403,8 +403,28 @@ export default function NotesPage() {
     deepLinkedNoteHandledRef.current = true
     if (!noteId) return
     const target = notes.find((note) => note.id === noteId)
-    if (target) setConversationNote(target)
-  }, [loading, notes])
+    if (target) {
+      setConversationNote(target)
+      return
+    }
+    // Notifications may reference a completed note or one outside the current
+    // date filter. The API still applies tenant and private-note authorization.
+    let cancelled = false
+    void fetch(`/api/notes?tenant=${encodeURIComponent(tenantId)}&show_done=true`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Could not open the notification note.')
+        const items = await response.json()
+        const linkedNote = Array.isArray(items) ? items.find(note => note.id === noteId) : undefined
+        if (!cancelled) {
+          if (linkedNote) setConversationNote(linkedNote)
+          else setToast({ message: 'This note is unavailable or you no longer have access.' })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setToast({ message: 'Could not open the notification note. Please retry.' })
+      })
+    return () => { cancelled = true }
+  }, [loading, notes, tenantId])
 
   useEffect(() => {
     if (!toast) return

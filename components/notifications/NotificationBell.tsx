@@ -4,7 +4,6 @@
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
 import SignedInUser from '@/components/layout/SignedInUser'
 import { Modal, ModalHeader } from '@/components/ui/Modal'
@@ -24,7 +23,6 @@ type NotificationItem = {
 }
 
 export default function NotificationBell({ inverse = false, variant = 'icon', onNavigate }: { inverse?: boolean; variant?: 'icon' | 'nav' | 'user'; onNavigate?: () => void }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -91,7 +89,9 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
     }
     setOpen(false)
     onNavigate?.()
-    router.push(item.link)
+    // A document navigation also reopens an already-mounted destination,
+    // including repeated opens of the same notification.
+    window.location.assign(item.link)
   }
 
   return (

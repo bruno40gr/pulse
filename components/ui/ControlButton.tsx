@@ -38,7 +38,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         ...(kind === 'link' ? { padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' } : {}),
         ...(kind === 'row' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'space-between' } : {}),
         ...(kind === 'navigation' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'flex-start' } : {}),
-        ...(kind === 'tab' ? { padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${selected ? colors.espresso : colors.border}` } : {}),
+        ...(kind === 'tab' ? { padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.border}` } : {}),
         ...(kind === 'toggle' ? { padding: `${spacing.xs} ${spacing.sm}` } : {}),
         ...(selected && kind !== 'swatch' ? {
           background: inverse ? 'rgba(255,255,255,0.08)' : colors.surfaceMuted,

@@ -9,8 +9,9 @@ test('record IDs produce readable, deterministic names rather than long-name fix
   assert.ok(fictionalName(id).length < 30)
 })
 
-test('long-name fixtures retain layout pressure and missing values stay missing', () => {
-  assert.ok(fictionalName('X'.repeat(80)).length >= 80)
+test('long masked names become ordinary names and missing values stay missing', () => {
+  assert.ok(fictionalName('X'.repeat(80)).length < 30)
+  assert.ok(!fictionalName('Maya-Montgomery-Montgomery').includes('Montgomery'))
   assert.equal(fictionalName(null), null)
   assert.equal(fictionalName(''), '')
 })

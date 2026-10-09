@@ -5,11 +5,7 @@ const LAST = ['Bennett', 'Rivera', 'Chen', 'Okafor', 'Sullivan', 'Moretti', 'Pat
 function fictionalName(value, kind = 'full_name') {
   if (typeof value !== 'string' || !value.trim()) return value
   const hash = createHash('sha256').update(value).digest()
-  let result = kind === 'first_name' ? FIRST[hash[0] % FIRST.length] : kind === 'last_name' ? LAST[hash[1] % LAST.length] : `${FIRST[hash[0] % FIRST.length]} ${LAST[hash[1] % LAST.length]}`
-  // Retain deliberate long-name layout pressure rather than normalizing it away.
-  const isRecordId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-  if (!isRecordId && value.length > 30) while (result.length < value.length) result += '-Montgomery'
-  return result
+  return kind === 'first_name' ? FIRST[hash[0] % FIRST.length] : kind === 'last_name' ? LAST[hash[1] % LAST.length] : `${FIRST[hash[0] % FIRST.length]} ${LAST[hash[1] % LAST.length]}`
 }
 function transformNames(value) {
   if (Array.isArray(value)) return value.map(transformNames)

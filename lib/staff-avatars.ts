@@ -24,11 +24,18 @@ function nameKey(name: string) {
 export function getStaffAvatarUrl(tenantId: string, name: string | null | undefined): string | undefined {
   if (tenantId !== DEFAULT_TENANT || !name?.trim()) return undefined
   const key = nameKey(name)
-  // Synthetic identities get local artwork only in the known staging project.
+  // Fixture portraits are illustrative only, not the fictional users' identities.
   if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://xpnygavujqmzkdmcktdm.supabase.co') {
     const fixtures: Record<string, string> = { 'stagingowner tester': 'owner', 'stagingadmin tester': 'admin', 'stagingstaff tester': 'staff', 'stagingassistant tester': 'assistant', 'staging tester': 'tester', 'staging t': 'tester', 'jamie bennett': 'tester', 'jamie b': 'tester', 'morgan reyes': 'owner', 'morgan r': 'owner', 'avery chen': 'admin', 'avery c': 'admin', 'jordan patel': 'staff', 'jordan p': 'staff', 'riley brooks': 'assistant', 'riley b': 'assistant' }
     const fixture = fixtures[key]
-    if (fixture) return `/avatars/staging-${fixture}.svg`
+    const portraits: Record<string, string> = {
+      owner: PHOTOS[6].file,
+      admin: PHOTOS[1].file,
+      staff: PHOTOS[2].file,
+      assistant: PHOTOS[0].file,
+      tester: PHOTOS[3].file,
+    }
+    if (fixture) return `https://res.cloudinary.com/diy08lj9x/image/upload/${portraits[fixture]}`
   }
   const match = PHOTOS.find(photo => photo.names.some(alias => {
     const aliasKey = nameKey(alias)
