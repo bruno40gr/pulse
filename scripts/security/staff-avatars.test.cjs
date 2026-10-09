@@ -18,6 +18,22 @@ test('legacy abbreviated authors match staff photos', () => {
   assert.equal(getStaffAvatarUrl(HEAD, 'Drew J.'), getStaffAvatarUrl(HEAD, 'Drew Johnson'))
 })
 
+test('owner-provided staff portraits match full names and abbreviated authors', () => {
+  const base = 'https://res.cloudinary.com/diy08lj9x/image/upload/'
+  for (const name of ['Lorena Rudha', 'Lorena R.', 'Lorena']) {
+    assert.equal(getStaffAvatarUrl(HEAD, name), `${base}v1788312254/9fd46acb-1557-437d-8776-5c969e96687f.png`)
+  }
+  for (const name of ['Bruno Wong', 'Bruno W.', 'Bruno']) {
+    assert.equal(getStaffAvatarUrl(HEAD, name), `${base}v1791589510/17012fbf-9cac-457a-ac51-f3d3c926378f.png`)
+  }
+  for (const name of ['Cohen Roden', 'Cohen R.', 'Cohen']) {
+    assert.equal(getStaffAvatarUrl(HEAD, name), `${base}v1787758377/e1553540-685b-41fe-943b-c22c213e95d5.png`)
+  }
+  for (const name of ['Lorena Rudha', 'Bruno', 'Cohen Roden']) {
+    assert.equal(getStaffAvatarUrl(DEMO, name), undefined)
+  }
+})
+
 test('unknown names, different surnames and other tenants never receive staff photos', () => {
   for (const name of [null, '', 'Unknown Person', 'Alyssa Different', 'Andrew Different']) {
     assert.equal(getStaffAvatarUrl(HEAD, name), undefined)

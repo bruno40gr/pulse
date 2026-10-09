@@ -1,6 +1,6 @@
 import { DEFAULT_TENANT } from '@/lib/tenant'
 
-// Photos from headliner-app/src/TeachersPage.jsx, matched to the Pulse roster.
+// Website teacher photos and owner-provided staff photos, matched to the Pulse roster.
 const PHOTOS = [
   { names: ['Alyssa Abbott', 'Alyssa'], file: 'v1781563497/alyssa_dtv0xb.jpg' },
   { names: ['Jessica Suase', 'Jessica'], file: 'v1781563497/jessica_xdzc2o.jpg' },
@@ -13,6 +13,9 @@ const PHOTOS = [
   { names: ['Jacob Rogelstad', 'Jake Rogelstad', 'Jake'], file: 'v1781563498/jake_agjuva.jpg' },
   { names: ['Vitto Trinchese', 'Vittorio Trinchese', 'Vitto'], file: 'v1781563498/vitto_smf9f9.jpg' },
   { names: ['Isaias Pallib', 'Zais Pallib'], file: 'v1791300259/02e7a8a4-d3d1-4156-b1eb-8b6bdd6e2fe2.png' },
+  { names: ['Lorena Rudha', 'Lorena'], file: 'v1788312254/9fd46acb-1557-437d-8776-5c969e96687f.png' },
+  { names: ['Bruno Wong', 'Bruno'], file: 'v1791589510/17012fbf-9cac-457a-ac51-f3d3c926378f.png' },
+  { names: ['Cohen Roden', 'Cohen'], file: 'v1787758377/e1553540-685b-41fe-943b-c22c213e95d5.png' },
 ]
 
 function nameKey(name: string) {
