@@ -1,4 +1,6 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useState } from 'react'
 import { Search, X, Check } from 'lucide-react'
 import { SlidePanel, SlidePanelHeader, Button, Avatar } from '@/components/ui'
@@ -148,13 +150,13 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
             New message
           </span>
-          <button
+          <ControlButton kind="icon"
             onClick={onClose}
-            style={{ border: 'none', background: 'none', cursor: 'pointer', color: colors.textMuted, padding: 0, display: 'flex' }}
+
             aria-label="Close"
           >
             <X size={20} />
-          </button>
+          </ControlButton>
         </div>
 
         {/* Search */}
@@ -191,25 +193,13 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
             {[{ key: false, label: 'Everyone' }, { key: true, label: 'Staff only' }].map(opt => {
               const active = staffOnly === opt.key
               return (
-                <button
+                <Button variant="secondary" size="sm"
                   key={String(opt.key)}
                   onClick={() => toggleStaff(opt.key)}
-                  style={{
-                    flex: 1,
-                    border: 'none',
-                    borderRadius: radius.sm,
-                    padding: `${spacing.xs} ${spacing.sm}`,
-                    fontSize: typography.sizeSm,
-                    fontFamily: typography.fontSans,
-                    fontWeight: active ? typography.weightSemibold : typography.weightNormal,
-                    background: active ? colors.surface : 'transparent',
-                    color: active ? colors.text : colors.textMuted,
-                    cursor: 'pointer',
-                    boxShadow: active ? shadows.sm : 'none',
-                  }}
+                  style={{ flex: 1 }}
                 >
                   {opt.label}
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -236,13 +226,13 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
                   }}
                 >
                   {displayName(s)}
-                  <button
+                  <ControlButton kind="icon"
                     onClick={() => toggleRecipient(s)}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 0, display: 'flex' }}
+
                     aria-label={`Remove ${displayName(s)}`}
                   >
                     <X size={13} />
-                  </button>
+                  </ControlButton>
                 </span>
               ))}
             </div>

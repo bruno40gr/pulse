@@ -14,15 +14,15 @@ interface AvatarProps {
 }
 
 export function getAvatarColor(firstName: string, lastName: string): string {
-  return AVATAR_COLORS[(firstName.charCodeAt(0) + lastName.charCodeAt(0)) % AVATAR_COLORS.length]
+  return AVATAR_COLORS[((firstName.charCodeAt(0) || 0) + (lastName.charCodeAt(0) || 0)) % AVATAR_COLORS.length]
 }
 
 export function Avatar({ firstName, lastName, size = 36, src, style }: AvatarProps) {
-  const [imgError, setImgError] = useState(false)
+  const [failedSrc, setFailedSrc] = useState<string | undefined>()
   const color = getAvatarColor(firstName, lastName)
   const isLocalSrc = Boolean(src && src.startsWith('/'))
 
-  if (src && !imgError) {
+  if (src && failedSrc !== src) {
     return (
       <div
         style={{
@@ -43,7 +43,7 @@ export function Avatar({ firstName, lastName, size = 36, src, style }: AvatarPro
             fill
             sizes={`${size}px`}
             style={{ objectFit: 'cover' }}
-            onError={() => setImgError(true)}
+            onError={() => setFailedSrc(src)}
           />
         ) : (
           <img
@@ -52,7 +52,7 @@ export function Avatar({ firstName, lastName, size = 36, src, style }: AvatarPro
             width={size}
             height={size}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={() => setImgError(true)}
+            onError={() => setFailedSrc(src)}
           />
         )}
       </div>

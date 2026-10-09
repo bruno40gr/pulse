@@ -1,5 +1,7 @@
 'use client'
 
+
+import { Button } from '@/components/ui/Button'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -79,7 +81,7 @@ export default function ClaimPage() {
           </div>
         )}
         {error && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, lineHeight: 1.5 }}>{error}</p>}
-        {context ? <button type="button" onClick={() => void activate()} disabled={saving} style={authSubmitStyle}>{saving ? 'Activating…' : 'Activate account'}</button> : !loading && <a href="/login" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>}
+        {context ? <Button variant="primary" size="sm" type="button" onClick={() => void activate()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Activating…' : 'Activate account'}</Button> : !loading && <a href="/login" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>}
       </section>
     </main>
   )

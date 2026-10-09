@@ -1,4 +1,6 @@
 'use client'
+import { ButtonBase } from '@/components/ui/ButtonBase'
+
 
 import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -183,7 +185,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 }}
               >
                 {column.sortable ? (
-                  <button
+                  <ButtonBase
                     type="button"
                     onClick={() => updateSort(column)}
                     style={{ ...sortableHeaderStyle, justifyContent: alignToJustify(column.align) }}
@@ -191,7 +193,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   >
                     <span>{column.header}</span>
                     <SortIndicator active={active} direction={sort?.direction} />
-                  </button>
+                  </ButtonBase>
                 ) : column.header}
               </div>
             )
@@ -317,7 +319,7 @@ export function DataGridRow({ columns, children, style, as = 'div', onClick }: D
     fontWeight: typography.weightNormal, lineHeight: 1.45, whiteSpace: 'normal', overflowWrap: 'anywhere',
     background: colors.surface, ...style,
   }
-  if (as === 'button') return <button type="button" onClick={onClick} style={sharedStyle}>{children}</button>
+  if (as === 'button') return <ButtonBase type="button" onClick={onClick} style={sharedStyle}>{children}</ButtonBase>
   return <div style={sharedStyle}>{children}</div>
 }
 

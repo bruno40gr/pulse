@@ -15,9 +15,10 @@ export async function GET(request: Request) {
     const [listResult, unreadResult] = await Promise.all([
       supabaseAdmin
         .from('notifications')
-        .select('id, reason, entity_type, entity_id, title, body, link, read_at, created_at, actor_membership_id')
+        .select('id, reason, entity_type, entity_id, title, body, link, read_at, dismissed_at, created_at, actor_membership_id')
         .eq('tenant_id', tenantId)
         .eq('recipient_membership_id', context.context.membershipId)
+        .is('dismissed_at', null)
         .order('created_at', { ascending: false })
         .limit(limit),
       supabaseAdmin
@@ -25,7 +26,8 @@ export async function GET(request: Request) {
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
         .eq('recipient_membership_id', context.context.membershipId)
-        .is('read_at', null),
+        .is('read_at', null)
+        .is('dismissed_at', null),
     ])
     const { data, error } = listResult
     if (error) throw error
@@ -57,16 +59,22 @@ export async function PATCH(request: Request) {
     const context = await resolveMembershipRequestContext(request, tenantId)
     if (!context.ok) return NextResponse.json({ error: context.error }, { status: context.status })
     const body = await request.json()
+    const action = body.action || 'dismiss'
+    if (!['seen', 'dismiss'].includes(action) || (action === 'seen' && body.all === true)) {
+      return NextResponse.json({ error: 'Invalid notification action.' }, { status: 400 })
+    }
+    if (body.all !== true && typeof body.id !== 'string') {
+      return NextResponse.json({ error: 'Notification id is required.' }, { status: 400 })
+    }
     let query = supabaseAdmin
       .from('notifications')
-      .update({ read_at: new Date().toISOString() })
+      .update(action === 'seen' ? { read_at: new Date().toISOString() } : { dismissed_at: new Date().toISOString() })
       .eq('tenant_id', tenantId)
       .eq('recipient_membership_id', context.context.membershipId)
+      .is('dismissed_at', null)
+    if (action === 'seen') query = query.is('read_at', null)
     if (body.all !== true) {
-      if (typeof body.id !== 'string') return NextResponse.json({ error: 'Notification id is required.' }, { status: 400 })
       query = query.eq('id', body.id)
-    } else {
-      query = query.is('read_at', null)
     }
     const { error } = await query
     if (error) throw error

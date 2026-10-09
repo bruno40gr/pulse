@@ -1,4 +1,6 @@
 'use client'
+import { ButtonBase } from '@/components/ui/ButtonBase'
+
 import { ButtonHTMLAttributes, CSSProperties } from 'react'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
@@ -26,7 +28,7 @@ export const buttonSizeStyles: Record<ButtonSize, CSSProperties> = {
 
 export function Button({ variant = 'primary', size = 'md', style, disabled, children, ...props }: ButtonProps) {
   return (
-    <button
+    <ButtonBase
       disabled={disabled}
       style={{
         ...buttonVariantStyles[variant],
@@ -47,6 +49,6 @@ export function Button({ variant = 'primary', size = 'md', style, disabled, chil
       {...props}
     >
       {children}
-    </button>
+    </ButtonBase>
   )
 }

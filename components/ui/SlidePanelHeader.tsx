@@ -1,4 +1,6 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { Avatar } from '@/components/ui/Avatar'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -52,30 +54,19 @@ export function SlidePanelHeader({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0, minHeight: '28px' }}>
           {onBack ? (
-            <button
+            <ControlButton kind="link"
               type="button"
               onClick={onBack}
               aria-label={backLabel}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: colors.textSecondary,
-                fontSize: typography.sizeSm,
-                fontFamily: typography.fontSans,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 0',
-              }}
+
             >
               ← {backLabel}
-            </button>
+            </ControlButton>
           ) : <span />}
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
             {toast && <span style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans, overflowWrap: 'anywhere' }}>{toast}</span>}
             {actions}
-            <button
+            <ControlButton kind="icon"
               type="button"
               onClick={(event) => {
                 event.preventDefault()
@@ -83,10 +74,10 @@ export function SlidePanelHeader({
                 onClose()
               }}
               aria-label="Close"
-              style={{ background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', color: colors.textSecondary, lineHeight: 1, padding: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+
             >
               ×
-            </button>
+            </ControlButton>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, width: '100%' }}>
@@ -121,26 +112,13 @@ export function SlidePanelHeader({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0, flex: 1 }}>
         {onBack && (
-          <button
+          <ControlButton kind="link"
             type="button"
             onClick={onBack}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: colors.textSecondary,
-              fontSize: typography.sizeSm,
-              fontFamily: typography.fontSans,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: 0,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
+            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             ← {backLabel}
-          </button>
+          </ControlButton>
         )}
         {avatar && (
           <Avatar
@@ -198,7 +176,7 @@ export function SlidePanelHeader({
           </span>
         )}
         {actions}
-        <button
+        <ControlButton kind="icon"
           type="button"
           onClick={(event) => {
             event.preventDefault()
@@ -206,21 +184,10 @@ export function SlidePanelHeader({
             onClose()
           }}
           aria-label="Close"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            fontSize: '20px',
-            cursor: 'pointer',
-            color: colors.textSecondary,
-            lineHeight: 1,
-            padding: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+
         >
           ×
-        </button>
+        </ControlButton>
       </div>
     </div>
   )

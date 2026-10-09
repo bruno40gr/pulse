@@ -1,4 +1,7 @@
 'use client'
+
+import { Button } from '@/components/ui/Button'
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect, useRef } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
 import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
@@ -344,20 +347,9 @@ export default function ComposePanel({
   }
 
   const AssetCard = ({ asset, selected, onClick }: { asset: MediaAsset, selected: boolean, onClick: () => void }) => (
-    <button
+    <ControlButton kind="row"
       onClick={onClick}
-      style={{
-        border: `1px solid ${selected ? colors.crimson : colors.border}`,
-        borderRadius: radius.lg,
-        background: colors.surface,
-        padding: spacing.sm,
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: spacing.sm,
-        textAlign: 'left',
-        boxShadow: selected ? `0 0 0 1px ${colors.crimson} inset` : 'none',
-      }}
+
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.xs }}>
         <div style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>{asset.kind === 'gif' ? 'GIF' : 'Approved'}</div>
@@ -370,7 +362,7 @@ export default function ComposePanel({
         <div style={{ fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, color: colors.text }}>{asset.title}</div>
         <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: 2 }}>{asset.category}</div>
       </div>
-    </button>
+    </ControlButton>
   )
 
   const handleUndoPolish = () => {
@@ -489,7 +481,7 @@ export default function ComposePanel({
         {sendError && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.crimson}`, borderRadius: radius.md, color: colors.crimson, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
             <span>! {sendError}</span>
-            <button onClick={() => setSendError(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: colors.crimson, padding: 0 }}>✕</button>
+            <ControlButton kind="icon" onClick={() => setSendError(null)} >✕</ControlButton>
           </div>
         )}
         {showComposeBootSkeleton ? (
@@ -574,12 +566,12 @@ export default function ComposePanel({
                   .map(c => (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
                       <span style={{ ...typography.bodySmall, color: colors.warning }}>{c.name}</span>
-                      <button
+                      <Button variant="secondary" size="sm"
                         onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                        style={{ ...typography.helper, color: colors.warning, background: 'transparent', border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+
                       >
                         Remove
-                      </button>
+                      </Button>
                     </div>
                   ))}
               </div>
@@ -595,12 +587,12 @@ export default function ComposePanel({
                     <div key={c.id} style={{ marginBottom: spacing.sm }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ ...typography.bodySmall, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
-                        <button
+                        <Button variant="secondary" size="sm"
                           onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
-                          style={{ ...typography.helper, color: colors.warning, background: 'transparent', border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: '2px 8px', cursor: 'pointer', fontFamily: typography.fontSans }}
+
                         >
                           Remove
-                        </button>
+                        </Button>
                       </div>
                       {c.note && (
                         <div style={{ ...typography.helper, color: colors.textSecondary, marginTop: '2px', fontStyle: 'italic' }}>
@@ -633,55 +625,38 @@ export default function ComposePanel({
           />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.xs, flexWrap: 'wrap' }}>
-            <button
+            <Button variant="secondary" size="sm"
               onClick={() => {
                 setShowMediaInput(!showMediaInput)
                 if (!showMediaInput && mediaSuggestions.approvedImages.length === 0 && mediaSuggestions.suggestedGifs.length === 0) {
                   loadMediaSuggestions(message)
                 }
               }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: spacing.xs,
-                background: showMediaInput || isMMS ? colors.surfaceMuted : colors.surface,
-                color: showMediaInput || isMMS ? colors.text : colors.textSecondary,
-                border: `1px solid ${colors.border}`, borderRadius: radius.md,
-                padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, minHeight: '36px', cursor: 'pointer',
-                fontFamily: typography.fontSans,
-              }}
+
             >
               <Paperclip size={13} />
               {isMMS ? 'Media attached' : 'Attach image'}
-            </button>
-            <button
+            </Button>
+            <Button variant="secondary" size="sm"
               onClick={handleAiDraft}
               disabled={aiLoading}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: spacing.xs,
-                background: aiLoading ? colors.borderLight : colors.surface,
-                color: aiLoading ? colors.textMuted : colors.textSecondary,
-                border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`,
-                fontSize: typography.sizeBase, minHeight: '36px', cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans,
-              }}
+
             >
               {prePolishMessage.current && !aiLoading ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
-                  <button
+                  <ControlButton kind="link"
                     onClick={(e) => { e.stopPropagation(); handleUndoPolish() }}
-                    style={{
-                      background: 'transparent', border: 'none', color: 'inherit',
-                      cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit',
-                      fontWeight: typography.weightSemibold, textDecoration: 'underline'
-                    }}
+
                   >
                     Undo
-                  </button>
+                  </ControlButton>
                   <span style={{ color: colors.border }}>|</span>
                   <Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}
                 </span>
               ) : (
                 <><Sparkles size={12} /> {aiLoading ? 'Writing...' : message.trim() ? 'Polish with AI' : 'Draft with AI'}</>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Char count */}
@@ -741,9 +716,9 @@ export default function ComposePanel({
                   placeholder="Paste Cloudinary or image URL..."
                 />
                 {mediaUrl && (
-                  <button onClick={() => setMediaUrl('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textSecondary }}>
+                  <ControlButton kind="icon" onClick={() => setMediaUrl('')} >
                     <X size={16} />
-                  </button>
+                  </ControlButton>
                 )}
               </div>
             </div>
@@ -854,12 +829,7 @@ export default function ComposePanel({
           progress={sendProgress}
           onClick={handleSend}
           disabled={!message.trim() || effectiveCount === 0}
-          style={{
-            padding: `${spacing.md} ${spacing['3xl']}`,
-            fontSize: typography.sizeMd,
-            background: !message.trim() || effectiveCount === 0 ? colors.border : colors.crimson,
-            maxWidth: '100%',
-          }}
+          style={{ maxWidth: '100%' }}
         >
           {isSending ? 'Sending…' : 'Send message'}
         </LoadingButton>

@@ -14,6 +14,8 @@ export async function middleware(request: NextRequest) {
     ?.split(':')[0]
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
+  // Static, non-personal fallback avatar must also load through image optimization.
+  if (pathname === '/avatars/staff-default.svg' || /^\/avatars\/staging-(owner|admin|staff|assistant|tester)\.svg$/.test(pathname)) return NextResponse.next({ request })
   // Twilio cannot present a Pulse session. These handlers authenticate requests
   // using Twilio's signed webhook headers, so bypass session middleware entirely.
   // The internal reconciliation handler separately requires a strong bearer secret.

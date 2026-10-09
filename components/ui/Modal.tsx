@@ -1,11 +1,13 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 
-export type ModalSize = 'sm' | 'md' | 'lg' | 'wide'
+export type ModalSize = 'sm' | 'md' | 'lg' | 'wide' | 'notifications'
 
 interface ModalProps {
   isOpen: boolean
@@ -28,6 +30,7 @@ interface ModalHeaderProps {
 
 const widths: Record<ModalSize, string> = {
   sm: '440px',
+  notifications: '616px',
   md: '560px',
   lg: '720px',
   wide: '1120px',
@@ -124,9 +127,9 @@ export function ModalHeader({ title, description, onClose, icon, badge }: ModalH
         </div>
       </div>
       {onClose && (
-        <button type="button" onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: radius.md, background: 'transparent', color: colors.textSecondary, cursor: 'pointer', padding: 0 }}>
+        <ControlButton kind="toggle" type="button" onClick={onClose} aria-label="Close" style={{ width: 32, flexShrink: 0 }}>
           <X size={19} aria-hidden="true" />
-        </button>
+        </ControlButton>
       )}
     </div>
   )

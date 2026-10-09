@@ -1,5 +1,7 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLessonLead, leadBelongsToTab, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
@@ -1508,7 +1510,7 @@ export default function LeadsView() {
           ) : (
             <>
               <StatusBadge status={selectedLead.status} label={formatLabel(statusValue)} style={leadStatusBadgeStyle} />
-              <button type="button" onClick={() => setShowStatusEditor(true)} style={leadStatusActionStyle}>Update</button>
+              <Button variant="secondary" size="sm" type="button" onClick={() => setShowStatusEditor(true)} >Update</Button>
             </>
           )}
         </div>
@@ -1520,17 +1522,17 @@ export default function LeadsView() {
             width="wide"
             href={`mailto:${selectedLead.contact.email}`}
             action={(
-              <button
+              <ControlButton kind="icon"
                 type="button"
                 aria-label="Copy email address"
                 onClick={(event) => {
                   event.stopPropagation()
                   void handleCopyEmail(selectedLead.contact!.email!)
                 }}
-                style={quickChipIconButtonStyle}
+
               >
                 <Copy size={16} />
-              </button>
+              </ControlButton>
             )}
             fullWidth={isMobileLayout}
             align={isMobileLayout ? 'start' : 'center'}
@@ -1616,16 +1618,16 @@ export default function LeadsView() {
                   <div key={index} style={siblingCardStyle}>
                     <div style={siblingCardHeaderStyle}>
                       <div style={siblingLabelStyle}>Sibling {index + 1}</div>
-                      <button
+                      <Button variant="secondary" size="sm"
                         type="button"
                         onClick={() => setLessonOpportunity((current) => ({
                           ...current,
                           siblings: current.siblings.filter((_, siblingIndex) => siblingIndex !== index),
                         }))}
-                        style={removeSiblingButtonStyle}
+
                       >
                         Remove
-                      </button>
+                      </Button>
                     </div>
 
                     <div style={isMobileLayout ? siblingGridMobileStyle : siblingGridStyle}>

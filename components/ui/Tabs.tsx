@@ -1,4 +1,6 @@
 'use client'
+import { ButtonBase } from '@/components/ui/ButtonBase'
+
 
 import type { CSSProperties } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -34,7 +36,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
       {items.map((tab) => {
         const active = tab.key === activeKey
         return (
-          <button
+          <ButtonBase
             key={tab.key}
             onClick={() => onChange(tab.key)}
             aria-pressed={active}
@@ -70,7 +72,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
                 background: prominent ? colors.backgroundSecondary : 'transparent',
               }}>{tab.count}</span>
             )}
-          </button>
+          </ButtonBase>
         )
       })}
     </div>

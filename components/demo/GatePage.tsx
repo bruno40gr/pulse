@@ -1,5 +1,7 @@
 'use client'
 
+
+import { Button } from '@/components/ui/Button'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_BRAND, setActiveTenantId } from '@/lib/tenant'
@@ -111,9 +113,9 @@ export default function GatePage() {
               <img alt={demo.name} src={demo.logoUrl} style={{ display: 'block', width: 'min(100%, 250px)', height: 'auto', maxHeight: '86px', objectFit: 'contain', ...(demo.invertLogo ? { filter: 'invert(1)' } : {}) }} />
             </div>
             <div style={{ flex: 1 }} />
-            <button type="button" onClick={() => void handleDemo(demo.tenantId, demo.environmentName)} disabled={launchingTenant !== null} style={buttonStyle(launchingTenant !== null)}>
+            <Button variant="primary" size="sm" type="button" onClick={() => void handleDemo(demo.tenantId, demo.environmentName)} disabled={launchingTenant !== null} >
               {launchingTenant === demo.tenantId ? 'Opening…' : 'Play with Demo'}
-            </button>
+            </Button>
           </section>
         ))}
 
@@ -136,9 +138,9 @@ export default function GatePage() {
             </label>
           </div>
           {staffError && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, margin: `${spacing.md} 0 0` }}>{staffError}</p>}
-          <button type="button" onClick={() => void handleStaffLogin()} disabled={staffLoading || teachers.length === 0} style={{ ...buttonStyle(staffLoading || teachers.length === 0), marginTop: spacing.xl }}>
+          <Button variant="primary" size="sm" type="button" onClick={() => void handleStaffLogin()} disabled={staffLoading || teachers.length === 0} style={{ marginTop: spacing.xl }}>
             {staffLoading ? 'Entering…' : 'Enter'}
-          </button>
+          </Button>
         </section>
       </section>
       {demoError && <p role="alert" style={{ position: 'fixed', bottom: spacing.xl, color: colors.error, fontSize: typography.sizeSm }}>{demoError}</p>}

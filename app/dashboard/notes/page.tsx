@@ -1,7 +1,11 @@
 'use client'
 
+
+import { ColorSwatch } from '@/components/ui/ColorSwatch'
+import { TaskCompletionButton } from '@/components/ui/TaskCompletionButton'
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
+import { Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, EmptyState, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader } from '@/components/ui'
 import NoteConversationPanel from '@/components/notes/NoteConversationPanel'
 import MentionTextarea from '@/components/notes/MentionTextarea'
@@ -28,23 +32,9 @@ interface Note {
   updated_at: string
 }
 
-const NOTE_COLORS: Record<string, string> = {
-  yellow: '#FEF08A',
-  orange: '#FED7AA',
-  pink: '#FBCFE8',
-  purple: '#DDD6FE',
-  blue: '#BFDBFE',
-  green: '#BBF7D0',
-  gray: '#E5E7EB',
-  white: '#FFFFFF',
-}
+import { NOTE_COLORS, getDailyNoteColor, getNoteBackground } from '@/lib/sticky-note-appearance'
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 
-function getDailyNoteColor(date = new Date()): string {
-  // Use the local calendar date, with UTC arithmetic to avoid daylight-saving drift.
-  const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000)
-  return NOTE_COLOR_KEYS[((day % NOTE_COLOR_KEYS.length) + NOTE_COLOR_KEYS.length) % NOTE_COLOR_KEYS.length]
-}
 
 function getLocalDateValue(date = new Date()): string {
   const year = date.getFullYear()
@@ -114,7 +104,7 @@ interface NoteCardProps {
 
 function NoteCard(props: NoteCardProps) {
   const { note, editing, editTitle, editBody } = props
-  const bg = NOTE_COLORS[note.color] || NOTE_COLORS.white
+  const bg = getNoteBackground(note.color, Boolean(note.completed_at))
   const isWhite = note.color === 'white'
   const cardStyle: React.CSSProperties = {
     width: '100%',
@@ -143,7 +133,7 @@ function NoteCard(props: NoteCardProps) {
     color: note.pinned ? '#DC2626' : 'rgba(55, 65, 81, 0.45)',
   }
   const completionButton = (
-    <button
+    <TaskCompletionButton completed={Boolean(note.completed_at)}
       type="button"
       onClick={(event) => {
         event.stopPropagation()
@@ -151,24 +141,14 @@ function NoteCard(props: NoteCardProps) {
       }}
       title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
       aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 7px', borderRadius: radius.sm,
-        border: `1px solid ${note.completed_at ? '#86C99C' : colors.border}`,
-        background: note.completed_at ? '#F0FDF4' : 'rgba(255,255,255,0.55)',
-        color: note.completed_at ? colors.greenDark : colors.textSecondary,
-        fontSize: '10px', fontWeight: typography.weightBold, letterSpacing: '0.05em', textTransform: 'uppercase',
-        fontFamily: typography.fontSans, cursor: 'pointer', flexShrink: 0,
-      }}
     >
-      <Check size={12} strokeWidth={2.4} />
-      {note.completed_at ? 'Done' : 'Mark done'}
-    </button>
+    </TaskCompletionButton>
   )
 
   if (editing) {
     return (
       <div style={{ ...cardStyle, position: 'relative', overflowY: 'auto' }}>
-        <button
+        <ControlButton kind="icon" selected={note.pinned}
           type="button"
           onClick={(event) => {
             event.stopPropagation()
@@ -176,10 +156,10 @@ function NoteCard(props: NoteCardProps) {
           }}
           title={note.pinned ? 'Unpin note' : 'Pin note'}
           aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-          style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
+          style={{ width: 26, position: 'absolute', top: spacing.md, left: spacing.md }}
         >
           <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
-        </button>
+        </ControlButton>
         <div style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
           {completionButton}
         </div>
@@ -206,7 +186,7 @@ function NoteCard(props: NoteCardProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }} aria-label="Note color">
             {NOTE_COLOR_KEYS.map((key) => (
-              <button
+              <ColorSwatch selected={key === note.color} color={NOTE_COLORS[key]} label={`Set color to ${key}`}
                 key={key}
                 type="button"
                 onClick={(event) => {
@@ -215,16 +195,11 @@ function NoteCard(props: NoteCardProps) {
                 }}
                 title={`Set color to ${key}`}
                 aria-label={`Set color to ${key}`}
-                style={{
-                  width: 18, height: 18, borderRadius: '50%', background: NOTE_COLORS[key],
-                  border: key === note.color ? `2px solid ${colors.text}` : '1px solid rgba(0,0,0,0.15)',
-                  cursor: 'pointer', padding: 0,
-                }}
               />
             ))}
           </div>
           <div style={{ flex: 1 }} />
-          <button
+          <ControlButton kind="icon"
             type="button"
             onClick={(event) => {
               event.stopPropagation()
@@ -232,10 +207,10 @@ function NoteCard(props: NoteCardProps) {
             }}
             title="Delete note"
             aria-label="Delete note"
-            style={{ ...iconBtnStyle, color: '#B91C1C' }}
+            style={{ width: 26 }}
           >
             <Trash2 size={16} />
-          </button>
+          </ControlButton>
           <Button variant="ghost" size="sm" onClick={props.onCancelEdit}>Cancel</Button>
           <Button variant="primary" size="sm" onClick={props.onSaveEdit}>Save</Button>
         </div>
@@ -248,7 +223,7 @@ function NoteCard(props: NoteCardProps) {
       onClick={props.onStartEdit}
       style={{ ...cardStyle, position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'text' }}
     >
-      <button
+      <ControlButton kind="icon" selected={note.pinned}
         type="button"
         onClick={(event) => {
           event.stopPropagation()
@@ -256,14 +231,14 @@ function NoteCard(props: NoteCardProps) {
         }}
         title={note.pinned ? 'Unpin note' : 'Pin note'}
         aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-        style={{ ...pinButtonStyle, position: 'absolute', top: spacing.md, left: spacing.md }}
+        style={{ width: 26, position: 'absolute', top: spacing.md, left: spacing.md }}
       >
         <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
-      </button>
+      </ControlButton>
       <div onClick={(event) => event.stopPropagation()} style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
         {completionButton}
       </div>
-      <div style={{ minHeight: 0, flex: '1 1 auto', paddingTop: 34, overflow: 'hidden' }}>
+      <div style={{ minHeight: 0, flex: '1 1 auto', paddingTop: 34, overflow: 'hidden', textDecoration: note.completed_at ? 'line-through' : 'none' }}>
         {note.title && (
           <div style={{
             display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden',
@@ -289,7 +264,7 @@ function NoteCard(props: NoteCardProps) {
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
-          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onReply() }} style={{ color: colors.textSecondary }}>
+          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onReply() }} >
             <MessageCircle size={14} aria-hidden="true" />
             {note.reply_count > 0 ? <strong>Replies {note.reply_count}</strong> : 'Reply'}
           </Button>
@@ -622,25 +597,12 @@ export default function NotesPage() {
             }}>Apply</Button>
           </ModalFooter>
         </Modal>
-        <button
+        <ControlButton kind="toggle"
           type="button"
           role="switch"
           aria-checked={!showDone}
           onClick={toggleHideDone}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: spacing.sm,
-            height: 36,
-            whiteSpace: 'nowrap',
-            padding: 0,
-            border: 'none',
-            background: 'transparent',
-            color: colors.text,
-            fontFamily: typography.fontSans,
-            fontSize: typography.sizeSm,
-            cursor: 'pointer',
-          }}
+          style={{ whiteSpace: 'nowrap' }}
         >
           <span>Hide notes marked &lsquo;done&rsquo;</span>
           <span
@@ -670,7 +632,7 @@ export default function NotesPage() {
               }}
             />
           </span>
-        </button>
+        </ControlButton>
       </div>
 
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
@@ -690,49 +652,32 @@ export default function NotesPage() {
             style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'none', minHeight: 72 }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {NOTE_COLOR_KEYS.map((key) => (
-                <button
+                <ColorSwatch color={NOTE_COLORS[key]} selected={key === draftColor} label={`Set color to ${key}`}
                   key={key}
                   type="button"
                   onClick={() => { draftColorChosenRef.current = true; setDraftColor(key) }}
                   title={key}
-                  style={{
-                    width: 20, height: 20, borderRadius: '50%', background: NOTE_COLORS[key],
-                    border: key === draftColor ? `2px solid ${colors.text}` : '1px solid rgba(0,0,0,0.15)',
-                    cursor: 'pointer', padding: 0,
-                  }}
                 />
               ))}
             </div>
-            <button
+            <ControlButton kind="icon" selected={draftPinned}
               type="button"
               onClick={() => setDraftPinned((v) => !v)}
               title={draftPinned ? 'Unpin' : 'Pin'}
               aria-label={draftPinned ? 'Unpin note' : 'Pin note'}
-              style={{ ...iconBtnStyle, color: draftPinned ? '#DC2626' : 'rgba(55, 65, 81, 0.45)' }}
+              style={{ width: 26 }}
             >
               <Pin size={16} fill={draftPinned ? 'currentColor' : 'none'} />
-            </button>
-            <button
+            </ControlButton>
+            <ControlButton kind="toggle"
               type="button"
               onClick={() => setDraftPrivate((value) => !value)}
               title={draftPrivate ? 'Make this note visible to everyone' : 'Only you and mentioned people can access this note'}
               role="switch"
               aria-checked={draftPrivate}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: spacing.xs,
-                padding: '3px 4px',
-                border: 'none',
-                background: 'transparent',
-                color: colors.text,
-                fontFamily: typography.fontSans,
-                fontSize: typography.sizeSm,
-                fontWeight: typography.weightMedium,
-                cursor: 'pointer',
-              }}
+
             >
               <span>Private</span>
               <span
@@ -761,7 +706,7 @@ export default function NotesPage() {
                   }}
                 />
               </span>
-            </button>
+            </ControlButton>
             <div style={{ flex: 1 }} />
             <Button variant="primary" size="sm" onClick={handleAdd} disabled={saving || (!draftTitle.trim() && !draftBody.trim())}>
               {saving ? 'Saving…' : 'Add'}
@@ -832,13 +777,13 @@ export default function NotesPage() {
         }}>
           <span style={{ fontSize: 13 }}>{toast.message}</span>
           {toast.undo && (
-            <button
+            <ControlButton kind="link"
               type="button"
               onClick={() => { toast.undo?.(); setToast(null) }}
-              style={{ background: 'transparent', border: 'none', color: '#FF5C7A', fontWeight: 600, cursor: 'pointer', fontSize: 13, padding: 0 }}
+
             >
               Undo
-            </button>
+            </ControlButton>
           )}
         </div>
       )}

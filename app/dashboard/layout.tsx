@@ -1,12 +1,14 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
-import SignedInUser from '@/components/layout/SignedInUser'
+import IdentityProvider from '@/components/layout/IdentityProvider'
 import DemoBanner from '@/components/ui/DemoBanner'
 import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -81,6 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const closeMenu = () => setMenuOpen(false)
 
   return (
+    <IdentityProvider>
     <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
       {!isMobile && (
@@ -92,11 +95,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Mobile top bar */}
       {isMobile && (
         <header style={{ position: 'fixed', top: 0, left: 0, right: 0, minHeight: '72px', background: colors.action, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 16px', boxSizing: 'border-box', zIndex: 30 }}>
-          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', display: 'flex', padding: '4px' }}>
+          <ControlButton kind="icon" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" >
             <Menu size={22} />
-          </button>
+          </ControlButton>
           <div style={{ flex: '0 1 110px', minWidth: 0 }}><TenantBrand height={28} maxWidth="100%" width="100%" /></div>
-          <div style={{ flex: 1, minWidth: 0 }}><SignedInUser compact /></div>
+          <div style={{ flex: 1, minWidth: 0 }}><NotificationBell inverse variant="user" onNavigate={closeMenu} /></div>
         </header>
       )}
 
@@ -107,9 +110,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 'min(280px, 85vw)', background: colors.action, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <TenantBrand height={32} maxWidth="70%" width="70%" />
-              <button type="button" onClick={closeMenu} aria-label="Close menu" style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', display: 'flex', padding: '4px' }}>
+              <ControlButton kind="icon" type="button" onClick={closeMenu} aria-label="Close menu" >
                 <X size={20} />
-              </button>
+              </ControlButton>
             </div>
             <SidebarBody onNavigate={closeMenu} showBrand={false} />
           </div>
@@ -123,6 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
       <ClaimReminderModal />
     </div>
+    </IdentityProvider>
   )
 }
 
@@ -181,7 +185,6 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         </div>
       )}
       <nav style={{ flex: 1, padding: '12px 8px' }}>
-        <NotificationBell inverse variant="nav" onNavigate={onNavigate} />
         {NAV_GROUPS.map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
@@ -214,7 +217,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ))}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <SignedInUser />
+        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
         <Link
           href="/dashboard/settings"
           onClick={onNavigate}

@@ -1,11 +1,16 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
-import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
+import SignedInUser from '@/components/layout/SignedInUser'
+import { Modal, ModalHeader } from '@/components/ui/Modal'
+import { notificationSummary } from '@/lib/notification-summary'
+import { Button } from '@/components/ui/Button'
+import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 type NotificationItem = {
   id: string
@@ -13,17 +18,19 @@ type NotificationItem = {
   body: string | null
   link: string
   read_at: string | null
+  dismissed_at: string | null
   created_at: string
   actor_name: string
 }
 
-export default function NotificationBell({ inverse = false, variant = 'icon', onNavigate }: { inverse?: boolean; variant?: 'icon' | 'nav'; onNavigate?: () => void }) {
+export default function NotificationBell({ inverse = false, variant = 'icon', onNavigate }: { inverse?: boolean; variant?: 'icon' | 'nav' | 'user'; onNavigate?: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const tenantId = getActiveTenantId()
@@ -42,38 +49,46 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
     return () => window.clearInterval(interval)
   }, [load])
 
-  useEffect(() => {
-    if (!open) return
+  const close = useCallback(() => setOpen(false), [])
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (!rootRef.current?.contains(target) && !dialogRef.current?.contains(target)) setOpen(false)
+  const dismissNotification = async (id?: string) => {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/notifications?tenant=${encodeURIComponent(getActiveTenantId())}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(id ? { id, action: 'dismiss' } : { all: true, action: 'dismiss' }),
+      })
+      if (!response.ok) throw new Error('Unable to dismiss notification. Please retry.')
+      setNotifications(current => id ? current.filter(item => item.id !== id) : [])
+      await load()
+    } catch {
+      setError('Unable to dismiss notification. Please retry.')
+    } finally {
+      setSaving(false)
     }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
-
-  const markRead = async (id?: string) => {
-    const tenantId = getActiveTenantId()
-    await fetch(`/api/notifications?tenant=${tenantId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(id ? { id } : { all: true }),
-    }).catch(() => {})
-    setNotifications((current) => current.map((item) => !id || item.id === id ? { ...item, read_at: item.read_at || new Date().toISOString() } : item))
-    setUnreadCount((current) => id ? Math.max(0, current - (notifications.find((item) => item.id === id && !item.read_at) ? 1 : 0)) : 0)
   }
 
   const openNotification = async (item: NotificationItem) => {
-    if (!item.read_at) await markRead(item.id)
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/notifications?tenant=${encodeURIComponent(getActiveTenantId())}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, action: 'seen' }),
+      })
+      if (!response.ok) throw new Error('Unable to mark notification seen.')
+      setNotifications(current => current.map(value => value.id === item.id ? { ...value, read_at: value.read_at || new Date().toISOString() } : value))
+      await load()
+    } catch {
+      setError('Unable to mark notification seen. Please retry.')
+      return
+    } finally {
+      setSaving(false)
+    }
     setOpen(false)
     onNavigate?.()
     router.push(item.link)
@@ -81,44 +96,38 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
 
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
-      <button
+      <ControlButton kind={variant === 'icon' ? 'icon' : 'navigation'} selected={open} inverse={inverse}
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => { setOpen(current => !current); void load() }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-        style={variant === 'nav'
-          ? { position: 'relative', display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%', padding: '9px 12px', marginBottom: 2, border: 'none', borderRadius: radius.lg, background: open ? 'rgba(255,255,255,0.08)' : 'transparent', color: inverse ? colors.textMuted : colors.text, cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeMd, textAlign: 'left' }
-          : { position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 'none', borderRadius: radius.full, background: inverse ? 'rgba(255,255,255,0.08)' : colors.surface, color: inverse ? colors.surface : colors.text, cursor: 'pointer' }}
+        style={{ position: 'relative' }}
       >
-        <Bell size={19} />
+        {variant === 'user' ? <SignedInUser compact /> : <Bell size={19} />}
         {variant === 'nav' && <span>Notifications</span>}
         {unreadCount > 0 && (
-          <span style={variant === 'nav'
-            ? { marginLeft: 'auto', minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }
-            : { position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, padding: '0 4px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '17px', textAlign: 'center' }}>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          variant === 'user'
+            ? <span aria-label={`${unreadCount} unread notifications`} style={{ marginLeft: 'auto', width: 8, height: 8, flexShrink: 0, borderRadius: '50%', background: colors.crimson }} />
+            : <span style={{ marginLeft: 'auto', borderRadius: radius.full, background: colors.crimson, color: '#fff', padding: '2px 6px', fontSize: 10 }}>{unreadCount}</span>
         )}
-      </button>
-      {open && createPortal(
-        <div ref={dialogRef} role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: variant === 'nav' ? 76 : 12, left: variant === 'nav' ? 'min(220px, max(12px, calc(100vw - 372px)))' : 12, zIndex: 1100, width: 'min(360px, calc(100vw - 24px))', maxHeight: 'min(480px, calc(100vh - 24px))', overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadows.xl, color: colors.text }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: spacing.lg, borderBottom: `1px solid ${colors.borderLight}`, background: colors.surface }}>
-            <strong style={{ fontSize: typography.sizeMd }}>Notifications</strong>
-            {unreadCount > 0 && <button type="button" onClick={() => void markRead()} style={{ border: 'none', background: 'transparent', color: colors.tealDark, cursor: 'pointer', fontSize: typography.sizeSm, fontWeight: typography.weightSemibold }}>Mark all read</button>}
-          </div>
-          {notifications.length === 0 ? (
-            <div style={{ padding: spacing['2xl'], color: colors.textMuted, fontSize: typography.sizeSm }}>No notifications yet.</div>
-          ) : notifications.map((item) => (
-            <button key={item.id} type="button" onClick={() => void openNotification(item)} style={{ display: 'block', width: '100%', padding: spacing.lg, border: 'none', borderBottom: `1px solid ${colors.borderLight}`, background: item.read_at ? colors.surface : '#F0F9FB', color: colors.text, cursor: 'pointer', textAlign: 'left', fontFamily: typography.fontSans }}>
-              <div style={{ fontSize: typography.sizeBase, fontWeight: item.read_at ? typography.weightMedium : typography.weightSemibold }}>{item.title}</div>
-              <div style={{ marginTop: 3, color: colors.textSecondary, fontSize: typography.sizeSm, lineHeight: 1.4 }}>{item.actor_name}{item.body ? ` · ${item.body.replace(/\u00A0/g, ' ').slice(0, 120)}` : ''}</div>
-              <div style={{ marginTop: 5, color: colors.textMuted, fontSize: typography.sizeXs }}>{new Date(item.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
-            </button>
+      </ControlButton>
+      <Modal isOpen={open} onClose={close} size="notifications" ariaLabel="Notifications">
+        <ModalHeader title="Notifications" onClose={close} />
+        <div style={{ overflowY: 'auto', padding: spacing.lg }}>
+          {error && <p role="alert" style={{ color: colors.crimson }}>{error}</p>}
+          {notifications.length > 0 && <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => void dismissNotification()} style={{ marginBottom: spacing.md }}>Dismiss all</Button>}
+          {notifications.length === 0 ? <p style={{ color: colors.textMuted }}>No notifications yet.</p> : notifications.map(item => (
+            <div key={item.id} style={{ padding: spacing.md, marginBottom: spacing.sm, border: `1px solid ${colors.border}`, borderRadius: radius.lg, background: item.read_at ? colors.surface : '#F0F9FB' }}>
+              <p style={{ margin: 0, color: colors.text, fontSize: typography.sizeBase, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{notificationSummary(item)}</p>
+               <div style={{ marginTop: spacing.sm, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm }}>
+                 <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => void openNotification(item)}>Open</Button>
+                 <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => void dismissNotification(item.id)}>Dismiss</Button>
+              </div>
+            </div>
           ))}
-        </div>,
-        document.body,
-      )}
+        </div>
+      </Modal>
     </div>
   )
 }

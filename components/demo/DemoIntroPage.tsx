@@ -154,18 +154,7 @@ export default function DemoIntroPage({ overlay = false, tenantId }: { overlay?:
                 <Button
                   key={environment.tenantId}
                   size="lg"
-                  style={{
-                    background: hoveredButton === environment.tenantId ? colors.crimsonDark : colors.crimson,
-                    color: colors.surface,
-                    justifyContent: 'center',
-                    minHeight: '56px',
-                    whiteSpace: 'nowrap',
-                    fontSize: typography.sizeMd,
-                    paddingInline: '18px',
-                    transition: 'background 180ms ease, transform 180ms ease, box-shadow 180ms ease',
-                    boxShadow: hoveredButton === environment.tenantId ? '0 10px 24px rgba(255, 0, 68, 0.24)' : '0 6px 18px rgba(255, 0, 68, 0.16)',
-                    transform: hoveredButton === environment.tenantId ? 'translateY(-1px)' : 'translateY(0)',
-                  }}
+                  style={{ whiteSpace: 'nowrap' }}
                   onClick={() => handleLaunch(environment.tenantId, environment.environmentName)}
                   onMouseEnter={() => setHoveredButton(environment.tenantId)}
                   onMouseLeave={() => setHoveredButton(current => (current === environment.tenantId ? null : current))}

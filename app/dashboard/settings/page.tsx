@@ -1,4 +1,6 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getActiveTenantId, getTenantBrand } from '@/lib/tenant'
@@ -125,24 +127,13 @@ export default function SettingsPage() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing['3xl'], overflowX: 'auto' }}>
         {tabs.map(t => (
-          <button
+          <ControlButton kind="tab" selected={tab === t.key}
             key={t.key}
             onClick={() => setTab(t.key)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: `${spacing.md} ${spacing.xl}`,
-              fontSize: typography.sizeMd,
-              fontWeight: tab === t.key ? typography.weightSemibold : typography.weightNormal,
-              color: tab === t.key ? colors.text : colors.textMuted,
-              cursor: 'pointer',
-              fontFamily: typography.fontSans,
-              borderBottom: `2px solid ${tab === t.key ? colors.crimson : 'transparent'}`,
-              marginBottom: '-1px',
-            }}
+            style={{ marginBottom: '-1px' }}
           >
             {t.label}
-          </button>
+          </ControlButton>
         ))}
       </div>
 
@@ -553,23 +544,13 @@ function HighlightsSettings({ tenantId, cardS, sectionTitleS, sectionSubS }: { t
                 {FOCUS_OPTIONS.map(f => {
                   const active = focusAreas.includes(f.value)
                   return (
-                    <button
+                    <ControlButton kind="tab" selected={active}
                       key={f.value}
                       onClick={() => toggleFocus(f.value)}
-                      style={{
-                        padding: `${spacing.sm} ${spacing.lg}`,
-                        borderRadius: radius.full,
-                        border: `1px solid ${active ? colors.crimson : colors.border}`,
-                        background: active ? colors.crimson : colors.surface,
-                        color: active ? 'white' : colors.textSecondary,
-                        fontSize: typography.sizeSm,
-                        fontWeight: typography.weightMedium,
-                        cursor: 'pointer',
-                        fontFamily: typography.fontSans,
-                      }}
+
                     >
                       {f.label}
-                    </button>
+                    </ControlButton>
                   )
                 })}
               </div>

@@ -1,4 +1,6 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -126,19 +128,15 @@ export default function HistoryPage() {
                   { label: 'Replies', value: (
                     <span>
                       {campaign.stats.replies > 0 ? (
-                        <button
+                        <ControlButton kind="link"
                           onClick={(e) => {
                             e.stopPropagation()
                             router.push(`/dashboard/inbox?campaign=${campaign.id}`)
                           }}
-                          style={{
-                            background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
-                            fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', color: colors.teal,
-                            textDecoration: 'underline', textUnderlineOffset: '2px',
-                          }}
+
                         >
                           {campaign.stats.replies} →
-                        </button>
+                        </ControlButton>
                       ) : (
                         campaign.stats.replies
                       )}

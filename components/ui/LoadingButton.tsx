@@ -1,4 +1,6 @@
 'use client'
+import { ButtonBase } from '@/components/ui/ButtonBase'
+
 import { ButtonHTMLAttributes } from 'react'
 import { buttonSizeStyles, buttonVariantStyles, type ButtonSize, type ButtonVariant } from './Button'
 import { typography, radius, spacing } from '@/lib/tokens'
@@ -42,7 +44,7 @@ export function LoadingButton({
   const pct = determinate ? Math.max(0, Math.min(100, progress!)) : 0
 
   return (
-    <button
+    <ButtonBase
       disabled={isDisabled}
       aria-busy={loading || undefined}
       aria-label={loading ? loadingLabel : ariaLabel}
@@ -80,6 +82,6 @@ export function LoadingButton({
         />
       )}
       <span style={{ position: 'relative', zIndex: 1 }}>{children}</span>
-    </button>
+    </ButtonBase>
   )
 }

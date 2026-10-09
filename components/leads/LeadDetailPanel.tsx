@@ -1,5 +1,7 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Copy, MessageCircle, Pencil, Phone, Trash2 } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
@@ -426,7 +428,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
         onClose={onClose}
         onBack={isMobile ? onClose : undefined}
         backLabel="Leads"
-        titleBadge={<button type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={editNameButtonStyle}><Pencil size={15} /></button>}
+        titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
         actions={isMobile ? undefined : (statusControls || undefined)}
       />
 
@@ -477,11 +479,11 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
           </div>
         )}
         <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
-          <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} style={isMobile ? mobileActionControlStyle : undefined}><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
-          <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose} style={isMobile ? mobileActionControlStyle : undefined}><MessageCircle size={16} />Text message</Button>
+          <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} ><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
+          <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose} ><MessageCircle size={16} />Text message</Button>
           <CompactMetaCard fullWidth={isMobile} style={{ ...emailControlStyle, ...emailControlMdStyle }}>
             <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.contact?.email || 'Not provided'}</span>
-            {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} style={copyButtonStyle}><Copy size={15} /></Button>}
+            {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} ><Copy size={15} /></Button>}
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
         </div>
@@ -591,13 +593,13 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                       <div style={familyMemberRowStyle}>
                         <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
                         <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                        <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><button type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} style={{ ...removeFamilyMemberButtonStyle, minHeight: 36, padding: 4 }}><Trash2 size={15} /></button>
+                        <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><ControlButton kind="icon" type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} ><Trash2 size={15} /></ControlButton>
                       </div>
                     </div>
                   )
                 })}
               </div>
-              {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary" style={{ background: '#000' }} size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+              {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary"  size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
             </DenseSectionPanel>}
           </div>
         ) : (
@@ -636,13 +638,13 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
                         <div style={familyMemberRowStyle}>
                           <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
                           <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                          <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><button type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} style={{ ...removeFamilyMemberButtonStyle, minHeight: 36, padding: 4 }}><Trash2 size={15} /></button>
+                          <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><ControlButton kind="icon" type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} ><Trash2 size={15} /></ControlButton>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-                {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary" style={{ background: '#000' }} size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
+                {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary"  size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
               </DenseSectionPanel>}
               <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
                 <div style={twoColumnStyle}>

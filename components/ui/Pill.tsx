@@ -1,4 +1,6 @@
 'use client'
+import { ButtonBase } from '@/components/ui/ButtonBase'
+
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface PillProps {
@@ -16,7 +18,7 @@ export function Pill({ options, value, onChange, disabled = [], style }: PillPro
         const isDisabled = disabled.includes(option.value)
         const isSelected = value === option.value
         return (
-          <button
+          <ButtonBase
             key={option.value}
             onClick={() => !isDisabled && onChange(option.value)}
             disabled={isDisabled}
@@ -38,7 +40,7 @@ export function Pill({ options, value, onChange, disabled = [], style }: PillPro
             }}
           >
             {option.label}
-          </button>
+          </ButtonBase>
         )
       })}
     </div>

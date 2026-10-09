@@ -1,4 +1,5 @@
 'use client'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, type ComponentProps } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { Avatar, Button, PageHeader, ResponsiveDataTable, SlidePanel, SlidePanelHeader, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
@@ -104,7 +105,7 @@ export default function StaffPage() {
       sortKey: 'name',
       render: (member) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-          <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={32} />
+          <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={32} src={getStaffAvatarUrl(tenantId, `${member.first_name || ''} ${member.last_name || ''}`)} />
           <span style={{ fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(member)}</span>
         </span>
       ),

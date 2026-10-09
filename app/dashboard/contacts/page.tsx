@@ -1,4 +1,7 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useRef } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
 import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
@@ -479,15 +482,17 @@ export default function ContactsPage() {
             firstName={contact.first_name}
             lastName={contact.last_name}
             size={32}
-            src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact) : undefined}
+            src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact)
+              : contact.staff_id || contact.custom_fields?.contact_kind === 'instructor'
+                ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined}
           />
-          <button
+          <ControlButton kind="link"
             type="button"
             onClick={(event) => handleNameClick(contact, event)}
-            style={{ border: 'none', background: 'transparent', padding: 0, color: colors.text, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: colors.border, fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightBold, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
             {contact.first_name} {contact.last_name}
-          </button>
+          </ControlButton>
           {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
@@ -560,17 +565,10 @@ export default function ContactsPage() {
         right={
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
             {!loading && (
-              <button
+              <Button variant="secondary" size="sm"
                 onClick={handleSync}
                 disabled={syncing}
-                style={{
-                  background: 'transparent', border: 'none', padding: 0,
-                  color: colors.textSecondary, cursor: syncing ? 'default' : 'pointer',
-                  fontSize: typography.sizeSm, fontFamily: typography.fontSans,
-                  textDecoration: 'underline', textUnderlineOffset: '2px',
-                  opacity: syncing ? 0.5 : 1,
-                  whiteSpace: 'nowrap',
-                }}
+                style={{ whiteSpace: 'nowrap' }}
               >
                 {syncing ? (
                   'Syncing...'
@@ -582,7 +580,7 @@ export default function ContactsPage() {
                     Sync now
                   </span>
                 )}
-              </button>
+              </Button>
             )}
             <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
             <Button variant="secondary" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
@@ -637,24 +635,24 @@ export default function ContactsPage() {
             onBlur={e => { e.target.style.opacity = '1' }}
           />
           {query && (
-            <button onClick={clearSearch} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
+            <ControlButton kind="icon" onClick={clearSearch} >
               <X size={15} />
-            </button>
+            </ControlButton>
           )}
-          <button
+          <Button variant="primary" size="sm"
             onClick={handleSearch}
             disabled={aiLoading || !query.trim()}
-            style={{ background: aiLoading || !query.trim() ? colors.borderLight : colors.action, color: aiLoading || !query.trim() ? colors.textMuted : 'white', border: 'none', borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.md}`, fontSize: typography.sizeBase, cursor: aiLoading || !query.trim() ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans, whiteSpace: 'nowrap' }}
+            style={{ whiteSpace: 'nowrap' }}
           >
             {aiLoading ? 'Searching...' : 'Search'}
-          </button>
+          </Button>
         </div>
-        <button
+        <Button variant="secondary" size="sm"
           onClick={() => setShowFilters(!showFilters)}
-          style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, background: showFilters ? colors.espresso : colors.surface, color: showFilters ? 'white' : colors.textSecondary, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, fontSize: typography.sizeBase, cursor: 'pointer', fontFamily: typography.fontSans }}
+
         >
           <SlidersHorizontal size={14} /> Filters
-        </button>
+        </Button>
         <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
@@ -691,22 +689,12 @@ export default function ContactsPage() {
                 <span style={{ fontSize: typography.sizeSm, color: colors.text, fontFamily: typography.fontSans, fontWeight: typography.weightMedium }}>
                   {selectedIds.size} out of {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'} selected
                 </span>
-                <button
+                <Button variant="secondary" size="sm"
                   onClick={clearSelection}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    color: colors.textSecondary,
-                    fontSize: typography.sizeSm,
-                    fontFamily: typography.fontSans,
-                    textDecoration: 'underline',
-                    textUnderlineOffset: '2px',
-                    cursor: 'pointer',
-                  }}
+
                 >
                   Unselect all
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -813,22 +801,12 @@ export default function ContactsPage() {
             </p>
           )}
           {selectedIds.size > 0 && !showStickyActions && (
-            <button
+            <Button variant="secondary" size="sm"
               onClick={clearSelection}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                color: colors.textSecondary,
-                fontSize: typography.sizeSm,
-                fontFamily: typography.fontSans,
-                textDecoration: 'underline',
-                textUnderlineOffset: '2px',
-                cursor: 'pointer',
-              }}
+
             >
               Unselect all
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -861,32 +839,13 @@ export default function ContactsPage() {
       )}
 
       {!selectedContact && selectedIds.size > 0 && (
-        <button
+        <Button variant="primary" size="sm"
           onClick={openComposePanel}
-          style={{
-            position: 'fixed',
-            right: spacing['2xl'],
-            bottom: spacing['2xl'],
-            zIndex: 30,
-            display: 'flex',
-            alignItems: 'center',
-            gap: spacing.sm,
-            background: colors.action,
-            color: 'white',
-            border: 'none',
-            borderRadius: radius.lg,
-            padding: `${spacing.md} ${spacing.xl}`,
-            fontSize: typography.sizeMd,
-            fontWeight: typography.weightMedium,
-            cursor: 'pointer',
-            fontFamily: typography.fontSans,
-            boxShadow: '0 14px 36px rgba(0,0,0,0.16)',
-            whiteSpace: 'nowrap',
-          }}
+          style={{ position: 'fixed', right: spacing['2xl'], bottom: spacing['2xl'], zIndex: 30, whiteSpace: 'nowrap' }}
         >
           <Send size={14} />
           {selectedIds.size > 0 ? `compose (${selectedIds.size})` : 'compose'}
-        </button>
+        </Button>
       )}
 
       {/* Contact slide panel */}

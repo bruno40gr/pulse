@@ -1,5 +1,7 @@
 'use client'
 
+
+import { Button } from '@/components/ui/Button'
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -36,7 +38,7 @@ function ForgotPasswordForm() {
       <label style={authLabelStyle}>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void send() }} autoComplete="email" style={authFieldStyle} /></label>
       {message && <p role="status" style={{ color: colors.success, ...typography.bodySmall }}>{message}</p>}
       {error && <p role="alert" style={{ color: colors.error, ...typography.bodySmall }}>{error}</p>}
-      <button type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={authSubmitStyle}>{loading ? 'Sending…' : 'Send reset link'}</button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={{ width: '100%', marginTop: spacing.xl }}>{loading ? 'Sending…' : 'Send reset link'}</Button>
       <a href="/login" style={{ display: 'inline-block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>
     </section></main>
   )

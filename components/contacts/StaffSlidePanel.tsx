@@ -1,4 +1,7 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect } from 'react'
 import { Badge, Button, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
 import { colors, typography, spacing } from '@/lib/tokens'
@@ -121,7 +124,7 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
           size: 48,
           src: shouldUseDemoPhotos(tenantId)
             ? getDemoAvatarUrl(tenantId, staff.first_name || '', staff.last_name || '', { isMinor: false })
-            : undefined,
+            : getStaffAvatarUrl(tenantId, fullName),
         }}
         titleSize={typography.size2xl}
         badge={
@@ -215,23 +218,12 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
                       {s.name ? getInitials(s.name.split(' ')[0], s.name.split(' ').slice(1).join(' ')) : '?'}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                      <button
+                      <ControlButton kind="link"
                         onClick={() => s.person_id && onViewStudent?.(s.person_id)}
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: '#2563EB',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: 0,
-                          textAlign: 'left',
-                          fontFamily: typography.fontSans,
-                          textDecoration: 'underline',
-                        }}
+
                       >
                         {s.name || '—'}
-                      </button>
+                      </ControlButton>
                       <div style={{ fontSize: '12px', color: colors.textMuted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         {s.instrument && <span>{s.instrument}</span>}
                         {s.lesson_day && <span>{s.lesson_day}</span>}

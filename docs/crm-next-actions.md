@@ -1,10 +1,52 @@
 # CRM consolidation — minimum remaining path
 
-Updated October 5, 2026. This is the current sequencing guide; older preparation
+Updated October 7, 2026. This is the current sequencing guide; older preparation
 notes are evidence/history, not additional work queues. No production change is
 authorized by this document.
 
 ## Goal and scope
+
+### Current next steps — cutover already complete
+
+The live cutover and owner acceptance are recorded in
+`/Users/brunowong/pulse/docs/crm-consolidation-inventory.md`.
+Do not repeat the historical freeze, export, import or connection switch below.
+
+1. Owner verified that a recognized post-migration website submission exists in
+   Odeon main (`jbrntsxmibfldocsuslt`) and is absent from the old CRM. This verifies
+   that submission's routing, not the literal current write-only Vercel values or
+   every external consumer. The CLI export and dashboard cannot reveal those
+   secrets; masked placeholders are NOT evidence of equal configured values.
+2. Local development CRM URL/key now match the local main URL/key. Main credentials
+   passed a read-only query for the same post-migration record before the edit.
+   A permission-restricted environment backup was saved outside Git. Local remains
+   connected to PRODUCTION until staging is configured; do not run destructive tests.
+3. Confirm no remaining external consumer uses the source, and retain the private
+   frozen archive and recovery instructions. Recheck the capture/history queue;
+   an empty queue at cutover does not guarantee it remains empty.
+   Owner confirmed no other consumers use the old CRM. Both pending inbound-SMS
+   history receipts were independently matched by tenant and Twilio SID to exactly
+   one message each in main's inbox. No replay or queue completion was performed;
+   history processing remains a main-database follow-up, not an old-CRM dependency.
+4. With owner approval, pause the OLD source `xxyncvaulboqytovgfrh`, not main.
+   Do not delete it to free capacity. Supabase Billing FAQ states paused projects
+   do not count toward the two-active-Free-project quota.
+   Owner reports old CRM paused and live app still working. This is owner-reported
+   acceptance, not an independently queried Supabase project status. Next: create
+   the separate staging project; do not repeat consolidation.
+5. Create `odeon-staging` with separate credentials. Establish a repeatable schema
+   baseline, seed synthetic data, and use only staging-scoped deployment variables.
+   Disable real SMS, email, payments and production callbacks before acceptance.
+6. Verify staging has no production database credentials or real customer data,
+   and that tests cannot invoke live integrations. Only then use it for feature
+   acceptance and database migrations.
+
+No project pause or production configuration change was performed during this
+October 7 check. Local credentials were aligned as described above. Two pending
+inbound-SMS history receipts were observed in main; their presence does not imply
+missing inbox delivery. External-consumer and history-resolution checks remain.
+The remaining sections are historical cutover instructions, not an outstanding
+task list.
 
 Move four existing CRM tables into Odeon main, preserve records and existing
 tenant identities, then retire the old CRM. No UI redesign, identity merging,
@@ -93,7 +135,4 @@ tools and targeted live acceptance checks. Fix only blockers found by those chec
 
 ## Immediate next action
 
-Review the deployment slice and capture SQL prerequisites for step 1. Execution
-requires production approval/access; ordinary "continue" messages have so far
-authorized local preparation, not a live SQL installation or deployment. No freeze
-has begun. No more tools need to be built before reviewing this live gate.
+Follow the current next steps above. The cutover is complete; do not repeat it.

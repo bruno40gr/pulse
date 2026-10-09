@@ -1,5 +1,7 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -190,7 +192,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
             const active = i === activeIndex
             const secondary = person.email || ''
             return (
-              <button
+              <ControlButton kind="row" selected={active}
                 key={person.membership_id}
                 type="button"
                 onMouseDown={(e) => {
@@ -198,20 +200,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
                   select(person)
                 }}
                 onMouseEnter={() => setActiveIndex(i)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: spacing.md,
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: `${spacing.sm} ${spacing.md}`,
-                  border: 'none',
-                  borderRadius: radius.md,
-                  background: active ? colors.surfaceMuted : 'transparent',
-                  cursor: 'pointer',
-                  fontFamily: typography.fontSans,
-                }}
+                style={{ width: '100%' }}
               >
                 <span style={{ fontSize: typography.sizeBase, fontWeight: typography.weightMedium, color: colors.text }}>
                   @{displayName(person)}
@@ -221,7 +210,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
                     {secondary}
                   </span>
                 )}
-              </button>
+              </ControlButton>
             )
           })}
         </div>

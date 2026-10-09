@@ -1,16 +1,21 @@
 'use client'
 
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useIdentity } from './IdentityProvider'
 
 export default function LogoutButton({ onLogout }: { onLogout?: () => void }) {
   const router = useRouter()
+  const { clearIdentity } = useIdentity()
   const [loading, setLoading] = useState(false)
 
   const handleLogout = async () => {
     if (loading) return
     setLoading(true)
+    clearIdentity()
     try {
       await fetch('/api/access/logout', { method: 'POST' })
     } finally {
@@ -22,14 +27,14 @@ export default function LogoutButton({ onLogout }: { onLogout?: () => void }) {
   }
 
   return (
-    <button
+    <ControlButton kind="navigation" inverse
       type="button"
       onClick={handleLogout}
       disabled={loading}
-      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: 'none', borderRadius: 8, background: 'transparent', color: '#B8B8B8', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, textAlign: 'left', opacity: loading ? 0.6 : 1 }}
+      style={{ width: '100%' }}
     >
       <LogOut size={16} />
       {loading ? 'Logging out…' : 'Log out'}
-    </button>
+    </ControlButton>
   )
 }

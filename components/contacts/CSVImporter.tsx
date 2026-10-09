@@ -1,4 +1,7 @@
 'use client'
+
+import { Button } from '@/components/ui/Button'
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -334,13 +337,13 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
             {step === 'importing' && 'Importing'}
             {step === 'done' && 'Import complete'}
           </h2>
-          <button
+          <ControlButton kind="icon"
             onClick={handleClose}
             aria-label="Close"
-            style={{ background: 'none', border: 'none', fontSize: '18px', color: '#6B6B6B', cursor: 'pointer', padding: '4px', lineHeight: 1 }}
+
           >
             ✕
-          </button>
+          </ControlButton>
         </div>
 
         {/* Body */}
@@ -351,32 +354,24 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
                 How would you like to bring in your contacts?
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <button
+                <ControlButton kind="row"
                   onClick={() => setStep('upload')}
-                  style={{
-                    background: 'white', border: '1px solid #E8E8E4', borderRadius: '12px',
-                    padding: '24px', textAlign: 'left', cursor: 'pointer',
-                    transition: 'border-color 0.15s', fontFamily: 'sans-serif',
-                  }}
+
                   onMouseEnter={e => (e.currentTarget.style.borderColor = '#C8392B')}
                   onMouseLeave={e => (e.currentTarget.style.borderColor = '#E8E8E4')}
                 >
                   <div style={{ fontSize: '24px', marginBottom: '12px' }}>📊</div>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#1A1A1A', marginBottom: '6px' }}>Upload a spreadsheet</div>
                   <div style={{ fontSize: '13px', color: '#6B6B6B', lineHeight: 1.5 }}>CSV or Excel file from your existing system</div>
-                </button>
-                <button
-                  style={{
-                    background: '#FAFAF9', border: '1px solid #E8E8E4', borderRadius: '12px',
-                    padding: '24px', textAlign: 'left', cursor: 'not-allowed', opacity: 0.6,
-                    fontFamily: 'sans-serif', position: 'relative',
-                  }}
+                </ControlButton>
+                <ControlButton kind="row"
+                  style={{ position: 'relative' }}
                 >
                   <div style={{ fontSize: '24px', marginBottom: '12px' }}>🔌</div>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#1A1A1A', marginBottom: '6px' }}>Connect your system</div>
                   <div style={{ fontSize: '13px', color: '#6B6B6B', lineHeight: 1.5 }}>Mindbody, Jackrabbit, and more</div>
                   <div style={{ position: 'absolute', top: '12px', right: '12px', background: '#F0F0EC', color: '#6B6B6B', fontSize: '11px', padding: '2px 8px', borderRadius: '20px', fontWeight: 500 }}>Coming soon</div>
-                </button>
+                </ControlButton>
               </div>
             </div>
           )}
@@ -534,39 +529,18 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
               )}
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                <button
+                <Button variant="secondary" size="sm"
                   onClick={() => setStep('upload')}
-                  style={{
-                    padding: '12px 24px',
-                    background: 'white',
-                    color: '#6B6B6B',
-                    border: '1px solid #E8E8E4',
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    fontFamily: 'sans-serif',
-                  }}
+
                 >
                   Back
-                </button>
-                <button
+                </Button>
+                <Button variant="primary" size="sm"
                   onClick={handleConfirm}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    background: '#C8392B',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'sans-serif',
-                  }}
+                  style={{ flex: 1 }}
                 >
                   Confirm and import
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -590,23 +564,12 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
               <p style={{ color: '#1A1A1A', fontSize: '16px', fontWeight: 600, margin: '0 0 8px', fontFamily: 'sans-serif' }}>
                 Done. {result?.created ?? 0} contacts added, {result?.updated ?? 0} updated.
               </p>
-              <button
+              <Button variant="secondary" size="sm"
                 onClick={handleDone}
-                style={{
-                  marginTop: '24px',
-                  padding: '12px 32px',
-                  background: '#C8392B',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'sans-serif',
-                }}
+                style={{ marginTop: '24px' }}
               >
                 Close
-              </button>
+              </Button>
             </div>
           )}
         </div>

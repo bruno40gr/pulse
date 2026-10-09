@@ -1,4 +1,6 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect, useRef, Suspense, type ComponentProps } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Mail, Sparkles, SquarePen, Trash2 } from 'lucide-react'
@@ -371,24 +373,13 @@ function InboxPageInner() {
           subtitle={loading ? 'Loading...' : undefined}
           singleLine={isMobile}
           right={
-            <button
+            <ControlButton kind="icon"
               onClick={() => setIsComposeOpen(true)}
               title="New message"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                border: `1px solid ${colors.border}`,
-                background: colors.surface,
-                color: colors.text,
-                cursor: 'pointer',
-              }}
+              style={{ width: 36 }}
             >
               <SquarePen size={18} />
-            </button>
+            </ControlButton>
           }
         />
         {profileError && !selectedLead && !selectedContact && (
@@ -505,7 +496,7 @@ function InboxPageInner() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: isMobile ? 0 : undefined }}>
               {isMobile && (
-                <button
+                <ControlButton kind="icon"
                   type="button"
                   onClick={() => {
                     if (mobileThreadHistoryRef.current) {
@@ -515,23 +506,10 @@ function InboxPageInner() {
                     }
                   }}
                   aria-label="Back to conversations"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    width: 36,
-                    height: 36,
-                    padding: 0,
-                    border: 'none',
-                    borderRadius: '50%',
-                    background: 'transparent',
-                    color: colors.text,
-                    cursor: 'pointer',
-                  }}
+                  style={{ flexShrink: 0, width: 36 }}
                 >
                   <ArrowLeft size={22} />
-                </button>
+                </ControlButton>
               )}
               <Avatar
                 firstName={activeThread.first_name || '?'}
@@ -544,14 +522,14 @@ function InboxPageInner() {
                     {activeThread.display_name}
                   </div>
                   {activeThread.profile_id && activeThread.profile_type && (
-                    <button
+                    <Button variant="secondary" size="sm"
                       type="button"
                       onClick={() => void handleViewProfile()}
                       disabled={profileLoading}
-                      style={{ fontSize: typography.sizeSm, color: colors.teal, background: 'transparent', border: 'none', cursor: profileLoading ? 'wait' : 'pointer', fontFamily: typography.fontSans, padding: 0, flexShrink: 0 }}
+                      style={{ flexShrink: 0 }}
                     >
                       {profileLoading ? 'Loading…' : 'View'}
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans, whiteSpace: isMobile ? 'nowrap' : undefined, overflow: isMobile ? 'hidden' : undefined, textOverflow: isMobile ? 'ellipsis' : undefined }}>
@@ -564,15 +542,15 @@ function InboxPageInner() {
                 <Mail size={17} />{!isMobile && (markingUnread ? 'Marking…' : 'Mark unread')}
               </Button>
               {canDeleteConversations && (
-                <button
+                <ControlButton kind="icon"
                   type="button"
                   onClick={() => { setDeleteError(''); setIsDeleteOpen(true) }}
                   aria-label={`Delete conversation with ${activeThread.display_name}`}
                   title="Delete conversation"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, padding: 0, border: 'none', borderRadius: '50%', background: 'transparent', color: colors.error, cursor: 'pointer' }}
+                  style={{ width: 34 }}
                 >
                   <Trash2 size={17} />
-                </button>
+                </ControlButton>
               )}
             </div>
           </div>
@@ -661,19 +639,13 @@ function InboxPageInner() {
             />
 
             {/* AI drafting button */}
-            <button
+            <Button variant="secondary" size="sm"
               onClick={handleAiDraft}
               disabled={aiLoading}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start',
-                background: aiLoading ? colors.borderLight : reply.trim() ? colors.espresso : colors.borderLight,
-                color: aiLoading ? colors.textMuted : reply.trim() ? 'white' : colors.textSecondary,
-                border: 'none', borderRadius: '4px', padding: `${spacing.xs} ${spacing.sm}`,
-                fontSize: typography.sizeSm, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: typography.fontSans,
-              }}
+              style={{ alignSelf: 'flex-start' }}
             >
               <Sparkles size={12} /> {aiLoading ? 'Writing...' : reply.trim() ? 'Polish with AI' : 'Draft with AI'}
-            </button>
+            </Button>
 
             {/* Bottom row: cost + send */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>

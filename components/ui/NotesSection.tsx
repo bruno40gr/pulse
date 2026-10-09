@@ -1,10 +1,15 @@
 'use client'
+import { TaskCompletionButton } from './TaskCompletionButton'
+
 import { useEffect, useRef, useState } from 'react'
-import { Check, Shield } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { Button, Textarea } from '@/components/ui'
 import MentionTextarea from '@/components/notes/MentionTextarea'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { getNoteAuthorInitials } from '@/lib/note-author'
+import { Avatar } from './Avatar'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
+import { getActiveTenantId } from '@/lib/tenant'
 
 interface NoteEntry {
   id?: string
@@ -125,14 +130,14 @@ export function NotesSection({
               )}
             </div>
             {!showInput && (
-              <button
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => setShowInput(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, padding: `${spacing.xs} ${spacing.sm}`, border: `1px solid ${colors.border}`, borderRadius: radius.sm, background: colors.surface, color: colors.textSecondary, fontSize: typography.sizeSm, fontWeight: typography.weightMedium, fontFamily: typography.fontSans, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ whiteSpace: 'nowrap' }}
               >
                 <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span>
                 {addLabel}
-              </button>
+              </Button>
             )}
           </div>
           {helperText && (
@@ -166,7 +171,11 @@ export function NotesSection({
                 color: 'white',
                 flexShrink: 0,
                 marginTop: '1px',
-              }} title={entry.actor_name || 'Author not recorded'}>{getNoteAuthorInitials(entry.actor_name)}</div>
+              }} title={entry.actor_name || 'Author not recorded'}>
+                {getStaffAvatarUrl(getActiveTenantId(), entry.actor_name)
+                  ? <Avatar firstName={entry.actor_name?.split(' ')[0] || ''} lastName={entry.actor_name?.split(' ').slice(1).join(' ') || ''} size={28} src={getStaffAvatarUrl(getActiveTenantId(), entry.actor_name)} style={{ background: avatarBg }} />
+                  : getNoteAuthorInitials(entry.actor_name)}
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
@@ -174,16 +183,13 @@ export function NotesSection({
                 <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', whiteSpace: 'pre-wrap' }}>{entry.text.replace(/\u00A0/g, ' ')}</div>
               </div>
               {onToggleComplete && (
-                <button
+                <TaskCompletionButton completed={Boolean(entry.completed_at)}
                   type="button"
                   onClick={() => onToggleComplete(i)}
                   title={entry.completed_at ? 'Mark note as open' : 'Mark note as done'}
                   aria-label={entry.completed_at ? 'Mark note as open' : 'Mark note as done'}
-                  style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 7px', borderRadius: radius.sm, border: `1px solid ${entry.completed_at ? '#86C99C' : colors.border}`, background: entry.completed_at ? '#F0FDF4' : colors.surface, color: entry.completed_at ? colors.greenDark : colors.textSecondary, fontSize: '10px', fontWeight: typography.weightBold, letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: typography.fontSans, cursor: 'pointer', flexShrink: 0 }}
                 >
-                  <Check size={12} strokeWidth={2.4} />
-                  {entry.completed_at ? 'Done' : 'Mark done'}
-                </button>
+                </TaskCompletionButton>
               )}
             </div>
           ))}
@@ -191,25 +197,9 @@ export function NotesSection({
       )}
 
       {!showInput && !showHeader ? (
-        <button
+        <Button variant="secondary" size="sm"
           onClick={() => setShowInput(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            width: '100%',
-            padding: '12px 16px',
-            border: 'none',
-            borderRadius: radius.lg,
-            background: '#f6f8f8',
-            color: colors.textMuted,
-            fontSize: '13px',
-            fontWeight: 500,
-            fontFamily: typography.fontSans,
-            cursor: 'pointer',
-          textAlign: 'right',
-          justifyContent: 'flex-end',
-          }}
+          style={{ width: '100%' }}
         >
           <span style={{
             display: 'inline-flex',
@@ -223,7 +213,7 @@ export function NotesSection({
             lineHeight: 1,
           }}>+</span>
           {addLabel}
-        </button>
+        </Button>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
           {mentionsEnabled ? (

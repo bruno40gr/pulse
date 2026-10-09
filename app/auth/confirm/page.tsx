@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/Button'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 type ConfirmationType = 'invite' | 'recovery'
@@ -47,9 +48,9 @@ export default async function ConfirmAuthActionPage({
             <input type="hidden" name="token_hash" value={tokenHash} />
             <input type="hidden" name="type" value={type || ''} />
             <input type="hidden" name="next" value={destination} />
-            <button type="submit" style={submitStyle}>
+            <Button variant="primary" size="sm" type="submit" style={{ width: '100%' }}>
               {isClaim ? 'Continue' : 'Continue to reset password'}
-            </button>
+            </Button>
           </form>
         ) : (
           <a href={isClaim ? '/login' : '/forgot-password'} style={linkStyle}>

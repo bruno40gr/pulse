@@ -1,4 +1,6 @@
 'use client'
+
+import { Button } from '@/components/ui/Button'
 import { useEffect, useState } from 'react'
 import { House } from 'lucide-react'
 import { Badge } from '@/components/ui'
@@ -75,22 +77,12 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
       <div style={{ background: 'white', border: '1px solid #E8E8E4', borderRadius: '12px', padding: '64px 24px', textAlign: 'center' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#1A1A1A', margin: '0 0 8px', fontFamily: 'sans-serif' }}>No contacts yet</h3>
         <p style={{ color: '#6B6B6B', fontSize: '14px', margin: '0 0 24px', fontFamily: 'sans-serif' }}>Import your contacts to get started</p>
-        <button
+        <Button variant="secondary" size="sm"
           onClick={() => setIsImporterOpen(true)}
-          style={{
-            padding: '10px 20px',
-            background: '#C8392B',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'sans-serif',
-          }}
+
         >
           Import CSV
-        </button>
+        </Button>
         <CSVImporter isOpen={isImporterOpen} onClose={() => setIsImporterOpen(false)} onImportComplete={handleImportComplete} />
       </div>
     )
@@ -101,22 +93,12 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
       {/* Table header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid #E8E8E4' }}>
         <span style={{ fontSize: '13px', color: '#6B6B6B', fontFamily: 'sans-serif' }}>{contacts.length} contacts</span>
-        <button
+        <Button variant="secondary" size="sm"
           onClick={() => setIsImporterOpen(true)}
-          style={{
-            padding: '8px 16px',
-            background: '#C8392B',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'sans-serif',
-          }}
+
         >
           Import CSV
-        </button>
+        </Button>
       </div>
 
       {/* Table */}

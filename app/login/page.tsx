@@ -1,5 +1,7 @@
 'use client'
 
+
+import { Button } from '@/components/ui/Button'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -111,9 +113,9 @@ function LoginForm() {
             )}
           </div>
           {error && <p role="alert" style={errorStyle}>{error}</p>}
-          <button type="button" onClick={() => void submit()} disabled={loading || loadingTeachers || teachers.length === 0} style={{ ...submitStyle, opacity: loading ? 0.65 : 1 }}>
+          <Button variant="secondary" size="sm" type="button" onClick={() => void submit()} disabled={loading || loadingTeachers || teachers.length === 0} style={{ width: '100%', marginTop: spacing.xl }}>
             {loading ? 'Signing in…' : 'Sign in'}
-          </button>
+          </Button>
         </section>
         <a href="/demo" style={demoLinkStyle}>Or explore the demo.</a>
       </div>

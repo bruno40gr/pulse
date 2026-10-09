@@ -8,6 +8,7 @@ type Example = 'size' | 'actions' | 'feedback' | 'destructive' | 'stepper' | 'lo
 
 const sizeDescriptions: Record<ModalSize, string> = {
   sm: 'Short confirmations, reminders, and simple decisions.',
+  notifications: 'Readable mention summaries and their actions.',
   md: 'Standard forms and focused selection tasks.',
   lg: 'Import flows, multi-field forms, and richer content.',
   wide: 'Branded welcomes and intentional two-column experiences.',

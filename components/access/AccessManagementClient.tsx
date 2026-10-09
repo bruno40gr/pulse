@@ -1,5 +1,8 @@
 'use client'
 
+import { ControlButton } from '@/components/ui/ControlButton'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, LockKeyhole, Plus, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { Avatar, Badge, Button, Input, PageContainer, PageHeader, Select, SlidePanel, SlidePanelHeader, SurfacePanel, Tabs } from '@/components/ui'
@@ -397,6 +400,7 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
         <AccessErrorState error={error || 'Access settings are unavailable.'} onRetry={fetchAccessData} />
       ) : activeTab === 'people' ? (
         <PeopleAccessPanel
+          tenantId={tenantId}
           data={data}
           savingKey={savingKey}
           onRoleChange={saveRoleAssignment}
@@ -513,12 +517,14 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
 }
 
 function PeopleAccessPanel({
+  tenantId,
   data,
   savingKey,
   onRoleChange,
   onInvitation,
   onAddAccount,
 }: {
+  tenantId: string
   data: AccessData
   savingKey: string
   onRoleChange: (membership: Membership, roleId: string) => void
@@ -566,7 +572,7 @@ function PeopleAccessPanel({
                 <tr key={membership.id} style={{ borderTop: `1px solid ${colors.borderLight}` }}>
                   <td style={tableCellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
-                      <Avatar firstName={membership.person?.first_name || ''} lastName={membership.person?.last_name || ''} size={36} />
+                      <Avatar firstName={membership.person?.first_name || ''} lastName={membership.person?.last_name || ''} size={36} src={getStaffAvatarUrl(tenantId, fullName(membership))} />
                       <div>
                         <div style={{ fontWeight: typography.weightSemibold, color: colors.text }}>{fullName(membership)}</div>
                         <div style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>{membership.person?.email || 'No email yet'}</div>
@@ -710,31 +716,18 @@ function RolesPanel({
             const selected = role.id === selectedRoleId
             const staffCount = data.memberships.filter(membership => membership.role_id === role.id).length
             return (
-              <button
+              <ControlButton kind="row"
                 key={role.id}
                 type="button"
                 onClick={() => onSelectRole(role.id)}
-                style={{
-                  border: 'none',
-                  borderRadius: radius.md,
-                  background: selected ? colors.surfaceMuted : 'transparent',
-                  color: colors.text,
-                  padding: `${spacing.md} ${spacing.sm}`,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: spacing.sm,
-                  fontFamily: typography.fontSans,
-                }}
+
               >
                 <span>
                   <span style={{ display: 'block', fontWeight: selected ? typography.weightSemibold : typography.weightMedium }}>{role.name}</span>
                   <span style={{ display: 'block', fontSize: typography.sizeXs, color: colors.textMuted, marginTop: 2 }}>{staffCount} {staffCount === 1 ? 'person' : 'people'}</span>
                 </span>
                 {role.key === 'owner' && <LockKeyhole size={15} color={colors.textMuted} />}
-              </button>
+              </ControlButton>
             )
           })}
         </div>

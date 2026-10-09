@@ -1,4 +1,7 @@
 'use client'
+
+import { ControlButton } from '@/components/ui/ControlButton'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect } from 'react'
 import { CalendarDays, Copy, CreditCard, Landmark, MessageCircle, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
@@ -476,7 +479,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   const contactAvatarSrc = shouldUseDemoPhotos(tenantId)
     ? getContactDemoAvatarUrl(tenantId, contact)
-    : undefined
+    : isInstructor ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined
 
   const panelSkeleton = (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
@@ -624,49 +627,49 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         onClose={onClose}
         toast={toastMessage || undefined}
         titleBadge={!isInstructor ? (
-          <button
+          <ControlButton kind="icon"
             type="button"
             aria-label="Edit contact"
             title="Edit contact"
             onClick={handleStartEditing}
-            style={headerIconButtonStyle}
+            style={{ width: '32px' }}
           >
             <Pencil size={16} />
-          </button>
+          </ControlButton>
         ) : undefined}
         actions={isInstructor ? (
           <>
-            <button
+            <ControlButton kind="icon"
               type="button"
               onClick={() => onCompose?.([contact.id])}
               disabled={!onCompose}
               aria-label={`Message ${contact.first_name} ${contact.last_name}`}
               title="Send message"
-              style={{ ...headerIconButtonStyle, cursor: onCompose ? 'pointer' : 'not-allowed', opacity: onCompose ? 1 : 0.5 }}
+              style={{ width: '32px' }}
             >
               <MessageSquare size={16} />
-            </button>
-            <button
+            </ControlButton>
+            <ControlButton kind="icon"
               type="button"
               onClick={() => handleCall(contact.phone)}
               disabled={!contact.phone || calling}
               aria-label={`Call ${contact.first_name} ${contact.last_name}`}
               title={contact.phone ? `Call ${displayPhone(contact.phone)}` : 'No phone number'}
-              style={{ ...headerIconButtonStyle, cursor: contact.phone && !calling ? 'pointer' : 'not-allowed', opacity: contact.phone && !calling ? 1 : 0.5 }}
+              style={{ width: '32px' }}
             >
               <Phone size={16} />
-            </button>
+            </ControlButton>
             <div style={{ position: 'relative' }}>
-              <button
+              <ControlButton kind="icon"
                 type="button"
                 onClick={() => setIsStaffActionMenuOpen(open => !open)}
                 aria-label="Staff edit options"
                 aria-expanded={isStaffActionMenuOpen}
                 title="Edit staff member"
-                style={headerIconButtonStyle}
+                style={{ width: '32px' }}
               >
                 <Pencil size={16} />
-              </button>
+              </ControlButton>
               {isStaffActionMenuOpen && (
                 <div style={{
                   position: 'absolute',
@@ -680,27 +683,27 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   borderRadius: radius.md,
                   boxShadow: shadows.md,
                 }}>
-                  <button
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={() => {
                       setIsStaffActionMenuOpen(false)
                       handleStartEditing()
                     }}
-                    style={{ width: '100%', padding: `${spacing.sm} ${spacing.md}`, border: 'none', borderRadius: radius.sm, background: 'transparent', color: colors.text, textAlign: 'left', cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeBase }}
+                    style={{ width: '100%' }}
                   >
                     Edit staff member
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={() => {
                       setIsStaffActionMenuOpen(false)
                       if (isInstructorActive && !window.confirm('Sunset this instructor? They will no longer be able to sign in or be messaged.')) return
                       patch({ is_active: !isInstructorActive })
                     }}
-                    style={{ width: '100%', padding: `${spacing.sm} ${spacing.md}`, border: 'none', borderRadius: radius.sm, background: 'transparent', color: isInstructorActive ? colors.error : colors.text, textAlign: 'left', cursor: 'pointer', fontFamily: typography.fontSans, fontSize: typography.sizeBase }}
+                    style={{ width: '100%' }}
                   >
                     {isInstructorActive ? 'Sunset / offboard' : 'Reactivate instructor'}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -724,7 +727,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           size="md"
           disabled={!contactPhone || calling}
           onClick={() => void handleCall(contactPhone)}
-          style={isMobile ? mobileActionControlStyle : undefined}
+
         >
           <Phone size={16} />
           {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
@@ -735,7 +738,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           size="md"
           disabled={!onCompose || !contactPhone}
           onClick={() => onCompose?.([contact.id])}
-          style={isMobile ? mobileActionControlStyle : undefined}
+
         >
           <MessageCircle size={16} />
           Text message
@@ -743,7 +746,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         <CompactMetaCard fullWidth={isMobile} style={emailControlStyle}>
           <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contactEmail || 'Not provided'}</span>
           {contactEmail && (
-            <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail(contactEmail)} style={{ padding: 0, color: colors.teal }}>
+            <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail(contactEmail)} >
               <Copy size={15} />
             </Button>
           )}
@@ -867,16 +870,16 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                           {ah.phone ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
                               <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayPhone(ah.phone)}</span>
-                              <button
+                              <ControlButton kind="icon"
                                 type="button"
                                 onClick={() => handleCall(ah.phone)}
                                 disabled={calling}
                                 aria-label={`Call ${cleanName(ah.name) || 'account holder'}`}
                                 title={`Call ${displayPhone(ah.phone)}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '2px', color: colors.textSecondary, background: 'transparent', border: 'none', cursor: calling ? 'wait' : 'pointer', opacity: calling ? 0.55 : 1 }}
+                                style={{ flexShrink: 0 }}
                               >
                                 <Phone size={14} strokeWidth={1.8} />
-                              </button>
+                              </ControlButton>
                             </span>
                           ) : <span style={{ color: colors.textMuted }}>—</span>}
                           {ah.email ? <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
@@ -959,14 +962,14 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: '10px 12px', border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <button
+                    <ControlButton kind="link"
                       type="button"
                       onClick={() => onViewInstructor?.(student.person_id)}
                       disabled={!onViewInstructor}
-                      style={{ padding: 0, border: 'none', background: 'transparent', color: onViewInstructor ? '#2563EB' : colors.text, fontSize: typography.sizeSm, fontWeight: 600, fontFamily: typography.fontSans, textAlign: 'left', cursor: onViewInstructor ? 'pointer' : 'default', textDecoration: onViewInstructor ? 'underline' : 'none' }}
+
                     >
                       {student.name}
-                    </button>
+                    </ControlButton>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', marginTop: '3px', fontSize: typography.sizeXs, color: colors.textMuted }}>
                       {student.instrument && <span>{student.instrument}</span>}
                       {student.service_type && <span>{student.service_type}</span>}
@@ -1007,7 +1010,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                           size={28}
                           src={shouldUseDemoPhotos(tenantId) && contact.instructor?.person_id
                             ? getDemoAvatarUrl(tenantId, firstName, lastName, { isMinor: false })
-                            : undefined}
+                            : getStaffAvatarUrl(tenantId, instrName)}
                         />
                         <span
                           style={{
@@ -1030,16 +1033,12 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       return (
                         <div key={f.field_key}>
                           <FieldLabel>{f.field_label}</FieldLabel>
-                          <button
+                          <Button variant="secondary" size="sm"
                             onClick={() => onViewInstructor(contact.instructor!.person_id!)}
-                            style={{
-                              background: 'none', border: 'none', padding: 0,
-                              cursor: 'pointer', fontFamily: typography.fontSans,
-                              maxWidth: '100%', textAlign: 'left',
-                            }}
+                            style={{ maxWidth: '100%' }}
                           >
                             {content}
-                          </button>
+                          </Button>
                         </div>
                       )
                     }
