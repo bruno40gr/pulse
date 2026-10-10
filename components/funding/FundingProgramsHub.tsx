@@ -6,10 +6,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ExternalLink, Plus, Search } from 'lucide-react'
 import { Badge, Button, EmptyState, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Textarea, type DataTableColumn } from '@/components/ui'
 import { getActiveTenantId } from '@/lib/tenant'
+import { isFundingDemoTenant, recalculateDemoFundingCase, saveDemoFundingCase } from '@/lib/funding/demo'
+import { InvoiceStatusModal } from './InvoiceStatusModal'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { formatCurrency, formatDate, FundingContactDetails } from './FundingContactDetails'
-import type { FundingCase, FundingProgram, FundingStudentField } from './types'
+import type { FundingCase, FundingInvoice, FundingInvoiceStatus, FundingProgram, FundingStudentField } from './types'
 
 interface CatalogOrganization {
   id: string
@@ -32,8 +34,21 @@ export function FundingProgramsHub({ programs, cases, persisted, catalogOpen, on
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [addingContact, setAddingContact] = useState<FundingProgram | null>(null)
+  const [invoiceEdit, setInvoiceEdit] = useState<FundingInvoice | null>(null)
   const selected = programs.find(program => program.organizationId === selectedId) || null
   const selectedCase = cases.find(fundingCase => fundingCase.id === selectedCaseId) || null
+  const demoCase = Boolean(selectedCase && isFundingDemoTenant(getActiveTenantId()) && selectedCase.id.startsWith(`mock-funding-${getActiveTenantId()}-`))
+  const updateDemoInvoice = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
+    if (!selectedCase || !invoiceEdit || !demoCase) return
+    const changedAt = new Date().toISOString()
+    const updated = recalculateDemoFundingCase({ ...selectedCase, updatedAt: changedAt, invoices: selectedCase.invoices.map(invoice => invoice.id !== invoiceEdit.id ? invoice : {
+      ...invoice, status: input.status, paidOn: input.status === 'paid' ? input.paidOn : null,
+      rejectionEvidence: input.status === 'rejected' ? input.evidence : null, updatedAt: changedAt,
+      statusEvents: [{ id: `mock-event-${Date.now()}`, fromStatus: invoice.status, toStatus: input.status, evidence: input.evidence || null, note: input.note || null, changedAt }, ...invoice.statusEvents],
+    }) })
+    saveDemoFundingCase(getActiveTenantId(), updated)
+    onCaseUpdated(updated)
+  }
   const programColumns: DataTableColumn<FundingProgram, string>[] = [
     { id: 'program', header: 'Funding program', width: 'minmax(220px, 1.4fr)', render: program => <div><div style={{ color: colors.text, fontWeight: typography.weightSemibold }}>{program.name}</div><div style={secondaryTextStyle}>{program.organizationName}</div></div> },
     { id: 'roles', header: 'Role', width: 'minmax(150px, 1fr)', render: program => program.roles.length ? program.roles.map(typeLabel).join(', ') : typeLabel(program.type) },
@@ -85,9 +100,10 @@ export function FundingProgramsHub({ programs, cases, persisted, catalogOpen, on
             onClose={() => setSelectedCaseId(null)}
             compact={isMobile}
           />
-          <FundingContactDetails fundingCase={selectedCase} embedded onFundingDetailsUpdated={onCaseUpdated} />
+          <FundingContactDetails fundingCase={selectedCase} embedded onFundingDetailsUpdated={onCaseUpdated} onInvoiceStatusChange={demoCase ? setInvoiceEdit : undefined} />
         </SlidePanel>
       )}
+      <InvoiceStatusModal invoice={invoiceEdit} onClose={() => setInvoiceEdit(null)} onSave={updateDemoInvoice} />
     </div>
   )
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button, Notice, PageHeader } from '@/components/ui'
 import { getActiveTenantId } from '@/lib/tenant'
+import { isFundingDemoTenant, loadDemoFunding, resetDemoFunding, saveDemoFundingCase } from '@/lib/funding/demo'
+import { FundingSummary } from './FundingSummary'
 import { spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { FundingProgramsHub } from './FundingProgramsHub'
@@ -15,9 +17,17 @@ export default function FundingProgramsWorkspace() {
   const [cases, setCases] = useState<FundingCase[]>([])
   const [error, setError] = useState('')
   const [showAddProgram, setShowAddProgram] = useState(false)
+  const [isDemo, setIsDemo] = useState(false)
 
   const loadPrograms = useCallback(async () => {
     const tenantId = getActiveTenantId()
+    if (isFundingDemoTenant(tenantId)) {
+      const data = loadDemoFunding(tenantId)
+      setPrograms(data.programs)
+      setCases(data.cases)
+      setIsDemo(true)
+      return
+    }
     const response = await fetch(`/api/funding/organizations?tenant=${encodeURIComponent(tenantId)}`)
     const body = await response.json()
     if (!response.ok) throw new Error(body?.error || 'Could not load funding programs.')
@@ -26,6 +36,7 @@ export default function FundingProgramsWorkspace() {
 
   useEffect(() => {
     const tenantId = getActiveTenantId()
+    if (isFundingDemoTenant(tenantId)) { void loadPrograms(); return }
     Promise.all([
       loadPrograms(),
       fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}`).then(async response => {
@@ -48,17 +59,22 @@ export default function FundingProgramsWorkspace() {
       <PageHeader
         title="Funding Programs"
         subtitle="Manage program setup, funded students, and outstanding payments."
-        right={<Button onClick={() => setShowAddProgram(true)} disabled={Boolean(error)}><Plus size={16} /> Add funding program</Button>}
+        right={isDemo ? <Button variant="secondary" onClick={() => { resetDemoFunding(getActiveTenantId()); void loadPrograms() }}>Reset demo data</Button> : <Button onClick={() => setShowAddProgram(true)} disabled={Boolean(error)}><Plus size={16} /> Add funding program</Button>}
       />
       {error && <Notice variant="warning" title="Funding programs unavailable" style={{ marginBottom: spacing.lg }}>{error}</Notice>}
+      {isDemo && <Notice variant="info" title="Interactive funding demo" style={{ marginBottom: spacing.lg }}>Alta, Mains’l and ACE are assumed established for this fictional academy. Workflow rules, contacts and payment timing are mock data—not actual payer policy. Edits stay in this browser session.</Notice>}
+      {!error && <FundingSummary cases={cases} />}
       <FundingProgramsHub
         programs={programsWithTotals}
         cases={cases}
-        persisted={!error}
+        persisted={!error && !isDemo}
         catalogOpen={showAddProgram}
         onCatalogOpenChange={setShowAddProgram}
         onRefresh={loadPrograms}
-        onCaseUpdated={fundingCase => setCases(current => current.map(item => item.id === fundingCase.id ? fundingCase : item))}
+        onCaseUpdated={fundingCase => {
+          if (isDemo) saveDemoFundingCase(getActiveTenantId(), fundingCase)
+          setCases(current => current.map(item => item.id === fundingCase.id ? fundingCase : item))
+        }}
       />
     </div>
   )

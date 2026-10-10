@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Badge, Button, Notice, PageHeader, ResponsiveDataTable, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { getActiveTenantId } from '@/lib/tenant'
+import { isFundingDemoTenant, loadDemoFunding, recalculateDemoFundingCase, resetDemoFunding, saveDemoFundingCase } from '@/lib/funding/demo'
+import { FundingSummary } from './FundingSummary'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { formatCurrency, formatDate } from './FundingContactDetails'
@@ -27,7 +29,7 @@ export default function FundedCasesWorkspace() {
   const [contactPanel, setContactPanel] = useState<{ contact: PanelContact; fundingCase: FundingCase } | null>(null)
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null)
   const [invoiceEdit, setInvoiceEdit] = useState<{ caseId: string; invoice: FundingInvoice } | null>(null)
-  const [dataSource, setDataSource] = useState<'loading' | 'persisted' | 'unavailable'>('loading')
+  const [dataSource, setDataSource] = useState<'loading' | 'persisted' | 'demo' | 'unavailable'>('loading')
   const [loadError, setLoadError] = useState('')
   const [showNewCase, setShowNewCase] = useState(false)
   const [preferredProgramId, setPreferredProgramId] = useState<string | null>(null)
@@ -35,6 +37,11 @@ export default function FundedCasesWorkspace() {
 
   useEffect(() => {
     const tenantId = getActiveTenantId()
+    if (isFundingDemoTenant(tenantId)) {
+      setCases(loadDemoFunding(tenantId).cases)
+      setDataSource('demo')
+      return
+    }
     let active = true
     fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}`)
       .then(async response => {
@@ -64,12 +71,23 @@ export default function FundedCasesWorkspace() {
   }, [studentFilter, caseSort, cases])
 
   const replaceCase = (updated: FundingCase) => {
+    if (dataSource === 'demo') saveDemoFundingCase(getActiveTenantId(), updated)
     setCases(current => current.map(item => item.id === updated.id ? updated : item))
   }
 
   // Row clicks open the contact record directly on its Funding Program tab. The contact
   // is fetched per click (not per row) so the table stays a single bulk request.
   const openContactPanel = async (item: FundingCase) => {
+    if (dataSource === 'demo') {
+      const family = item.contacts.find(contact => contact.purpose === 'family_contact')
+      setContactPanel({ fundingCase: item, contact: {
+        id: item.studentPersonId || item.id, first_name: item.student.split(' ')[0], last_name: item.student.split(' ').slice(1).join(' '),
+        phone: null, email: null, client_status: item.missingDetails.length ? 'pending' : 'active', opted_out: false, last_attended: null,
+        notes: 'Fictional funding demo student.', family_name: item.parent, account_holder_name: item.parent,
+        account_holder_phone: family?.phone || null, account_holder_email: family?.email || null, custom_fields: { funded: true }, is_minor: true,
+      } })
+      return
+    }
     if (!item.studentPersonId) {
       setActionError('This funded student is not linked to a contact record yet.')
       return
@@ -104,8 +122,8 @@ export default function FundedCasesWorkspace() {
       return
     }
     const changedAt = new Date().toISOString()
-    setCases(current => current.map(item => {
-      if (item.id !== invoiceEdit.caseId) return item
+    const item = cases.find(item => item.id === invoiceEdit.caseId)
+    if (item) {
       const invoices = item.invoices.map(invoice => invoice.id !== invoiceEdit.invoice.id ? invoice : {
         ...invoice,
         status: input.status,
@@ -121,8 +139,10 @@ export default function FundedCasesWorkspace() {
           changedAt,
         }, ...invoice.statusEvents],
       })
-      return recalculateFixtureCase({ ...item, invoices, updatedAt: changedAt }, input.status, input.note || input.evidence)
-    }))
+      const updated = recalculateDemoFundingCase(recalculateFixtureCase({ ...item, invoices, updatedAt: changedAt }, input.status, input.note || input.evidence))
+      replaceCase(updated)
+      setContactPanel(current => current?.fundingCase.id === updated.id ? { ...current, fundingCase: updated } : current)
+    }
   }
 
   const caseColumns: DataTableColumn<FundingCase, CaseSortKey>[] = [
@@ -144,7 +164,7 @@ export default function FundedCasesWorkspace() {
 
   const studentTabs = [
     { key: 'needs_review' as const, label: 'Action needed', count: needsReviewCount },
-    { key: 'waiting' as const, label: 'Waiting', count: waitingCount },
+    { key: 'waiting' as const, label: 'Payment pending', count: waitingCount },
     { key: 'all' as const, label: 'All students', count: cases.length },
   ]
 
@@ -153,8 +173,17 @@ export default function FundedCasesWorkspace() {
       <PageHeader
         title="Funded Students"
         subtitle="Track student authorizations, invoices, and the work that needs attention."
-        right={<Button onClick={() => { setPreferredProgramId(null); setShowNewCase(true) }} disabled={dataSource !== 'persisted'}>Add students</Button>}
+        right={dataSource === 'demo' ? <Button variant="secondary" onClick={() => {
+          const tenantId = getActiveTenantId()
+          resetDemoFunding(tenantId)
+          setCases(loadDemoFunding(tenantId).cases)
+          setContactPanel(null)
+          setInvoiceEdit(null)
+        }}>Reset demo data</Button> : <Button onClick={() => { setPreferredProgramId(null); setShowNewCase(true) }} disabled={dataSource !== 'persisted'}>Add students</Button>}
       />
+
+      {dataSource === 'demo' && <Notice variant="info" title="Interactive funding demo" style={{ marginBottom: spacing.lg }}>Fictional students, invoices and program rules for testing. Edits stay in this browser session; no real payer submission or payment occurs.</Notice>}
+      {dataSource !== 'loading' && dataSource !== 'unavailable' && <FundingSummary cases={cases} />}
 
       {dataSource === 'unavailable' && (
         <Notice variant="warning" title="Funding data unavailable" style={{ marginBottom: spacing.lg }}>

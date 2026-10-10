@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Badge, Button, DenseSectionPanel, DetailField, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, Select } from '@/components/ui'
 import { getActiveTenantId } from '@/lib/tenant'
+import { isFundingDemoTenant, recalculateDemoFundingCase, saveDemoFundingCase } from '@/lib/funding/demo'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { INVOICE_STATUS_LABELS } from '@/lib/funding/invoice-status'
@@ -59,6 +60,16 @@ export function FundingContactDetails({ fundingCase, onInvoiceStatusChange, onFu
     try {
       const tenantId = getActiveTenantId()
       const connection = CONNECTION_TYPES.find(item => item.value === contactConnectionType) || CONNECTION_TYPES[0]
+      if (isFundingDemoTenant(tenantId) && fundingCase.id.startsWith(`mock-funding-${tenantId}-`)) {
+        const id = `mock-contact-${Date.now()}`
+        const updated = recalculateDemoFundingCase({ ...fundingCase, contacts: [...fundingCase.contacts, { id, accountContactId: id, name: contactName.trim(), relationship: connection.value, purpose: connection.purpose, email: contactEmail.trim() || null, phone: null }] })
+        saveDemoFundingCase(tenantId, updated)
+        onFundingDetailsUpdated?.(updated)
+        setAddingContact(false)
+        setContactName('')
+        setContactEmail('')
+        return
+      }
       const response = await fetch(`/api/funding/account-contacts?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,6 +281,15 @@ function FundingDetailsModal({ fundingCase, isOpen, onClose, onSaved }: {
     setError('')
     try {
       const tenantId = getActiveTenantId()
+      if (isFundingDemoTenant(tenantId) && fundingCase.id.startsWith(`mock-funding-${tenantId}-`)) {
+        const updated = recalculateDemoFundingCase({ ...fundingCase, service: form.service.trim() || 'Not provided', selectedServiceCodes: form.serviceCode ? [form.serviceCode] : [],
+          authorization: form.authorization.trim() || 'Not provided', authorizationStartDate: form.startDate || null, authorizationEndDate: form.endDate || null,
+          coveragePercent: form.coveragePercent ? Number(form.coveragePercent) : null, coverageCap: form.coverageCap ? Number(form.coverageCap) : null,
+          updatedAt: new Date().toISOString(), activity: [{ id: `mock-edit-${Date.now()}`, title: 'Funding details updated', detail: 'Demo student funding details updated; checklist recalculated.', date: new Date().toISOString() }, ...fundingCase.activity] })
+        saveDemoFundingCase(tenantId, updated)
+        onSaved(updated)
+        return
+      }
       const response = await fetch(`/api/funding/cases/${fundingCase.id}?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
