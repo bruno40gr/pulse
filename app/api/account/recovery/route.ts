@@ -22,9 +22,9 @@ export async function POST(request: Request) {
 
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from('tenant_memberships')
-      .select('id, auth_user_id')
+      .select('id, auth_user_id, status')
       .in('person_id', people.map(person => person.id))
-      .eq('status', 'active')
+      .in('status', ['invited', 'active'])
       .not('auth_user_id', 'is', null)
       .limit(1)
       .maybeSingle()
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (authUserError || authUser.user.email?.trim().toLowerCase() !== email) return genericResponse
 
     await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${appOrigin(request)}/reset-password`,
+      redirectTo: `${appOrigin(request)}${membership.status === 'invited' ? '/claim' : '/reset-password'}`,
     })
     return genericResponse
   } catch {

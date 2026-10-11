@@ -4,11 +4,10 @@
 import { Button } from '@/components/ui/Button'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { setActiveTenantId } from '@/lib/tenant'
 
-type ClaimContext = { status: 'invited' | 'active'; email: string; name: string }
+type ClaimContext = { status: 'invited' | 'active'; email: string; name: string; tenantId: string }
 
 export default function ClaimPage() {
   const [context, setContext] = useState<ClaimContext | null>(null)
@@ -22,27 +21,28 @@ export default function ClaimPage() {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const supabase = createClient()
-      await new Promise(resolve => setTimeout(resolve, 150))
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) {
-        setError('This invitation link is invalid or expired. Ask an Owner or Admin to resend it.')
-        setLoading(false)
-        return
+      try {
+        const response = await fetch('/api/account/claim', { cache: 'no-store' })
+        const body = await response.json()
+        if (cancelled) return
+        if (!response.ok) setError(response.status === 401 ? 'Your setup session is no longer available. Request a fresh link below, then open the newest email and continue.' : body.error || 'This invitation cannot be claimed.')
+        else if (body.status === 'active') {
+          if (typeof body.tenantId === 'string') setActiveTenantId(body.tenantId)
+          router.replace('/dashboard')
+        }
+        else setContext(body)
+      } catch {
+        if (!cancelled) setError('We could not check your setup session. Reload this page to try again, or request a fresh link below.')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      const response = await fetch('/api/account/claim')
-      const body = await response.json()
-      if (cancelled) return
-      if (!response.ok) setError(body.error || 'This invitation cannot be claimed.')
-      else if (body.status === 'active') router.replace('/dashboard')
-      else setContext(body)
-      setLoading(false)
     }
     void load()
     return () => { cancelled = true }
   }, [router])
 
   const activate = async () => {
+    if (saving) return
     if (password.length < 10) return setError('Use at least 10 characters for your password.')
     if (password !== confirmation) return setError('The passwords do not match.')
     setSaving(true)
@@ -56,8 +56,6 @@ export default function ClaimPage() {
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not activate your account.')
       if (typeof body.tenantId === 'string') setActiveTenantId(body.tenantId)
-      const { data: sessionData } = await createClient().auth.getSession()
-      if (!sessionData.session) throw new Error('Your account was activated, but sign-in could not be completed. Return to sign in with your new password.')
       router.replace('/dashboard')
       router.refresh()
     } catch (caught) {
@@ -81,7 +79,8 @@ export default function ClaimPage() {
           </div>
         )}
         {error && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, lineHeight: 1.5 }}>{error}</p>}
-        {context ? <Button variant="primary" size="sm" type="button" onClick={() => void activate()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Activating…' : 'Activate account'}</Button> : !loading && <a href="/login" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>}
+        {context ? <Button variant="primary" size="sm" type="button" onClick={() => void activate()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Activating…' : 'Activate account'}</Button> : !loading && <a href="/forgot-password" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Send me a fresh setup link</a>}
+        {!loading && <a href="/login" style={{ display: 'block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>}
       </section>
     </main>
   )

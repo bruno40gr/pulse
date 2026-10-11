@@ -19,26 +19,33 @@ function ForgotPasswordForm() {
   }, [searchParams])
 
   const send = async () => {
-    if (!email.trim()) return
+    if (loading || !email.trim()) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Enter a valid staff email address.')
     setLoading(true)
     setError('')
-    await fetch('/api/account/recovery', {
+    try {
+    const response = await fetch('/api/account/recovery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim() }),
     })
-    setMessage('If that email belongs to an active Headliner account, a password-reset link is on its way.')
-    setLoading(false)
+    if (!response.ok) throw new Error('Could not request the email.')
+    setMessage('If this email is linked to an invited or active staff account, a fresh setup or reset link is on its way. Open only the newest email and continue in this browser. Check spam if it does not arrive. If no email arrives, ask an Owner or Admin to confirm your staff email and invitation.')
+    } catch {
+      setError('We could not request a link. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <main style={authPageStyle}><section style={authCardStyle}>
-      <h1 style={{ ...typography.h1, margin: 0 }}>Reset your password</h1>
-      <p style={{ ...typography.body, color: colors.textSecondary }}>Enter the email for your claimed staff account.</p>
+      <h1 style={{ ...typography.h1, margin: 0 }}>Set up or reset your password</h1>
+      <p style={{ ...typography.body, color: colors.textSecondary }}>Enter your staff email to request a fresh link. This works for first-time setup and existing accounts.</p>
       <label style={authLabelStyle}>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void send() }} autoComplete="email" style={authFieldStyle} /></label>
       {message && <p role="status" style={{ color: colors.success, ...typography.bodySmall }}>{message}</p>}
       {error && <p role="alert" style={{ color: colors.error, ...typography.bodySmall }}>{error}</p>}
-      <Button variant="secondary" size="sm" type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={{ width: '100%', marginTop: spacing.xl }}>{loading ? 'Sending…' : 'Send reset link'}</Button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={{ width: '100%', marginTop: spacing.xl }}>{loading ? 'Sending…' : 'Send fresh link'}</Button>
       <a href="/login" style={{ display: 'inline-block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>
     </section></main>
   )

@@ -55,6 +55,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       membershipId: membership.id,
       status: membership.status,
+      tenantId: membership.tenant_id,
       email: user.email,
       name: `${person?.first_name || ''} ${person?.last_name || ''}`.trim(),
     })

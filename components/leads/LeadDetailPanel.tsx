@@ -451,15 +451,14 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
           </div>
         )}
 
-        {automationEligible && (
+        {automationEligible && canUndoAutomaticChange && automaticChange && (
           <div style={{ padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0`, fontSize: typography.sizeSm, color: colors.textSecondary }}>
             {canUndoAutomaticChange && automaticChange ? (
               <div role="status" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span title={automaticChange.evidence}>Automatically moved to {formatLeadStatus(automaticChange.next_status)} — {automaticChange.reason}.</span>
                 <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void onPatch({ status_automation_action: 'undo', status_automation_change_id: automaticChange.id })}>Undo</Button>
               </div>
-            ) : <span>{automation.paused ? 'Automatic status updates paused after a manual override.' : 'Clear outreach and booking notes can automatically advance this lead. Manual status changes pause automation.'}</span>}
-            <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void onPatch({ status_automation_action: automation.paused ? 'resume' : 'pause' })}>{automation.paused ? 'Resume automatic updates' : 'Pause automatic updates'}</Button>
+            ) : null}
           </div>
         )}
 
