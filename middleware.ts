@@ -115,7 +115,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')) {
+  if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
+    || pathname === '/content-studio-prototype' || pathname.startsWith('/content-studio-prototype/')) {
     const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
     const designAccess = await requireAccountAdministrator(request, tenantId)
     if (!designAccess.ok) return NextResponse.redirect(new URL('/dashboard/settings', request.url))
