@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   // using Twilio's signed webhook headers, so bypass session middleware entirely.
   // The internal reconciliation handler separately requires a strong bearer secret.
   if (pathname === '/api/twilio/webhook' || pathname === '/api/twilio/status' || pathname === '/api/calls/status'
-    || pathname === '/api/internal/sms-reconcile') {
+    || pathname === '/api/internal/sms-reconcile' || pathname === '/api/internal/gmail-sync') {
     return NextResponse.next({ request })
   }
   const isPublicPath = pathname === '/login'

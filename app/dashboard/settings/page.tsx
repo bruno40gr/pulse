@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getActiveTenantId, getTenantBrand } from '@/lib/tenant'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
 import AccessManagementClient from '@/components/access/AccessManagementClient'
+import GmailConnections from '@/components/settings/GmailConnections'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
@@ -44,7 +45,8 @@ export default function SettingsPage() {
       .then(data => {
         setAccountContext(data)
         const requestedTab = new URLSearchParams(window.location.search).get('tab')
-        if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
+        if (requestedTab === 'integrations' && data.canManageIntegrations) setTab('integrations')
+        else if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
         else if (data.canManageRoles) setTab('roles')
       })
       .catch(() => setAccountContext({
@@ -233,6 +235,7 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
   return (
     <>
       {/* Twilio */}
+      <GmailConnections tenantId={tenantId} />
       <div style={cardS}>
         <h2 style={sectionTitleS}>Twilio</h2>
         <p style={sectionSubS}>Connect your Twilio account to send SMS. When connected, your sending number is shown and messages appear in the Pulse inbox.</p>

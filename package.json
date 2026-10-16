@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/security/verify-gmail-production.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test:tenant-selection": "node --test scripts/security/tenant-selection.test.cjs",
