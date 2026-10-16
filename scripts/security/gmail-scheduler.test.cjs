@@ -5,7 +5,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const ts = require('typescript')
-const { timingSafeEqual } = require('node:crypto')
+const { timingSafeEqual, createHmac } = require('node:crypto')
 const root = path.resolve(__dirname, '../..')
 
 function scheduler(env, options = {}) {
@@ -27,6 +27,7 @@ function scheduler(env, options = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
   const dependencies = {
+    'node:crypto': { createHmac },
     'next/server': { NextResponse: Response },
     '@/lib/gmail/security': { secretMatches: (a, b) => Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b)) },
     '@/lib/gmail/sync': { syncMailbox: async (...args) => { calls.push(args); if (options.failSync) throw Error('synthetic failure') } },
@@ -50,7 +51,7 @@ test('cron rejects missing, wrong, and weak secrets before database access', asy
   }
 })
 
-test('Vercel cron bearer authenticates and syncs authorized membership', async () => {
+test('scheduler bearer authenticates and syncs authorized membership', async () => {
   const secret = 'x'.repeat(40)
   const run = scheduler({ CRON_SECRET: secret })
   const response = await run.GET(new Request('https://example.com/api/internal/gmail-sync', { headers: { authorization: `Bearer ${secret}` } }))
@@ -67,7 +68,32 @@ test('cron refuses a revoked membership without syncing', async () => {
   assert.equal(run.calls.length, 1)
 })
 
-test('Gmail capture is the only cron and runs every five minutes', () => {
+test('Vercel does not schedule Gmail capture on Hobby', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'))
-  assert.deepEqual(config.crons, [{ path: '/api/internal/gmail-sync', schedule: '*/5 * * * *' }])
+  assert.equal(config.crons, undefined)
+})
+
+test('Supabase signed requests authenticate without a reusable bearer', async () => {
+  const secret = 'x'.repeat(40)
+  const timestamp = String(Math.floor(Date.now() / 1000))
+  const signature = createHmac('sha256', secret).update(`gmail-sync:${timestamp}`).digest('hex')
+  const run = scheduler({ CRON_SECRET: secret })
+  const response = await run.GET(new Request('https://example.com/api/internal/gmail-sync', { headers: {
+    'x-gmail-sync-timestamp': timestamp, 'x-gmail-sync-signature': signature,
+  } }))
+  assert.deepEqual(await response.json(), { synced: 1, failed: 0 })
+})
+
+test('expired, future, malformed and invalid signatures reject before database access', async () => {
+  const secret = 'x'.repeat(40)
+  const now = Math.floor(Date.now() / 1000)
+  for (const timestamp of [String(now - 180), String(now + 180), 'invalid', String(now)]) {
+    const signature = createHmac('sha256', timestamp === String(now) ? 'wrong' : secret).update(`gmail-sync:${timestamp}`).digest('hex')
+    const run = scheduler({ CRON_SECRET: secret })
+    const response = await run.GET(new Request('https://example.com/api/internal/gmail-sync', { headers: {
+      'x-gmail-sync-timestamp': timestamp, 'x-gmail-sync-signature': signature,
+    } }))
+    assert.equal(response.status, 401)
+    assert.equal(run.calls.length, 0)
+  }
 })
