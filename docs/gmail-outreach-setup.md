@@ -50,8 +50,6 @@ Run `node /Users/brunowong/pulse/scripts/security/gmail-database-rehearsal.cjs` 
 
 Local configuration targets staging and has Google credentials and local encryption/scheduler secrets. Production uses the approved Google OAuth client with callback `https://app.headlinerma.com/api/gmail/callback` and a separate encryption key. Its owner-only backup is outside the repository at `/Users/brunowong/.config/odeon/gmail-production-key`; move it into secure organizational backup. Never copy local database credentials or encryption keys into production. Production secrets are unreadable through Vercel CLI; the production build verifies database targets, service-key alias alignment, canonical origin, OAuth/encryption settings and strong cron authentication without logging values.
 
-## Rollout limitations
-
 ## Supabase scheduler operations
 
 Production-only support SQL: `/Users/brunowong/pulse-gmail-release/supabase/gmail-scheduler.sql`. It enables `pg_cron`/`pg_net`, installs an admin-only dispatcher, and temporarily installs a service-role-only secret-provisioning RPC. Provision from the owner-only local key backup without logging values, then immediately drop `public.configure_gmail_scheduler_secret(text)` and reload the PostgREST schema. Never commit secret-bearing SQL. The key is stored encrypted in Vault; privileged database administrators can access it.
@@ -63,5 +61,7 @@ The dispatcher signs `gmail-sync:<Unix seconds>` using HMAC-SHA256. The worker a
 Monitor `cron.job` and `cron.job_run_details` for timer failures, then `net._http_response` for actual HTTP status, timeout/error and JSON `synced`/`failed` counters. Cron success alone only confirms dispatch. Check `gmail_connections.last_synced_at` and presence of `last_error` without selecting tokens or email bodies. `pg_net` response retention defaults to six hours; job history is pruned after seven days. There is no external alerting configured. Repeated HTTP errors or mailbox failures require investigation; Sync now remains available.
 
 Existing Supabase/Vercel quotas still apply (288 worker calls/day at five-minute intervals); no plan upgrade is performed. Free-project pausing and Vercel Hobby commercial-use eligibility remain separate operational concerns.
+
+## Rollout limitations
 
 Consent-screen audience/verification, retention decisions, and broader booking false-positive acceptance remain operational tasks. Google Cloud consent-screen publishing status has not been verified by the agent. The operator authorized the admin mailbox and accepted the manual capture test. Production scheduling uses the existing consent; no extra Gmail permissions are requested. Monitor last sync/error metadata after deployment. Booking stays an English heuristic, not Opus booking validation, and email bodies retained in notes/receipts have no automated cleanup.
