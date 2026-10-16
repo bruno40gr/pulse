@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { RefreshCw } from 'lucide-react'
+import { SyncButton } from '@/components/ui/SyncButton'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl } from '@/lib/tenant'
 import { trackDemoEvent } from '@/lib/demo-analytics'
 import { Button, Badge, SlidePanel, SlidePanelHeader, PageHeader } from '@/components/ui'
@@ -423,8 +423,10 @@ export default function DashboardPage() {
                 AI Highlights settings
               </Link>
             )}
-            <Button
-            variant="secondary"
+            <SyncButton
+            syncing={refreshing}
+            label="Refresh insights"
+            syncingLabel="Refreshing insights"
             onClick={() => {
               setRefreshing(true)
               fetch(`/api/insights?tenant=${getActiveTenantId()}&refresh=true`)
@@ -443,11 +445,7 @@ export default function DashboardPage() {
                 .catch(() => {})
                 .finally(() => setRefreshing(false))
             }}
-            disabled={refreshing}
-          >
-            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing insights' : 'Refresh insights'}
-            </Button>
+            />
           </div>
         }
       />

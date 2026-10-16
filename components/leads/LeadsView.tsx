@@ -2,6 +2,7 @@
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { LeadEmailSync } from './LeadEmailSync'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLessonLead, leadBelongsToTab, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
@@ -1817,9 +1818,17 @@ export default function LeadsView() {
           title="Leads"
           subtitle={subtitle}
           right={(
-            activeTab === 'winback'
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.sm, flexWrap: 'wrap' }}>
+              <LeadEmailSync onSynced={async () => {
+                invalidateLeadListCache()
+                await fetchLeads({ force: true })
+                const leadId = selectedLeadIdRef.current
+                if (leadId) await fetchLeadDetail(leadId, selectedLead?.intake_type)
+              }} />
+            {activeTab === 'winback'
               ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
-              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>
+              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>}
+            </div>
           )}
         />
 
