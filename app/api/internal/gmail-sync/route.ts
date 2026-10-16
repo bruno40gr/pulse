@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
-  const secret = process.env.GMAIL_SYNC_SECRET || ''
+  const secret = process.env.GMAIL_SYNC_SECRET || process.env.CRON_SECRET || ''
   if (secret.length < 32 || !secretMatches(request.headers.get('authorization') || '', `Bearer ${secret}`)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await crmSupabaseAdmin.from('gmail_connections').select('id,tenant_id,connected_by').order('last_synced_at', { ascending: true, nullsFirst: true }).limit(5)
   if (error) return NextResponse.json({ error: 'Gmail sync unavailable.' }, { status: 503 })

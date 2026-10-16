@@ -11,6 +11,7 @@ if (process.env.VERCEL_ENV === 'production') {
   assert.equal(env.PULSE_APP_URL?.replace(/\/$/, ''), 'https://app.headlinerma.com', 'Canonical Gmail callback origin must match Google OAuth')
   assert.ok(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET, 'Google OAuth credentials are required')
   assert.equal(Buffer.from(env.GMAIL_TOKEN_ENCRYPTION_KEY || '', 'base64').length, 32, 'Gmail requires a 32-byte encryption key')
-  assert.ok(!env.GMAIL_SYNC_SECRET, 'Supervised pilot requires the scheduled worker to remain disabled')
-  console.log('Gmail production configuration verified: database aliases, OAuth origin, encryption and disabled scheduler.')
+  assert.ok(env.CRON_SECRET && env.CRON_SECRET.length >= 32, 'Scheduled Gmail capture requires a strong cron secret')
+  assert.ok(!env.GMAIL_SYNC_SECRET || env.GMAIL_SYNC_SECRET === env.CRON_SECRET, 'Gmail scheduler secrets must match when both are configured')
+  console.log('Gmail production configuration verified: database aliases, OAuth origin, encryption and authenticated scheduler.')
 }
