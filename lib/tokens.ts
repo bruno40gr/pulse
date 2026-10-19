@@ -44,13 +44,15 @@ export const typography = {
   fontDisplay: 'var(--font-baloo-2), sans-serif',
   fontMono: 'monospace',
 
-  // Size scale
-  sizeXs: '0.6875rem',
-  sizeSm: '0.75rem',
-  sizeBase: '0.875rem',
-  sizeMd: '0.9375rem',
+  // Five-step UI scale: small 14, body 16, heading 20, title 24, page title 32.
+  // Keep rem units so the workspace display-size preference applies throughout.
+  // Legacy size names remain aliases so existing consumers share this scale.
+  sizeXs: '0.875rem',
+  sizeSm: '0.875rem',
+  sizeBase: '1rem',
+  sizeMd: '1rem',
   size15: '1rem',
-  sizeLg: '1.125rem',
+  sizeLg: '1.25rem',
   sizeXl: '1.25rem',
   size2xl: '1.5rem',
   size3xl: '2rem',
@@ -71,40 +73,40 @@ export const typography = {
   },
   sectionTitle: {
     fontFamily: 'var(--font-baloo-2), sans-serif',
-    fontSize: '1.375rem',
+    fontSize: '1.25rem',
     fontWeight: 700,
     letterSpacing: '-0.015em',
     lineHeight: 1.2,
   },
   h2: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '1.125rem',
+    fontSize: '1.25rem',
     fontWeight: 600,
     lineHeight: 1.3,
   },
   body: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.9375rem',
+    fontSize: '1rem',
     fontWeight: 400,
     lineHeight: 1.5,
   },
   bodySmall: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.875rem',
+    fontSize: '1rem',
     fontWeight: 400,
     lineHeight: 1.5,
   },
   label: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.8125rem',
+    fontSize: '0.875rem',
     fontWeight: 500,
     lineHeight: 1.3,
   },
   helper: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.75rem',
+    fontSize: '0.875rem',
     fontWeight: 400,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
   },
 }
 

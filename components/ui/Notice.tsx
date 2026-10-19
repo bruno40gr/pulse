@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { ControlButton } from './ControlButton'
 
 export type NoticeVariant = 'info' | 'warning' | 'success' | 'error'
 
@@ -11,6 +12,8 @@ interface NoticeProps {
   variant?: NoticeVariant
   title?: string
   style?: CSSProperties
+  onDismiss?: () => void
+  dismissLabel?: string
 }
 
 const variantStyles: Record<NoticeVariant, { background: string; border: string; color: string; icon: typeof Info }> = {
@@ -20,34 +23,38 @@ const variantStyles: Record<NoticeVariant, { background: string; border: string;
   error: { background: '#FEF2F2', border: '#FECACA', color: colors.error, icon: AlertCircle },
 }
 
-export function Notice({ children, variant = 'info', title, style }: NoticeProps) {
+export function Notice({ children, variant = 'info', title, style, onDismiss, dismissLabel = 'Dismiss notification' }: NoticeProps) {
   const config = variantStyles[variant]
   const Icon = config.icon
-  const role = variant === 'error' ? 'alert' : variant === 'success' ? 'status' : undefined
+  const role = variant === 'error' || variant === 'warning' ? 'alert' : variant === 'success' ? 'status' : undefined
 
   return (
     <div
       role={role}
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: spacing.sm,
-        padding: spacing.md,
+        alignItems: 'center',
+        gap: spacing.md,
+        padding: `${spacing.md} ${spacing.lg}`,
+        boxSizing: 'border-box',
+        minWidth: 0,
         border: `1px solid ${config.border}`,
         borderRadius: radius.lg,
         background: config.background,
         color: colors.text,
         fontFamily: typography.fontSans,
-        fontSize: typography.sizeSm,
+        fontSize: typography.sizeBase,
         lineHeight: 1.5,
+        overflowWrap: 'anywhere',
         ...style,
       }}
     >
-      <Icon size={17} color={config.color} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
-      <div style={{ minWidth: 0 }}>
-        {title && <strong style={{ display: 'block', color: config.color, marginBottom: 2 }}>{title}</strong>}
+      <Icon size={20} color={config.color} style={{ flexShrink: 0 }} aria-hidden="true" />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        {title && <strong style={{ display: 'block', color: config.color, fontSize: typography.sizeMd, marginBottom: spacing.xs }}>{title}</strong>}
         <div>{children}</div>
       </div>
+      {onDismiss && <ControlButton kind="close" type="button" aria-label={dismissLabel} onClick={onDismiss} style={{ margin: '-4px -8px -4px 0' }} />}
     </div>
   )
 }

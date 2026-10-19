@@ -8,8 +8,7 @@ interface SectionTitleProps {
 export function SectionTitle({ children, style }: SectionTitleProps) {
   return (
     <h2 style={{
-      fontSize: '18px',
-      fontWeight: 600,
+      ...typography.h2,
       color: colors.text,
       margin: 0,
       marginBottom: '4px',

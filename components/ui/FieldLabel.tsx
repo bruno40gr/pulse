@@ -8,9 +8,9 @@ interface FieldLabelProps {
 export function FieldLabel({ children, style }: FieldLabelProps) {
   return (
     <div style={{
-      fontSize: '12px',
+      ...typography.label,
       fontWeight: 600,
-      color: colors.textMuted,
+      color: colors.textSecondary,
       marginBottom: '2px',
       fontFamily: typography.fontSans,
       ...style,

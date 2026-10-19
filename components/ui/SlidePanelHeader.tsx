@@ -69,7 +69,7 @@ export function SlidePanelHeader({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
             <h2 id={titleId} style={{
-              fontSize: titleSize || (isMobile ? typography.sizeLg : typography.sizeXl),
+              fontSize: titleSize || typography.size2xl,
               fontWeight: typography.weightSemibold,
               margin: 0,
               color: colors.text,
