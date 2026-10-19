@@ -57,7 +57,7 @@ test('mock reply preserves channel/subject/HTML without mutating original', () =
 function harness(mobile = false, wide = true) {
   const state = []
   let index = 0
-  const ui = Object.fromEntries(['Button', 'Input', 'ModalBody', 'ModalFooter', 'ModalHeader', 'PageHeader', 'SectionTitle', 'Select', 'Tabs', 'Textarea', 'WorkspaceBreadcrumbs', 'BackControl'].map(name => [name, name]))
+  const ui = Object.fromEntries(['Notice', 'Button', 'Input', 'ModalBody', 'ModalFooter', 'ModalHeader', 'PageHeader', 'SectionTitle', 'Select', 'Tabs', 'Textarea', 'WorkspaceBreadcrumbs', 'BackControl'].map(name => [name, name]))
   ui.PageContainer = function PageContainer({ children, ...props }) { return React.createElement('main', props, children) }
   ui.SurfacePanel = function SurfacePanel({ children }) { return React.createElement('div', null, children) }
   ui.Modal = function Modal({ isOpen, children, ariaLabel }) { return isOpen ? React.createElement('div', { role: 'dialog', 'aria-label': ariaLabel }, children) : null }
@@ -80,11 +80,13 @@ function harness(mobile = false, wide = true) {
       return { navigate(next) { entries.splice(++position); entries.push(next); restore(next) }, close() { position = 0; restore(entries[0]) } }
     } },
     '@/lib/prototype-messaging': messaging,
+    '@/lib/contact-timing': load('lib/contact-timing.ts'),
     '@/components/inbox/SmsRecipientPicker': { default: 'SmsRecipientPicker' },
     '@/components/inbox/PrototypeNewMessage': { default: 'NewMessage' },
     '@/components/inbox/PrototypeEmailComposer': { default: 'EmailComposer' },
     '@/components/inbox/PrototypeSmsConversation': { default: 'SmsConversation' },
     '@/lib/conversations-prototype-html': { prototypePreviewDocument: html => html, prototypeHtmlText: html => html.replace(/<[^>]+>/g, '').trim() },
+    '@/components/ui/DataGridTable': { ResponsiveDataTable: ({ rows, columns, emptyContent, ariaLabel }) => React.createElement('div', { role: 'table', 'aria-label': ariaLabel }, rows.length ? rows.map(row => React.createElement('div', { key: row.id }, columns.map(column => React.createElement('div', { key: column.id }, column.render(row))))) : emptyContent) },
     '@/components/ui/ControlButton': { ControlButton: 'ControlButton' },
     '@/lib/tokens': load('lib/tokens.ts'),
     '@/lib/useMediaQuery': { useMediaQuery: query => query.includes('min-width') ? wide : mobile },
@@ -99,7 +101,7 @@ function harness(mobile = false, wide = true) {
   }
   function find(predicate) { const element = nodes().find(predicate); assert.ok(element, 'Expected interactive element'); return element }
   function text(element) { return React.Children.toArray(element?.props?.children).map(child => typeof child === 'object' ? text(child) : String(child)).join('') }
-  function click(label) { if (label === 'Save as draft') { find(node => node.type === 'EmailComposer').props.onCollapse(); render(); return } if (label === 'Discard draft' && !nodes().some(node => node.props?.['aria-label'] === 'Discard email draft')) { find(node => node.type === 'EmailComposer').props.onDiscard(); render(); return } if (label === 'Back to contacts') { find(node => node.type === 'PageHeader').props.onBack(); render(); return } const matches = nodes().filter(node => ['Button', 'ControlButton', 'BackControl'].includes(node.type) && (text(node) === label || node.props.label === label)); assert.ok(matches.length, `Expected action: ${label}`); matches.at(-1).props.onClick(); render() }
+  function click(label) { if (label === 'New message') label = 'Send new email'; if (label === 'Save as draft') { find(node => node.type === 'EmailComposer').props.onCollapse(); render(); return } if (label === 'Discard draft' && !nodes().some(node => node.props?.['aria-label'] === 'Discard email draft')) { find(node => node.type === 'EmailComposer').props.onDiscard(); render(); return } if (label === 'Back to contacts') { find(node => node.type === 'PageHeader').props.onBack(); render(); return } const matches = nodes().filter(node => ['Button', 'ControlButton', 'BackControl'].includes(node.type) && (text(node) === label || node.props.label === label)); assert.ok(matches.length, `Expected action: ${label}`); matches.at(-1).props.onClick(); render() }
   function open(name = 'Alex Chen') { find(node => node.props['aria-label'] === `Open conversation with ${name}`).props.onClick(); render() }
   function channel(value) { find(node => node.type === 'Tabs').props.onChange(value); render() }
   function startEmail(id) { const modal = find(node => node.type === 'NewMessage'); modal.props.onEmail({ to: [id], cc: [], bcc: [] }); render() }
@@ -148,7 +150,7 @@ test('global email is a clean standalone compose view and saved draft resumes th
   for (const unwanted of ['Email conversations', 'Previous email context', 'Conversation with Alex Chen', '<Tabs']) assert.ok(!h.html().includes(unwanted))
   const composer = h.find(node => node.type === 'EmailComposer')
   composer.props.onChange({ ...composer.props.draft, subject: 'Everyone', html: '<p>Hello</p>' }); h.render()
-  h.click('Save as draft'); assert.ok(h.html().includes('Draft · Everyone'))
+  h.click('Save as draft'); assert.ok(h.html().includes('You have a message in draft')); assert.ok(h.html().includes('Hello'))
   h.click('Continue draft')
   assert.equal(h.find(node => node.type === 'PageHeader').props.title, 'New message')
   assert.equal(h.find(node => node.type === 'EmailComposer').props.draft.html, '<p>Hello</p>')
@@ -258,7 +260,7 @@ test('mobile basic list/reader navigation remains available without redesign', (
   assert.ok(h.html().includes('Email conversations')); assert.ok(!h.html().includes('aria-label="Email reader"'))
   h.email(); assert.ok(!h.html().includes('aria-label="Email conversations"'))
   h.click('Back to emails'); assert.ok(h.html().includes('Email conversations'))
-  h.click('Back to contacts'); assert.ok(h.html().includes('aria-label="Contacts"'))
+  h.click('Back to contacts'); assert.ok(h.html().includes('aria-label="Conversations"'))
 })
 
 test('discard confirms, clears only the active draft and cannot resurrect it through history', () => {
@@ -470,4 +472,15 @@ test('one SMS recipient without history opens their empty personal conversation'
   composer.props.onChange('Hello Taylor'); h.render()
   h.find(node => node.type === 'SmsConversation').props.onSend(); h.render()
   assert.equal(h.find(node => node.type === 'SmsConversation').props.thread.messages.at(-1).body, 'Hello Taylor')
+})
+
+
+test('draft notices precede the table panel and previews are bounded', () => {
+  const h = harness(); h.click('New message'); h.startEmail('chen')
+  const composer = h.find(node => node.type === 'EmailComposer')
+  composer.props.onChange({ ...composer.props.draft, subject: 'Long draft', html: `<p>${'x'.repeat(300)}</p>` }); h.render()
+  h.click('Save as draft')
+  const preview = h.find(node => node.type === 'p' && h.text(node).startsWith('xxxxxxxx'))
+  assert.equal(h.text(preview), 'x'.repeat(200) + '…')
+  assert.equal(preview.props.style.WebkitLineClamp, 2)
 })

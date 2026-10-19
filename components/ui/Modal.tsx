@@ -23,6 +23,7 @@ interface ModalProps {
 
 interface ModalHeaderProps {
   title: string
+  compact?: boolean
   onBack?: () => void
   backLabel?: string
   description?: ReactNode
@@ -70,11 +71,11 @@ export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop 
   )
 }
 
-export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back' }: ModalHeaderProps) {
+export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = false }: ModalHeaderProps) {
   const ownId = useId()
   const titleId = useContext(DialogTitleContext) || ownId
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, padding: `${spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: compact ? 'center' : 'flex-start', justifyContent: 'space-between', gap: spacing.lg, padding: `${compact ? spacing.xs : spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
         {onBack && <BackControl label={backLabel} onClick={onBack} />}
         {icon && <div style={{ display: 'flex', color: colors.textSecondary, flexShrink: 0, marginTop: 2 }}>{icon}</div>}

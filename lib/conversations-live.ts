@@ -34,8 +34,17 @@ export function personThread(person: ConversationPerson): LiveThread {
 
 /** Preserve empty personal conversations and merge provider histories by their stable IDs. */
 export function mergeConversationThreads(people: ConversationPerson[], threads: LiveThread[]): LiveThread[] {
+  // Email history may omit phone (and SMS history may omit email). Never let
+  // whichever channel loads first erase an available routing address.
+  const hydrated = threads.map(thread => {
+    const person = people.find(person => person.id === thread.contactId)
+    return { ...thread,
+      phone: thread.phone || person?.phone || threads.find(other => other.contactId === thread.contactId && other.phone)?.phone || '',
+      email: thread.email || person?.email || threads.find(other => other.contactId === thread.contactId && other.email)?.email || '',
+    }
+  })
   return [
-    ...threads,
+    ...hydrated,
     ...people.filter(person => !threads.some(thread => thread.contactId === person.id && thread.channel === 'sms')).map(personThread),
   ]
 }

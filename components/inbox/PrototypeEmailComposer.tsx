@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Bold, Italic, Underline, List, Send } from 'lucide-react'
-import { Button, FieldRow, Input, SurfacePanel } from '@/components/ui'
+import { Button, FieldRow, Input, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { PROTOTYPE_EMAIL } from '@/lib/conversations-prototype'
@@ -23,6 +23,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   senderEmail?: string; disabled?: boolean
   onCollapse: () => void; onDiscard: () => void; replying: boolean; people: MockRecipient[]; templates: MockTemplate[]; onCreateTemplate: (template: MockTemplate) => void
 }) {
+  const [managingRecipients, setManagingRecipients] = useState(false)
   const [mode, setMode] = useState<'write' | 'preview'>('write')
   const [undo, setUndo] = useState<PrototypeEmailDraft | null>(null)
   const editor = useRef<HTMLDivElement>(null)
@@ -46,7 +47,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     onChange({ ...draft, html: editor.current.innerHTML })
   }
 
-  return <SurfacePanel padding="0" style={{ overflow: 'hidden' }}><section aria-label="Email composer">
+  return <SurfacePanel padding="0" style={{ overflow: 'hidden', width: '100%', minWidth: 0, maxWidth: '100%' }}><section aria-label="Email composer" style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
     <div style={{ ...line, justifyContent: 'space-between', padding: `${spacing.lg} ${spacing.xl}`, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
       <strong style={{ ...typography.body }}>Draft {replying ? 'reply' : 'email'}</strong>
       <div style={line}>
@@ -57,8 +58,8 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null) }}>Undo template</Button>}
     <div style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
       <div style={{ marginBottom: spacing.xl }}>
-        <FieldRow label="From"><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{senderName} &lt;{senderEmail}&gt;</span></FieldRow>
-        {draft.recipients && !draft.contactOnly ? <PrototypeEmailRecipients people={people} recipients={draft.recipients} onChange={recipients => onChange({ ...draft, recipients })} /> : <FieldRow label="To"><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{name} &lt;{email}&gt;</span></FieldRow>}
+        <div style={{ ...line, marginBottom: spacing.md }}><span>From:</span><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{senderName} &lt;{senderEmail}&gt;</span></div>
+        {draft.recipients && !draft.contactOnly ? <div style={line}><span style={typography.bodySmall}>{(['to', 'cc', 'bcc'] as const).filter(field => draft.recipients![field].length).map(field => `${field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc'}: ${draft.recipients![field].length <= 3 ? draft.recipients![field].map(id => people.find(person => person.id === id)?.name || 'Recipient').join(', ') : `${draft.recipients![field].length} recipients`}`).join(' · ')}</span><Button variant="secondary" size="sm" onClick={() => setManagingRecipients(true)}>Manage recipients</Button></div> : <FieldRow label="To"><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{name} &lt;{email}&gt;</span></FieldRow>}
       </div>
       <Input label="Subject" id="prototype-email-subject" aria-label="Email subject" placeholder="Subject" value={draft.subject} onChange={event => onChange({ ...draft, subject: event.target.value })} />
       <div aria-label="Message input area" style={{ marginTop: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, minWidth: 0 }}>
@@ -97,5 +98,10 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
       <div style={line}><Button variant="secondary" onClick={onCollapse}>Save as draft</Button><ControlButton kind="link" onClick={onDiscard}>Discard draft</ControlButton></div>
       <Button disabled={disabled || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => onSend(prototypeHtmlText(draft.html + signatureHtml), sanitizePrototypeHtml(draft.html + signatureHtml))}><Send size={14} />Send email</Button>
     </div>
+    {draft.recipients && <Modal isOpen={managingRecipients} onClose={() => setManagingRecipients(false)} ariaLabel="Manage recipients" size="lg" style={{ height: 'min(80dvh, 640px)' }}>
+      <ModalHeader title="Select email recipients" onClose={() => setManagingRecipients(false)} compact />
+      <ModalBody style={{ display: 'flex', flexDirection: 'column' }}><PrototypeEmailRecipients people={people} recipients={draft.recipients} onChange={recipients => onChange({ ...draft, recipients })} fill /></ModalBody>
+      <ModalFooter><Button onClick={() => setManagingRecipients(false)}>Done</Button></ModalFooter>
+    </Modal>}
   </section></SurfacePanel>
 }

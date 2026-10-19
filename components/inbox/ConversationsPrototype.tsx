@@ -1,10 +1,13 @@
 'use client'
 
+import { formatContactTiming } from '@/lib/contact-timing'
+
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Button, Input, PageContainer, PageHeader, SectionTitle, SurfacePanel, Tabs, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import { Notice, Button, Input, PageContainer, PageHeader, SectionTitle, SurfacePanel, Tabs, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
 import { useIdentity } from '@/components/layout/IdentityProvider'
 import { useWorkspaceHistory } from '@/lib/useWorkspaceHistory'
 import { BackControl } from '@/components/ui/BackControl'
+import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { ControlButton } from '@/components/ui/ControlButton'
 import PrototypeEmailComposer, { type PrototypeEmailDraft } from '@/components/inbox/PrototypeEmailComposer'
 import PrototypeSmsConversation from '@/components/inbox/PrototypeSmsConversation'
@@ -15,6 +18,9 @@ import SmsRecipientPicker from '@/components/inbox/SmsRecipientPicker'
 import PrototypeNewMessage from '@/components/inbox/PrototypeNewMessage'
 import { emailRecipientIds, fillMockTemplate, initialMockTemplates, validMockEmailRecipients, type MockEmailRecipients } from '@/lib/prototype-messaging'
 import { prototypeHtmlText, prototypePreviewDocument } from '@/lib/conversations-prototype-html'
+
+const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
+const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
 
 const meta: CSSProperties = { ...typography.bodySmall, color: colors.textSecondary }
 const row: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap' }
@@ -55,6 +61,7 @@ export default function ConversationsPrototype() {
   const [newSms, setNewSms] = useState<{ id: string; ids: string[]; body: string } | null>(null)
   const [editingSmsRecipients, setEditingSmsRecipients] = useState(false)
   const [smsRecipientQuery, setSmsRecipientQuery] = useState('')
+  const [newMessageChannel, setNewMessageChannel] = useState<'sms' | 'email'>('sms')
   const [newMessageOpen, setNewMessageOpen] = useState(false)
   const [templates, setTemplates] = useState(initialMockTemplates)
   const [search, setSearch] = useState('')
@@ -100,6 +107,7 @@ export default function ConversationsPrototype() {
   const newSmsThread = singleSmsRecipient ? threads.find(thread => thread.contactId === singleSmsRecipient.id && thread.channel === 'sms') || { ...singleSmsRecipient, id: `${singleSmsRecipient.id}-sms-draft`, contactId: singleSmsRecipient.id, channel: 'sms' as const, messages: [] } : undefined
   const smsOptions = contacts.map(person => ({ id: person.id, first_name: person.name.split(' ')[0], last_name: person.name.split(' ').slice(1).join(' '), phone: person.phone, email: person.email }))
   const standalone = !!draft && draft.contactOnly === false
+  const [contactSort, setContactSort] = useState<{ key: 'name' | 'time' | 'date'; direction: 'asc' | 'desc' }>({ key: 'time', direction: 'desc' })
   const latestMessage = (person: typeof contact) => person.threads.flatMap(thread => thread.messages).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).at(0)
   const visibleContacts = contacts.filter(person => {
     const matches = `${person.name} ${person.student} ${person.email} ${person.phone} ${person.threads.flatMap(thread => thread.messages.map(message => message.body)).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
@@ -201,9 +209,8 @@ export default function ConversationsPrototype() {
   }
 
   function startNewSms(ids: string[]) {
-    if (ids.length === 1) {
-      const person = contacts.find(contact => contact.id === ids[0])
-      if (!person?.phone) return
+    if (ids.length === 1 && contacts.some(person => person.id === ids[0] && person.phone)) {
+      const person = contacts.find(contact => contact.id === ids[0])!
       setNewMessageOpen(false)
       navigate({ view: 'contact', contactId: person.id, channel: 'sms', activeId: '', screen: 'reader' })
       markSmsRead(person.id)
@@ -238,7 +245,7 @@ export default function ConversationsPrototype() {
       <PageHeader title={location.view === 'sms-compose' ? 'Write a text message' : location.view === 'contacts' ? 'Conversations' : standalone ? 'New message' : contact.name}
         titleAction={location.view !== 'contacts' && location.view !== 'lead' && location.view !== 'sms-compose' && !standalone ? <ControlButton kind="link" aria-label={`Open lead for ${contact.name}`} onClick={() => navigate({ view: 'lead' })}>View lead</ControlButton> : undefined}
         onBack={location.view === 'contacts' ? undefined : goBackToConversations} backLabel="Back to Conversations"
-        right={location.view === 'contacts' ? <Button onClick={() => setNewMessageOpen(true)}>New message</Button> : undefined} />
+        right={location.view === 'contacts' ? <div style={row}><Button onClick={() => { setNewMessageChannel('sms'); setNewMessageOpen(true) }}>Send new text message</Button><Button onClick={() => { setNewMessageChannel('email'); setNewMessageOpen(true) }}>Send new email</Button></div> : undefined} />
     </div>
 
     {location.view === 'contacts' ? <div style={{ width: '100%', minWidth: 0 }}>
@@ -248,15 +255,22 @@ export default function ConversationsPrototype() {
         <Input type="date" aria-label="To date" label="To date" value={dateTo} min={dateFrom || undefined} onChange={event => setDateTo(event.target.value)} />
         {(search || dateFrom || dateTo) && <Button variant="ghost" onClick={() => { setSearch(''); setDateFrom(''); setDateTo('') }}>Clear filters</Button>}
       </section>
+      {newSms?.body.trim() && <Notice title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(newSms.body)}</p><div style={row}><Button variant="secondary" onClick={() => setNewSms(null)}>Discard draft</Button><Button onClick={() => navigate({ view: 'sms-compose', activeId: newSms.id, channel: 'sms' })}>Continue draft</Button></div></Notice>}
+      {Object.entries(smsDrafts).filter(([, body]) => body.trim()).map(([id]) => { const thread = threads.find(item => item.id === id); return thread ? <Notice key={id} title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(smsDrafts[id])}</p><div style={row}><Button variant="secondary" onClick={() => setSmsDrafts(current => { const next = { ...current }; delete next[id]; return next })}>Discard draft</Button><Button onClick={() => navigate({ view: 'contact', contactId: thread.contactId, channel: 'sms', activeId: thread.id, screen: 'reader' })}>Continue draft</Button></div></Notice> : null })}
+      {Object.entries(emailDrafts).map(([id, saved]) => <Notice key={id} title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(saved.bodyText || prototypeHtmlText(saved.html) || saved.subject || 'New email')}</p><div style={row}><Button variant="secondary" onClick={() => { setEmailDrafts(current => { const next = { ...current }; delete next[id]; return next }); setThreads(current => current.filter(thread => thread.id !== id || thread.messages.length)) }}>Discard draft</Button><Button onClick={() => { const thread = threads.find(item => item.id === id); if (thread) navigate({ view: 'compose', activeId: id, contactId: thread.contactId, channel: 'email', screen: 'reader' }) }}>Continue draft</Button></div></Notice>)}
+
       <SurfacePanel padding="0" style={{ overflow: 'hidden' }}>
-      {Object.entries(emailDrafts).filter(([, saved]) => saved.contactOnly === false).map(([id, saved]) => <div key={id} style={{ ...row, padding: spacing.lg, borderTop: `1px solid ${colors.border}`, overflowWrap: 'anywhere' }}><span style={{ ...meta, minWidth: 0, flex: 1 }}>Draft · {saved.subject || 'New message'}</span><Button variant="secondary" onClick={() => { const thread = threads.find(item => item.id === id); if (thread) navigate({ view: 'compose', activeId: id, contactId: thread.contactId, channel: 'email', screen: 'reader' }) }}>Continue draft</Button></div>)}
-      <aside aria-label="Contacts">
-        {!visibleContacts.length && <p role="status" style={{ ...meta, padding: spacing.lg }}>No conversations match your filters.</p>}
-        {visibleContacts.map(person => <ControlButton kind="row" key={person.id} aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ display: 'block', width: '100%', minWidth: 0, boxSizing: 'border-box', whiteSpace: 'normal', overflowWrap: 'anywhere', padding: mobile ? spacing.lg : spacing['2xl'], borderBottom: `1px solid ${colors.borderLight}`, borderRadius: 0 }}>
-          <div style={{ ...row, justifyContent: 'space-between' }}><strong style={{ color: colors.text }}>{person.name}</strong><span style={meta}>{latestMessage(person)?.time}</span></div>
-          <div style={{ ...row, justifyContent: 'space-between', marginTop: spacing.sm }}><span style={{ ...meta, fontWeight: person.newSms + person.newEmails ? typography.weightSemibold : typography.weightNormal }}>{person.newSms} new SMS · {person.newEmails} new emails</span><span aria-hidden="true" style={{ fontSize: typography.sizeXl, color: colors.textMuted }}>›</span></div>
-        </ControlButton>)}
-      </aside>
+      <ResponsiveDataTable rows={visibleContacts.slice().sort((a, b) => {
+        const left = latestMessage(a)?.timestamp || ''; const right = latestMessage(b)?.timestamp || ''
+        if (contactSort.key !== 'name' && (!left || !right)) return left ? -1 : right ? 1 : a.name.localeCompare(b.name)
+        const value = contactSort.key === 'name' ? a.name.localeCompare(b.name) : contactSort.key === 'date' ? left.slice(0, 10).localeCompare(right.slice(0, 10)) : left.localeCompare(right)
+        return (contactSort.direction === 'asc' ? value : -value) || a.name.localeCompare(b.name)
+      })} getRowKey={person => person.id} ariaLabel="Conversations" minDesktopWidth={360} alignToSelectionInset stickyHeaderOffset={0}
+        sort={contactSort} onSortChange={setContactSort} onRowClick={person => selectContact(person.id)} emptyContent="No conversations match your filters."
+        columns={[
+          { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => <div><ControlButton kind="link" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textDecoration: 'none', textAlign: 'left' }}>{person.name}</ControlButton><div style={{ ...meta, marginTop: spacing.xs }}>{person.newSms} new SMS · {person.newEmails} unread emails</div></div> },
+          { id: 'time', header: 'Last contacted', width: 'minmax(180px, 1fr)', sortable: true, sortKey: 'time', defaultSortDirection: 'desc', render: person => formatContactTiming(latestMessage(person)?.timestamp) },
+        ]} />
       </SurfacePanel>
     </div> : location.view === 'sms-compose' ? composingSms && newSms ? <section aria-label="New SMS composer" style={{ minWidth: 0 }}>
       <SurfacePanel padding="0" style={{ ...pane, minHeight: 'max(360px, calc(100dvh - 240px))' }}>
@@ -264,11 +278,11 @@ export default function ConversationsPrototype() {
           <div style={{ ...row, justifyContent: 'space-between' }}><strong>To: {smsRecipients.map(person => person.name).join(', ') || 'No recipients selected'}</strong><div role="group" aria-label="Text message actions" style={row}><Button variant="secondary" onClick={() => { setSmsRecipientQuery(''); setEditingSmsRecipients(true) }}>Edit recipients</Button><Button variant="ghost" onClick={() => setDiscardOpen(true)}>Discard text message</Button></div></div>
           <p style={{ ...meta, marginBottom: 0 }}>Sent individually to each recipient.</p>
         </div>
-        <PrototypeSmsConversation thread={newSmsThread || { ...sms, id: newSms.id, messages: [] }} mobile={mobile} recipients={smsRecipients} draft={newSms.body} onChange={body => setNewSms(current => current ? { ...current, body } : current)} onSend={() => { if (newSms.body.trim() && smsRecipients.length && smsRecipients.every(person => person.phone)) sendNewSms(newSms.ids, newSms.body) }} />
+        <PrototypeSmsConversation thread={newSmsThread || { ...sms, id: newSms.id, messages: [] }} mobile={mobile} recipients={smsRecipients} draft={newSms.body} onChange={body => setNewSms(current => current ? { ...current, body } : current)} onSend={() => { if (newSms.body.trim() && smsRecipients.some(person => person.phone)) sendNewSms(newSms.ids, newSms.body) }} />
       </SurfacePanel>
-      <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="lg"><ModalHeader title="SMS recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody><div style={{ display: 'flex', flexDirection: 'column', height: 'min(55dvh, 480px)', minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} results={smsOptions.filter(person => `${person.first_name} ${person.last_name} ${person.phone}`.toLowerCase().includes(smsRecipientQuery.trim().toLowerCase()))} selected={smsOptions.filter(person => newSms.ids.includes(person.id))} handleSearch={setSmsRecipientQuery} toggleRecipient={person => setNewSms(current => current ? { ...current, ids: current.ids.includes(person.id) ? current.ids.filter(id => id !== person.id) : [...current.ids, person.id] } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
+      <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="lg" style={{ height: 'min(80dvh, 640px)' }}><ModalHeader compact title="Select text message recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody style={{ display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} results={smsOptions.filter(person => `${person.first_name} ${person.last_name} ${person.phone}`.toLowerCase().includes(smsRecipientQuery.trim().toLowerCase()))} selected={smsOptions.filter(person => newSms.ids.includes(person.id))} handleSearch={setSmsRecipientQuery} toggleRecipient={person => setNewSms(current => current ? { ...current, ids: current.ids.includes(person.id) ? current.ids.filter(id => id !== person.id) : [...current.ids, person.id] } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
       <Modal isOpen={discardOpen} onClose={() => setDiscardOpen(false)} ariaLabel="Discard text message" size="sm"><ModalHeader title="Discard this text message?" onClose={() => setDiscardOpen(false)} /><ModalBody>Your recipients and unsent text will be removed.</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep message</Button><Button variant="destructive" onClick={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }) }}>Discard message</Button></ModalFooter></Modal>
-    </section> : <p role="status">This text message is no longer available. Go back to Conversations to start a new message.</p> : standalone && composing && active && draft ? <section aria-label="New email message" style={{ minWidth: 0, maxWidth: 1000 }}>
+    </section> : <p role="status">This text message is no longer available. Go back to Conversations to start a new message.</p> : standalone && composing && active && draft ? <section aria-label="New email message" style={{ minWidth: 0, width: '100%' }}>
       {discardOpen && <section aria-label="Discard email draft" style={{ padding: spacing.lg }}><p>Discard this draft?</p><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep draft</Button><Button onClick={discardDraft}>Discard draft</Button></section>}
       <PrototypeEmailComposer key={active.id} name="" email="" student="" draft={draft} onChange={updateDraft} onSend={sendEmail} onCollapse={returnToConversation} onDiscard={() => setDiscardOpen(true)} replying={false} signatureHtml={signatureHtml} senderName={senderName} people={contacts} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} />
     </section> : location.view === 'lead' ? <SurfacePanel style={{ maxWidth: 900 }}>
@@ -293,7 +307,7 @@ export default function ConversationsPrototype() {
           </aside>}
           {showReader && <section ref={reader} aria-label="Email reader" style={{ ...pane, overflowY: 'auto', background: colors.background, padding: mobile ? spacing.md : spacing.xl }}>
             {!desktop && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}><BackControl label="Back to emails" onClick={() => navigate({ screen: 'list' })} /><h2 style={{ ...typography.h2, margin: 0 }}>Email conversation</h2></div>}
-            {!active ? <p style={{ ...meta, margin: 'auto', textAlign: 'center' }}>Select an email to read.</p> : <div style={{ width: '100%', maxWidth: 820, margin: '0 auto' }}>
+            {!active ? <p style={{ ...meta, margin: 'auto', textAlign: 'center' }}>Select an email to read.</p> : <div style={{ width: '100%', minWidth: 0 }}>
               <div style={{ ...row, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing['3xl'] }}><SectionTitle>{active.subject || 'New email'}</SectionTitle>{active.messages.length > 0 && <ControlButton kind="link" onClick={() => newEmail()}>New email</ControlButton>}</div>
               {!active.messages.length && <p style={meta}>This email has not been sent.</p>}
               {!!draft?.contextThreadId && <p style={meta}>Previous conversation: {contextThread?.subject}</p>}
@@ -316,7 +330,7 @@ export default function ConversationsPrototype() {
         </div>}
       </section>
     </SurfacePanel>}
-    <PrototypeNewMessage open={newMessageOpen} onClose={() => setNewMessageOpen(false)} people={contacts} preselected={location.view === 'contacts' ? undefined : contact.id} onEmail={newEmail} onSms={startNewSms} />
+    <PrototypeNewMessage key={newMessageChannel + String(newMessageOpen)} initialChannel={newMessageChannel} open={newMessageOpen} onClose={() => setNewMessageOpen(false)} people={contacts} preselected={location.view === 'contacts' ? undefined : contact.id} onEmail={newEmail} onSms={startNewSms} />
     <Modal isOpen={leaveSmsOpen} onClose={() => setLeaveSmsOpen(false)} ariaLabel="Discard message and go back" size="sm"><ModalHeader title="Go back to Conversations?" onClose={() => setLeaveSmsOpen(false)} /><ModalBody>Going back to conversations will discard the current message</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setLeaveSmsOpen(false)}>Cancel</Button><Button onClick={leaveSms}>Continue</Button></ModalFooter></Modal>
     {notice && <p role="status" style={{ ...meta, marginTop: spacing.xl }}>{notice}</p>}
   </PageContainer>

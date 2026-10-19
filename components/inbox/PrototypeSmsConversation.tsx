@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
-import { Button, Textarea } from '@/components/ui'
+import { Button, Textarea, Notice } from '@/components/ui'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { fillMockTemplate, type MockRecipient } from '@/lib/prototype-messaging'
 import type { PrototypeThread } from '@/lib/conversations-prototype'
@@ -29,20 +29,22 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
     } catch (error) { setDraftError(error instanceof Error ? error.message : 'Could not draft a reply.') }
     finally { setDrafting(false) }
   }
-  const previewRecipient = recipients?.[0]
+  const missingPhone = recipients?.filter(person => !person.phone) || []
+  const previewRecipient = recipients?.find(person => person.phone)
   const previewName = recipients ? previewRecipient?.name || 'Message preview' : thread.name
   const previewBody = recipients ? fillMockTemplate(draft, previewRecipient) : draft
   const showHistory = !recipients || recipients.length === 1
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }) }, [thread.id, thread.messages.length])
   return <div aria-label="SMS workspace" style={{ display: 'grid', gridTemplateColumns: desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+    {missingPhone.length > 0 && <Notice variant="warning" title="Excluded from sending" style={{ margin: spacing.md }}>{missingPhone.map(person => `${person.name} — No phone number`).join(', ')}</Notice>}
     {showHistory && <div role="region" aria-label="SMS history" style={{ flex: 1, minHeight: 180, maxHeight: recipients ? 320 : undefined, overflowY: 'auto', padding: mobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
       {recipients && <strong style={{ ...typography.bodySmall, color: colors.textSecondary }}>SMS history with {thread.name}</strong>}
       {!thread.messages.length && <p style={{ color: colors.textMuted }}>No text messages yet. Write one below.</p>}
       {thread.messages.map(message => <div key={message.id} style={{ display: 'flex', justifyContent: message.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
         <div style={{ maxWidth: mobile ? '85%' : undefined }}>
-          <div style={{ maxWidth: mobile ? '100%' : '360px', padding: `${spacing.sm} ${spacing.md}`, borderRadius: message.direction === 'outbound' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: message.direction === 'outbound' ? '#007AFF' : colors.surface, color: message.direction === 'outbound' ? 'white' : colors.text, fontSize: typography.sizeBase, fontFamily: typography.fontSans, lineHeight: 1.5, border: message.direction === 'inbound' ? `1px solid ${colors.border}` : 'none', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.body}</div>
+          <div style={{ maxWidth: mobile ? '100%' : '620px', padding: `${spacing.sm} ${spacing.md}`, borderRadius: message.direction === 'outbound' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: message.direction === 'outbound' ? '#007AFF' : colors.surface, color: message.direction === 'outbound' ? 'white' : colors.text, fontSize: typography.sizeBase, fontFamily: typography.fontSans, lineHeight: 1.5, border: message.direction === 'inbound' ? `1px solid ${colors.border}` : 'none', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.body}</div>
           <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginTop: 4, textAlign: message.direction === 'outbound' ? 'right' : 'left' }}>{message.time}{message.simulated ? ' · Mock only — not sent' : ''}</div>
         </div>
       </div>)}
@@ -50,12 +52,12 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
     </div>}
     <div style={{ padding: mobile ? spacing.md : spacing['2xl'], borderTop: `1px solid ${colors.border}`, background: colors.surface, display: 'flex', flexDirection: 'column', gap: spacing.sm, flexShrink: 0 }}>
       <Textarea disabled={disabled} aria-label="SMS message" value={draft} onChange={event => onChange(event.target.value)} onKeyDown={event => { if (!disabled && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); onSend() } }} placeholder={recipients ? 'Write a text message…' : `Reply to ${thread.name}...`} style={{ width: '100%', minHeight: 60, maxHeight: 120, resize: 'none' }} />
-      {draftError && <p role="alert" style={{ ...typography.bodySmall, color: colors.error }}>{draftError}</p>}
+      {draftError && <Notice variant="error">{draftError}</Notice>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md }}>
         {!live && <Button variant="secondary" size="sm" onClick={() => onChange(draft.trim() ? `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! ${draft.trim()}` : `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! Thanks for reaching out. What days and times work best for you?`)}><Sparkles size={12} />{draft.trim() ? 'Polish with AI' : 'Draft with AI'} (sample)</Button>}
         {live && onDraft && <Button variant="secondary" size="sm" disabled={disabled || drafting} onClick={() => void draftWithAI()}><Sparkles size={12} />{drafting ? 'Drafting…' : draft.trim() ? 'Polish with AI' : 'Draft with AI'}</Button>}
         {!onDraft && live && <span />}
-        <Button onClick={onSend} disabled={disabled || !draft.trim() || (recipients && (!recipients.length || recipients.some(person => !person.phone)))}>Send</Button>
+        <Button onClick={onSend} disabled={disabled || !draft.trim() || (recipients && (!recipients.some(person => person.phone)))}>Send</Button>
       </div>
       {draft.trim() && <span style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>SMS · {Math.ceil(draft.length / 160)} {live ? 'estimated' : 'sample'} segment{draft.length > 160 ? 's' : ''}</span>}
     </div>
