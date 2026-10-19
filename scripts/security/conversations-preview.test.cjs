@@ -56,6 +56,9 @@ test('CRM lists share the name component and channel buttons use standard Button
     assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /<PersonName(?:Button)?[ >\n]/)
   }
   const source = fs.readFileSync(path.join(root, 'components/inbox/PrototypeNewMessage.tsx'), 'utf8')
-  assert.match(source, /<Button key=\{option\} variant="secondary" size="lg"/)
+  assert.match(source, /<SmsRecipientPicker\b/)
+  assert.match(source, /<PrototypeEmailRecipients\b/)
+  assert.match(source, /<ModalFooter>\s*<Button disabled=/)
+  assert.doesNotMatch(source, /<Button key=\{option\}/)
   assert.doesNotMatch(source, /ControlButton/)
 })
