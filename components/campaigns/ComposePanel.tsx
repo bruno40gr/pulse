@@ -2,9 +2,9 @@
 
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
-import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
+import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs, Notice } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
@@ -43,6 +43,16 @@ interface ComposePanelProps {
   }>
   footerLeadingAction?: React.ReactNode
   leadId?: string
+  /** Keep a scratch draft owned by its workspace without replacing the campaign send flow. */
+  draft?: { body: string; onChange: (body: string) => void }
+  excludedRecipients?: Array<{ id: string; name: string; reason: string }>
+  /** Embed the same composer with a conversation-owned draft and send transport. */
+  conversation?: {
+    body: string
+    onChange: (body: string) => void
+    onSend: (body: string, mediaUrl: string) => Promise<void>
+    disabled?: boolean
+  }
 }
 
 interface ResolvedPreviewRecipient {
@@ -54,13 +64,16 @@ interface ResolvedPreviewRecipient {
 
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId, conversation, draft, excludedRecipients = []
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
-  const [message, setMessage] = useState('')
+  const [localMessage, setLocalMessage] = useState('')
+  const message = conversation?.body ?? draft?.body ?? localMessage
+  const onConversationChange = conversation?.onChange ?? draft?.onChange
+  const setMessage = useCallback((body: string) => onConversationChange ? onConversationChange(body) : setLocalMessage(body), [onConversationChange])
   const [mediaUrl, setMediaUrl] = useState('')
   const [showMediaInput, setShowMediaInput] = useState(false)
   const [activeMediaTab, setActiveMediaTab] = useState<'approved' | 'gifs'>('approved')
@@ -84,7 +97,7 @@ export default function ComposePanel({
   const prePolishMessage = useRef<string>('')
 
   const isMMS = !!mediaUrl
-  const firstNamePreview = contactContext?.first_name || 'Alex'
+  const firstNamePreview = contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
   const effectiveCount = effectiveRecipientIds.length
@@ -397,11 +410,16 @@ export default function ComposePanel({
   }
 
   const handleSend = async () => {
-    if (!message.trim() || effectiveCount === 0) return
+    if (!message.trim() || effectiveCount === 0 || isSending || conversation?.disabled) return
     setIsSending(true)
     setSendError(null)
     startSendProgress()
     try {
+      if (conversation) {
+        await conversation.onSend(message, mediaUrl)
+        setMediaUrl('')
+        return
+      }
       const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -453,7 +471,7 @@ export default function ComposePanel({
       <div style={{
         display: isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
-        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 1.2fr) 360px',
+        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 3fr) minmax(0, 7fr)',
         flex: 1,
         minHeight: 0,
         overflow: 'hidden',
@@ -478,12 +496,7 @@ export default function ComposePanel({
             ✓ Message sent — delivered to {sentResult.sent} {sentResult.sent === 1 ? 'contact' : 'contacts'}.{sentResult.failed > 0 ? ` ${sentResult.failed} failed.` : ''}
           </div>
         )}
-        {sendError && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.crimson}`, borderRadius: radius.md, color: colors.crimson, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
-            <span>! {sendError}</span>
-            <ControlButton kind="icon" onClick={() => setSendError(null)} >✕</ControlButton>
-          </div>
-        )}
+        {sendError && <Notice variant="error">{sendError}</Notice>}
         {showComposeBootSkeleton ? (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
@@ -545,6 +558,10 @@ export default function ComposePanel({
             {filterExplanation && <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>{filterExplanation}</div>}
           </div>
         )}
+
+        {excludedRecipients.length > 0 && <Notice variant="warning" title="Excluded from sending">
+          {excludedRecipients.map(person => <div key={person.id}>{person.name} — {person.reason}</div>)}
+        </Notice>}
 
         {/* Inline warnings */}
         {(normalizedSensitiveCheck.flagged.length > 0 || normalizedSensitiveCheck.opted_out.length > 0) && (
@@ -616,6 +633,8 @@ export default function ComposePanel({
             </div>
           )}
           <Textarea
+            aria-label="SMS message"
+            disabled={conversation?.disabled || isSending}
             value={message}
             onChange={e => setMessage(e.target.value)}
             placeholder="Write your message... Use {first_name} to personalize."
@@ -828,7 +847,7 @@ export default function ComposePanel({
           fill={2}
           progress={sendProgress}
           onClick={handleSend}
-          disabled={!message.trim() || effectiveCount === 0}
+          disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled}
           style={{ maxWidth: '100%' }}
         >
           {isSending ? 'Sending…' : 'Send message'}

@@ -5,7 +5,7 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
 import IdentityProvider from '@/components/layout/IdentityProvider'
@@ -16,6 +16,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
+import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
@@ -111,9 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 'min(280px, 85vw)', background: colors.action, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <TenantBrand height={32} maxWidth="70%" width="70%" />
-              <ControlButton kind="icon" type="button" onClick={closeMenu} aria-label="Close menu" >
-                <X size={20} />
-              </ControlButton>
+              <ControlButton kind="close" type="button" onClick={closeMenu} aria-label="Close menu"  />
             </div>
             <SidebarBody onNavigate={closeMenu} showBrand={false} />
           </div>
@@ -195,7 +194,13 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
                 <Link
                   key={href}
                   href={href}
-                  onClick={onNavigate}
+                  onClick={event => {
+                    if (href === '/dashboard/inbox' && pathname === href && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                      event.preventDefault()
+                      window.dispatchEvent(new CustomEvent(CONVERSATIONS_HOME_EVENT))
+                    }
+                    onNavigate?.()
+                  }}
                   style={{
                     ...navLinkStyle,
                     ...(active

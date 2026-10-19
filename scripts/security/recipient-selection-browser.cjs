@@ -1,0 +1,111 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Local UI harness, all network responses synthetic. */
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    for (const width of [1440, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } })
+      const errors = []; const sends = []
+      page.on('pageerror', error => errors.push(error.message))
+      const people = [
+        { id: 'person:alex', name: 'Alex Example', email: 'alex@example.com', phone: '(202) 555-0101', student: '', stage: '', profileType: 'contact', profileId: 'alex', smsContactId: 'alex' },
+        { id: 'lead:taylor', name: 'Taylor Example', email: 'taylor@example.com', phone: '(202) 555-0102', student: '', stage: 'new', profileType: 'lead', profileId: 'taylor', smsContactId: 'taylor', intakeType: 'lesson_inquiry' },
+      ]
+      people.push({ id: 'person:no-phone', name: 'Missing Phone', email: 'missing@example.com', phone: '', student: '', stage: '', profileType: 'contact', profileId: 'missing', smsContactId: 'missing' })
+      const sms = { thread_key: 'alex-phone', contact_id: 'alex', other_phone: people[0].phone, display_name: people[0].name, student_name: '', client_status: '', profile_type: 'contact', profile_id: 'alex', has_unread: true, messages: [{ id: 'sms-one', body: 'Previous real-shaped SMS history', direction: 'inbound', status: 'received', created_at: '2026-10-17T12:00:00Z' }] }
+      const email = { id: 'email:box:thread:person:alex', contactId: people[0].id, name: people[0].name, email: people[0].email, phone: people[0].phone, initials: 'AE', student: '', stage: '', interest: '', nextAction: '', note: '', channel: 'email', subject: 'Piano inquiry', mailboxId: 'box', providerThreadId: 'thread', unread: false, messages: [{ id: 'email-one', channel: 'email', direction: 'inbound', body: 'Previous email context', time: 'October 17', timestamp: '2026-10-17T12:00:00Z' }] }
+      await page.context().route('**/api/**', async route => {
+        const request = route.request(); const url = new URL(request.url()); const method = request.method()
+        const fulfill = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+        if (url.pathname === '/api/conversations') return fulfill({ people })
+        if (url.pathname === '/api/inbox') return fulfill(method === 'PATCH' ? { success: true } : [sms])
+        if (url.pathname === '/api/inbox/reply') { sends.push(['sms', request.postDataJSON()]); return fulfill({ success: true }) }
+        if (url.pathname === '/api/conversations/email') {
+          if (method === 'POST') { sends.push(['email', request.postDataJSON()]); return fulfill({ error: 'Synthetic provider failure; draft kept.' }, 502) }
+          if (!url.searchParams.has('mailbox')) return fulfill({ mailboxes: [{ id: 'box', email: 'office@example.com', canSend: true }] })
+          return fulfill({ threads: url.searchParams.get('person') === people[0].id ? [email] : [], nextCursor: null })
+        }
+        if (url.pathname === '/api/contacts/alex') return fulfill({ id: 'alex', first_name: 'Alex', last_name: 'Example', phone: people[0].phone, email: people[0].email, client_status: 'active', opted_out: false, last_attended: null, notes: null, family_name: null, account_holder_name: null, account_holder_phone: null, account_holder_email: null, custom_fields: {} })
+        if (url.pathname === '/api/leads/taylor') return fulfill({ id: 'taylor', intake_type: 'lesson_inquiry', status: 'new', created_at: '2026-10-17T12:00:00Z', source_form: 'manual', source_page: null, program_label: null, service_label: null, payload: {}, contact: { id: 'taylor', full_name: people[1].name, email: people[1].email, phone: people[1].phone }, notes_history: [], events: [] })
+        if (url.pathname === '/api/tenant-fields') return fulfill([])
+        return fulfill([])
+      })
+      await page.goto(process.env.CONVERSATIONS_LIVE_REVIEW_URL || 'http://127.0.0.1:3102')
+      const button = (root, name) => root.getByRole('button', { name, exact: true })
+      const table = page.getByRole('table', { name: 'Conversations', exact: true })
+      await table.waitFor()
+      for (const label of ['Name', 'Last contacted']) {
+        const header = table.getByRole('columnheader').filter({ hasText: label })
+        await header.getByRole('button').click()
+        const first = await header.getAttribute('aria-sort')
+        await header.getByRole('button').click()
+        assert.notEqual(await header.getAttribute('aria-sort'), first)
+      }
+      await button(page, 'Open conversation with Alex Example').press('Enter')
+      const history = page.getByRole('region', { name: 'SMS history', exact: true })
+      await history.waitFor()
+      const smsWorkspace = page.getByLabel('SMS workspace', { exact: true })
+      assert.equal(await page.getByRole('combobox', { name: 'Sending mailbox' }).count(), 0)
+      assert.equal(await page.getByRole('complementary', { name: 'SMS preview pane' }).count(), width >= 1000 ? 1 : 0)
+      const bounds = await smsWorkspace.boundingBox()
+      assert.ok(bounds.height > 550, 'Conversation should fill the available height')
+      assert.ok(bounds.y + bounds.height <= 900, 'Conversation must stay inside viewport')
+      const replyBounds = await page.getByRole('textbox', { name: 'SMS message', exact: true }).boundingBox()
+      assert.ok(replyBounds.y > bounds.y + bounds.height / 2, 'Reply belongs at bottom of history')
+      assert.doesNotMatch(await page.locator('body').innerText(), /Drafts are kept in this tab only|Reconnect your mailbox in Settings/)
+      await page.screenshot({ path: `/tmp/pulse-restored-inbox-${width}.png`, fullPage: true })
+      await button(page, 'Back to Conversations').click()
+      await button(page, 'Send new text message').click()
+      const modal = page.getByRole('dialog', { name: 'New message', exact: true })
+      const initialHeight = (await modal.boundingBox()).height
+      const smsSearchBounds = await modal.getByRole('textbox', { name: 'Search SMS recipients', exact: true }).boundingBox()
+      await page.screenshot({ path: `/tmp/pulse-sms-picker-${width}.png` })
+      assert.equal(await modal.getByRole('button', { name: /Back/ }).count(), 0)
+      assert.equal(await modal.getByText('Discard new message').count(), 0)
+      await modal.getByRole('textbox', { name: 'Search SMS recipients' }).fill('Missing Phone')
+      await modal.getByRole('checkbox', { name: 'Select Add Missing Phone to SMS recipients', exact: true }).check()
+      assert.equal(await button(modal, 'Send text message (1)').isEnabled(), true)
+      const chip = button(modal, 'Remove Missing Phone from SMS recipients')
+      assert.equal(await chip.evaluate(node => getComputedStyle(node).color), 'rgb(107, 114, 128)')
+      assert.ok((await chip.locator('..').boundingBox()).height <= 30)
+      const smsSelection = await modal.getByRole('group', { name: 'SMS recipients selected recipients', exact: true }).boundingBox()
+      const smsTable = await modal.getByRole('table', { name: 'SMS recipients search results', exact: true }).locator('..').boundingBox()
+      const smsCta = await button(modal, 'Send text message (1)').boundingBox()
+      assert.ok(smsSelection.y >= smsTable.y + smsTable.height)
+      assert.ok(smsSelection.y + smsSelection.height <= smsCta.y)
+      assert.equal((await modal.boundingBox()).height, initialHeight)
+      await button(modal, 'Send text message (1)').click()
+      await page.getByRole('textbox', { name: 'SMS message' }).fill('Can write without a phone')
+      await page.getByText('Excluded from sending', { exact: true }).waitFor()
+      await page.getByText('Missing Phone — No phone number', { exact: true }).waitFor()
+      assert.equal(await button(page, 'Send message').isDisabled(), true)
+      await page.screenshot({ path: `/tmp/pulse-restored-compose-${width}.png`, fullPage: true })
+      await button(page, 'Back to Conversations').click()
+      const leave = page.getByRole('dialog')
+      if (await leave.count()) await leave.getByRole('button', { name: 'Continue', exact: true }).last().click()
+      await button(page, 'Send new text message').click()
+      await modal.getByRole('checkbox', { name: 'Select all', exact: true }).click()
+      await button(modal, 'Send text message (3)').waitFor()
+      assert.equal((await modal.boundingBox()).height, initialHeight)
+      await modal.getByRole('checkbox', { name: 'Deselect all', exact: true }).click()
+      assert.equal(await button(modal, 'Send text message').isDisabled(), true)
+      await button(modal, 'Close').click()
+      await button(page, 'Send new email').click()
+      assert.equal((await modal.boundingBox()).height, initialHeight)
+      const emailSearchBounds = await modal.getByRole('textbox', { name: 'Search To', exact: true }).boundingBox()
+      assert.ok(Math.abs(smsSearchBounds.x - emailSearchBounds.x) < 1, 'SMS/email side padding must match')
+      assert.ok(Math.abs(smsSearchBounds.width - emailSearchBounds.width) < 1, 'SMS/email content width must match')
+      await modal.getByRole('checkbox', { name: 'Select all', exact: true }).click()
+      assert.equal(await modal.getByRole('button', { name: /^Remove .* from To$/ }).count(), 3)
+      await modal.getByRole('radio', { name: 'Cc', exact: true }).check()
+      await modal.getByRole('radio', { name: 'Bcc', exact: true }).check()
+      assert.equal((await modal.boundingBox()).height, initialHeight)
+      await page.screenshot({ path: `/tmp/pulse-recipient-email-${width}.png`, fullPage: true })
+      assert.deepEqual(errors, [])
+      assert.equal(sends.length, 0)
+      console.log(`PASS ${width}px: restored full-height inbox, no mailbox selector, single composer,  sortable headers, compact chips, select all, missing-phone composition, equal SMS/email heights, no sends`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exit(1) })

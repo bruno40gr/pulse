@@ -1,5 +1,8 @@
 'use client'
 
+import { BackControl } from './BackControl'
+import { useContext } from 'react'
+import { DialogTitleContext } from '@/lib/useDialogLayer'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { Avatar } from '@/components/ui/Avatar'
@@ -34,70 +37,13 @@ export function SlidePanelHeader({
   titleSize,
   compact,
 }: SlidePanelHeaderProps) {
+  const titleId = useContext(DialogTitleContext)
   const detectedMobile = useIsMobile()
   const isMobile = compact ?? detectedMobile
 
-  if (isMobile) {
-    return (
-      <div style={{
-        padding: '10px 16px 12px',
-        borderBottom: `1px solid ${colors.borderLight}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: spacing.sm,
-        flexShrink: 0,
-        width: '100%',
-        maxWidth: '100%',
-        minWidth: 0,
-        boxSizing: 'border-box',
-        background: colors.surface,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0, minHeight: '28px' }}>
-          {onBack ? (
-            <ControlButton kind="link"
-              type="button"
-              onClick={onBack}
-              aria-label={backLabel}
-
-            >
-              ← {backLabel}
-            </ControlButton>
-          ) : <span />}
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-            {toast && <span style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans, overflowWrap: 'anywhere' }}>{toast}</span>}
-            {actions}
-            <ControlButton kind="icon"
-              type="button"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                onClose()
-              }}
-              aria-label="Close"
-
-            >
-              ×
-            </ControlButton>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, width: '100%' }}>
-          {avatar && <Avatar firstName={avatar.firstName} lastName={avatar.lastName} size={36} src={avatar.src} />}
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-              <h2 style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, margin: 0, color: colors.text, fontFamily: typography.fontSans, lineHeight: 1.2, minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{title}</h2>
-              {titleBadge}
-            </div>
-            {subtitle && <div style={{ fontSize: typography.sizeSm, color: colors.textSecondary, marginTop: '2px', fontFamily: typography.fontSans, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{subtitle}</div>}
-            {badge && <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>{badge}</div>}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div style={{
-      padding: '20px 32px',
+      padding: isMobile ? '10px 16px 12px' : '20px 32px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
       alignItems: 'center',
@@ -110,28 +56,20 @@ export function SlidePanelHeader({
       boxSizing: 'border-box',
       background: colors.surface,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0, flex: 1 }}>
-        {onBack && (
-          <ControlButton kind="link"
-            type="button"
-            onClick={onBack}
-            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            ← {backLabel}
-          </ControlButton>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flex: 1 }}>
+        {onBack && <BackControl label={backLabel} onClick={onBack} />}
         {avatar && (
           <Avatar
             firstName={avatar.firstName}
             lastName={avatar.lastName}
-            size={avatar.size || 40}
+            size={avatar.size || (isMobile ? 36 : 40)}
             src={avatar.src}
           />
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-            <h2 style={{
-              fontSize: titleSize || typography.sizeXl,
+            <h2 id={titleId} style={{
+              fontSize: titleSize || (isMobile ? typography.sizeLg : typography.sizeXl),
               fontWeight: typography.weightSemibold,
               margin: 0,
               color: colors.text,
@@ -176,7 +114,7 @@ export function SlidePanelHeader({
           </span>
         )}
         {actions}
-        <ControlButton kind="icon"
+        <ControlButton kind="close"
           type="button"
           onClick={(event) => {
             event.preventDefault()
@@ -184,10 +122,7 @@ export function SlidePanelHeader({
             onClose()
           }}
           aria-label="Close"
-
-        >
-          ×
-        </ControlButton>
+        />
       </div>
     </div>
   )

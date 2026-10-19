@@ -1,7 +1,11 @@
 'use client'
+import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { PersonName } from '@/components/ui/PersonName'
+import { LeadEmailSync } from './LeadEmailSync'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLessonLead, leadBelongsToTab, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
@@ -574,7 +578,7 @@ export default function LeadsView() {
   const leadDetailRequestRef = useRef(0)
   const leadSaveRequestRef = useRef(0)
   const deepLinkedLeadHandledRef = useRef(false)
-  const [composeLead, setComposeLead] = useState<LeadDetail | null>(null)
+  const [smsViewOpen, setSmsViewOpen] = useState(false)
   const [isBulkComposeOpen, setIsBulkComposeOpen] = useState(false)
   const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
   const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
@@ -902,6 +906,7 @@ export default function LeadsView() {
 
   const openLead = async (leadId: string, intakeType?: string) => {
     selectedLeadIdRef.current = leadId
+    setSmsViewOpen(false)
     setSelectedLeadId(leadId)
     await fetchLeadDetail(leadId, intakeType)
   }
@@ -1080,6 +1085,7 @@ export default function LeadsView() {
     selectedLeadIdRef.current = null
     leadDetailRequestRef.current += 1
     leadSaveRequestRef.current += 1
+    setSmsViewOpen(false)
     setSelectedLeadId(null)
     setSelectedLead(null)
     removeCurrentSearchParam('lead')
@@ -1393,7 +1399,7 @@ export default function LeadsView() {
       width: 'minmax(120px, 1fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <div style={nameTextStyle}>{lead.contact?.full_name || 'Unknown'}</div>,
+      render: (lead) => <PersonName>{lead.contact?.full_name || 'Unknown'}</PersonName>,
     },
     {
       id: 'contact',
@@ -1817,9 +1823,17 @@ export default function LeadsView() {
           title="Leads"
           subtitle={subtitle}
           right={(
-            activeTab === 'winback'
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.sm, flexWrap: 'wrap' }}>
+              <LeadEmailSync onSynced={async () => {
+                invalidateLeadListCache()
+                await fetchLeads({ force: true })
+                const leadId = selectedLeadIdRef.current
+                if (leadId) await fetchLeadDetail(leadId, selectedLead?.intake_type)
+              }} />
+            {activeTab === 'winback'
               ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
-              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>
+              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>}
+            </div>
           )}
         />
 
@@ -2104,10 +2118,10 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} fullScreen={isMobileLayout} width="min(88vw, 1180px)">
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} fullScreen={isMobileLayout} width={PROFILE_PANEL_WIDTH}>
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
-          {detailLoading && <InfoBox>Loading lead details…</InfoBox>}
+          {detailLoading && <ProfilePanelSkeleton />}
 
           {selectedLead && !detailLoading && (
             <LeadDetailPanel
@@ -2116,7 +2130,7 @@ export default function LeadsView() {
               calling={callingLead}
               isMobile={isMobileLayout}
               onCall={handleCallLead}
-              onCompose={() => setComposeLead(selectedLead)}
+              onSmsViewChange={setSmsViewOpen}
               onEdit={openLeadEditor}
               onClose={leadHistory.closePanel}
               draft={leadPanelDrafts[selectedLead.id] || EMPTY_LEAD_PANEL_DRAFT}
@@ -2127,7 +2141,7 @@ export default function LeadsView() {
             />
           )}
         </div>
-        {selectedLead && !detailLoading && (
+        {selectedLead && !detailLoading && !smsViewOpen && (
           <div style={{ ...leadFooterStyle, padding: isMobileLayout ? `${spacing.sm} ${spacing.md}` : leadFooterStyle.padding, justifyContent: isMobileLayout ? 'space-between' : 'flex-end', gap: isMobileLayout ? spacing.sm : spacing.md, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             <Button
               type="button"
@@ -2152,38 +2166,10 @@ export default function LeadsView() {
         )}
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(composeLead)} onClose={() => setComposeLead(null)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Text message" subtitle={composeLead?.contact?.full_name || undefined} onClose={() => setComposeLead(null)} onBack={isMobileLayout ? () => setComposeLead(null) : undefined} backLabel="Back" />
-        <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
-          {composeLead?.contact && (
-            <ComposePanel
-              recipientCount={1}
-              filterExplanation={`Message to ${composeLead.contact.full_name}`}
-              recipientIds={[composeLead.contact.id]}
-              channel="sms"
-              mode="single"
-              contactContext={{
-                id: composeLead.contact.id,
-                first_name: composeLead.contact.full_name.split(' ')[0] || composeLead.contact.full_name,
-                last_name: composeLead.contact.full_name.split(' ').slice(1).join(' '),
-              }}
-              composeSource="scratch"
-              composeIntent="neutral"
-              leadId={composeLead.id}
-              recipientPreview={[{
-                id: composeLead.contact.id,
-                first_name: composeLead.contact.full_name.split(' ')[0] || composeLead.contact.full_name,
-                last_name: composeLead.contact.full_name.split(' ').slice(1).join(' '),
-              }]}
-              onClose={() => setComposeLead(null)}
-              onSent={() => window.setTimeout(() => setComposeLead(null), 3000)}
-            />
-          )}
-        </div>
-      </SlidePanel>
+
 
       <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={isMobileLayout ? () => setIsBulkComposeOpen(false) : undefined} backLabel="Back" />
+        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={() => setIsBulkComposeOpen(false)} backLabel="Back to Win-back students" />
         <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
           <ComposePanel
             recipientCount={selectedCount}
@@ -2311,14 +2297,6 @@ function MessageBox({ children }: { children: React.ReactNode }) {
   )
 }
 
-function InfoBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ background: '#F2F7FF', border: '1px solid #B9D0EA', color: '#1E3A5F', borderRadius: radius.lg, padding: spacing.lg, fontSize: typography.sizeSm }}>
-      {children}
-    </div>
-  )
-}
-
 const filterBarStyle: React.CSSProperties = {
   display: 'flex',
   gap: spacing.sm,
@@ -2334,14 +2312,6 @@ const signalCellStyle: React.CSSProperties = {
   lineHeight: 1,
 }
 
-const nameTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeBase,
-  fontWeight: typography.weightBold,
-  color: colors.text,
-  fontFamily: typography.fontSans,
-  whiteSpace: 'normal',
-  overflowWrap: 'anywhere',
-}
 
 const subtleTextStyle: React.CSSProperties = {
   fontSize: typography.sizeBase,

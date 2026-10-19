@@ -1,10 +1,11 @@
 'use client'
 
 import type { ComponentPropsWithRef } from 'react'
+import { X } from 'lucide-react'
 import { ButtonBase } from './ButtonBase'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
-export type ControlKind = 'icon' | 'link' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
+export type ControlKind = 'close' | 'icon' | 'link' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
 
 type ControlButtonProps = ComponentPropsWithRef<'button'> & {
   kind: ControlKind
@@ -15,7 +16,7 @@ type ControlButtonProps = ComponentPropsWithRef<'button'> & {
 }
 
 /** Shared appearances for non-form controls. Keep event semantics at call sites. */
-export function ControlButton({ kind, selected = false, inverse = false, swatchColor, style, disabled, ...props }: ControlButtonProps) {
+export function ControlButton({ kind, selected = false, inverse = false, swatchColor, style, disabled, children, ...props }: ControlButtonProps) {
   return (
     <ButtonBase
       {...props}
@@ -34,7 +35,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.xs,
-        ...(kind === 'icon' ? { width: 32, height: 32, flexShrink: 0, padding: spacing.xs } : {}),
+        ...(kind === 'icon' || kind === 'close' ? { width: 32, height: 32, flexShrink: 0, padding: spacing.xs } : {}),
         ...(kind === 'link' ? { padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' } : {}),
         ...(kind === 'row' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'space-between' } : {}),
         ...(kind === 'navigation' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'flex-start' } : {}),
@@ -50,7 +51,10 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
           border: `2px solid ${selected ? colors.espresso : colors.border}`,
         } : {}),
         ...style,
+        ...(kind === 'close' ? { width: 48, height: 48, minWidth: 48, minHeight: 48, flexShrink: 0 } : {}),
       }}
-    />
+    >
+      {kind === 'close' ? <X size={22} strokeWidth={2} aria-hidden="true" /> : children}
+    </ButtonBase>
   )
 }

@@ -17,6 +17,7 @@ export default function DesignPage() {
     <div style={{ padding: '48px 32px', maxWidth: '900px', fontFamily: 'var(--font-dm-sans), sans-serif' }}>
       <h1 style={{ fontSize: '28px', fontWeight: 700, color: colors.text, marginBottom: '8px' }}>Design System</h1>
       <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '48px' }}>Pulse component library — built on Headliner brand tokens.</p>
+      <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/back-navigation" style={{ color: colors.textSecondary }}>Open Back navigation lab →</a></p>
 
       <ModalShowcase />
 

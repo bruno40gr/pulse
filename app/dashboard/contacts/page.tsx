@@ -1,6 +1,7 @@
 'use client'
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { PersonNameButton } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useRef } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
@@ -486,13 +487,13 @@ export default function ContactsPage() {
               : contact.staff_id || contact.custom_fields?.contact_kind === 'instructor'
                 ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined}
           />
-          <ControlButton kind="link"
+          <PersonNameButton
             type="button"
             onClick={(event) => handleNameClick(contact, event)}
             style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
             {contact.first_name} {contact.last_name}
-          </ControlButton>
+          </PersonNameButton>
           {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
@@ -609,9 +610,7 @@ export default function ContactsPage() {
             <Button variant="secondary" size="sm" onClick={() => setIsImporterOpen(true)}>
               Sync now
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setBannerDismissed(true)}>
-              ✕
-            </Button>
+            <ControlButton kind="close" aria-label="Close sync reminder" onClick={() => setBannerDismissed(true)} />
           </div>
         </div>
       )}
@@ -886,6 +885,8 @@ export default function ContactsPage() {
           title={singleComposeContact
             ? `Message to ${singleComposeContact.first_name}`
             : 'New Message'}
+          onBack={singleComposeContact ? () => { setIsComposeOpen(false); setSelectedContact(singleComposeContact) } : undefined}
+          backLabel="Back to student details"
           onClose={() => {
             setIsComposeOpen(false)
             setSingleComposeContact(null)
@@ -901,18 +902,6 @@ export default function ContactsPage() {
             contactContext={singleComposeContact || undefined}
             composeSource="scratch"
             composeIntent="neutral"
-            footerLeadingAction={singleComposeContact ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setIsComposeOpen(false)
-                  setSelectedContact(singleComposeContact)
-                }}
-              >
-                ← View student details
-              </Button>
-            ) : undefined}
             recipientPreview={singleComposeContact
               ? [{
                   id: singleComposeContact.id,

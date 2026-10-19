@@ -48,6 +48,9 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   emptyContent: ReactNode
   minDesktopWidth?: number | string
   mobileBreakpoint?: number
+  /** Align a non-selectable table with the checkbox's left edge in selectable tables. */
+  alignToSelectionInset?: boolean
+  stickyHeaderOffset?: number
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
   ariaLabel?: string
@@ -115,6 +118,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   emptyContent,
   minDesktopWidth = 960,
   mobileBreakpoint = 960,
+  alignToSelectionInset = false,
+  stickyHeaderOffset,
   onRowClick,
   getRowStyle,
   ariaLabel = 'Data table',
@@ -125,6 +130,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   const columnTemplate = `${selection ? '48px ' : ''}${columns.map((column) => column.width).join(' ')}`
   const desktopMinWidth = typeof minDesktopWidth === 'number' ? `${minDesktopWidth}px` : minDesktopWidth
   const someSelected = selection?.someSelected ?? Boolean(selection && selection.selectedKeys.size > 0 && !selection.allSelected)
+  // The shared selection cell is 48px wide and centers an 18px checkbox.
+  const selectionInset = alignToSelectionInset && !selection ? { paddingLeft: `calc(${spacing.md} + 15px)` } : undefined
 
   const updateSort = (column: DataTableColumn<Row, SortKey>) => {
     const next = getNextSort(column as DataTableColumn<unknown, SortKey>, sort)
@@ -147,13 +154,14 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
         ref={headerScrollRef}
         style={{
           ...stickyHeaderViewportStyle,
-          top: isMobile ? 56 : 0,
+          top: stickyHeaderOffset ?? (isMobile ? 56 : 0),
         }}
       >
         <div
           role="row"
           style={{
             ...desktopHeaderStyle,
+            ...selectionInset,
             gridTemplateColumns: columnTemplate,
             minWidth: desktopMinWidth,
           }}
@@ -214,7 +222,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
 
           {loading ? (
             Array.from({ length: skeletonRows }).map((_, rowIndex) => (
-              <div key={rowIndex} role="row" style={{ ...desktopRowStyle, gridTemplateColumns: columnTemplate }}>
+              <div key={rowIndex} role="row" style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate }}>
                 {selection && (
                   <div>
                     <SkeletonBlock compact />
@@ -246,6 +254,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 }}
                 style={{
                   ...desktopRowStyle,
+                  ...selectionInset,
                   gridTemplateColumns: columnTemplate,
                   background: rowBackground,
                   cursor: onRowClick ? 'pointer' : 'default',

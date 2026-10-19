@@ -2,28 +2,10 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useState } from 'react'
-import { Search, X, Check } from 'lucide-react'
-import { SlidePanel, SlidePanelHeader, Button, Avatar } from '@/components/ui'
+import { SlidePanel, SlidePanelHeader, Button } from '@/components/ui'
 import ComposePanel from '@/components/campaigns/ComposePanel'
+import SmsRecipientPicker, { type SmsRecipient as Recipient } from '@/components/inbox/SmsRecipientPicker'
 import { colors, typography, spacing, radius, shadows } from '@/lib/tokens'
-
-interface Recipient {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  phone: string | null
-  email: string | null
-}
-
-const inputStyle: React.CSSProperties = {
-  flex: 1,
-  border: 'none',
-  outline: 'none',
-  fontSize: typography.sizeBase,
-  fontFamily: typography.fontSans,
-  background: 'transparent',
-  color: colors.text,
-}
 
 function displayName(r: Recipient) {
   return `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Unnamed'
@@ -56,7 +38,6 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
   // Load everyone on open so the full database is browsable.
   useEffect(() => {
     loadContacts('', false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSearch = (value: string) => {
@@ -150,154 +131,14 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
             New message
           </span>
-          <ControlButton kind="icon"
+          <ControlButton kind="close"
             onClick={onClose}
 
             aria-label="Close"
-          >
-            <X size={20} />
-          </ControlButton>
+           />
         </div>
 
-        {/* Search */}
-        <div style={{ padding: `${spacing.md} ${spacing['2xl']}`, flexShrink: 0 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: spacing.sm,
-            border: `1px solid ${colors.border}`,
-            borderRadius: radius.md,
-            padding: `${spacing.sm} ${spacing.md}`,
-            background: colors.surface,
-          }}>
-            <Search size={16} color={colors.textMuted} />
-            <input
-              autoFocus
-              value={query}
-              onChange={e => handleSearch(e.target.value)}
-              placeholder="Search everyone…"
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
-        {/* Staff filter */}
-        <div style={{ padding: `0 ${spacing['2xl']} ${spacing.md}`, flexShrink: 0 }}>
-          <div style={{
-            display: 'flex',
-            background: colors.surfaceMuted,
-            borderRadius: radius.md,
-            padding: 3,
-            gap: 2,
-          }}>
-            {[{ key: false, label: 'Everyone' }, { key: true, label: 'Staff only' }].map(opt => {
-              const active = staffOnly === opt.key
-              return (
-                <Button variant="secondary" size="sm"
-                  key={String(opt.key)}
-                  onClick={() => toggleStaff(opt.key)}
-                  style={{ flex: 1 }}
-                >
-                  {opt.label}
-                </Button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Selected recipients (append as you select) */}
-        {selected.length > 0 && (
-          <div style={{ padding: `0 ${spacing['2xl']} ${spacing.md}`, flexShrink: 0 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}>
-              {selected.map(s => (
-                <span
-                  key={s.id}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: colors.crimson,
-                    color: colors.surface,
-                    borderRadius: radius.full,
-                    padding: '3px 8px 3px 10px',
-                    fontSize: typography.sizeSm,
-                    fontFamily: typography.fontSans,
-                    fontWeight: typography.weightMedium,
-                  }}
-                >
-                  {displayName(s)}
-                  <ControlButton kind="icon"
-                    onClick={() => toggleRecipient(s)}
-
-                    aria-label={`Remove ${displayName(s)}`}
-                  >
-                    <X size={13} />
-                  </ControlButton>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Contact list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: `0 ${spacing.sm}` }}>
-          {searching && results.length === 0 && (
-            <p style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
-              Loading…
-            </p>
-          )}
-          {!searching && results.length === 0 && (
-            <p style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
-              No contacts found.
-            </p>
-          )}
-          {results.map(r => {
-            const isSelected = selected.some(p => p.id === r.id)
-            return (
-              <div
-                key={r.id}
-                onClick={() => toggleRecipient(r)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: spacing.md,
-                  padding: `${spacing.sm} ${spacing.md}`,
-                  margin: `0 ${spacing.sm}`,
-                  borderRadius: radius.md,
-                  cursor: 'pointer',
-                  background: isSelected ? colors.surfaceMuted : 'transparent',
-                  transition: 'background 0.1s',
-                }}
-              >
-                <Avatar firstName={r.first_name || ''} lastName={r.last_name || ''} size={32} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: typography.sizeMd, fontWeight: 600, color: colors.text, fontFamily: typography.fontSans }}>
-                    {displayName(r)}
-                  </div>
-                  <div style={{ fontSize: typography.sizeSm, color: r.phone ? colors.textMuted : colors.warning, fontFamily: typography.fontSans }}>
-                    {r.phone || 'No phone'}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: radius.full,
-                    border: `1.5px solid ${isSelected ? colors.crimson : colors.border}`,
-                    background: isSelected ? colors.crimson : 'transparent',
-                    color: colors.surface,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {isSelected && <Check size={14} />}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+        <SmsRecipientPicker query={query} results={results} selected={selected} searching={searching} staffOnly={staffOnly} handleSearch={handleSearch} toggleStaff={toggleStaff} toggleRecipient={toggleRecipient} />
 
         {/* Footer CTA */}
         <div style={{

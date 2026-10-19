@@ -1,6 +1,7 @@
 'use client'
 
 
+import { BackControl } from '@/components/ui/BackControl'
 import { Button } from '@/components/ui/Button'
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -40,13 +41,13 @@ function ForgotPasswordForm() {
 
   return (
     <main style={authPageStyle}><section style={authCardStyle}>
-      <h1 style={{ ...typography.h1, margin: 0 }}>Set up or reset your password</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><BackControl href="/login" label="Back to sign in" /><h1 style={{ ...typography.h1, margin: 0 }}>Set up or reset your password</h1></div>
       <p style={{ ...typography.body, color: colors.textSecondary }}>Enter your staff email to request a fresh link. This works for first-time setup and existing accounts.</p>
       <label style={authLabelStyle}>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void send() }} autoComplete="email" style={authFieldStyle} /></label>
       {message && <p role="status" style={{ color: colors.success, ...typography.bodySmall }}>{message}</p>}
       {error && <p role="alert" style={{ color: colors.error, ...typography.bodySmall }}>{error}</p>}
       <Button variant="secondary" size="sm" type="button" onClick={() => void send()} disabled={loading || !email.trim()} style={{ width: '100%', marginTop: spacing.xl }}>{loading ? 'Sending…' : 'Send fresh link'}</Button>
-      <a href="/login" style={{ display: 'inline-block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>
+
     </section></main>
   )
 }

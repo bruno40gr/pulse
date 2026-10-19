@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHmac } from 'node:crypto'
 import { secretMatches } from '@/lib/gmail/security'
 import { syncMailbox } from '@/lib/gmail/sync'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
@@ -8,8 +9,12 @@ import { PERMISSIONS } from '@/lib/permissions'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
-  const secret = process.env.GMAIL_SYNC_SECRET || ''
-  if (secret.length < 32 || !secretMatches(request.headers.get('authorization') || '', `Bearer ${secret}`)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const secret = process.env.GMAIL_SYNC_SECRET || process.env.CRON_SECRET || ''
+  const timestamp = request.headers.get('x-gmail-sync-timestamp') || ''
+  const fresh = /^\d{10}$/.test(timestamp) && Math.abs(Date.now() / 1000 - Number(timestamp)) <= 120
+  const signature = fresh ? createHmac('sha256', secret).update(`gmail-sync:${timestamp}`).digest('hex') : ''
+  const signed = fresh && secretMatches(request.headers.get('x-gmail-sync-signature') || '', signature)
+  if (secret.length < 32 || !(signed || secretMatches(request.headers.get('authorization') || '', `Bearer ${secret}`))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
   const { data, error } = await crmSupabaseAdmin.from('gmail_connections').select('id,tenant_id,connected_by').order('last_synced_at', { ascending: true, nullsFirst: true }).limit(5)
   if (error) return NextResponse.json({ error: 'Gmail sync unavailable.' }, { status: 503 })
   let synced = 0; let failed = 0

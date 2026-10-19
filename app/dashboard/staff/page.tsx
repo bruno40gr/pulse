@@ -1,4 +1,5 @@
 'use client'
+import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, type ComponentProps } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -106,7 +107,7 @@ export default function StaffPage() {
       render: (member) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
           <Avatar firstName={member.first_name || ''} lastName={member.last_name || ''} size={32} src={getStaffAvatarUrl(tenantId, `${member.first_name || ''} ${member.last_name || ''}`)} />
-          <span style={{ fontWeight: typography.weightBold, minWidth: 0, overflowWrap: 'anywhere' }}>{fullName(member)}</span>
+          <PersonName>{fullName(member)}</PersonName>
         </span>
       ),
     },
@@ -234,7 +235,7 @@ export default function StaffPage() {
             title={composeContact.bulk ? `Message to ${composeContact.recipientIds.length} staff members` : `Message to ${composeContact.first_name}`}
             onClose={() => setComposeContact(null)}
             onBack={composeContact.bulk ? undefined : () => setComposeContact(null)}
-            backLabel="Staff card"
+            backLabel="Back to staff card"
           />
           <div style={{ flex: 1, overflow: 'auto' }}>
             <ComposePanel

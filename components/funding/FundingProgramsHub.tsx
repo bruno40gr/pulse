@@ -3,8 +3,8 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ExternalLink, Plus, Search } from 'lucide-react'
-import { Badge, Button, EmptyState, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Textarea, type DataTableColumn } from '@/components/ui'
+import { ExternalLink, Plus, Search } from 'lucide-react'
+import { BackControl, Badge, Button, EmptyState, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Textarea, type DataTableColumn } from '@/components/ui'
 import { getActiveTenantId } from '@/lib/tenant'
 import { isFundingDemoTenant, recalculateDemoFundingCase, saveDemoFundingCase } from '@/lib/funding/demo'
 import { InvoiceStatusModal } from './InvoiceStatusModal'
@@ -82,9 +82,9 @@ export function FundingProgramsHub({ programs, cases, persisted, catalogOpen, on
 
   return (
     <div style={{ display: 'grid', gap: spacing.lg }}>
-      <Button variant="secondary" size="sm" type="button" onClick={() => { setSelectedId(null); setSelectedCaseId(null) }} ><ArrowLeft size={16} /> All funding programs</Button>
       <ProgramGuide
         program={selected}
+        onBack={() => { setSelectedId(null); setSelectedCaseId(null) }}
         cases={casesForProgram(selected, cases)}
         persisted={persisted}
         onAddContact={() => setAddingContact(selected)}
@@ -108,18 +108,19 @@ export function FundingProgramsHub({ programs, cases, persisted, catalogOpen, on
   )
 }
 
-function ProgramGuide({ program, cases, persisted, onAddContact, onSelectCase }: {
+function ProgramGuide({ program, cases, persisted, onAddContact, onSelectCase, onBack }: {
   program: FundingProgram
   cases: FundingCase[]
   persisted: boolean
   onAddContact: () => void
   onSelectCase: (fundingCase: FundingCase) => void
+  onBack: () => void
 }) {
   const established = program.affiliationStatus === 'established'
   if (!established) {
     const steps = [...program.affiliationSteps, ...program.billingGuidance]
     return <SurfacePanel padding={spacing.xl}><div style={{ display: 'grid', gap: spacing.xl, maxWidth: 820 }}>
-      <div><Badge variant="nudge" size="sm">Setup required</Badge><h2 style={{ ...typography.sectionTitle, margin: `${spacing.sm} 0 0`, color: colors.text }}>{program.name} application process</h2>{program.instructions && <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `${spacing.sm} 0 0` }}>{program.instructions}</p>}</div>
+      <div><Badge variant="nudge" size="sm">Setup required</Badge><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><BackControl label="Back to all funding programs" onClick={onBack} /><h2 style={{ ...typography.sectionTitle, margin: 0, color: colors.text }}>{program.name} application process</h2></div>{program.instructions && <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `${spacing.sm} 0 0` }}>{program.instructions}</p>}</div>
       <div><SectionHeading>New vendor requirements</SectionHeading><Checklist steps={steps} empty="Setup instructions are not available yet. Record the requirements provided by the funding organization before assigning students." /></div>
       {(program.requiredDocuments.length > 0 || program.serviceCodes.length > 0) && <div style={knownValuesStyle}><SectionHeading>Information already available</SectionHeading><div style={{ display: 'grid', gap: spacing.md, marginTop: spacing.md }}>{program.requiredDocuments.length > 0 && <Meta label="Documents" value={program.requiredDocuments.join(', ')} />}{program.serviceCodes.length > 0 && <Meta label="Accepted service codes" value={program.serviceCodes.join(', ')} />}</div></div>}
     </div></SurfacePanel>
@@ -128,7 +129,7 @@ function ProgramGuide({ program, cases, persisted, onAddContact, onSelectCase }:
 
   return <SurfacePanel padding={spacing.xl}><div style={{ display: 'grid', gap: spacing.xl }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.lg, flexWrap: 'wrap' }}>
-      <div><Badge variant="success" size="sm">Ready to use</Badge><h2 style={{ ...typography.sectionTitle, margin: `${spacing.sm} 0 0`, color: colors.text }}>{program.name}</h2><div style={{ color: colors.textSecondary, fontSize: typography.sizeSm, marginTop: spacing.xs }}>{program.organizationName} · Program setup is complete and students can be assigned.</div></div>
+      <div><Badge variant="success" size="sm">Ready to use</Badge><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><BackControl label="Back to all funding programs" onClick={onBack} /><h2 style={{ ...typography.sectionTitle, margin: 0, color: colors.text }}>{program.name}</h2></div><div style={{ color: colors.textSecondary, fontSize: typography.sizeSm, marginTop: spacing.xs }}>{program.organizationName} · Program setup is complete and students can be assigned.</div></div>
       {program.portalUrl && <a href={program.portalUrl} target="_blank" rel="noreferrer" style={portalButtonStyle}>Open program portal <ExternalLink size={15} /></a>}
     </div>
     <ResponsiveDataTable
@@ -279,7 +280,7 @@ function CatalogProgramModal({ isOpen, existingCatalogKeys, onClose, onSaved }: 
     try { const tenantId = getActiveTenantId(); const response = await fetch(`/api/funding/organization-requests?tenant=${encodeURIComponent(tenantId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requested_name: requestName, context: requestContext }) }); const body = await response.json(); if (!response.ok) throw new Error(body?.error || 'Could not submit the organization request.'); setRequesting(false); setRequestName(''); setRequestContext(''); setSuccess('Request submitted. The organization will be reviewed before it can be selected.') } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not submit the organization request.') } finally { setSaving(false) }
   }
 
-  return <Modal isOpen={isOpen} onClose={onClose} size="lg" ariaLabel="Add funding program"><ModalHeader title="Add funding program" description="Add a funding organization your team already works with. Agreement rules are managed for you and stay read-only." onClose={onClose} /><ModalBody><div style={{ display: 'grid', gap: spacing.lg }}>{error && <Notice variant="error">{error}</Notice>}{success && <Notice variant="success">{success}</Notice>}{!requesting ? <><Input label="Search organizations" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by name or alias" /><div style={{ display: 'grid', gap: spacing.sm }}>{loading ? <Muted>Loading organizations…</Muted> : available.map(item => <ControlButton kind="row" key={item.id} type="button" onClick={() => setSelectedId(item.id)} style={{ width: '100%' }}><div><div style={{ color: colors.text, fontWeight: typography.weightSemibold }}>{item.name}</div><div style={{ color: colors.textSecondary, fontSize: typography.sizeXs, marginTop: spacing.xs }}>{item.roles.map(typeLabel).join(', ')} · {item.provenance.sourceLabel}</div></div>{selectedId === item.id && <Badge variant="success" size="sm">Selected</Badge>}</ControlButton>)}{!loading && available.length === 0 && <EmptyState icon={<Search size={28} />} title="No matching organization" description="Request a review instead of creating an unverified organization record." />}</div><Button variant="secondary" size="sm" type="button" onClick={() => { setRequesting(true); setRequestName(query) }} style={{ justifySelf: 'start' }}>Don’t see your organization? Request it</Button></> : <><Input label="Organization name" value={requestName} onChange={event => setRequestName(event.target.value)} required /><Textarea label="How do you work with this organization?" value={requestContext} onChange={event => setRequestContext(event.target.value)} rows={4} /><Button variant="secondary" size="sm" type="button" onClick={() => setRequesting(false)} style={{ justifySelf: 'start' }}>Back to search</Button></>}</div></ModalBody><ModalFooter><Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button><LoadingButton loading={saving} loadingLabel={requesting ? 'Submitting request' : 'Adding program'} onClick={() => void (requesting ? submitRequest() : save())}>{requesting ? 'Submit request' : 'Add funding program'}</LoadingButton></ModalFooter></Modal>
+  return <Modal isOpen={isOpen} onClose={onClose} size="lg" ariaLabel="Add funding program"><ModalHeader onBack={requesting ? () => setRequesting(false) : undefined} backLabel="Back to search" title="Add funding program" description="Add a funding organization your team already works with. Agreement rules are managed for you and stay read-only." onClose={onClose} /><ModalBody><div style={{ display: 'grid', gap: spacing.lg }}>{error && <Notice variant="error">{error}</Notice>}{success && <Notice variant="success">{success}</Notice>}{!requesting ? <><Input label="Search organizations" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by name or alias" /><div style={{ display: 'grid', gap: spacing.sm }}>{loading ? <Muted>Loading organizations…</Muted> : available.map(item => <ControlButton kind="row" key={item.id} type="button" onClick={() => setSelectedId(item.id)} style={{ width: '100%' }}><div><div style={{ color: colors.text, fontWeight: typography.weightSemibold }}>{item.name}</div><div style={{ color: colors.textSecondary, fontSize: typography.sizeXs, marginTop: spacing.xs }}>{item.roles.map(typeLabel).join(', ')} · {item.provenance.sourceLabel}</div></div>{selectedId === item.id && <Badge variant="success" size="sm">Selected</Badge>}</ControlButton>)}{!loading && available.length === 0 && <EmptyState icon={<Search size={28} />} title="No matching organization" description="Request a review instead of creating an unverified organization record." />}</div><Button variant="secondary" size="sm" type="button" onClick={() => { setRequesting(true); setRequestName(query) }} style={{ justifySelf: 'start' }}>Don’t see your organization? Request it</Button></> : <><Input label="Organization name" value={requestName} onChange={event => setRequestName(event.target.value)} required /><Textarea label="How do you work with this organization?" value={requestContext} onChange={event => setRequestContext(event.target.value)} rows={4} /></>}</div></ModalBody><ModalFooter><Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button><LoadingButton loading={saving} loadingLabel={requesting ? 'Submitting request' : 'Adding program'} onClick={() => void (requesting ? submitRequest() : save())}>{requesting ? 'Submit request' : 'Add funding program'}</LoadingButton></ModalFooter></Modal>
 }
 
 function ContactModal({ program, onClose, onSaved }: { program: FundingProgram | null; onClose: () => void; onSaved: () => Promise<void> }) {
