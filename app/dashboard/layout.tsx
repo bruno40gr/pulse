@@ -30,6 +30,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/inbox', label: 'Conversations' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Staff' },
+      { href: '/dashboard/community', label: 'Community posts' },
     ],
   },
   {

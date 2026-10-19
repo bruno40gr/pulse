@@ -6,6 +6,14 @@ authorized by this document.
 
 ## Goal and scope
 
+### Planned Headliner feature — community-post curation
+
+Track the approved staff curation and permitted social-discovery scope in
+`/Users/brunowong/pulse/docs/community-post-curation.md`. This is future CRM
+feature work, not a cutover task. Manual curation is implemented locally; migration,
+staging acceptance and website integration remain pending. Preserve the
+website's four direct embeds; no generic “Load post” UI is required.
+
 ### Current next steps — cutover already complete
 
 The live cutover and owner acceptance are recorded in

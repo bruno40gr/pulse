@@ -1,0 +1,91 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Synthetic sync execution without network or database access. */
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
+const ts = require('typescript')
+const root = path.resolve(__dirname,'../..')
+const tenant = '00000000-0000-0000-0000-000000000001'
+
+function setup({ ambiguous = false, unrelated = false, failWrite = false, busy = false, bulk = false, nextPage = false } = {}) {
+  const receipts = []; const records = []; const updates = []; const queries = []
+  const connection = { id:'mailbox',tenant_id:tenant,email:'office@example.com',refresh_token_ciphertext:'encrypted',connected_by:'admin',capture_from:'2026-10-01T00:00:00Z',last_synced_at:null,sync_until:'2026-10-14T12:00:00Z',page_token:null }
+  const leads = [{ id:'lead1',contact_id:'contact1',status:'new',created_at:'2026-10-01T00:00:00Z',payload:{},crm_contacts:{email:'parent@example.com'} }]
+  if (ambiguous) leads.push({...leads[0],id:'lead2'})
+  const db = {
+    async rpc(name,args) {
+      if (name === 'gmail_claim_sync') return { data: busy ? [] : [connection],error:null }
+      if (name === 'gmail_record_outreach') {
+        if (failWrite) return { error: {message:'Synthetic failure'} }
+        const receipt=receipts.find(item=>item.id===args.p_message)
+        if(receipt.status!=='recorded'){records.push(args);receipt.status='recorded'}
+        return {data:receipt.event_id,error:null}
+      }
+      throw new Error('Unexpected RPC')
+    },
+    from(table) {
+      let operation='select',payload,filters=[]
+      const result=()=>{
+        queries.push({table,operation,filters,payload})
+        if(table==='lead_intakes')return {data:leads,error:null}
+        if(table==='gmail_connections'){updates.push(payload);return {data:null,error:null}}
+        if(table==='gmail_outreach') {
+          if(operation==='insert'){const row={...payload,id:`receipt${receipts.length}`,status:'review',event_id:'event'};receipts.push(row);return {data:row,error:null}}
+          return {data:receipts.find(item=>filters.every(([key,value])=>item[key]===value))||null,error:null}
+        }
+        throw new Error('Unexpected table')
+      }
+      let builder
+      builder=new Proxy({}, { get(_,method){ if(method==='then')return (resolve,reject)=>Promise.resolve(result()).then(resolve,reject);return (...args)=>{if(['insert','update'].includes(method)){operation=method;payload=args[0]}if(method==='eq')filters.push(args);return builder} } })
+      return builder
+    },
+  }
+  const cache=new Map()
+  function load(file){
+    if(cache.has(file))return cache.get(file)
+    const loaded={exports:{}}
+    const code=ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+    const context=vm.createContext({module:loaded,exports:loaded.exports,Buffer,Intl,Date,URLSearchParams,console,process:{env:{}},require(id){
+      if(id==='node:crypto')return require(id)
+      if(id==='@/lib/supabase/crm-admin')return {crmSupabaseAdmin:db}
+      if(id==='./security')return {decryptToken:()=> 'synthetic-refresh-token'}
+      if(id==='./google')return {googleToken:async()=>({access_token:'synthetic'}),gmailGet:async(_,url)=>{
+        if(url.startsWith('messages?'))return {messages:[{id:'gmail1'}],...(nextPage?{nextPageToken:'next'}:{})}
+        return {id:'gmail1',internalDate:String(Date.parse('2026-10-14T10:00:00Z')),labelIds:['SENT'],payload:{mimeType:'text/plain',body:{data:Buffer.from('Your trial lesson is confirmed for Tuesday at 4 PM.').toString('base64url')},headers:[{name:'To',value:bulk?Array.from({length:6},(_,i)=>`person${i}@example.com`).join(','):unrelated?'unrelated@example.com':'parent@example.com'},{name:'From',value:'Office <office@example.com>'},{name:'Message-ID',value:'<unique@example.com>'}]}}
+      }
+      }
+      if(id==='./rules')return load('lib/gmail/rules.ts')
+      throw new Error(`Blocked dependency ${id}`)
+    }})
+    new vm.Script(code).runInContext(context);cache.set(file,loaded.exports);return loaded.exports
+  }
+  return {sync:load('lib/gmail/sync.ts').syncMailbox,receipts,records,updates,queries}
+}
+
+test('sync captures dated quote once across repeated syncs',async()=>{
+  const h=setup();await h.sync(tenant,'mailbox');await h.sync(tenant,'mailbox')
+  assert.equal(h.receipts.length,1);assert.equal(h.records.length,1)
+  assert.equal(h.records[0].p_tenant,tenant);assert.equal(h.records[0].p_decision,'booked')
+  assert.ok(h.records[0].p_note.startsWith('Email sent on Oct 14, 2026'))
+  assert.ok(h.queries.every(query=>query.operation === 'insert' ? query.payload.tenant_id === tenant : query.filters.some(([key,value])=>key==='tenant_id'&&value===tenant)))
+})
+test('ambiguous inquiries remain in review and do not receive notes',async()=>{
+  const h=setup({ambiguous:true});const result=await h.sync(tenant,'mailbox')
+  assert.equal(result.review,1);assert.equal(h.records.length,0);assert.equal(h.receipts[0].candidate_lead_ids.length,2)
+})
+for(const options of [{unrelated:true},{bulk:true}])test(`unrelated and bulk mail is not persisted: ${JSON.stringify(options)}`,async()=>{
+  const h=setup(options);await h.sync(tenant,'mailbox');assert.equal(h.receipts.length,0)
+})
+test('failed note transaction retains receipt and does not advance cursor',async()=>{
+  const h=setup({failWrite:true});await assert.rejects(()=>h.sync(tenant,'mailbox'))
+  assert.equal(h.receipts[0].status,'review');assert.equal(h.records.length,0)
+  assert.ok(h.updates[0].last_error);assert.equal(h.updates[0].last_synced_at,undefined)
+})
+test('concurrent lease causes no processing',async()=>{
+  const h=setup({busy:true});assert.equal((await h.sync(tenant,'mailbox')).busy,true);assert.equal(h.receipts.length,0)
+})
+test('pagination preserves window until all pages complete',async()=>{
+  const h=setup({nextPage:true});await h.sync(tenant,'mailbox')
+  assert.equal(h.updates[0].page_token,'next');assert.equal(h.updates[0].sync_until,'2026-10-14T12:00:00Z');assert.equal(h.updates[0].last_synced_at,undefined)
+})
