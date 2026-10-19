@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Bold, Italic, Underline, List, Send } from 'lucide-react'
-import { Button, FieldRow, Input, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import { Button, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import { EmailComposerFields } from './EmailComposerFields'
+import styles from './EmailComposer.module.css'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { PROTOTYPE_EMAIL } from '@/lib/conversations-prototype'
@@ -57,11 +59,13 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     </div>
     {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null) }}>Undo template</Button>}
     <div style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
-      <div style={{ marginBottom: spacing.xl }}>
-        <div style={{ ...line, marginBottom: spacing.md }}><span>From:</span><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{senderName} &lt;{senderEmail}&gt;</span></div>
-        {draft.recipients && !draft.contactOnly ? <div style={line}><span style={typography.bodySmall}>{(['to', 'cc', 'bcc'] as const).filter(field => draft.recipients![field].length).map(field => `${field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc'}: ${draft.recipients![field].length <= 3 ? draft.recipients![field].map(id => people.find(person => person.id === id)?.name || 'Recipient').join(', ') : `${draft.recipients![field].length} recipients`}`).join(' · ')}</span><Button variant="secondary" size="sm" onClick={() => setManagingRecipients(true)}>Manage recipients</Button></div> : <FieldRow label="To"><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{name} &lt;{email}&gt;</span></FieldRow>}
-      </div>
-      <Input label="Subject" id="prototype-email-subject" aria-label="Email subject" placeholder="Subject" value={draft.subject} onChange={event => onChange({ ...draft, subject: event.target.value })} />
+      <EmailComposerFields from={<>{senderName} &lt;{senderEmail}&gt;</>} recipients={draft.recipients && !draft.contactOnly
+        ? (['to', 'cc', 'bcc'] as const).filter(field => field === 'to' || draft.recipients![field].length).map(field => ({
+          label: field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc',
+          content: <div style={line}><span>{draft.recipients![field].length <= 3 ? draft.recipients![field].map(id => people.find(person => person.id === id)?.name || 'Recipient').join(', ') || 'No recipients selected' : `${draft.recipients![field].length} recipients`}</span>{field === 'to' && <Button variant="secondary" size="sm" onClick={() => setManagingRecipients(true)}>Manage recipients</Button>}</div>,
+        }))
+        : [{ label: 'To', content: <>{name} &lt;{email}&gt;</> }]}
+        subject={draft.subject} onSubjectChange={subject => onChange({ ...draft, subject })} />
       <div aria-label="Message input area" style={{ marginTop: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, minWidth: 0 }}>
         <div style={{ ...line, justifyContent: 'space-between', padding: spacing.sm, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div aria-label="Email formatting" style={line}>
@@ -75,8 +79,8 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
           setMode('write')
         }} />
         </div>
-      {mode === 'write' && <>
-        <div ref={editor} role="textbox" aria-label="Email body" aria-multiline="true" contentEditable suppressContentEditableWarning onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
+      {mode === 'write' && <div className={styles.writingArea}>
+        <div ref={editor} className={styles.editor} data-placeholder="Write your message…" role="textbox" aria-label="Email body" aria-placeholder="Write your message…" aria-multiline="true" contentEditable suppressContentEditableWarning onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
           onPaste={event => {
             event.preventDefault()
             const selection = window.getSelection()
@@ -88,10 +92,10 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
             range.insertNode(text); range.setStartAfter(text); range.collapse(true)
             selection.removeAllRanges(); selection.addRange(range)
             onChange({ ...draft, html: editor.current.innerHTML })
-          }} style={{ minHeight: 180, maxHeight: 400, overflowY: 'auto', padding: spacing.lg, outlineOffset: -2, fontSize: 'max(16px, 1em)', lineHeight: 1.7, overflowWrap: 'anywhere' }} />
-      </>}
+          }} />
+        {signatureHtml && <div aria-label="Your email signature" className={styles.signature} dangerouslySetInnerHTML={{ __html: sanitizePrototypeHtml(signatureHtml) }} />}
+      </div>}
       {mode === 'preview' && <iframe title="Email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(draft.html + signatureHtml)} style={{ border: 0, width: '100%', height: 390 }} />}
-      {mode === 'write' && signatureHtml && <iframe title="Your email signature" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(signatureHtml)} style={{ width: '100%', height: 180, border: 0 }} />}
       </div>
     </div>
     <div style={{ ...line, justifyContent: 'space-between', padding: 'clamp(12px, 2vw, 24px)', borderTop: `1px solid ${colors.border}` }}>
