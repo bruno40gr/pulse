@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const verifier = randomBytes(32).toString('base64url')
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   url.search = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID!, redirect_uri: gmailRedirectUri(), response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/gmail.readonly', access_type: 'offline', prompt: 'consent select_account', state,
+    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send', access_type: 'offline', prompt: 'consent select_account', state,
     code_challenge_method: 'S256', code_challenge: createHash('sha256').update(verifier).digest('base64url') }).toString()
   const response = NextResponse.json({ url: url.toString() }, { headers: { 'Cache-Control': 'no-store' } })
   response.cookies.set('pulse_gmail_oauth', encryptToken(JSON.stringify({ state, verifier, tenantId: access.tenantId, membershipId: access.context.membershipId, expiresAt: Date.now() + 600000 })),

@@ -2,8 +2,11 @@
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useEffect, useState, type CSSProperties } from 'react'
-import { Copy, MessageCircle, Pencil, Phone, Trash2 } from 'lucide-react'
+import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
+import { useContext, useEffect, useState, type CSSProperties } from 'react'
+import CardSmsComposer from '@/components/inbox/CardSmsComposer'
+import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
+import { Copy, Pencil, Phone, Trash2 } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -52,7 +55,8 @@ interface LeadDetailPanelProps {
   saving: boolean
   onPatch: (patch: Record<string, unknown>) => Promise<boolean>
   onCall: () => Promise<void>
-  onCompose: () => void
+  onCompose?: () => void
+  onSmsViewChange?: (open: boolean) => void
   onEdit: () => void
   onClose: () => void
   calling: boolean
@@ -233,7 +237,10 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   )
 }
 
-export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEdit, onClose, calling, isMobile, draft, onDraftChange }: LeadDetailPanelProps) {
+export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange }: LeadDetailPanelProps) {
+  const contextualCompose = useContext(ConversationComposeContext)
+  const [smsOpen, setSmsOpen] = useState(false)
+  useEffect(() => { setSmsOpen(false) }, [lead.id])
   const [serviceEditing, setServiceEditing] = useState(false)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
@@ -402,6 +409,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
     </div>
   )
 
+  if (smsOpen && lead.contact?.id) return <CardSmsComposer backDestination="lead" recipientId={lead.contact.id} name={contactName}
+    leadId={lead.intake_type === 'job_application' ? undefined : lead.id}
+    onBack={() => { setSmsOpen(false); onSmsViewChange?.(false) }} onClose={onClose} />
+
   return (
     <div
       className="lead-detail-panel"
@@ -426,8 +437,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
         titleSize={isMobile ? typography.sizeLg : typography.size2xl}
         compact={isMobile}
         onClose={onClose}
-        onBack={isMobile ? onClose : undefined}
-        backLabel="Leads"
         titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
         actions={isMobile ? undefined : (statusControls || undefined)}
       />
@@ -479,7 +488,11 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onCompose, onEd
         )}
         <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} ><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
-          <Button type="button" variant="secondary" size="md" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={onCompose} ><MessageCircle size={16} />Text message</Button>
+          <Button variant="secondary" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={() => {
+            if (contextualCompose) contextualCompose('sms')
+            else { setSmsOpen(true); onSmsViewChange?.(true) }
+          }}>Send SMS</Button>
+          <ConversationComposeLink backDestination="lead" recipient={`lead:${lead.contact?.id || ''}`} channel="email" disabled={!lead.contact?.id || !lead.contact?.email} />
           <CompactMetaCard fullWidth={isMobile} style={{ ...emailControlStyle, ...emailControlMdStyle }}>
             <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.contact?.email || 'Not provided'}</span>
             {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} ><Copy size={15} /></Button>}

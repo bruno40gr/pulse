@@ -1,5 +1,7 @@
 # Gmail sent-email outreach capture
 
+> Release follow-up: Conversations read/send integration is deployed, with the scope-metadata migration verified in staging and production. See `docs/conversations-integration.md`. Existing mailboxes must reconnect and approve the send scope before sending is enabled. The historical release notes below describe the earlier read-only capture feature.
+
 This is a server-side Odeon integration, not a snippet or extension installed inside Gmail. Send email normally; Odeon polls the Google mailbox, matches leads, and records notes with optional status updates.
 
 This works for Google-hosted mailboxes accessed in Gmail or Outlook. There is no Microsoft connector. Outlook must actually save/send mail to the Google mailbox's Sent folder; verify this with a test email.

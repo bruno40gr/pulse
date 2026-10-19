@@ -1,9 +1,14 @@
 'use client'
+import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
-import { useState, useEffect } from 'react'
-import { CalendarDays, Copy, CreditCard, Landmark, MessageCircle, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
+import { useState, useEffect, useContext } from 'react'
+import CardSmsComposer from '@/components/inbox/CardSmsComposer'
+import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
+import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
@@ -154,6 +159,9 @@ const dividerStyle: React.CSSProperties = {
 export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
+  const contextualCompose = useContext(ConversationComposeContext)
+  const [smsOpen, setSmsOpen] = useState(false)
+  useEffect(() => { setSmsOpen(false) }, [contact.id])
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
   const cleanName = (name: string | null | undefined) =>
     name?.replace(' (account)', '').trim() || null
@@ -481,26 +489,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     ? getContactDemoAvatarUrl(tenantId, contact)
     : isInstructor ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined
 
-  const panelSkeleton = (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
-      <div style={{ padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
-        <div style={{ height: '120px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-        <div style={{ height: '220px', borderRadius: radius.lg, background: colors.borderLight, marginBottom: spacing.lg, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-        <div style={{ height: '180px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-      </div>
-      <div style={{ padding: isMobile ? '0 16px 16px' : '24px 28px' }}>
-        <div style={{ height: '520px', borderRadius: radius.lg, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />
-      </div>
-    </div>
-  )
-
   // ── Full-screen edit form ──
   if (isEditing) {
     const editFirstName = edits.first_name ?? contact.first_name
     const editLastName = edits.last_name ?? contact.last_name
 
     return (
-      <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile}>
+      <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
         <SlidePanelHeader
           title="Edit contact"
           onClose={onClose}
@@ -603,8 +598,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   }
 
   // ── Normal view ──
+  if (smsOpen) return <SlidePanel isOpen onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+    <CardSmsComposer backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
+      onBack={() => setSmsOpen(false)} onClose={onClose} />
+  </SlidePanel>
+
   return (
-    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width="min(75vw, 960px)">
+    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -732,17 +732,12 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           <Phone size={16} />
           {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
         </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          disabled={!onCompose || !contactPhone}
-          onClick={() => onCompose?.([contact.id])}
-
-        >
-          <MessageCircle size={16} />
-          Text message
-        </Button>
+        {contactPhone && contactPhone !== contact.phone ? <Button type="button" variant="secondary" size="md"
+          disabled={!onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
+          <Button variant="secondary" disabled={!contactPhone} onClick={() => contextualCompose ? contextualCompose('sms') : setSmsOpen(true)}>Send SMS</Button>}
+        <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="email"
+          disabled={!contactEmail || contactEmail !== contact.email}
+          unavailableReason={contactEmail && contactEmail !== contact.email ? 'Account-holder routing is not yet supported in Conversations.' : undefined} />
         <CompactMetaCard fullWidth={isMobile} style={emailControlStyle}>
           <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contactEmail || 'Not provided'}</span>
           {contactEmail && (
@@ -808,7 +803,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             description="Funding authorization and coverage details will appear here when this student is assigned to a funding program."
           />
         )
-      ) : insightsLoading ? panelSkeleton : (
+      ) : insightsLoading ? <ProfilePanelSkeleton /> : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
         <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>

@@ -1,10 +1,11 @@
 'use client'
 
 
+import { BackControl } from './BackControl'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useId, type CSSProperties, type ReactNode } from 'react'
+import { DialogTitleContext, useDialogLayer } from '@/lib/useDialogLayer'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'wide' | 'notifications'
@@ -22,6 +23,8 @@ interface ModalProps {
 
 interface ModalHeaderProps {
   title: string
+  onBack?: () => void
+  backLabel?: string
   description?: ReactNode
   onClose?: () => void
   icon?: ReactNode
@@ -36,64 +39,18 @@ const widths: Record<ModalSize, string> = {
   wide: '1120px',
 }
 
-const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
 export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop = true, closeOnEscape = true, ariaLabel, style }: ModalProps) {
-  const [mounted, setMounted] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => setMounted(true), [])
-
-  useEffect(() => {
-    if (!isOpen || !mounted) return
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const dialog = dialogRef.current
-    const firstFocusable = dialog?.querySelector<HTMLElement>(focusableSelector)
-    window.setTimeout(() => (firstFocusable || dialog)?.focus(), 0)
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && closeOnEscape && onClose) {
-        event.preventDefault()
-        onClose()
-        return
-      }
-      if (event.key !== 'Tab' || !dialog) return
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
-      if (focusable.length === 0) {
-        event.preventDefault()
-        dialog.focus()
-        return
-      }
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      returnFocusRef.current?.focus()
-    }
-  }, [closeOnEscape, isOpen, mounted, onClose])
+  const { mounted, rootRef, dialogRef, titleId, isTop } = useDialogLayer(isOpen, onClose, closeOnEscape)
 
   if (!isOpen || !mounted) return null
 
   return createPortal(
     <div
+      ref={rootRef}
       role="presentation"
       style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: spacing.lg, background: 'rgba(20, 30, 34, 0.48)', backdropFilter: 'blur(2px)', animation: 'fadeIn 0.16s ease-out' }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && closeOnBackdrop && onClose) onClose()
+        if (event.target === event.currentTarget && closeOnBackdrop && onClose && isTop()) onClose()
       }}
     >
       <div
@@ -101,22 +58,25 @@ export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop 
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        aria-labelledby={ariaLabel ? undefined : titleId}
         tabIndex={-1}
         style={{ width: `min(100%, ${widths[size]})`, maxHeight: 'min(90dvh, 900px)', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: radius['2xl'], background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: shadows.xl, fontFamily: typography.fontSans, outline: 'none', ...style }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        {children}
+        <DialogTitleContext.Provider value={titleId}>{children}</DialogTitleContext.Provider>
       </div>
     </div>,
     document.body,
   )
 }
 
-export function ModalHeader({ title, description, onClose, icon, badge }: ModalHeaderProps) {
-  const titleId = useId()
+export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back' }: ModalHeaderProps) {
+  const ownId = useId()
+  const titleId = useContext(DialogTitleContext) || ownId
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, padding: `${spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.md, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
+        {onBack && <BackControl label={backLabel} onClick={onBack} />}
         {icon && <div style={{ display: 'flex', color: colors.textSecondary, flexShrink: 0, marginTop: 2 }}>{icon}</div>}
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
@@ -127,9 +87,7 @@ export function ModalHeader({ title, description, onClose, icon, badge }: ModalH
         </div>
       </div>
       {onClose && (
-        <ControlButton kind="toggle" type="button" onClick={onClose} aria-label="Close" style={{ width: 32, flexShrink: 0 }}>
-          <X size={19} aria-hidden="true" />
-        </ControlButton>
+        <ControlButton kind="close" type="button" onClick={onClose} aria-label="Close" />
       )}
     </div>
   )

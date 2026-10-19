@@ -13,7 +13,15 @@ export async function POST(request: Request) {
     if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
     const { tenantId } = authorization
 
-    const { contact_id, body, to_phone } = await request.json()
+    const { contact_id, body, to_phone, media_url } = await request.json()
+
+    if (media_url) {
+      try {
+        if (typeof media_url !== 'string' || new URL(media_url).protocol !== 'https:') throw new Error('Invalid media URL')
+      } catch {
+        return NextResponse.json({ error: 'A valid HTTPS media URL is required' }, { status: 400 })
+      }
+    }
 
     if (!body?.trim() || !to_phone) {
       return NextResponse.json({ error: 'Body and to_phone are required' }, { status: 400 })
@@ -31,6 +39,7 @@ export async function POST(request: Request) {
         twilio_sid: `DEMO_${Date.now()}`,
         to_phone: to_phone,
         from_phone: null,
+        ...(media_url ? { media_url } : {}),
       })
       return NextResponse.json({ success: true, demo: true })
     }
@@ -56,6 +65,7 @@ export async function POST(request: Request) {
       from: twilioConfig.phone_number,
       to: normalizedToPhone,
       statusCallback,
+      ...(media_url ? { mediaUrl: [media_url] } : {}),
     })
 
     const failedStatus = msg.status === 'undelivered' || msg.status === 'failed'
@@ -72,6 +82,7 @@ export async function POST(request: Request) {
       twilio_sid: msg.sid,
       to_phone: normalizedToPhone,
       from_phone: twilioConfig.phone_number,
+      ...(media_url ? { media_url } : {}),
     }
 
     // messages.contact_id still has an FK to the legacy `contacts` table; fall back to null

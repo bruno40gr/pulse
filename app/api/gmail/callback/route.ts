@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const { error } = await crmSupabaseAdmin.from('gmail_connections').upsert({
       ...(existing ? { id: existing.id } : {}), tenant_id: state.tenantId, email, refresh_token_ciphertext: encryptToken(token.refresh_token),
       connected_by: state.membershipId, capture_from: existing?.capture_from || new Date().toISOString(), last_error: null,
+      scopes: token.scope.split(' '),
     }, { onConflict: 'tenant_id,email' })
     if (error) throw error
     result = 'connected'

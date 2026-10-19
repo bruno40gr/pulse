@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
 import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
@@ -43,6 +43,13 @@ interface ComposePanelProps {
   }>
   footerLeadingAction?: React.ReactNode
   leadId?: string
+  /** Embed the same composer with a conversation-owned draft and send transport. */
+  conversation?: {
+    body: string
+    onChange: (body: string) => void
+    onSend: (body: string, mediaUrl: string) => Promise<void>
+    disabled?: boolean
+  }
 }
 
 interface ResolvedPreviewRecipient {
@@ -54,13 +61,16 @@ interface ResolvedPreviewRecipient {
 
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId, conversation
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
-  const [message, setMessage] = useState('')
+  const [localMessage, setLocalMessage] = useState('')
+  const message = conversation?.body ?? localMessage
+  const onConversationChange = conversation?.onChange
+  const setMessage = useCallback((body: string) => onConversationChange ? onConversationChange(body) : setLocalMessage(body), [onConversationChange])
   const [mediaUrl, setMediaUrl] = useState('')
   const [showMediaInput, setShowMediaInput] = useState(false)
   const [activeMediaTab, setActiveMediaTab] = useState<'approved' | 'gifs'>('approved')
@@ -84,7 +94,7 @@ export default function ComposePanel({
   const prePolishMessage = useRef<string>('')
 
   const isMMS = !!mediaUrl
-  const firstNamePreview = contactContext?.first_name || 'Alex'
+  const firstNamePreview = contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
   const effectiveCount = effectiveRecipientIds.length
@@ -397,11 +407,16 @@ export default function ComposePanel({
   }
 
   const handleSend = async () => {
-    if (!message.trim() || effectiveCount === 0) return
+    if (!message.trim() || effectiveCount === 0 || isSending || conversation?.disabled) return
     setIsSending(true)
     setSendError(null)
     startSendProgress()
     try {
+      if (conversation) {
+        await conversation.onSend(message, mediaUrl)
+        setMediaUrl('')
+        return
+      }
       const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -481,7 +496,7 @@ export default function ComposePanel({
         {sendError && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: `${spacing.sm} ${spacing.md}`, background: colors.surfaceMuted, border: `1px solid ${colors.crimson}`, borderRadius: radius.md, color: colors.crimson, fontSize: typography.sizeSm, fontFamily: typography.fontSans }}>
             <span>! {sendError}</span>
-            <ControlButton kind="icon" onClick={() => setSendError(null)} >✕</ControlButton>
+            <ControlButton kind="close" aria-label="Close send error" onClick={() => setSendError(null)} />
           </div>
         )}
         {showComposeBootSkeleton ? (
@@ -616,6 +631,8 @@ export default function ComposePanel({
             </div>
           )}
           <Textarea
+            aria-label="SMS message"
+            disabled={conversation?.disabled || isSending}
             value={message}
             onChange={e => setMessage(e.target.value)}
             placeholder="Write your message... Use {first_name} to personalize."
@@ -828,7 +845,7 @@ export default function ComposePanel({
           fill={2}
           progress={sendProgress}
           onClick={handleSend}
-          disabled={!message.trim() || effectiveCount === 0}
+          disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled}
           style={{ maxWidth: '100%' }}
         >
           {isSending ? 'Sending…' : 'Send message'}

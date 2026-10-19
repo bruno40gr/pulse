@@ -589,6 +589,8 @@ export default function DashboardPage() {
           titleBadge={composeTarget?.mode === 'instructor' ? (
             <Badge variant="neutral" size="sm">Internal comms</Badge>
           ) : undefined}
+          onBack={composeTarget?.ids.length === 1 && composeTarget.contactContext ? () => { setSelectedContact(composeTarget.contactContext || null); setComposeTarget(null) } : undefined}
+          backLabel="Back to student details"
           onClose={() => setComposeTarget(null)}
         />
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -614,20 +616,7 @@ export default function DashboardPage() {
             />
           )}
         </div>
-        {composeTarget?.ids.length === 1 && composeTarget?.contactContext && (
-          <div style={{ padding: `${spacing.lg} ${spacing['2xl']}`, borderTop: `1px solid ${colors.borderLight}`, display: 'flex', alignItems: 'center', flexShrink: 0, background: colors.surface }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSelectedContact(composeTarget.contactContext || null)
-                setComposeTarget(null)
-              }}
-            >
-              ← View student details
-            </Button>
-          </div>
-        )}
+
       </SlidePanel>
 
       {selectedContact && (

@@ -337,13 +337,11 @@ export default function CSVImporter({ isOpen, onClose, onImportComplete }: CSVIm
             {step === 'importing' && 'Importing'}
             {step === 'done' && 'Import complete'}
           </h2>
-          <ControlButton kind="icon"
+          <ControlButton kind="close"
             onClick={handleClose}
             aria-label="Close"
 
-          >
-            ✕
-          </ControlButton>
+           />
         </div>
 
         {/* Body */}

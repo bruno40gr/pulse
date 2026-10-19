@@ -1,6 +1,7 @@
 'use client'
 
 
+import { BackControl } from '@/components/ui/BackControl'
 import { Button } from '@/components/ui/Button'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -68,7 +69,7 @@ export default function ClaimPage() {
   return (
     <main style={authPageStyle}>
       <section style={authCardStyle}>
-        <h1 style={{ ...typography.h1, margin: 0, color: colors.text }}>Set up your personal password.</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><BackControl href="/login" label="Back to sign in" /><h1 style={{ ...typography.h1, margin: 0, color: colors.text }}>Set up your personal password.</h1></div>
         <p style={{ ...typography.body, color: colors.textSecondary, margin: `${spacing.sm} 0 ${spacing.xl}` }}>
           {loading ? 'Checking your invitation…' : context ? `Welcome${context.name ? `, ${context.name}` : ''}. Choose a personal password for ${context.email}.` : 'We could not verify this invitation.'}
         </p>
@@ -80,7 +81,7 @@ export default function ClaimPage() {
         )}
         {error && <p role="alert" style={{ color: colors.error, fontSize: typography.sizeSm, lineHeight: 1.5 }}>{error}</p>}
         {context ? <Button variant="primary" size="sm" type="button" onClick={() => void activate()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Activating…' : 'Activate account'}</Button> : !loading && <a href="/forgot-password" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Send me a fresh setup link</a>}
-        {!loading && <a href="/login" style={{ display: 'block', marginTop: spacing.lg, color: colors.crimson, fontSize: typography.sizeSm }}>Return to sign in</a>}
+
       </section>
     </main>
   )
