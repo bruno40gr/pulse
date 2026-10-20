@@ -2837,11 +2837,11 @@ const siblingLabelStyle: React.CSSProperties = {
 const removeSiblingButtonStyle: React.CSSProperties = {
   border: 'none',
   background: 'transparent',
-  color: colors.textSecondary,
+  color: colors.link,
   cursor: 'pointer',
   padding: 0,
   fontSize: typography.sizeSm,
-  textDecoration: 'underline',
+  textDecoration: 'none',
 }
 
 const siblingGridStyle: React.CSSProperties = {

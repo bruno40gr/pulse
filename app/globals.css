@@ -31,6 +31,21 @@ body {
   font-family: var(--font-dm-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Text links share one appearance; navigation and filled CTAs keep theirs. */
+a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+
 /*
  * Safety net for mobile browsers using a desktop-sized layout viewport.
  * React uses the same physical-screen signal in useIsMobile; this prevents a

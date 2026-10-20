@@ -1,15 +1,15 @@
 'use client'
 
+import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, LockKeyhole, Plus, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react'
-import { Avatar, Badge, Button, Input, PageContainer, PageHeader, Select, SlidePanel, SlidePanelHeader, SurfacePanel, Tabs } from '@/components/ui'
+import { Avatar, Badge, Button, Input, PageContainer, PageHeader, Select, SlidePanel, SlidePanelHeader, SurfacePanel } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
-type AccessTab = 'people' | 'roles'
 
 type Permission = {
   id: string
@@ -102,9 +102,8 @@ function permissionGroup(permission: Permission) {
   return permission.key.split('.')[0]
 }
 
-export default function AccessManagementClient({ tenantId, embedded = false }: { tenantId: string; embedded?: boolean }) {
+export default function AccessManagementClient({ tenantId, embedded = false, view = 'roles' }: { tenantId: string; embedded?: boolean; view?: 'roles' | 'permissions' }) {
   const isMobile = useIsMobile()
-  const [activeTab, setActiveTab] = useState<AccessTab>('people')
   const [data, setData] = useState<AccessData | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [draftPermissionIds, setDraftPermissionIds] = useState<Set<string>>(new Set())
@@ -345,47 +344,13 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
     setShowAccountForm(true)
   }
 
-  const headerActions = data ? (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' }}>
-      <Badge variant="info"><ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />{data.currentRoleKey === 'owner' ? 'Owner' : 'Admin'}</Badge>
-      {activeTab === 'people' && <Button onClick={openAccountForm}><Plus size={16} />Add account</Button>}
-    </div>
-  ) : null
-
   const content = (
     <>
       {!embedded && (
         <PageHeader
-          title="Roles & permissions"
+          title={view === 'permissions' ? 'Permissions' : 'Roles'}
           subtitle="Manage your people, staff accounts, roles, and permissions."
-          right={headerActions}
         />
-      )}
-
-      {embedded && headerActions && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: spacing.lg }}>{headerActions}</div>
-      )}
-
-      {data && (
-        <>
-          <Tabs
-            items={data.canManageRoles
-              ? [
-                  { key: 'people', label: 'People', count: data.memberships.length },
-                  { key: 'roles', label: 'Roles & permissions', count: data.roles.length },
-                ]
-              : [{ key: 'people', label: 'People', count: data.memberships.length }]}
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            variant="prominent"
-            style={{ marginBottom: spacing.lg, maxWidth: data.canManageRoles ? 620 : 310, width: '100%' }}
-          />
-          <div style={{ marginBottom: spacing['2xl'], color: colors.textSecondary, fontSize: typography.sizeSm }}>
-            {activeTab === 'people'
-              ? 'Manage the people who work in your organization and review who can sign in.'
-              : 'Define roles and choose the permissions granted to each role. The Owner role remains protected.'}
-          </div>
-        </>
       )}
 
       {data && (message || error) && (
@@ -398,7 +363,7 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
         <AccessLoadingState />
       ) : !data ? (
         <AccessErrorState error={error || 'Access settings are unavailable.'} onRetry={fetchAccessData} />
-      ) : activeTab === 'people' ? (
+      ) : view === 'roles' ? (
         <PeopleAccessPanel
           tenantId={tenantId}
           data={data}
@@ -436,7 +401,7 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
       {data && (
         <SlidePanel isOpen={showAccountForm} onClose={closeAccountForm} width="min(92vw, 520px)">
           <SlidePanelHeader
-            title="Add account"
+            title="Add Staff"
             subtitle="Create an unclaimed staff account without sending an invitation."
             onClose={closeAccountForm}
           />
@@ -499,7 +464,7 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
                 || (accountSource === 'existing' ? !accountPersonId : !accountFirstName.trim() || !accountLastName.trim())}
             >
               <UserPlus size={16} />
-              {savingKey === 'new-account' ? 'Adding…' : 'Add account'}
+              {savingKey === 'new-account' ? 'Adding…' : 'Add Staff'}
             </Button>
           </div>
         </SlidePanel>
@@ -510,7 +475,7 @@ export default function AccessManagementClient({ tenantId, embedded = false }: {
   if (embedded) return <div>{content}</div>
 
   return (
-    <PageContainer maxWidth="1180px" style={{ padding: isMobile ? spacing.lg : spacing['3xl'] }}>
+    <PageContainer style={{ padding: isMobile ? spacing.lg : spacing['3xl'] }}>
       {content}
     </PageContainer>
   )
@@ -534,16 +499,18 @@ function PeopleAccessPanel({
   const memberships = [...data.memberships].sort((left, right) => fullName(left).localeCompare(fullName(right)))
 
   return (
-    <SurfacePanel padding="0" style={{ overflow: 'hidden' }}>
-      <div style={{ padding: spacing.xl, borderBottom: `1px solid ${colors.borderLight}` }}>
-        <div>
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap', marginBottom: spacing.lg }}>
+        <div style={{ minWidth: 0, flex: '1 1 260px' }}>
           <h2 style={{ ...typography.h2, margin: 0, color: colors.text }}>People</h2>
           <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `${spacing.xs} 0 0` }}>
             {data.canManageRoles ? 'Choose one role per staff member. Role changes apply to their next authorized request.' : 'Review staff accounts and access status.'}
           </p>
         </div>
+        <Button onClick={onAddAccount} style={{ flexShrink: 0 }}><Plus size={16} />Add Staff</Button>
       </div>
 
+      <SurfacePanel padding="0" style={{ overflow: 'hidden' }}>
       {memberships.length === 0 ? (
         <div style={{ padding: spacing['4xl'], textAlign: 'center' }}>
           <Users size={28} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
@@ -551,39 +518,30 @@ function PeopleAccessPanel({
           <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `${spacing.xs} auto ${spacing.lg}`, maxWidth: 440 }}>
             Add an existing staff member or create a new staff record to begin managing account access.
           </p>
-          <Button onClick={onAddAccount}><Plus size={16} />Add first account</Button>
+          <Button onClick={onAddAccount}><Plus size={16} />Add Staff</Button>
         </div>
-      ) : <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
-          <thead>
-            <tr style={{ background: colors.surfaceMuted }}>
-              {['Staff member', 'Account', 'Role', 'Access level', 'Action'].map(label => (
-                <th key={label} style={tableHeaderStyle}>{label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {memberships.map(membership => {
+      ) : <ResponsiveDataTable<Membership, string>
+        ariaLabel="Staff roles"
+        rows={memberships}
+        getRowKey={membership => membership.id}
+        minDesktopWidth={800}
+        emptyContent="No staff accounts yet"
+        columns={[{ id: 'col0', header: 'Staff member', width: 'minmax(240px, 2fr)', render: membership => {
               const role = data.roles.find(item => item.id === membership.role_id)
-              const isSaving = savingKey === `membership:${membership.id}`
-              const isSendingInvitation = savingKey === `invitation:${membership.id}`
-              const isCurrentOwner = membership.id === data.currentMembershipId && role?.key === 'owner'
-              return (
-                <tr key={membership.id} style={{ borderTop: `1px solid ${colors.borderLight}` }}>
-                  <td style={tableCellStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
+              return <><div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
                       <Avatar firstName={membership.person?.first_name || ''} lastName={membership.person?.last_name || ''} size={36} src={getStaffAvatarUrl(tenantId, fullName(membership))} />
                       <div>
-                        <div style={{ fontWeight: typography.weightSemibold, color: colors.text }}>{fullName(membership)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', fontWeight: typography.weightSemibold, color: colors.text }}>{fullName(membership)}{role?.key === 'owner' && <Badge size="sm" variant="info" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0 }}><ShieldCheck size={13} aria-hidden="true" />Owner</Badge>}</div>
                         <div style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>{membership.person?.email || 'No email yet'}</div>
                       </div>
-                    </div>
-                  </td>
-                  <td style={tableCellStyle}>
-                    <Badge size="sm" variant={statusVariants[membership.status]}>{statusLabels[membership.status]}</Badge>
-                  </td>
-                  <td style={{ ...tableCellStyle, width: 230 }}>
-                    <Select
+                    </div></>
+            } },
+          { id: 'col1', header: 'Account', width: 'minmax(120px, 1fr)', render: membership => {
+              return <><Badge size="sm" variant={statusVariants[membership.status]}>{statusLabels[membership.status]}</Badge></>
+            } },
+          { id: 'col2', header: 'Role', width: 'minmax(180px, 1.4fr)', render: membership => {
+              const isSaving = savingKey === `membership:${membership.id}`
+              return <><Select
                       aria-label={`Role for ${fullName(membership)}`}
                       value={membership.role_id}
                       disabled={isSaving || !data.canManageRoles}
@@ -591,15 +549,17 @@ function PeopleAccessPanel({
                     >
                       {data.roles.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
                     </Select>
-                    {isCurrentOwner && <div style={{ marginTop: spacing.xs, fontSize: typography.sizeXs, color: colors.textMuted }}>Your role</div>}
-                  </td>
-                  <td style={tableCellStyle}>
-                    <span style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>
+                    </>
+            } },
+          { id: 'col3', header: 'Access level', width: 'minmax(120px, 1fr)', render: membership => {
+              const role = data.roles.find(item => item.id === membership.role_id)
+              return <><span style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>
                       {role?.key === 'owner' ? 'Full access' : `${role?.permissionIds.length || 0} permissions`}
-                    </span>
-                  </td>
-                  <td style={{ ...tableCellStyle, width: 130 }}>
-                    {membership.status === 'unclaimed' || membership.status === 'invited' ? (
+                    </span></>
+            } },
+          { id: 'col4', header: 'Action', width: 'minmax(90px, 0.7fr)', render: membership => {
+              const isSendingInvitation = savingKey === `invitation:${membership.id}`
+              return <>{membership.status === 'unclaimed' || membership.status === 'invited' ? (
                       <Button
                         size="sm"
                         variant="secondary"
@@ -609,15 +569,12 @@ function PeopleAccessPanel({
                       >
                         {isSendingInvitation ? 'Sending…' : membership.status === 'invited' ? 'Resend' : 'Invite'}
                       </Button>
-                    ) : <span style={{ color: colors.textMuted, fontSize: typography.sizeSm }}>—</span>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>}
+                    ) : <span style={{ color: colors.textMuted, fontSize: typography.sizeSm }}>—</span>}</>
+            } }]}
+      />}
+
     </SurfacePanel>
+    </>
   )
 }
 
@@ -777,7 +734,7 @@ function RolesPanel({
                           />
                           <span>
                             <span style={{ display: 'block', color: colors.text, fontWeight: typography.weightMedium }}>{permission.key.split('.').slice(1).join(' ')}</span>
-                            <span style={{ display: 'block', color: colors.textSecondary, fontSize: typography.sizeSm, lineHeight: 1.45, marginTop: 2 }}>{permission.description}</span>
+                            <span style={{ display: 'block', color: colors.textSecondary, fontSize: typography.sizeSm, lineHeight: 1.45, marginTop: 2 }}>{permission.description && !/synthetic.*permission/i.test(permission.description) ? permission.description : `Allows ${permission.key.replaceAll('.', ' ').replaceAll('_', ' ')}.`}</span>
                           </span>
                         </label>
                       )
@@ -791,22 +748,6 @@ function RolesPanel({
       </SurfacePanel>
     </div>
   )
-}
-
-const tableHeaderStyle: React.CSSProperties = {
-  padding: `${spacing.md} ${spacing.lg}`,
-  textAlign: 'left',
-  color: colors.textSecondary,
-  fontSize: typography.sizeSm,
-  fontWeight: typography.weightSemibold,
-  whiteSpace: 'nowrap',
-}
-
-const tableCellStyle: React.CSSProperties = {
-  padding: `${spacing.md} ${spacing.lg}`,
-  color: colors.text,
-  fontSize: typography.sizeBase,
-  verticalAlign: 'middle',
 }
 
 const fieldLabelStyle: React.CSSProperties = {

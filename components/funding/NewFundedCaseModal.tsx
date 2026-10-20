@@ -110,8 +110,8 @@ export function NewFundedCaseModal({ isOpen, preferredProgramId, onClose, onCrea
   }
 
   return <Modal isOpen={isOpen} onClose={close} size="lg" ariaLabel="Add student">
-    <ModalHeader title="Add student" description="Choose a student and a ready-to-use funding program. Everything else is optional and can be recorded later." onClose={close} />
-    <ModalBody><div style={{ display: 'grid', gap: spacing.xl }}>
+    <ModalHeader title="Add student" onClose={close} />
+    <ModalBody><p style={{ margin: 0 }}>{"Choose a student and a ready-to-use funding program. Everything else is optional and can be recorded later."}</p><div style={{ display: 'grid', gap: spacing.xl }}>
       {error && <Notice variant="error">{error}</Notice>}
       <Select label="Student or family" value={studentId} onChange={event => setStudentId(event.target.value)} disabled={loadingOptions} required><option value="">Choose a student</option>{(options?.students || []).map(student => <option key={student.id} value={student.id}>{student.name}{student.accountName ? ` — ${student.accountName}` : ''}</option>)}</Select>
       <div style={{ display: 'grid', gap: spacing.sm }}><Select label="Funding program" value={programId} onChange={event => { setProgramId(event.target.value); setDocumentsAcknowledged(false) }} disabled={loadingOptions} required><option value="">Choose a ready-to-use funding program</option>{(options?.programs || []).map(item => <option key={item.id} value={item.id}>{item.name} — {item.organizationName}</option>)}</Select>{!loadingOptions && options?.programs.length === 0 && <Notice variant="warning" title="No programs are ready to use">Complete vendor setup in Funding programs before assigning a student.</Notice>}<Button variant="secondary" size="sm" type="button" onClick={() => { close(); onManagePrograms() }} style={{ justifySelf: 'start' }}>Manage funding programs</Button></div>
@@ -136,7 +136,7 @@ export function NewFundedCaseModal({ isOpen, preferredProgramId, onClose, onCrea
   </Modal>
 }
 
-const linkStyle: React.CSSProperties = { justifySelf: 'start', border: 'none', background: 'transparent', color: colors.tealDark, padding: 0, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }
+const linkStyle: React.CSSProperties = { justifySelf: 'start', border: 'none', background: 'transparent', color: colors.link, padding: 0, fontFamily: typography.fontSans, fontSize: typography.sizeSm, cursor: 'pointer', textDecoration: 'none', textUnderlineOffset: 2 }
 const sectionTitleStyle: React.CSSProperties = { color: colors.text, fontSize: typography.sizeBase, fontWeight: typography.weightSemibold }
 const requirementDescriptionStyle: React.CSSProperties = { color: colors.textSecondary, marginTop: 2 }
 const checkboxStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: spacing.sm, color: colors.text, fontSize: typography.sizeSm, lineHeight: 1.5, cursor: 'pointer' }

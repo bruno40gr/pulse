@@ -16,6 +16,7 @@ function load(file, dependencies = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, require: id => {
+    if (id === 'lucide-react') return require('lucide-react')
     assert.ok(id in dependencies, `Prototype requested unexpected dependency: ${id}`)
     return dependencies[id]
   }, window: { setTimeout: callback => callback() } })
@@ -359,16 +360,19 @@ test('contact email skips channel modal and uses a single back link', () => {
   assert.equal(composer.props.draft.suggestTemplates, undefined)
 })
 
-test('direct contact compose locks recipients, keeps previous context and uses signed-in name', () => {
+test('new contact email locks recipients, starts without previous context and uses signed-in name', () => {
   const h = harness(); h.open(); h.channel('email'); h.email(); h.click('New email')
   const composer = h.find(node => node.type === 'EmailComposer')
   assert.equal(composer.props.draft.contactOnly, true)
-  assert.equal(composer.props.draft.contextThreadId, 'chen-email')
+  assert.equal(composer.props.draft.contextThreadId, undefined)
+  assert.equal(composer.props.draft.subject, '')
   assert.equal(composer.props.senderName, 'Test Admin')
   assert.ok(composer.props.signatureHtml.includes('Test Admin'))
   assert.ok(!composer.props.signatureHtml.includes('Headliner Office'))
-  assert.ok(h.html().includes('Previous email context'))
-  assert.ok(h.html().includes('Jamie has not had formal lessons'))
+  const reader = h.find(node => node.type === 'section' && node.props['aria-label'] === 'Email reader')
+  const readerHtml = renderToStaticMarkup(reader)
+  assert.ok(!readerHtml.includes('Previous email context'))
+  assert.ok(!readerHtml.includes('Jamie has not had formal lessons'))
   assert.equal(composer.props.onViewPrevious, undefined)
   assert.ok(!h.html().includes('Email history · scroll up to review'))
   assert.ok(!h.html().includes('Back to draft'))

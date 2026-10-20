@@ -52,10 +52,9 @@ export function InvoiceStatusModal({ invoice, onClose, onSave }: InvoiceStatusMo
     <Modal isOpen={Boolean(invoice)} onClose={saving ? undefined : onClose} size="md" ariaLabel="Update invoice status">
       <ModalHeader
         title="Update invoice status"
-        description={invoice ? `${invoice.invoiceNumber} is currently ${INVOICE_STATUS_LABELS[invoice.status].toLowerCase()}.` : undefined}
         onClose={saving ? undefined : onClose}
       />
-      <ModalBody style={{ display: 'grid', gap: 18 }}>
+      <ModalBody style={{ display: 'grid', gap: 18 }}><p style={{ margin: 0 }}>{invoice ? `${invoice.invoiceNumber} is currently ${INVOICE_STATUS_LABELS[invoice.status].toLowerCase()}.` : undefined}</p>
         {error && <Notice variant="error">{error}</Notice>}
         <Select label="New status" value={status} onChange={event => setStatus(event.target.value as FundingInvoiceStatus)}>
           {allowed.map(value => <option key={value} value={value}>{INVOICE_STATUS_LABELS[value]}</option>)}

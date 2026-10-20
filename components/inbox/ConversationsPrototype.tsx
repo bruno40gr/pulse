@@ -1,5 +1,7 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
+
 import { formatContactTiming } from '@/lib/contact-timing'
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
@@ -162,7 +164,7 @@ export default function ConversationsPrototype() {
     const primary = recipients ? contacts.find(person => person.id === recipients.to[0]) || contact : contact
     const id = `email-draft-${++draftSequence.current}`
     setThreads(current => [{ ...primary, id, contactId: primary.id, channel: 'email', subject: '', unread: false, messages: [] }, ...current])
-    setEmailDrafts(current => ({ ...current, [id]: { subject: '', html: '<p><br></p>', contactOnly: !recipients, contextThreadId: !recipients ? active?.messages.length ? active.id : emails.find(thread => thread.messages.length)?.id : undefined, recipients: recipients || { to: [contact.id], cc: [], bcc: [] } } }))
+    setEmailDrafts(current => ({ ...current, [id]: { subject: '', html: '<p><br></p>', contactOnly: !recipients, recipients: recipients || { to: [contact.id], cc: [], bcc: [] } } }))
     navigate({ view: 'compose', contactId: primary.id, activeId: id, channel: 'email', screen: 'reader' }); setNewMessageOpen(false)
   }
   function updateDraft(next: PrototypeEmailDraft) {
@@ -308,16 +310,16 @@ export default function ConversationsPrototype() {
           {showReader && <section ref={reader} aria-label="Email reader" style={{ ...pane, overflowY: 'auto', background: colors.background, padding: mobile ? spacing.md : spacing.xl }}>
             {!desktop && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}><BackControl label="Back to emails" onClick={() => navigate({ screen: 'list' })} /><h2 style={{ ...typography.h2, margin: 0 }}>Email conversation</h2></div>}
             {!active ? <p style={{ ...meta, margin: 'auto', textAlign: 'center' }}>Select an email to read.</p> : <div style={{ width: '100%', minWidth: 0 }}>
-              <div style={{ ...row, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing['3xl'] }}><SectionTitle>{active.subject || 'New email'}</SectionTitle>{active.messages.length > 0 && <ControlButton kind="link" onClick={() => newEmail()}>New email</ControlButton>}</div>
+              <div style={{ ...row, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing['3xl'] }}><SectionTitle>{active.subject || 'New email'}</SectionTitle>{active.messages.length > 0 && <ControlButton kind="link" onClick={() => newEmail()}><Pencil size={14} aria-hidden="true" />New email</ControlButton>}</div>
               {!active.messages.length && <p style={meta}>This email has not been sent.</p>}
               {!!draft?.contextThreadId && <p style={meta}>Previous conversation: {contextThread?.subject}</p>}
-              <div aria-label="Previous email context">
+              {contextMessages.length > 0 && <div aria-label="Previous email context">
               {contextMessages.map((message, index) => {
                 const header = <div style={{ ...row, justifyContent: 'space-between' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}><EmailDirection direction={message.direction} /><strong>{message.direction === 'inbound' ? contact.name : 'Headliner Office'}</strong></span><span style={meta}>{message.time}</span></div>
                 const content = <><p style={{ ...meta, overflowWrap: 'anywhere' }}>From: {message.direction === 'inbound' ? contact.email : PROTOTYPE_EMAIL}<br />To: {message.direction === 'inbound' ? PROTOTYPE_EMAIL : message.emailTo?.join(', ') || contact.email}{!!message.emailCc?.length && <><br />Cc: {message.emailCc.join(', ')}</>}</p><EmailBody message={message} />{message.simulated && <p style={meta}>Mock only — not sent</p>}</>
                 return index < contextMessages.length - 1 ? <details key={message.id} style={{ padding: `${spacing.xl} 0`, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing.xl }}><summary style={{ cursor: 'pointer' }}>{header}</summary>{content}</details> : <article key={message.id} style={{ padding: `${spacing.xl} 0` }}>{header}{content}</article>
               })}
-              </div>
+              </div>}
               <div ref={replyEditor} style={{ marginTop: spacing.xl, paddingTop: contextMessages.length ? spacing.xl : 0, borderTop: contextMessages.length ? `1px solid ${colors.border}` : undefined, paddingBottom: spacing.xl }}>
                 {composing && draft ? <>
                   {discardOpen ? <section aria-label="Discard email draft" style={{ padding: spacing.xl, border: `1px solid ${colors.border}`, marginBottom: spacing.lg }}><strong>Discard this draft?</strong><p style={meta}>Only this unsent draft will be removed.</p><div style={row}><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep draft</Button><Button onClick={discardDraft}>Discard draft</Button></div></section> : null}

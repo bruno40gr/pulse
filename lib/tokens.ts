@@ -23,6 +23,7 @@ export const colors = {
 
   // Actions
   action: '#1A130F',
+  link: '#2563EB',
 
   // Semantic (text-only, no background boxes)
   error: '#DC2626',

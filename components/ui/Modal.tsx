@@ -28,7 +28,6 @@ interface ModalHeaderProps {
   titleSize?: 'default' | 'large'
   onBack?: () => void
   backLabel?: string
-  description?: ReactNode
   onClose?: () => void
   icon?: ReactNode
   badge?: ReactNode
@@ -73,20 +72,19 @@ export function Modal({ isOpen, onClose, size = 'md', layout = size === 'lg' || 
   )
 }
 
-export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = true, titleSize = 'default' }: ModalHeaderProps) {
+export function ModalHeader({ title, onClose, icon, badge, onBack, backLabel = 'Back' }: ModalHeaderProps) {
   const ownId = useId()
   const titleId = useContext(DialogTitleContext) || ownId
   return (
-    <div style={{ display: 'flex', alignItems: compact ? 'center' : 'flex-start', justifyContent: 'space-between', gap: spacing.lg, padding: `${compact ? spacing.xs : spacing.xl} ${spacing['2xl']}`, borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg, padding: `12px ${spacing.xl}`, minHeight: 72, width: '100%', maxWidth: '100%', boxSizing: 'border-box', borderBottom: `1px solid ${colors.borderLight}`, flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
         {onBack && <BackControl label={backLabel} onClick={onBack} />}
         {icon && <div style={{ display: 'flex', color: colors.textSecondary, flexShrink: 0, marginTop: 2 }}>{icon}</div>}
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-            <h2 id={titleId} style={{ ...typography.h2, ...(titleSize === 'large' ? { fontSize: typography.size2xl } : {}), margin: 0, color: colors.text, overflowWrap: 'anywhere' }}>{title}</h2>
+            <h2 id={titleId} style={{ ...typography.h2, fontSize: '1.125rem', lineHeight: 1.4, margin: 0, color: colors.text, overflowWrap: 'anywhere' }}>{title}</h2>
             {badge}
           </div>
-          {description && <div style={{ ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs }}>{description}</div>}
         </div>
       </div>
       {onClose && (
@@ -97,12 +95,12 @@ export function ModalHeader({ title, description, onClose, icon, badge, onBack, 
 }
 
 export function ModalBody({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing['2xl'], ...style }}>{children}</div>
+  return <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing.xl, ...style }}>{children}</div>
 }
 
 export function ModalFooter({ children, leading, style }: { children: ReactNode; leading?: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.lg} ${spacing['2xl']}`, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface, flexShrink: 0, ...style }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.lg} ${spacing.xl}`, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface, flexShrink: 0, ...style }}>
       {leading && <div style={{ marginRight: 'auto', minWidth: 0 }}>{leading}</div>}
       {children}
     </div>

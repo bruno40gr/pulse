@@ -419,7 +419,7 @@ export default function DashboardPage() {
         right={
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
             {canManageHighlights && (
-              <Link href="/dashboard/settings?tab=brand#ai-highlights" style={{ color: colors.tealDark, fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, textDecoration: 'none' }}>
+              <Link href="/dashboard/settings?tab=brand#ai-highlights" style={{ color: colors.link, fontSize: typography.sizeSm, fontWeight: typography.weightSemibold, textDecoration: 'none' }}>
                 AI Highlights settings
               </Link>
             )}

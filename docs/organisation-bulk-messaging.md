@@ -11,13 +11,14 @@
 ## Policy
 
 - Contacts and Conversations share the same page-header **Send new text message** and **Send new email** actions, built from the shared Button component. Contacts enables them after selection. There is no recipient-routing selector.
-- Multiple selected Contacts open one shared review modal for either channel. Continue opens a full-viewport composer, never a side drawer. Single-contact profile composition retains its contextual drawer. Shared modal headings default to the standard 18px heading token.
+- Multiple selected Contacts open a short confirmation modal for either channel, without repeating the contact list or selected count. Continue navigates in the same tab to `/dashboard/inbox/bulk`, inside the Conversations workspace, never an overlay or side drawer. The URL contains an opaque session selection key, not contact IDs. Missing, malformed, or wrong-account selections fail closed. Single-contact profile composition retains its contextual drawer. Shared modal headings default to 18px and never contain a subtitle; explanations belong in the body.
+- Both channels show an expandable yellow “Excluded from sending” notice with excluded names and reasons. Email places it below blocking errors, outside the To field. From is always a dropdown labelled with the configured organisation name and email, or Me plus the authorised member name and email. No placeholder organisation identity is offered.
 - Minors route to every account holder recorded in `student_accounts` and the legacy primary account. Their own destination is never a fallback.
 - Adults use their saved account-holder preference, otherwise their own details.
 - Destinations are normalised and deduplicated. Existing opt-outs suppress shared destinations, including an unselected opted-out sibling.
 - Preview and send share the resolver. A version mismatch stops delivery and requires a fresh review.
 - Bulk email uses one To recipient per provider request and no CC/BCC. Student-specific placeholders must be replaced with neutral text; no arbitrary child is selected for a shared family destination.
-- Organisation senders require communications-send permission. “Me” appears only for a member explicitly assigned a Google-verified same-domain alias. One available sender is displayed as plain text; multiple identities use a From selector.
+- Organisation senders require communications-send permission. “Me” appears only for a member explicitly assigned a Google-verified same-domain alias. Sharing a domain alone never authorises sending. The From dropdown remains visible even with one available identity; no configured identity displays a disabled setup prompt.
 - Both email API entry points enforce the organisation sender gate. Existing personal connections remain readable only by their connector, never usable for sending. Shared-mailbox history is available to members with communications-read permission.
 - Missing Migration 026 does not prevent reading an existing private mailbox; it still blocks all organisation sends. Missing Student Accounts Migration 001 blocks recipient verification with a setup message rather than falling back to incomplete routing. Recipient and sender setup errors are displayed independently.
 - SMS configuration and sender identity are unchanged.

@@ -696,12 +696,12 @@ export default function ContactsPage() {
                 <span style={{ fontSize: typography.sizeSm, color: colors.text, fontFamily: typography.fontSans, fontWeight: typography.weightMedium }}>
                   {selectedIds.size} out of {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'} selected
                 </span>
-                <Button variant="secondary" size="sm"
+                <ControlButton kind="link"
                   onClick={clearSelection}
 
                 >
                   Unselect all
-                </Button>
+                </ControlButton>
               </>
             )}
           </div>
@@ -797,7 +797,7 @@ export default function ContactsPage() {
 
       {/* Viewing counter */}
       {!aiLoading && !loading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm, flexWrap: 'wrap' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', columnGap: spacing.lg, rowGap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.lg, minHeight: 40 }}>
           <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
             {selectedIds.size > 0
               ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
@@ -808,14 +808,16 @@ export default function ContactsPage() {
               Showing {visibleContacts.length} of {displayed.length}
             </p>
           )}
-          {selectedIds.size > 0 && !showStickyActions && (
-            <Button variant="secondary" size="sm"
+          {
+            <ControlButton kind="link"
               onClick={clearSelection}
-
+              disabled={selectedIds.size === 0 || showStickyActions}
+              aria-hidden={selectedIds.size === 0 || showStickyActions}
+              style={{ gridColumn: 2, gridRow: 1, visibility: selectedIds.size > 0 && !showStickyActions ? 'visible' : 'hidden', whiteSpace: 'nowrap' }}
             >
               Unselect all
-            </Button>
-          )}
+            </ControlButton>
+          }
         </div>
       )}
 

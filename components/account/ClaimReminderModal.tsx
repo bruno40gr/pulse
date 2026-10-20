@@ -61,9 +61,8 @@ export function ClaimReminderModal() {
       <ModalHeader
         title="Set up your personal password."
         titleSize="default"
-        description={`Hi ${context.firstName || 'there'}. Claim your personal account and set up your own password. Shared-coded access will be deprecated soon.`}
       />
-      <ModalBody style={{ display: 'grid', gap: spacing.lg }}>
+      <ModalBody style={{ display: 'grid', gap: spacing.lg }}><p style={{ margin: 0 }}>{`Hi ${context.firstName || 'there'}. Claim your personal account and set up your own password. Shared-coded access will be deprecated soon.`}</p>
         {context.hasEmail ? (
           <div style={emailStyle}>
             <Mail size={17} color={colors.textSecondary} aria-hidden="true" />

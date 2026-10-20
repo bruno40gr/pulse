@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
         <label style={authLabelStyle}>Confirm password<input type="password" value={confirmation} onChange={event => setConfirmation(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void save() }} autoComplete="new-password" style={authFieldStyle} /></label>
       </div>}
       {error && <p role="alert" style={{ color: colors.error, ...typography.bodySmall }}>{error}</p>}
-      {ready ? <Button variant="primary" size="sm" type="button" onClick={() => void save()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Saving…' : 'Save password'}</Button> : <a href="/forgot-password" style={{ color: colors.crimson, fontSize: typography.sizeSm }}>Request another reset link</a>}
+      {ready ? <Button variant="primary" size="sm" type="button" onClick={() => void save()} disabled={saving} style={{ width: '100%', marginTop: spacing.xl }}>{saving ? 'Saving…' : 'Save password'}</Button> : <a href="/forgot-password" style={{ color: colors.link, fontSize: typography.sizeSm }}>Request another reset link</a>}
     </section></main>
   )
 }

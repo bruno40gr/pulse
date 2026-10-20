@@ -21,7 +21,7 @@ export function PrototypeEmailRecipients({ people, recipients, onChange, fill = 
     <PrototypeRecipientSearch key={field} label={label} channel="email" people={people} selected={recipients[field]} excluded={emailRecipientIds({ ...recipients, [field]: [] })} onChange={ids => onChange({ ...recipients, [field]: ids })} fill={fill} controls={<div role="radiogroup" aria-label="Send as" style={{ display: 'flex', alignItems: 'center', gap: spacing.md, color: colors.text }}>
       <span style={typography.label}>Send as:</span>
       {(['cc', 'bcc'] as const).map(value => <label key={value} style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, cursor: 'pointer' }}><input type="radio" name="email-recipient-field" checked={field === value} onChange={() => setField(value)} />{value === 'cc' ? 'Cc' : 'Bcc'}</label>)}
-      {field !== 'to' && <button type="button" onClick={() => setField('to')} style={{ border: 0, background: 'transparent', color: colors.text, cursor: 'pointer', textDecoration: 'underline' }}>Edit To recipients</button>}
+      {field !== 'to' && <button type="button" onClick={() => setField('to')} style={{ border: 0, background: 'transparent', color: colors.link, cursor: 'pointer', textDecoration: 'none' }}>Edit To recipients</button>}
     </div>} />
   </section>
 }

@@ -79,16 +79,16 @@ export function ModalShowcase() {
       </div>
 
       <Modal isOpen={example === 'size'} onClose={close} size={size} ariaLabel={`${size} modal example`}>
-        <ModalHeader title={`${size.toUpperCase()} modal`} description={sizeDescriptions[size]} onClose={close} />
-        <ModalBody>
+        <ModalHeader title={`${size.toUpperCase()} modal`} onClose={close} />
+        <ModalBody><p style={{ margin: 0 }}>{sizeDescriptions[size]}</p>
           <Notice variant="info" title="When to use this size">Choose the smallest named size that lets the content remain clear without compressing fields or actions.</Notice>
         </ModalBody>
         <ModalFooter><Button variant="secondary" onClick={close}>Cancel</Button><Button onClick={close}>Continue</Button></ModalFooter>
       </Modal>
 
       <Modal isOpen={example === 'actions'} onClose={close} size="md" ariaLabel="Modal action examples">
-        <ModalHeader title="Action combinations" description="Keep the primary decision on the right and low-emphasis actions on the left." onClose={close} />
-        <ModalBody style={{ display: 'grid', gap: spacing.xl }}>
+        <ModalHeader title="Action combinations" onClose={close} />
+        <ModalBody style={{ display: 'grid', gap: spacing.xl }}><p style={{ margin: 0 }}>{"Keep the primary decision on the right and low-emphasis actions on the left."}</p>
           <ActionExample label="Primary and secondary"><Button variant="secondary">Cancel</Button><Button>Save changes</Button></ActionExample>
           <ActionExample label="Tertiary, secondary, and primary"><Button variant="ghost">Save draft</Button><Button variant="secondary">Cancel</Button><Button>Continue</Button></ActionExample>
           <ActionExample label="Stable loading label"><LoadingButton loading={loading} loadingLabel="Saving changes" onClick={() => setLoading(true)}>Save changes</LoadingButton></ActionExample>
@@ -97,8 +97,8 @@ export function ModalShowcase() {
       </Modal>
 
       <Modal isOpen={example === 'feedback'} onClose={close} size="md" ariaLabel="Modal feedback examples">
-        <ModalHeader title="Feedback hierarchy" description="Keep blocking feedback in context; reserve toasts for non-blocking confirmation after an action." onClose={close} />
-        <ModalBody style={{ display: 'grid', gap: spacing.md }}>
+        <ModalHeader title="Feedback hierarchy" onClose={close} />
+        <ModalBody style={{ display: 'grid', gap: spacing.md }}><p style={{ margin: 0 }}>{"Keep blocking feedback in context; reserve toasts for non-blocking confirmation after an action."}</p>
           <Notice variant="info" title="Information">This explains context without requiring action.</Notice>
           <Notice variant="warning" title="Needs attention">An email is required before this staff member can be invited.</Notice>
           <Input label="Email" value="not-an-email" readOnly error="Enter a valid email address." />
@@ -109,14 +109,14 @@ export function ModalShowcase() {
       </Modal>
 
       <Modal isOpen={example === 'destructive'} onClose={close} size="sm" ariaLabel="Delete confirmation">
-        <ModalHeader title="Delete selected leads?" description="This action permanently removes 12 leads and their associated activity history." onClose={close} />
-        <ModalBody><Notice variant="warning" title="This cannot be undone">Export anything you need before deleting these records.</Notice></ModalBody>
+        <ModalHeader title="Delete selected leads?" onClose={close} />
+        <ModalBody><p style={{ margin: 0 }}>{"This action permanently removes 12 leads and their associated activity history."}</p><Notice variant="warning" title="This cannot be undone">Export anything you need before deleting these records.</Notice></ModalBody>
         <ModalFooter><Button variant="secondary" onClick={close}>Cancel</Button><Button variant="destructive" onClick={close}>Delete 12 leads</Button></ModalFooter>
       </Modal>
 
       <Modal isOpen={example === 'stepper'} onClose={close} size="lg" ariaLabel="Stepper modal example" closeOnBackdrop={false}>
-        <ModalHeader title="Add a staff account" description="A three-step workflow with validation and reversible navigation." onClose={close} />
-        <ModalBody style={{ display: 'grid', gap: spacing['2xl'] }}>
+        <ModalHeader title="Add a staff account" onClose={close} />
+        <ModalBody style={{ display: 'grid', gap: spacing['2xl'] }}><p style={{ margin: 0 }}>{"A three-step workflow with validation and reversible navigation."}</p>
           <ModalStepper steps={['Account', 'Permissions', 'Review']} currentStep={step} />
           {step === 0 && <div style={formGridStyle}><Input label="First name" defaultValue="Jordan" /><Input label="Last name" defaultValue="Lee" /><Input label="Email" type="email" placeholder="jordan@example.com" /></div>}
           {step === 1 && <div style={formGridStyle}><Notice variant="info" title="Role selection">Permissions remain feature-specific; the workflow shell only standardizes progress and navigation.</Notice><Input label="Role" defaultValue="Instructor" /></div>}
@@ -129,8 +129,8 @@ export function ModalShowcase() {
       </Modal>
 
       <Modal isOpen={example === 'long'} onClose={close} size="md" ariaLabel="Scrollable modal example">
-        <ModalHeader title="Review import fields" description="The header and footer remain fixed while only this body scrolls." onClose={close} />
-        <ModalBody style={{ display: 'grid', gap: spacing.md }}>
+        <ModalHeader title="Review import fields" onClose={close} />
+        <ModalBody style={{ display: 'grid', gap: spacing.md }}><p style={{ margin: 0 }}>{"The header and footer remain fixed while only this body scrolls."}</p>
           {Array.from({ length: 14 }, (_, index) => <Textarea key={index} label={`Imported field ${index + 1}`} defaultValue={`Spreadsheet column ${index + 1}`} style={{ minHeight: 54 }} />)}
         </ModalBody>
         <ModalFooter><Button variant="secondary" onClick={close}>Cancel</Button><Button onClick={close}>Confirm fields</Button></ModalFooter>

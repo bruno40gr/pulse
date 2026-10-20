@@ -1,4 +1,5 @@
 'use client'
+import ExcludedRecipientsNotice from '@/components/inbox/ExcludedRecipientsNotice'
 
 import { ComposerFooter } from '@/components/ui/ComposerFooter'
 import { Button } from '@/components/ui/Button'
@@ -64,9 +65,11 @@ interface ResolvedPreviewRecipient {
   avatar_src?: string
 }
 
+const EMPTY_RECIPIENT_PREVIEW: ResolvedPreviewRecipient[] = []
+
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId, conversation, draft, resolvedAudience, excludedRecipients = []
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience, excludedRecipients = []
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
@@ -561,9 +564,7 @@ export default function ComposePanel({
           </div>
         )}
 
-        {excludedRecipients.length > 0 && <Notice variant="warning" title="Excluded from sending">
-          {excludedRecipients.length} {excludedRecipients.length === 1 ? 'contact cannot' : 'contacts cannot'} be reached by SMS.
-        </Notice>}
+        <ExcludedRecipientsNotice contacts={excludedRecipients} channel="sms" />
 
         {/* Inline warnings */}
         {(normalizedSensitiveCheck.flagged.length > 0 || normalizedSensitiveCheck.opted_out.length > 0) && (

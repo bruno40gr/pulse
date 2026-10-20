@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui'
 import { typography, colors, spacing } from '@/lib/tokens'
-import ContactBulkComposer from './ContactBulkComposer'
 
 export default function ContactBulkMessageModal({ tenantId, contacts, channel, onClose }: {
   tenantId: string
@@ -11,24 +11,26 @@ export default function ContactBulkMessageModal({ tenantId, contacts, channel, o
   channel: 'sms' | 'email'
   onClose: () => void
 }) {
-  const [composing, setComposing] = useState(false)
-  const title = channel === 'email' ? 'Send email' : 'Send text message'
-  return <Modal isOpen onClose={onClose} size="md" layout={composing ? 'fullscreen' : 'content'} ariaLabel={composing ? title : 'Review message recipients'}>
-    <ModalHeader title={composing ? title : 'Review selected contacts'} onClose={onClose}
-      description={composing ? undefined : `${contacts.length} ${contacts.length === 1 ? 'contact selected' : 'contacts selected'}`} />
-    {composing ? <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      <ContactBulkComposer tenantId={tenantId} contactIds={contacts.map(contact => contact.id)} channel={channel} onClose={onClose} />
-    </div> : <>
+  const router = useRouter()
+  const [error, setError] = useState('')
+  const title = channel === 'email' ? 'Sending emails to a group of contacts' : 'Sending text messages to a group of contacts'
+  function continueToConversations() {
+    try {
+      const id = crypto.randomUUID()
+      sessionStorage.setItem(`pulse:bulk-selection:${id}`, JSON.stringify({ tenantId, contactIds: contacts.map(contact => contact.id), channel }))
+      router.push(`/dashboard/inbox/bulk?selection=${id}`)
+      onClose()
+    } catch { setError('Unable to open the composer. Allow browser session storage and try again.') }
+  }
+  return <Modal isOpen onClose={onClose} size="md" layout="content" ariaLabel={title}>
+    <ModalHeader title={title} onClose={onClose} />
       <ModalBody>
-        <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: `0 0 ${spacing.lg}` }}>Messages for minors go to their recorded account holders. Destinations and opt-outs are checked before sending.</p>
-        <ul aria-label="Selected contacts" style={{ ...typography.bodySmall, margin: 0, paddingLeft: spacing.xl }}>
-          {contacts.map(contact => <li key={contact.id}>{contact.first_name} {contact.last_name}</li>)}
-        </ul>
+        <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: 0 }}>Only contacts with {channel === 'email' ? 'an email address' : 'a phone number'} on file will receive {channel === 'email' ? 'an email' : 'a text message'}. Contacts without {channel === 'email' ? 'an email address' : 'a phone number'}, or who have opted out of {channel === 'email' ? 'emails' : 'text messages'}, will be excluded automatically.</p>
+        {error && <p role="alert" style={{ marginTop: spacing.md }}>{error}</p>}
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => setComposing(true)}>Continue to {channel === 'email' ? 'email' : 'text message'}</Button>
+        <Button onClick={continueToConversations}>Continue</Button>
       </ModalFooter>
-    </>}
   </Modal>
 }

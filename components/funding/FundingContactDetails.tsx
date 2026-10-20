@@ -316,8 +316,8 @@ function FundingDetailsModal({ fundingCase, isOpen, onClose, onSaved }: {
 
   return (
     <Modal isOpen={isOpen} onClose={close} size="lg" ariaLabel="Edit student funding details">
-      <ModalHeader title="Edit student funding details" description={`Add the information ${fundingCase.programType} needs for ${fundingCase.student}.`} onClose={close} />
-      <ModalBody>
+      <ModalHeader title="Edit student funding details" onClose={close} />
+      <ModalBody><p style={{ margin: 0 }}>{`Add the information ${fundingCase.programType} needs for ${fundingCase.student}.`}</p>
         <div style={{ display: 'grid', gap: spacing.lg }}>
           {error && <Notice variant="error">{error}</Notice>}
           {showsField('service_description') && <Input label="Funded service" value={form.service} onChange={event => set('service', event.target.value)} placeholder="Individual music instruction" required={isRequired('service_description')} />}

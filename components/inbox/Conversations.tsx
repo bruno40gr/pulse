@@ -1,5 +1,7 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
+
 import { formatContactTiming } from '@/lib/contact-timing'
 import { ArrowDownLeft } from 'lucide-react'
 import { conversationSignatureHtml, type ConversationSignature } from '@/lib/conversation-signature'
@@ -121,7 +123,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const senderEmail = authorisedSender?.email || mailbox?.email || (emailPreview ? 'preview@example.com' : '')
   const signatureHtml = authorisedSender?.signatureHtml ? sanitizePrototypeHtml(authorisedSender.signatureHtml) : signature ? conversationSignatureHtml({ ...signature, name: senderName }, senderName) : ''
   const canComposeEmail = emailPreview || (!!mailbox?.canSend && !!authorisedSender)
-  const fromControl = organisationSenders.length > 1 ? <Select aria-label="Send email from" disabled={sending} value={authorisedSender?.email || ''} onChange={event => setSenderId(event.target.value)}>{organisationSenders.map(sender => <option key={sender.email} value={sender.email}>{sender.mine ? 'Me' : 'Organisation admin'} — {sender.name} · {sender.email}</option>)}</Select> : undefined
+  const fromControl = <Select aria-label="Send email from" disabled={sending || !organisationSenders.length} value={authorisedSender?.email || ''} onChange={event => setSenderId(event.target.value)}>{!authorisedSender && <option value="">{organisationSenders.length ? 'Select a sender' : 'Set up organisation email in Settings'}</option>}{organisationSenders.map(sender => <option key={sender.email} value={sender.email}>{sender.mine ? 'Me — ' : ''}{sender.name} — {sender.email}</option>)}</Select>
 
   const [location, setLocation] = useState<ConversationLocation>(initialLocation)
   const [emailDrafts, setEmailDrafts] = useState<Record<string, PrototypeEmailDraft>>({})
@@ -443,7 +445,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     const primary = recipients ? contacts.find(person => person.id === recipients.to[0]) || contact : contact
     const id = `email-draft-${++draftSequence.current}`
     setThreads(current => [{ ...primary, id, contactId: primary.id, channel: 'email', subject: '', unread: false, messages: [] }, ...current])
-    setEmailDrafts(current => ({ ...current, [id]: { subject: '', html: '<p><br></p>', contactOnly: !recipients, contextThreadId: !recipients ? active?.messages.length ? active.id : emails.find(thread => thread.messages.length)?.id : undefined, recipients: recipients || { to: [contact.id], cc: [], bcc: [] } } }))
+    setEmailDrafts(current => ({ ...current, [id]: { subject: '', html: '<p><br></p>', contactOnly: !recipients, recipients: recipients || { to: [contact.id], cc: [], bcc: [] } } }))
     navigate({ view: 'compose', contactId: primary.id, activeId: id, channel: 'email', screen: 'reader' }); setNewMessageOpen(false)
   }
   function updateDraft(next: PrototypeEmailDraft) {
@@ -590,16 +592,16 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           </aside>}
           {showReader && <section ref={reader} aria-label="Email reader" style={{ ...pane, overflowY: embedded ? 'hidden' : 'auto', background: colors.background, padding: embedded ? 0 : mobile ? spacing.md : spacing.xl }}>
             {!embedded && !desktop && emails.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}><BackControl label="Back to emails" onClick={() => navigate({ screen: 'list' })} /><h2 style={{ ...typography.h2, margin: 0 }}>Email conversation</h2></div>}
-            {!active ? emailLoading ? <ProfilePanelSkeleton /> : <div style={{ margin: 'auto' }}><EmptyState title="No email history" description="No received or sent emails are available for this contact." action={<Button onClick={() => newEmail()}>New email</Button>} /></div> : <div style={{ width: '100%', minWidth: 0, ...(embedded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } as CSSProperties : {}) }}>
-              {!embedded && <div style={{ ...row, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing['3xl'] }}><SectionTitle>{active.subject || 'New email'}</SectionTitle>{active.messages.length > 0 && <ControlButton kind="link" onClick={() => newEmail()}>New email</ControlButton>}</div>}
+            {!active ? emailLoading ? <ProfilePanelSkeleton /> : <div style={{ margin: 'auto' }}><EmptyState title="No email history" description="No received or sent emails are available for this contact." action={<Button onClick={() => newEmail()}><Pencil size={14} aria-hidden="true" />New email</Button>} /></div> : <div style={{ width: '100%', minWidth: 0, ...(embedded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } as CSSProperties : {}) }}>
+              {!embedded && <div style={{ ...row, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing['3xl'] }}><SectionTitle>{active.subject || 'New email'}</SectionTitle>{active.messages.length > 0 && <ControlButton kind="link" onClick={() => newEmail()}><Pencil size={14} aria-hidden="true" />New email</ControlButton>}</div>}
               {!!draft?.contextThreadId && <p style={meta}>Previous conversation: {contextThread?.subject}</p>}
-              <div aria-label="Previous email context">
+              {contextMessages.length > 0 && <div aria-label="Previous email context">
               {contextMessages.map((message, index) => {
                 const header = <div style={{ ...row, justifyContent: 'space-between' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}><EmailDirection direction={message.direction} /><strong>{message.direction === 'inbound' ? contact.name : senderName}</strong></span><span style={meta}>{message.time}</span></div>
                 const content = <>{message.simulated && <span style={meta}>Sample email</span>}<p style={{ ...meta, overflowWrap: 'anywhere' }}>From: {message.direction === 'inbound' ? contact.email : senderEmail}<br />To: {message.direction === 'inbound' ? senderEmail : message.emailTo?.join(', ') || contact.email}{!!message.emailCc?.length && <><br />Cc: {message.emailCc.join(', ')}</>}</p><EmailBody message={message} /></>
                 return index < contextMessages.length - 1 ? <details key={message.id} style={{ padding: `${spacing.xl} 0`, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing.xl }}><summary style={{ cursor: 'pointer' }}>{header}</summary>{content}</details> : <article key={message.id} style={{ padding: `${spacing.xl} 0` }}>{header}{content}</article>
               })}
-              </div>
+              </div>}
               <div ref={replyEditor} style={{ ...(embedded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : {}), marginTop: embedded ? 0 : spacing.xl, paddingTop: contextMessages.length ? spacing.xl : 0, borderTop: contextMessages.length ? `1px solid ${colors.border}` : undefined, paddingBottom: embedded ? 0 : spacing.xl }}>
                 {composing && draft ? <>
                   {discardOpen ? <section aria-label="Discard email draft" style={{ padding: spacing.xl, border: `1px solid ${colors.border}`, marginBottom: spacing.lg }}><strong>Discard this draft?</strong><p style={meta}>Only this unsent draft will be removed.</p><div style={row}><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep draft</Button><Button onClick={discardDraft}>Discard draft</Button></div></section> : null}

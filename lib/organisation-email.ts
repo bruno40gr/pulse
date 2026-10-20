@@ -32,7 +32,7 @@ export async function organisationSenders(tenantId: string, membershipId: string
 /** All email sends, including the legacy Conversations endpoint, use this gate. */
 export async function organisationSender(tenantId: string, membershipId: string, email?: string) {
   const result = await organisationSenders(tenantId, membershipId)
-  if (!result.connection || !result.settings) throw new Error('Ask the account owner to configure the shared organisation email in Settings.')
+  if (!result.connection || !result.settings) throw new Error("Set up your organization email in Settings. If you don't have permission, ask the account owner.")
   const sender = result.senders.find(item => item.email === (email || result.connection!.email))
   if (!sender) throw new Error('This sender is not an authorised organisation email identity.')
   return { ...result.connection, sender }

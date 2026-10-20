@@ -65,4 +65,4 @@ export default async function ConfirmAuthActionPage({
 const pageStyle: React.CSSProperties = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.background, padding: spacing.lg }
 const cardStyle: React.CSSProperties = { width: 'min(100%, 460px)', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius['2xl'], padding: spacing['4xl'], boxShadow: '0 18px 50px rgba(20, 30, 34, 0.08)' }
 const submitStyle: React.CSSProperties = { width: '100%', padding: spacing.md, border: 'none', borderRadius: radius.lg, background: colors.action, color: colors.surface, fontFamily: typography.fontSans, fontSize: typography.sizeMd, fontWeight: typography.weightSemibold, cursor: 'pointer' }
-const linkStyle: React.CSSProperties = { color: colors.crimson, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
+const linkStyle: React.CSSProperties = { color: colors.link, fontFamily: typography.fontSans, fontSize: typography.sizeSm }

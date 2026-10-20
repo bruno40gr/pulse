@@ -10,6 +10,7 @@ import type { RecipientResolution } from '@/lib/communication-recipients'
 import type { OrganisationSender } from '@/lib/organisation-email-policy'
 import type { MockTemplate } from '@/lib/prototype-messaging'
 import { spacing } from '@/lib/tokens'
+import ExcludedRecipientsNotice from './ExcludedRecipientsNotice'
 
 type Audience = RecipientResolution & { version: string }
 type Draft = PrototypeEmailDraft & { senderEmail: string }
@@ -37,8 +38,17 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
   const [senderError, setSenderError] = useState('')
   const [notice, setNotice] = useState('')
   const [restored, setRestored] = useState(false)
+  const [smsBody, setSmsBody] = useState('')
   const selectionKey = [...contactIds].sort().join(',')
   const storageKey = `pulse:contacts-email:${tenantId}:${selectionKey}`
+  const smsStorageKey = `pulse:contacts-sms:${tenantId}:${selectionKey}`
+  useEffect(() => {
+    try { setSmsBody(sessionStorage.getItem(smsStorageKey) || '') } catch { /* Storage can be unavailable. */ }
+  }, [smsStorageKey])
+  function updateSmsBody(body: string) {
+    setSmsBody(body)
+    try { sessionStorage.setItem(smsStorageKey, body) } catch { /* Keep the in-memory draft. */ }
+  }
   useEffect(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null')
@@ -64,7 +74,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
         if (cancelled) return
         setSenders(result.senders)
         setDraft(current => ({ ...current, senderEmail: current.senderEmail || result.senders[0]?.email || '' }))
-        if (!result.senders.length) setSenderError('Ask the account owner to set up the shared organisation email in Settings.')
+        if (!result.senders.length) setSenderError("Set up your organization email in Settings. If you don't have permission, ask the account owner.")
       }).catch(error => { if (!cancelled) setSenderError(error.message) })
       void json(`/api/conversations/signature${query}`).then(result => { if (!cancelled) setSignature(result) }).catch(() => {})
       void json(`/api/conversations/templates${query}`).then(result => { if (!cancelled) setTemplates(result.templates || []) }).catch(() => {})
@@ -100,18 +110,19 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
     {recipientError ? <Notice variant="error">{recipientError}</Notice> : 'Checking recipients…'}
     {senderError && <Notice variant="error">{senderError}</Notice>}
   </div>
-  if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" onClose={onClose} onSent={onClose} resolvedAudience={{ count: audience.recipients.length, version: audience.version }} excludedRecipients={audience.excluded} />
+  if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version }} excludedRecipients={audience.excluded} />
   return <>
     {senderError && <Notice variant="error" style={{ margin: spacing.lg }}>{senderError}</Notice>}
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
+    <div style={{ margin: audience.excluded.length ? spacing.lg : 0 }}><ExcludedRecipientsNotice contacts={audience.excluded} channel="email" /></div>
     {notice && <p role="status" style={{ margin: spacing.lg }}>{notice}</p>}
     <PrototypeEmailComposer name="" email="" student="" people={[]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])}
       draft={draft} onChange={value => { if (!locked) setDraft({ ...value, senderEmail: draft.senderEmail }) }}
       onSend={send} onCollapse={onClose} onDiscard={() => { if (sending) return; if (window.confirm(locked ? 'Close this send? Emails already submitted cannot be recalled.' : 'Discard this email draft?')) { sessionStorage.removeItem(storageKey); onClose() } }}
-      replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} senderName={sender?.name || 'Organisation'} senderEmail={sender?.email || ''}
-      disabled={sending || locked || !sender || !audience.recipients.length} sendLabel={sending ? 'Sending…' : `Send ${audience.recipients.length} emails`}
-      fromControl={senders.length > 1 ? <Select aria-label="Send email from" value={draft.senderEmail} disabled={sending || locked} onChange={event => setDraft({ ...draft, senderEmail: event.target.value })}>{senders.map(item => <option key={item.email} value={item.email}>{item.mine ? 'Me' : 'Organisation admin'} — {item.name} · {item.email}</option>)}</Select> : undefined}
-      recipientSummary={<div><span>{audience.recipients.length} {audience.recipients.length === 1 ? 'recipient' : 'recipients'}</span>{audience.excluded.length > 0 && <Notice variant="warning" style={{ marginTop: spacing.sm }}>{audience.excluded.length} {audience.excluded.length === 1 ? 'contact cannot' : 'contacts cannot'} be reached by email.</Notice>}</div>} />
+      replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} senderName={sender?.name || ''} senderEmail={sender?.email || ''}
+      disabled={sending || locked || !sender || !audience.recipients.length} sendLabel={sending ? 'Sending…' : `Send ${audience.recipients.length} ${audience.recipients.length === 1 ? 'email' : 'emails'}`}
+      fromControl={<Select aria-label="Send email from" value={sender?.email || ''} disabled={sending || locked || !senders.length} onChange={event => setDraft({ ...draft, senderEmail: event.target.value })}>{!sender && <option value="">{senders.length ? 'Select a sender' : 'Set up organisation email in Settings'}</option>}{senders.map(item => <option key={item.email} value={item.email}>{item.mine ? 'Me — ' : ''}{item.name} — {item.email}</option>)}</Select>}
+      recipientSummary={<span>{audience.recipients.length} {audience.recipients.length === 1 ? 'recipient' : 'recipients'}</span>} />
     {locked && !sending && <div style={{ padding: spacing.lg, display: 'flex', gap: spacing.sm }}><Button variant="secondary" onClick={onClose}>Close</Button>{payload && <Button onClick={() => void send(payload.body, payload.html)}>Check progress / continue unsent emails</Button>}</div>}
   </>
 }

@@ -42,7 +42,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         justifyContent: 'center',
         gap: spacing.xs,
         ...(kind === 'icon' || kind === 'close' ? { width: 32, height: 32, flexShrink: 0, padding: spacing.xs } : {}),
-        ...(kind === 'link' ? { padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' } : {}),
+        ...(kind === 'link' ? { padding: 0, color: colors.link, textDecoration: 'none' } : {}),
         ...(kind === 'row' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'space-between' } : {}),
         ...(kind === 'navigation' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'flex-start' } : {}),
         ...(kind === 'tab' ? { padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.border}` } : {}),
@@ -57,6 +57,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
           border: `2px solid ${selected ? colors.espresso : colors.border}`,
         } : {}),
         ...style,
+        ...(kind === 'link' ? { color: colors.link, textDecoration: 'none' } : {}),
         ...(kind === 'close' ? { width: 48, height: 48, minWidth: 48, minHeight: 48, flexShrink: 0 } : {}),
       } as CSSProperties}
     >

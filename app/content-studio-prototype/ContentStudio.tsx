@@ -143,7 +143,7 @@ function ContentPreview({ draft, mode }: { draft: StudioDraft; mode: string }) {
   // Browser-local data URLs must stay local; do not send prototype uploads to an image optimizer.
   // eslint-disable-next-line @next/next/no-img-element
   const image = draft.image ? <img className={styles.artwork} src={draft.image} alt={draft.imageAlt || 'Uploaded artwork preview'} /> : <div className={styles.placeholder}>Your supplied image will appear here.</div>
-  const cta: ReactNode = draft.ctaLabel && safeCta(draft.ctaUrl) ? <a href={draft.ctaUrl} target="_blank" rel="noreferrer" style={{ color: colors.crimson }}>{draft.ctaLabel} ↗</a> : null
+  const cta: ReactNode = draft.ctaLabel && safeCta(draft.ctaUrl) ? <a href={draft.ctaUrl} target="_blank" rel="noreferrer" style={{ color: colors.link }}>{draft.ctaLabel} ↗</a> : null
   if (['event', 'deadline', 'announcement'].includes(draft.kind) && draft.artwork === 'upload') {
     const artwork = draft.artworkImage ?? draft.image
     // eslint-disable-next-line @next/next/no-img-element
@@ -152,7 +152,7 @@ function ContentPreview({ draft, mode }: { draft: StudioDraft; mode: string }) {
   if (draft.kind === 'social') {
     let post: ReturnType<typeof canonicalCommunityUrl> | null = null
     try { post = canonicalCommunityUrl(draft.socialUrl) } catch { /* Show a neutral preview until the URL is valid. */ }
-    return <div className={styles.panel}><p className={styles.eyebrow}>{post?.platform || 'Social post'} · preview reference</p>{image}<h3>{draft.title || 'Curated community post'}</h3>{post ? <a href={post.url} target="_blank" rel="noreferrer" style={{ color: colors.crimson }}>Open original {post.platform} post ↗</a> : null}</div>
+    return <div className={styles.panel}><p className={styles.eyebrow}>{post?.platform || 'Social post'} · preview reference</p>{image}<h3>{draft.title || 'Curated community post'}</h3>{post ? <a href={post.url} target="_blank" rel="noreferrer" style={{ color: colors.link }}>Open original {post.platform} post ↗</a> : null}</div>
   }
   if (draft.kind === 'article') return <article className={`${styles.panel} ${styles.story}`}>{image}<p className={styles.eyebrow}>{draft.category || 'Article'}{draft.publishedAt ? ` · ${new Date(draft.publishedAt).toLocaleDateString('en-US')}` : ''}</p><h3>{draft.title || 'Your story headline'}</h3>{draft.credit && <p className={styles.small}>{draft.credit}</p>}<p>{draft.summary || 'A short introduction to the story.'}</p>{mode === 'story' && <><p>{draft.body || 'The full story will appear here.'}</p>{cta}</>}</article>
   return <EventPoster draft={draft} />

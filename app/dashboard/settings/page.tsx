@@ -14,7 +14,7 @@ import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 
-type Tab = 'roles' | 'integrations' | 'brand' | 'account'
+type Tab = 'roles' | 'permissions' | 'integrations' | 'brand' | 'account'
 
 type AccountContext = {
   canManageRoles: boolean
@@ -47,7 +47,8 @@ export default function SettingsPage() {
       .then(data => {
         setAccountContext(data)
         const requestedTab = new URLSearchParams(window.location.search).get('tab')
-        if (requestedTab === 'integrations' && data.canManageIntegrations) setTab('integrations')
+        if (requestedTab === 'permissions' && data.canManageRoles) setTab('permissions')
+        else if (requestedTab === 'integrations' && data.canManageIntegrations) setTab('integrations')
         else if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
         else if (data.canManageRoles) setTab('roles')
       })
@@ -114,14 +115,14 @@ export default function SettingsPage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles & permissions' }] : []),
+    ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles' }, { key: 'permissions' as const, label: 'Permissions' }] : []),
     ...(accountContext?.canManageIntegrations ? [{ key: 'integrations' as const, label: 'Integrations' }] : []),
     ...(accountContext?.canManageBrand ? [{ key: 'brand' as const, label: 'Brand' }] : []),
     { key: 'account', label: 'Account settings' },
   ]
 
   return (
-    <PageContainer maxWidth="1100px">
+    <PageContainer>
       {/* Header */}
       <PageHeader
         title="Settings"
@@ -146,6 +147,7 @@ export default function SettingsPage() {
       ) : (
         <>
           {tab === 'roles' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded />}
+          {tab === 'permissions' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded view="permissions" />}
           {tab === 'integrations' && accountContext?.canManageIntegrations && <IntegrationsTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
           {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} canAccessDesignSystem={accountContext.canAccessDesignSystem} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
           {tab === 'account' && accountContext && <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
@@ -457,7 +459,7 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
 
       {canAccessDesignSystem && (
         <p style={{ margin: `${spacing['2xl']} 0 0`, color: colors.textSecondary, fontSize: typography.sizeBase }}>
-          Access the <Link href="/dashboard/design" style={{ color: colors.tealDark, fontWeight: typography.weightSemibold }}>Design System</Link>.
+          Access the <Link href="/dashboard/design" style={{ color: colors.link, fontWeight: typography.weightSemibold }}>Design System</Link>.
         </p>
       )}
     </>
