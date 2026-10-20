@@ -622,8 +622,8 @@ export default function ContactsPage() {
       <div ref={controlsAnchorRef} />
 
       {/* Search bar + Filters row */}
-      <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md, alignItems: 'stretch' }}>
-        <div style={{ maxWidth: '75%', flex: 1, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
+      <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md, alignItems: 'stretch', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
           <input
             type="text"
@@ -659,6 +659,8 @@ export default function ContactsPage() {
         <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
+        <Button variant="secondary" onClick={() => openComposePanel('sms')} disabled={selectedIds.size === 0}>Send SMS</Button>
+        <Button variant="primary" onClick={() => openComposePanel('email')} disabled={selectedIds.size === 0}>Send email</Button>
       </div>
 
       {searchError && (
@@ -703,6 +705,8 @@ export default function ContactsPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <Button variant="secondary" size="sm" onClick={() => openComposePanel('sms')}>Send SMS</Button>
+            <Button variant="primary" size="sm" onClick={() => openComposePanel('email')}>Send email</Button>
             <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
               Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>
@@ -839,13 +843,6 @@ export default function ContactsPage() {
           getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
           ariaLabel="Contacts"
         />
-      )}
-
-      {!selectedContact && selectedIds.size > 0 && (
-        <div role="group" aria-label="Message selected contacts" style={{ position: 'fixed', right: spacing.xl, bottom: spacing.xl, zIndex: 30, display: 'flex', gap: spacing.sm, flexWrap: 'wrap', maxWidth: 'calc(100vw - 32px)' }}>
-          <Button variant="secondary" size="sm" onClick={() => openComposePanel('sms')}>Send SMS</Button>
-          <Button variant="primary" size="sm" onClick={() => openComposePanel('email')}>Send email</Button>
-        </div>
       )}
 
       {/* Contact slide panel */}

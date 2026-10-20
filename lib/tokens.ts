@@ -44,15 +44,14 @@ export const typography = {
   fontDisplay: 'var(--font-baloo-2), sans-serif',
   fontMono: 'monospace',
 
-  // Five-step UI scale: small 14, body 16, heading 20, title 24, page title 32.
-  // Keep rem units so the workspace display-size preference applies throughout.
-  // Legacy size names remain aliases so existing consumers share this scale.
-  sizeXs: '0.875rem',
-  sizeSm: '0.875rem',
-  sizeBase: '1rem',
-  sizeMd: '1rem',
-  size15: '1rem',
-  sizeLg: '1.25rem',
+  // Compact workspace scale: metadata 11–12, labels 13, tables/buttons 14,
+  // body 15, headings 18+. Rem units preserve the display-size preference.
+  sizeXs: '0.6875rem',
+  sizeSm: '0.75rem',
+  sizeBase: '0.875rem',
+  sizeMd: '0.9375rem',
+  size15: '0.9375rem',
+  sizeLg: '1.125rem',
   sizeXl: '1.25rem',
   size2xl: '1.5rem',
   size3xl: '2rem',
@@ -80,31 +79,31 @@ export const typography = {
   },
   h2: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '1.25rem',
+    fontSize: '1.125rem',
     fontWeight: 600,
     lineHeight: 1.3,
   },
   body: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '1rem',
+    fontSize: '0.9375rem',
     fontWeight: 400,
     lineHeight: 1.5,
   },
   bodySmall: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '1rem',
+    fontSize: '0.875rem',
     fontWeight: 400,
     lineHeight: 1.5,
   },
   label: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.875rem',
+    fontSize: '0.8125rem',
     fontWeight: 500,
     lineHeight: 1.3,
   },
   helper: {
     fontFamily: 'var(--font-dm-sans), sans-serif',
-    fontSize: '0.875rem',
+    fontSize: '0.75rem',
     fontWeight: 400,
     lineHeight: 1.5,
   },

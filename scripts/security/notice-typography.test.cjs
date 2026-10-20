@@ -23,18 +23,18 @@ function load(file) {
   return loaded.exports
 }
 
-test('shared typography uses a readable rem scale and consistent semantic roles', () => {
+test('shared typography keeps tables and buttons compact with distinct semantic roles', () => {
   const { typography: type } = load('lib/tokens.ts')
-  assert.equal(type.sizeXs, '0.875rem')
-  assert.equal(type.sizeSm, '0.875rem')
-  assert.equal(type.sizeBase, '1rem')
-  assert.deepEqual([...new Set(Object.entries(type).filter(([key]) => key.startsWith('size')).map(([, value]) => value))], ['0.875rem', '1rem', '1.25rem', '1.5rem', '2rem'])
+  assert.equal(type.sizeXs, '0.6875rem')
+  assert.equal(type.sizeSm, '0.75rem')
+  assert.equal(type.sizeBase, '0.875rem')
+  assert.equal(type.sizeMd, '0.9375rem')
   assert.equal(type.h1.fontSize, type.size3xl)
-  assert.equal(type.h2.fontSize, type.sizeXl)
+  assert.equal(type.h2.fontSize, type.sizeLg)
   assert.equal(type.sectionTitle.fontSize, type.sizeXl)
   assert.equal(type.body.fontSize, type.sizeMd)
   assert.equal(type.bodySmall.fontSize, type.sizeBase)
-  assert.equal(type.label.fontSize, type.sizeSm)
+  assert.equal(type.label.fontSize, '0.8125rem')
   assert.equal(type.helper.fontSize, type.sizeSm)
 })
 
@@ -44,7 +44,7 @@ test('all notice variants share readable proportions and appropriate live roles'
     const html = renderToStaticMarkup(React.createElement(Notice, { variant, title: 'Update', onDismiss() {} }, 'A longer message that can wrap.'))
     if (role) assert.ok(html.includes(`role="${role}"`))
     assert.ok(html.includes('align-items:center'))
-    assert.ok(html.includes('font-size:1rem'))
+    assert.ok(html.includes('font-size:0.875rem'))
     assert.ok(html.includes('overflow-wrap:anywhere'))
     assert.ok(html.includes('width="20"'))
     assert.match(html, /<button[^>]*type="button"[^>]*aria-label="Dismiss notification"/)

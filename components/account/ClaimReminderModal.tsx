@@ -60,6 +60,7 @@ export function ClaimReminderModal() {
     <Modal isOpen={context.show} size="sm" ariaLabel="Set up your personal password" closeOnBackdrop={false} closeOnEscape={false}>
       <ModalHeader
         title="Set up your personal password."
+        titleSize="default"
         description={`Hi ${context.firstName || 'there'}. Claim your personal account and set up your own password. Shared-coded access will be deprecated soon.`}
       />
       <ModalBody style={{ display: 'grid', gap: spacing.lg }}>
