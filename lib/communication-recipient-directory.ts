@@ -12,7 +12,10 @@ export async function communicationRecipients(tenantId: string, ids: string[], c
     const { data, error } = await supabaseAdmin.from('people')
       .select('id,first_name,last_name,email,phone,opted_out,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(accounts(name,email,phone)))')
       .eq('tenant_id', tenantId).in('id', ids.slice(offset, offset + 100))
-    if (error) throw new Error('Recipients could not be verified. Please try again.')
+    if (error) {
+      if (['PGRST200', 'PGRST205', '42P01'].includes(error.code)) throw new Error('Account-holder routing is not set up in the contacts database. Ask the account owner to apply Student Accounts Migration 001 before sending. No messages were sent.')
+      throw new Error('Recipients could not be verified. Please try again.')
+    }
     contacts.push(...(data || []) as RecipientContact[])
   }
   // Reject foreign/deleted IDs instead of silently reducing the audience.

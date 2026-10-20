@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     if (!mailboxId) {
       const { data, error } = await crmSupabaseAdmin.from('gmail_connections').select('id,email,scopes').eq('tenant_id', access.tenantId).eq('connected_by', access.context.membershipId).order('email')
       if (error) throw error
-      const shared = await organisationEmailSettings(access.tenantId)
+      const shared = await organisationEmailSettings(access.tenantId, { readOnly: true })
       const mailboxes = data || []
       if (shared && !mailboxes.some(mailbox => mailbox.id === shared.connection_id)) {
         const { data: connection, error: sharedError } = await crmSupabaseAdmin.from('gmail_connections').select('id,email,scopes').eq('tenant_id', access.tenantId).eq('id', shared.connection_id).maybeSingle()

@@ -33,6 +33,8 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
   const [locked, setLocked] = useState(false)
   const [payload, setPayload] = useState<{ body: string; html: string; version: string; senderEmail: string; subject: string } | null>(null)
   const [error, setError] = useState('')
+  const [recipientError, setRecipientError] = useState('')
+  const [senderError, setSenderError] = useState('')
   const [notice, setNotice] = useState('')
   const [restored, setRestored] = useState(false)
   const selectionKey = [...contactIds].sort().join(',')
@@ -54,16 +56,16 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
   useEffect(() => {
     let cancelled = false
     const query = `?tenant=${encodeURIComponent(tenantId)}`
-    setAudience(null); setError('')
+    setAudience(null); setError(''); setRecipientError(''); setSenderError('')
     void json(`/api/communications/recipients${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactIds: selectionKey.split(','), channel }) })
-      .then(result => { if (!cancelled) setAudience(result) }).catch(error => { if (!cancelled) setError(error.message) })
+      .then(result => { if (!cancelled) setAudience(result) }).catch(error => { if (!cancelled) setRecipientError(error.message) })
     if (channel === 'email') {
       void json(`/api/communications/senders${query}`).then(result => {
         if (cancelled) return
         setSenders(result.senders)
         setDraft(current => ({ ...current, senderEmail: current.senderEmail || result.senders[0]?.email || '' }))
-        if (!result.senders.length) setError('Ask the account owner to set up the shared organisation email in Settings.')
-      }).catch(error => { if (!cancelled) setError(error.message) })
+        if (!result.senders.length) setSenderError('Ask the account owner to set up the shared organisation email in Settings.')
+      }).catch(error => { if (!cancelled) setSenderError(error.message) })
       void json(`/api/conversations/signature${query}`).then(result => { if (!cancelled) setSignature(result) }).catch(() => {})
       void json(`/api/conversations/templates${query}`).then(result => { if (!cancelled) setTemplates(result.templates || []) }).catch(() => {})
     }
@@ -94,9 +96,13 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
     } catch (error) { setError(error instanceof Error ? error.message : 'Check Sent before trying again.') } finally { setSending(false) }
   }
 
-  if (!audience) return <div style={{ padding: spacing.xl }}>{error ? <Notice variant="error">{error}</Notice> : <p role="status">Checking recipients…</p>}</div>
+  if (!audience) return <div style={{ padding: spacing.lg, display: 'grid', gap: spacing.lg }}>
+    {recipientError ? <Notice variant="error">{recipientError}</Notice> : 'Checking recipients…'}
+    {senderError && <Notice variant="error">{senderError}</Notice>}
+  </div>
   if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" onClose={onClose} onSent={onClose} resolvedAudience={{ count: audience.recipients.length, version: audience.version }} excludedRecipients={audience.excluded} />
   return <>
+    {senderError && <Notice variant="error" style={{ margin: spacing.lg }}>{senderError}</Notice>}
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
     {notice && <p role="status" style={{ margin: spacing.lg }}>{notice}</p>}
     <PrototypeEmailComposer name="" email="" student="" people={[]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])}

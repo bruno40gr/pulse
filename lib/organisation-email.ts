@@ -3,8 +3,11 @@ import { decryptToken } from '@/lib/gmail/security'
 import { gmailGet, googleToken } from '@/lib/gmail/google'
 import { authorisedOrganisationSenders, organisationDomain, type GoogleSendAs, type OrganisationEmailSettings } from '@/lib/organisation-email-policy'
 
-export async function organisationEmailSettings(tenantId: string) {
+export async function organisationEmailSettings(tenantId: string, options: { readOnly?: boolean } = {}) {
   const { data, error } = await crmSupabaseAdmin.from('organisation_email_settings').select('connection_id,display_name,signature_text,aliases').eq('tenant_id', tenantId).maybeSingle()
+  // Existing private history does not depend on the organisation-send migration.
+  // Sending keeps the strict default; only a missing table can be ignored here.
+  if (options.readOnly && error && ['PGRST205', '42P01'].includes(error.code)) return null
   if (error) throw new Error('Organisation email settings unavailable. Apply Migration 026 in the CRM database.')
   return data as OrganisationEmailSettings | null
 }

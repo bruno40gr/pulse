@@ -20,6 +20,48 @@ const plain = value => JSON.parse(JSON.stringify(value))
 const policy = load('lib/communication-recipients.ts')
 const accounts = [{ name: 'Parent One', email: 'ONE@example.com', phone: '(202) 555-0101' }, { name: 'Parent Two', email: 'two@example.com', phone: '+1 202 555 0102' }]
 const child = (id, patch = {}) => ({ id, first_name: 'Child', email: 'child@example.com', phone: '+12025550999', students: [{ is_minor: true, accounts: accounts[0], student_accounts: accounts.map(account => ({ accounts: account })) }], ...patch })
+test('missing account-holder schema blocks routing with an actionable setup error', async () => {
+  const query = { select() { return this }, eq() { return this }, in: async () => ({ error: { code: 'PGRST200' } }) }
+  const directory = load('lib/communication-recipient-directory.ts', {
+    '@/lib/supabase/admin': { supabaseAdmin: { from: () => query } },
+    '@/lib/communication-recipients': policy,
+  })
+  await assert.rejects(directory.communicationRecipients('tenant', ['one'], 'email'), /Student Accounts Migration 001/)
+})
+test('missing organisation schema allows private history only, never sending', async () => {
+  for (const code of ['PGRST205', '42P01', '42501']) {
+    const query = { select() { return this }, eq() { return this }, maybeSingle: async () => ({ data: null, error: { code } }) }
+    const organisation = load('lib/organisation-email.ts', {
+      '@/lib/supabase/crm-admin': { crmSupabaseAdmin: { from: () => query } },
+      '@/lib/gmail/security': {}, '@/lib/gmail/google': {}, '@/lib/organisation-email-policy': {},
+    })
+    await assert.rejects(organisation.organisationEmailSettings('tenant'), /Migration 026/)
+    await assert.rejects(organisation.organisationSenders('tenant', 'member'), /Migration 026/)
+    if (code === '42501') await assert.rejects(organisation.organisationEmailSettings('tenant', { readOnly: true }), /Migration 026/)
+    else assert.equal(await organisation.organisationEmailSettings('tenant', { readOnly: true }), null)
+  }
+})
+test('private history retains connector isolation when organisation setup is absent', async () => {
+  const filters = []
+  const query = { select() { return this }, eq(key, value) { filters.push([key, value]); return this }, maybeSingle: async () => ({ data: { id: 'box', refresh_token_ciphertext: 'encrypted' } }) }
+  const mailbox = load('lib/gmail/conversations.ts', {
+    '@/lib/supabase/crm-admin': { crmSupabaseAdmin: { from: () => query } },
+    '@/lib/organisation-email': { organisationEmailSettings: async (tenant, options) => { assert.equal(options.readOnly, true); return null } },
+    './security': { decryptToken: () => 'refresh' }, './google': { googleToken: async () => ({ access_token: 'token' }) }, './rules': {},
+  })
+  await mailbox.conversationMailbox('tenant', 'box', 'member')
+  assert.ok(filters.some(([key, value]) => key === 'connected_by' && value === 'member'))
+})
+test('Contacts and Conversations use the same messaging actions in their page headers', () => {
+  for (const file of ['app/dashboard/contacts/page.tsx', 'components/inbox/Conversations.tsx']) {
+    const source = fs.readFileSync(path.join(root, file), 'utf8')
+    assert.ok(source.includes('<MessageActions'), file)
+    assert.ok(!source.includes('>Send new email</Button>'), file)
+  }
+  const actions = fs.readFileSync(path.join(root, 'components/inbox/MessageActions.tsx'), 'utf8')
+  assert.equal((actions.match(/variant="primary" size="md"/g) || []).length, 2)
+  assert.ok(!actions.includes('fontSize:'))
+})
 test('minors reach all account holders, including non-primary, once per destination', () => {
   const result = policy.resolveCommunicationRecipients([child('one'), child('two')], 'email')
   assert.equal(result.recipients.length, 2)

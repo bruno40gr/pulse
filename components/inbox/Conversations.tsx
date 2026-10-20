@@ -6,6 +6,7 @@ import { conversationSignatureHtml, type ConversationSignature } from '@/lib/con
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Button, Input, PageContainer, PageHeader, SectionTitle, Avatar, Notice, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import MessageActions from '@/components/inbox/MessageActions'
 import { Select } from '@/components/ui/Select'
 import type { OrganisationSender } from '@/lib/organisation-email-policy'
 import { sanitizePrototypeHtml } from '@/lib/conversations-prototype-html'
@@ -513,7 +514,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       <PageHeader title={location.view === 'sms-compose' ? 'Write a text message' : location.view === 'contacts' ? 'Conversations' : standalone ? 'New message' : contact.name}
         titleAction={location.view !== 'contacts' && location.view !== 'sms-compose' && !standalone ? <ControlButton kind="link" aria-label={`Open lead for ${contact.name}`} disabled={!selectedPerson?.profileId || sending} onClick={() => selectedPerson && setProfile(selectedPerson)}>View lead</ControlButton> : undefined}
         onBack={location.view === 'contacts' ? undefined : goBackToConversations} backLabel="Back to Conversations"
-        right={location.view === 'contacts' ? <div style={row}><Button onClick={() => { setNewMessageChannel('sms'); setNewMessageOpen(true) }}>Send new text message</Button><Button onClick={() => { setNewMessageChannel('email'); setNewMessageOpen(true) }}>Send new email</Button></div> : undefined} />
+        right={location.view === 'contacts' ? <MessageActions onSms={() => { setNewMessageChannel('sms'); setNewMessageOpen(true) }} onEmail={() => { setNewMessageChannel('email'); setNewMessageOpen(true) }} /> : undefined} />
     </div>}
 
     <fieldset disabled={sending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>

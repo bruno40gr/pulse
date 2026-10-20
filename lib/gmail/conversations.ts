@@ -31,7 +31,7 @@ export function gmailConversationBody(part: GmailPart): string {
 }
 
 export async function conversationMailbox(tenantId: string, mailboxId: string, membershipId: string) {
-  const shared = await organisationEmailSettings(tenantId)
+  const shared = await organisationEmailSettings(tenantId, { readOnly: true })
   let query = crmSupabaseAdmin.from('gmail_connections')
     .select('id,email,refresh_token_ciphertext,scopes').eq('tenant_id', tenantId).eq('id', mailboxId)
   // Only the owner-selected shared mailbox is account-wide. Other existing

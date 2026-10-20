@@ -10,7 +10,7 @@
 
 ## Policy
 
-- Contacts selection exposes **Send SMS** and **Send email**. There is no recipient-routing selector.
+- Contacts and Conversations share the same page-header **Send new text message** and **Send new email** actions, built from the shared Button component. Contacts enables them after selection. There is no recipient-routing selector.
 - Minors route to every account holder recorded in `student_accounts` and the legacy primary account. Their own destination is never a fallback.
 - Adults use their saved account-holder preference, otherwise their own details.
 - Destinations are normalised and deduplicated. Existing opt-outs suppress shared destinations, including an unselected opted-out sibling.
@@ -18,6 +18,7 @@
 - Bulk email uses one To recipient per provider request and no CC/BCC. Student-specific placeholders must be replaced with neutral text; no arbitrary child is selected for a shared family destination.
 - Organisation senders require communications-send permission. “Me” appears only for a member explicitly assigned a Google-verified same-domain alias. One available sender is displayed as plain text; multiple identities use a From selector.
 - Both email API entry points enforce the organisation sender gate. Existing personal connections remain readable only by their connector, never usable for sending. Shared-mailbox history is available to members with communications-read permission.
+- Missing Migration 026 does not prevent reading an existing private mailbox; it still blocks all organisation sends. Missing Student Accounts Migration 001 blocks recipient verification with a setup message rather than falling back to incomplete routing. Recipient and sender setup errors are displayed independently.
 - SMS configuration and sender identity are unchanged.
 
 ## Delivery safety

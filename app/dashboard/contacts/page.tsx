@@ -1,6 +1,7 @@
 'use client'
 
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+import MessageActions from '@/components/inbox/MessageActions'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -568,9 +569,13 @@ export default function ContactsPage() {
         title="Contacts"
         subtitle={loading ? 'Loading...' : `${contacts.length} students`}
         right={
-          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+          <MessageActions disabled={selectedIds.size === 0} onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
+        }
+      />
+
+      <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
             {!loading && (
-              <Button variant="secondary" size="sm"
+              <Button variant="secondary"
                 onClick={handleSync}
                 disabled={syncing}
                 style={{ whiteSpace: 'nowrap' }}
@@ -590,8 +595,6 @@ export default function ContactsPage() {
             <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
             <Button variant="secondary" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
           </div>
-        }
-      />
 
       {/* Stale data banner */}
       {showStaleBanner && !bannerDismissed && (
@@ -650,7 +653,7 @@ export default function ContactsPage() {
             {aiLoading ? 'Searching...' : 'Search'}
           </Button>
         </div>
-        <Button variant="secondary" size="sm"
+        <Button variant="secondary"
           onClick={() => setShowFilters(!showFilters)}
 
         >
@@ -659,8 +662,6 @@ export default function ContactsPage() {
         <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
-        <Button variant="secondary" onClick={() => openComposePanel('sms')} disabled={selectedIds.size === 0}>Send SMS</Button>
-        <Button variant="primary" onClick={() => openComposePanel('email')} disabled={selectedIds.size === 0}>Send email</Button>
       </div>
 
       {searchError && (
@@ -705,8 +706,7 @@ export default function ContactsPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-            <Button variant="secondary" size="sm" onClick={() => openComposePanel('sms')}>Send SMS</Button>
-            <Button variant="primary" size="sm" onClick={() => openComposePanel('email')}>Send email</Button>
+            <MessageActions onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
             <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
               Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>
