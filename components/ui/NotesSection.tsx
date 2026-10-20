@@ -101,7 +101,7 @@ export function NotesSection({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
               <h2 style={{
-              fontSize: '18px',
+              fontSize: typography.sizeLg,
               fontWeight: 600,
               color: colors.text,
               margin: 0,
@@ -119,7 +119,7 @@ export function NotesSection({
                 background: '#E5EEF8',
                 border: '1px solid #B9D0EA',
                 color: '#1E3A5F',
-                fontSize: '11px',
+                fontSize: typography.sizeXs,
                 fontWeight: 700,
                 letterSpacing: '0.03em',
                 fontFamily: typography.fontSans,
@@ -135,13 +135,13 @@ export function NotesSection({
                 onClick={() => setShowInput(true)}
                 style={{ whiteSpace: 'nowrap' }}
               >
-                <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span>
+                <span style={{ fontSize: typography.sizeMd, lineHeight: 1 }}>+</span>
                 {addLabel}
               </Button>
             )}
           </div>
           {helperText && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: colors.textMuted, fontFamily: typography.fontSans }}>
+            <div style={{ marginTop: '4px', fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
               {helperText}
             </div>
           )}
@@ -166,7 +166,7 @@ export function NotesSection({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '12px',
+                fontSize: typography.sizeSm,
                 fontWeight: 600,
                 color: 'white',
                 flexShrink: 0,
@@ -177,10 +177,10 @@ export function NotesSection({
                   : getNoteAuthorInitials(entry.actor_name)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '4px' }}>
+                <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '4px' }}>
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
                 </div>
-                <div style={{ fontSize: '13px', color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', whiteSpace: 'pre-wrap' }}>{entry.text.replace(/\u00A0/g, ' ')}</div>
+                <div style={{ fontSize: typography.sizeBase, color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', whiteSpace: 'pre-wrap' }}>{entry.text.replace(/\u00A0/g, ' ')}</div>
               </div>
               {onToggleComplete && (
                 <TaskCompletionButton completed={Boolean(entry.completed_at)}
@@ -209,7 +209,7 @@ export function NotesSection({
             borderRadius: '50%',
             background: '#E5E7EB',
             color: colors.textMuted,
-            fontSize: '14px',
+            fontSize: typography.sizeBase,
             lineHeight: 1,
           }}>+</span>
           {addLabel}

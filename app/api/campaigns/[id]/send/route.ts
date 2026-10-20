@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { communicationRecipients, recipientVersion as audienceVersion, validContactSelection } from '@/lib/communication-recipient-directory'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import twilio from 'twilio'
+import { resolveCommunicationRecipients, type RecipientContact } from '@/lib/communication-recipients'
 import { toE164PhoneNumber } from '@/lib/phone'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -13,11 +15,8 @@ type SendContact = {
   first_name: string | null
   last_name: string | null
   phone: string | null
-  students?: Array<{
-    message_routing?: string | null
-    is_minor?: boolean | null
-    accounts?: { phone?: string | null } | Array<{ phone?: string | null }> | null
-  }> | null
+  opted_out?: boolean | null
+  students?: RecipientContact['students']
 }
 
 type MessageCreateParams = {
@@ -44,8 +43,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
     const { tenantId } = authorization
 
-    const { recipientIds, leadId } = await request.json()
+    const { recipientIds, leadId, recipientVersion } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
+    if (recipientVersion !== undefined && !authorization.demo && authorization.context.roleKey !== 'owner' && !authorization.context.permissions.has('contacts.read')) return NextResponse.json({ error: 'Contact access is required.' }, { status: 403 })
+    // Contacts bulk compose supplies a preview version. Resolve again on the
+    // server; do not trust client counts or recipient phone numbers.
+    const audience = recipientVersion !== undefined ? validContactSelection(recipientIds)
+      ? await communicationRecipients(tenantId, recipientIds, 'sms') : null : undefined
+    if (recipientVersion !== undefined && (!audience || audienceVersion(audience) !== recipientVersion)) return NextResponse.json({ error: 'Recipient details changed. Reopen the composer to review the updated count.' }, { status: 409 })
 
     // Demo mode — simulate delivery without hitting Twilio
     if (authorization.demo) {
@@ -122,15 +127,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { data: people, error: contactsError } = await supabaseAdmin
       .from('people')
       .select(`
-        id, first_name, last_name, phone,
+        id, first_name, last_name, phone, opted_out,
         students (
           message_routing, is_minor,
-          accounts ( phone )
+          accounts ( name, phone, email ),
+          student_accounts ( accounts ( name, phone, email ) )
         )
       `)
       .in('id', recipientIds)
       .eq('tenant_id', tenantId)
-      .eq('opted_out', false)
     if (contactsError) throw contactsError
 
     const foundPersonIds = new Set((people || []).map((person) => person.id))
@@ -150,21 +155,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })),
     ]
 
-    function resolvePhone(person: SendContact): string | null {
-      const student = person.students?.[0] || {}
-      const account = Array.isArray(student.accounts) ? student.accounts[0] : student.accounts
-      const accountPhone = account?.phone || null
-      const routing = student.is_minor ? 'account_holder' : (student.message_routing || 'account_holder')
-
-      if (routing === 'student') return person.phone || accountPhone
-      if (routing === 'account_holder') return accountPhone || person.phone
-      return person.phone || accountPhone
-    }
-
-    // Partition recipients into "sendable" (has a resolvable phone) vs "missing phone"
-    // so we surface a clear error instead of silently marking the campaign "sent" with 0 deliveries.
-    const missingPhone = (contacts || []).filter(c => !resolvePhone(c))
-    const sendable = (contacts || []).filter(c => resolvePhone(c))
+    const verifiedPeople = !audience && people?.length ? await communicationRecipients(tenantId, people.map(person => person.id), 'sms') : null
+    const resolved = audience || (() => {
+      const leads = resolveCommunicationRecipients(contacts.filter(contact => !foundPersonIds.has(contact.id)), 'sms')
+      const destinations = new Map((verifiedPeople?.recipients || []).map(recipient => [recipient.destination, recipient]))
+      for (const recipient of leads.recipients) if (!destinations.has(recipient.destination)) destinations.set(recipient.destination, recipient)
+      return { recipients: [...destinations.values()], excluded: [...(verifiedPeople?.excluded || []), ...leads.excluded] }
+    })()
+    const missingPhone = resolved.excluded
+    const sendable: SendContact[] = resolved.recipients.map(recipient => ({ id: recipient.contactIds[0], first_name: recipient.name.split(/\s+/)[0], last_name: '', phone: recipient.destination, students: [] }))
+    // Student-specific fields cannot safely be filled when several selected
+    // students route to one family destination. Use neutral copy instead.
+    if (resolved.recipients.some(recipient => recipient.contactIds.length > 1) && /\{(?:first_name|last_name|student[^}]*|instrument)\}/i.test(campaign.message || '')) return NextResponse.json({ error: 'Use a greeting without student-specific placeholders for this message.' }, { status: 400 })
 
     if (sendable.length === 0) {
       await supabaseAdmin
@@ -183,7 +185,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const callbackOrigin = process.env.PULSE_APP_URL?.trim().replace(/\/$/, '') || new URL(request.url).origin
     const results = await Promise.allSettled(
       sendable.map(async (contact) => {
-        const toPhone = toE164PhoneNumber(resolvePhone(contact))
+        const toPhone = toE164PhoneNumber(contact.phone)
         if (!toPhone) throw new Error('Recipient phone number became unavailable before sending.')
         const body = campaign.message.replace(/\{first_name\}/gi, contact.first_name)
         const messageParams: MessageCreateParams = {

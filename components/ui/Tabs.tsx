@@ -48,7 +48,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
               boxShadow: prominent && active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
               marginBottom: prominent ? 0 : '-1px',
               padding: compact ? `${spacing.sm} ${spacing.xs}` : prominent ? `${spacing.md} ${spacing.xl}` : `${spacing.md} ${spacing.lg}`,
-              fontSize: compact ? typography.sizeSm : typography.sizeMd,
+              fontSize: typography.sizeMd,
               fontWeight: active ? typography.weightSemibold : typography.weightMedium,
               color: active ? colors.text : colors.textMuted,
               cursor: 'pointer',

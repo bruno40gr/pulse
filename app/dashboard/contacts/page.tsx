@@ -1,15 +1,17 @@
 'use client'
 
+import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonNameButton } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useRef } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, Send, House, RefreshCw, Sparkles } from 'lucide-react'
+import { SlidersHorizontal, X, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
-import ComposePanel from '@/components/campaigns/ComposePanel'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
 import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, ResponsiveDataTable, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -106,6 +108,7 @@ export default function ContactsPage() {
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [initialNotesTab, setInitialNotesTab] = useState<'notes' | 'internal'>('notes')
+  const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
@@ -404,7 +407,7 @@ export default function ContactsPage() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === displayed.length) setSelectedIds(new Set())
+    if (displayed.length > 0 && displayed.every(contact => selectedIds.has(contact.id))) setSelectedIds(new Set())
     else setSelectedIds(new Set(displayed.map(c => c.id)))
   }
 
@@ -413,7 +416,8 @@ export default function ContactsPage() {
     setLastSelectedIndex(-1)
   }
 
-  const openComposePanel = () => {
+  const openComposePanel = (channel: 'sms' | 'email' = 'sms') => {
+    setComposeChannel(channel)
     if (selectedIds.size === 0) return
 
     if (selectedIds.size === 1) {
@@ -838,13 +842,10 @@ export default function ContactsPage() {
       )}
 
       {!selectedContact && selectedIds.size > 0 && (
-        <Button variant="primary" size="sm"
-          onClick={openComposePanel}
-          style={{ position: 'fixed', right: spacing['2xl'], bottom: spacing['2xl'], zIndex: 30, whiteSpace: 'nowrap' }}
-        >
-          <Send size={14} />
-          {selectedIds.size > 0 ? `compose (${selectedIds.size})` : 'compose'}
-        </Button>
+        <div role="group" aria-label="Message selected contacts" style={{ position: 'fixed', right: spacing.xl, bottom: spacing.xl, zIndex: 30, display: 'flex', gap: spacing.sm, flexWrap: 'wrap', maxWidth: 'calc(100vw - 32px)' }}>
+          <Button variant="secondary" size="sm" onClick={() => openComposePanel('sms')}>Send SMS</Button>
+          <Button variant="primary" size="sm" onClick={() => openComposePanel('email')}>Send email</Button>
+        </div>
       )}
 
       {/* Contact slide panel */}
@@ -863,10 +864,10 @@ export default function ContactsPage() {
             if (ids.length === 1) {
               const contact = contacts.find(c => c.id === ids[0])
               setSingleComposeContact(contact || null)
-              contactHistory.dismissPanel(() => setIsComposeOpen(true))
+              contactHistory.dismissPanel(() => { setComposeChannel('sms'); setIsComposeOpen(true) })
             } else {
               setSelectedIds(new Set(ids))
-              contactHistory.dismissPanel(() => setIsComposeOpen(true))
+              contactHistory.dismissPanel(() => { setComposeChannel('sms'); setIsComposeOpen(true) })
             }
           }}
           onViewInstructor={async (personId) => {
@@ -880,11 +881,9 @@ export default function ContactsPage() {
       )}
 
       {/* Compose slide panel */}
-      <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)}>
+      <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
         <SlidePanelHeader
-          title={singleComposeContact
-            ? `Message to ${singleComposeContact.first_name}`
-            : 'New Message'}
+          title={composeChannel === 'email' ? 'Send Email' : singleComposeContact ? `Message to ${singleComposeContact.first_name}` : 'Send SMS'}
           onBack={singleComposeContact ? () => { setIsComposeOpen(false); setSelectedContact(singleComposeContact) } : undefined}
           backLabel="Back to student details"
           onClose={() => {
@@ -892,44 +891,10 @@ export default function ContactsPage() {
             setSingleComposeContact(null)
           }}
         />
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <ComposePanel
-            recipientCount={singleComposeContact ? 1 : selectedIds.size}
-            filterExplanation={filterExplanation}
-            recipientIds={singleComposeContact ? [singleComposeContact.id] : [...selectedIds]}
-            channel="sms"
-            mode={singleComposeContact ? 'single' : 'bulk'}
-            contactContext={singleComposeContact || undefined}
-            composeSource="scratch"
-            composeIntent="neutral"
-            recipientPreview={singleComposeContact
-              ? [{
-                  id: singleComposeContact.id,
-                  first_name: singleComposeContact.first_name,
-                  last_name: singleComposeContact.last_name,
-                  avatar_src: shouldUseDemoPhotos(tenantId)
-                    ? getContactDemoAvatarUrl(tenantId, singleComposeContact)
-                    : undefined,
-                }]
-              : displayed.filter(contact => selectedIds.has(contact.id)).slice(0, 3).map(contact => ({
-                  id: contact.id,
-                  first_name: contact.first_name,
-                  last_name: contact.last_name,
-                  avatar_src: shouldUseDemoPhotos(tenantId)
-                    ? getContactDemoAvatarUrl(tenantId, contact)
-                    : undefined,
-                }))}
-            onClose={() => {
-              setIsComposeOpen(false)
-              setSingleComposeContact(null)
-            }}
-            onSent={() => {
-              setTimeout(() => {
-                setIsComposeOpen(false)
-                setSingleComposeContact(null)
-              }, 3000)
-            }}
-          />
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ContactBulkComposer key={`${composeChannel}:${singleComposeContact?.id || [...selectedIds].sort().join(',')}`} tenantId={tenantId}
+            contactIds={singleComposeContact ? [singleComposeContact.id] : [...selectedIds]} channel={composeChannel}
+            onClose={() => { setIsComposeOpen(false); setSingleComposeContact(null) }} />
         </div>
       </SlidePanel>
 

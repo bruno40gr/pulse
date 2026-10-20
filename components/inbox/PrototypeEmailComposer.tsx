@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Bold, Italic, Underline, List, Send } from 'lucide-react'
-import { Button, FieldRow, Input, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import { Button, Notice, Modal, ModalHeader, ModalBody, ModalFooter } from '@/components/ui'
+import { ComposerFooter } from '@/components/ui/ComposerFooter'
+import { EmailComposerFields } from './EmailComposerFields'
+import styles from './EmailComposer.module.css'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { PROTOTYPE_EMAIL } from '@/lib/conversations-prototype'
 import { prototypeHtmlText, prototypePreviewDocument, sanitizePrototypeHtml } from '@/lib/conversations-prototype-html'
+import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 
 export type PrototypeEmailDraft = { subject: string; html: string; recipients?: MockEmailRecipients; bodyText?: string; contactOnly?: boolean; contextThreadId?: string }
 import PrototypeTemplates from '@/components/inbox/PrototypeTemplates'
@@ -15,18 +19,24 @@ import { fillMockTemplate, mockTextHtml, validMockEmailRecipients, type MockEmai
 
 const line: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 
-export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, onCollapse, onDiscard, replying, signatureHtml, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false }: {
+export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, onCollapse, onDiscard, replying, signatureHtml, signatureImageUrl, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email' }: {
   name: string; email: string; student: string; draft: PrototypeEmailDraft
   onChange: (draft: PrototypeEmailDraft) => void
   onSend: (body: string, html: string) => void
   signatureHtml: string; senderName: string
+  signatureImageUrl?: string
   senderEmail?: string; disabled?: boolean
+  fromControl?: ReactNode; recipientSummary?: ReactNode; sendLabel?: string
   onCollapse: () => void; onDiscard: () => void; replying: boolean; people: MockRecipient[]; templates: MockTemplate[]; onCreateTemplate: (template: MockTemplate) => void
 }) {
   const [managingRecipients, setManagingRecipients] = useState(false)
   const [mode, setMode] = useState<'write' | 'preview'>('write')
   const [undo, setUndo] = useState<PrototypeEmailDraft | null>(null)
+  const [dismissedPlaceholders, setDismissedPlaceholders] = useState<string | null>(null)
   const editor = useRef<HTMLDivElement>(null)
+  const trustedImages = signatureImageUrl ? [signatureImageUrl] : []
+  const placeholders = unresolvedEmailPlaceholders(`${draft.subject}\n${prototypeHtmlText(draft.html)}`)
+  const placeholderKey = placeholders.join('|')
   useEffect(() => {
     if (mode === 'write' && editor.current && editor.current.innerHTML !== draft.html) {
       editor.current.innerHTML = sanitizePrototypeHtml(draft.html)
@@ -47,36 +57,42 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     onChange({ ...draft, html: editor.current.innerHTML })
   }
 
-  return <SurfacePanel padding="0" style={{ overflow: 'hidden', width: '100%', minWidth: 0, maxWidth: '100%' }}><section aria-label="Email composer" style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-    <div style={{ ...line, justifyContent: 'space-between', padding: `${spacing.lg} ${spacing.xl}`, background: colors.surfaceMuted, borderBottom: `1px solid ${colors.border}` }}>
+  return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
+    <div style={{ ...line, justifyContent: 'space-between', padding: `${spacing.lg} ${spacing.xl}` }}>
       <strong style={{ ...typography.body }}>Draft {replying ? 'reply' : 'email'}</strong>
       <div style={line}>
         {(['write', 'preview'] as const).map(view => <ControlButton key={view} kind="toggle" aria-pressed={mode === view} selected={mode === view} onClick={() => setMode(view)}>{view === 'write' ? 'Write' : 'Preview'}</ControlButton>)}
 
       </div>
     </div>
-    {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null) }}>Undo template</Button>}
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
-      <div style={{ marginBottom: spacing.xl }}>
-        <div style={{ ...line, marginBottom: spacing.md }}><span>From:</span><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{senderName} &lt;{senderEmail}&gt;</span></div>
-        {draft.recipients && !draft.contactOnly ? <div style={line}><span style={typography.bodySmall}>{(['to', 'cc', 'bcc'] as const).filter(field => draft.recipients![field].length).map(field => `${field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc'}: ${draft.recipients![field].length <= 3 ? draft.recipients![field].map(id => people.find(person => person.id === id)?.name || 'Recipient').join(', ') : `${draft.recipients![field].length} recipients`}`).join(' · ')}</span><Button variant="secondary" size="sm" onClick={() => setManagingRecipients(true)}>Manage recipients</Button></div> : <FieldRow label="To"><span style={{ ...typography.bodySmall, overflowWrap: 'anywhere', minWidth: 0 }}>{name} &lt;{email}&gt;</span></FieldRow>}
-      </div>
-      <Input label="Subject" id="prototype-email-subject" aria-label="Email subject" placeholder="Subject" value={draft.subject} onChange={event => onChange({ ...draft, subject: event.target.value })} />
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${spacing.xl} ${spacing.xl}` }}>
+      <EmailComposerFields from={fromControl || <>{senderName} &lt;{senderEmail}&gt;</>} recipients={recipientSummary ? [{ label: 'To', content: recipientSummary }] : draft.recipients && !draft.contactOnly
+        ? (['to', 'cc', 'bcc'] as const).filter(field => field === 'to' || draft.recipients![field].length).map(field => ({
+          label: field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc',
+          content: <div style={line}><span>{draft.recipients![field].length <= 3 ? draft.recipients![field].map(id => people.find(person => person.id === id)?.name || 'Recipient').join(', ') || 'No recipients selected' : `${draft.recipients![field].length} recipients`}</span>{field === 'to' && <Button variant="secondary" size="sm" onClick={() => setManagingRecipients(true)}>Manage recipients</Button>}</div>,
+        }))
+        : [{ label: 'To', content: <>{name} &lt;{email}&gt;</> }]}
+        subject={draft.subject} onSubjectChange={subject => onChange({ ...draft, subject })} />
+      {placeholders.length > 0 && dismissedPlaceholders !== placeholderKey && <Notice variant="warning" onDismiss={() => setDismissedPlaceholders(placeholderKey)} dismissLabel="Dismiss placeholder warning" style={{ marginTop: spacing.lg }}>Complete these placeholders before sending: {placeholders.join(', ')}. Confirm that the voicemail wording matches what you actually did.</Notice>}
       <div aria-label="Message input area" style={{ marginTop: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, minWidth: 0 }}>
         <div style={{ ...line, justifyContent: 'space-between', padding: spacing.sm, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div aria-label="Email formatting" style={line}>
           {([{ tag: 'strong', label: 'Bold', icon: Bold }, { tag: 'em', label: 'Italic', icon: Italic }, { tag: 'u', label: 'Underline', icon: Underline }, { tag: 'ul', label: 'Bullet list', icon: List }] as const).map(({ tag, label, icon: Icon }) => <ControlButton kind="icon" key={tag} disabled={mode !== 'write'} aria-label={label} title={`${label} (select text first)`} onMouseDown={event => event.preventDefault()} onClick={() => format(tag)}><Icon size={15} /></ControlButton>)}
           </div>
-        <PrototypeTemplates compact triggerLabel="Use template" channel="email" templates={templates} onCreate={onCreateTemplate} currentBody={prototypeHtmlText(draft.html)} currentSubject={draft.subject} person={!draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined} onApply={(template, action) => {
+        <div aria-label="Template actions" style={{ ...line, marginLeft: 'auto', justifyContent: 'flex-end' }}>
+        {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null); setDismissedPlaceholders(null) }}>Undo template</Button>}
+        <PrototypeTemplates compact triggerLabel="Use template" channel="email" templates={templates} onCreate={onCreateTemplate} currentBody={prototypeHtmlText(draft.html)} currentSubject={draft.subject} person={!draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined} onApply={(template) => {
           setUndo(draft)
+          setDismissedPlaceholders(null)
           const person = !draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined
-          const html = sanitizePrototypeHtml(fillMockTemplate(template.html || mockTextHtml(template.body), person))
-          onChange({ ...draft, subject: action === 'replace' || !draft.subject.trim() ? fillMockTemplate(template.subject, person) : draft.subject, html: action === 'replace' ? html : draft.html + html })
+          const html = sanitizePrototypeHtml(template.html ? fillMockTemplate(template.html, person) : mockTextHtml(fillMockTemplate(template.body, person)))
+          onChange({ ...draft, subject: fillMockTemplate(template.subject, person), html })
           setMode('write')
         }} />
         </div>
-      {mode === 'write' && <>
-        <div ref={editor} role="textbox" aria-label="Email body" aria-multiline="true" contentEditable suppressContentEditableWarning onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
+        </div>
+      {mode === 'write' && <div className={styles.writingArea}>
+        <div ref={editor} className={styles.editor} data-placeholder="Write your message…" role="textbox" aria-label="Email body" aria-placeholder="Write your message…" aria-multiline="true" contentEditable suppressContentEditableWarning onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
           onPaste={event => {
             event.preventDefault()
             const selection = window.getSelection()
@@ -88,20 +104,19 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
             range.insertNode(text); range.setStartAfter(text); range.collapse(true)
             selection.removeAllRanges(); selection.addRange(range)
             onChange({ ...draft, html: editor.current.innerHTML })
-          }} style={{ minHeight: 180, maxHeight: 400, overflowY: 'auto', padding: spacing.lg, outlineOffset: -2, fontSize: 'max(16px, 1em)', lineHeight: 1.7, overflowWrap: 'anywhere' }} />
-      </>}
-      {mode === 'preview' && <iframe title="Email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(draft.html + signatureHtml)} style={{ border: 0, width: '100%', height: 390 }} />}
-      {mode === 'write' && signatureHtml && <iframe title="Your email signature" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(signatureHtml)} style={{ width: '100%', height: 180, border: 0 }} />}
+          }} />
+        {signatureHtml && <div aria-label="Your email signature" className={styles.signature} dangerouslySetInnerHTML={{ __html: sanitizePrototypeHtml(signatureHtml, trustedImages) }} />}
+      </div>}
+      {mode === 'preview' && <iframe title="Email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(sanitizePrototypeHtml(draft.html) + signatureHtml, trustedImages)} style={{ border: 0, width: '100%', height: 390 }} />}
       </div>
     </div>
-    <div style={{ ...line, justifyContent: 'space-between', padding: 'clamp(12px, 2vw, 24px)', borderTop: `1px solid ${colors.border}` }}>
-      <div style={line}><Button variant="secondary" onClick={onCollapse}>Save as draft</Button><ControlButton kind="link" onClick={onDiscard}>Discard draft</ControlButton></div>
-      <Button disabled={disabled || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => onSend(prototypeHtmlText(draft.html + signatureHtml), sanitizePrototypeHtml(draft.html + signatureHtml))}><Send size={14} />Send email</Button>
-    </div>
-    {draft.recipients && <Modal isOpen={managingRecipients} onClose={() => setManagingRecipients(false)} ariaLabel="Manage recipients" size="lg" style={{ height: 'min(80dvh, 640px)' }}>
+    <ComposerFooter leading={<div style={line}><Button variant="secondary" onClick={onCollapse}>Save as draft</Button><ControlButton kind="link" onClick={onDiscard}>Discard draft</ControlButton></div>}>
+      <Button disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = sanitizePrototypeHtml(draft.html) + signatureHtml; onSend(prototypeHtmlText(content, trustedImages), sanitizePrototypeHtml(content, trustedImages)) }}><Send size={14} />{sendLabel}</Button>
+    </ComposerFooter>
+    {draft.recipients && <Modal isOpen={managingRecipients} onClose={() => setManagingRecipients(false)} ariaLabel="Manage recipients" size="lg">
       <ModalHeader title="Select email recipients" onClose={() => setManagingRecipients(false)} compact />
       <ModalBody style={{ display: 'flex', flexDirection: 'column' }}><PrototypeEmailRecipients people={people} recipients={draft.recipients} onChange={recipients => onChange({ ...draft, recipients })} fill /></ModalBody>
       <ModalFooter><Button onClick={() => setManagingRecipients(false)}>Done</Button></ModalFooter>
     </Modal>}
-  </section></SurfacePanel>
+  </section>
 }

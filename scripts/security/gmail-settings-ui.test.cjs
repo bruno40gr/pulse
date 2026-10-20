@@ -21,6 +21,7 @@ function load(file, workspace) {
     }
     if (['react', 'react/jsx-runtime', 'lucide-react'].includes(id)) return require(id)
     if (id === '@/lib/tokens') return load('lib/tokens.ts')
+    if (id === './ControlButton') return { ControlButton: props => React.createElement('button', { 'aria-label': props['aria-label'], onClick: props.onClick }, props.children) }
     if (id === '@/components/ui') return Object.fromEntries(['Button', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]]))
     if (id.startsWith('@/components/ui/')) return load(`${id.replace('@/', '')}.tsx`)
     throw new Error(`Blocked dependency ${id}`)

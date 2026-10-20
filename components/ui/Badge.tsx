@@ -25,11 +25,11 @@ const variantStyles: Record<string, React.CSSProperties> = {
 
 const sizeStyles: Record<'sm' | 'md', React.CSSProperties> = {
   sm: {
-    fontSize: '12px',
+    fontSize: typography.sizeSm,
     padding: '2px 8px',
   },
   md: {
-    fontSize: '14px',
+    fontSize: typography.sizeBase,
     padding: `3px 12px`,
   },
 }

@@ -13,6 +13,7 @@ function loadControl() {
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText
   vm.runInNewContext(code, { exports, require(name) {
     if (name === './ButtonBase') return { ButtonBase: 'button' }
+    if (name === './ControlButton.module.css') return { default: { control: 'shared-control' } }
     if (name === 'lucide-react') return { X: 'CloseIcon' }
     if (name === '@/lib/tokens') return { colors: {}, radius: {}, spacing: {}, typography: {} }
     return require(name)

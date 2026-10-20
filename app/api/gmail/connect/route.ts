@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsConfigure })
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   if (!gmailConfigured()) return NextResponse.json({ error: 'Google OAuth and token encryption are not configured yet.' }, { status: 503 })
-  if (!access.context || (access.context.roleKey !== 'owner' && !access.context.permissions.has(PERMISSIONS.leadsManage))) return NextResponse.json({ error: 'Lead management permission is required.' }, { status: 403 })
+  if (!access.context || access.context.roleKey !== 'owner') return NextResponse.json({ error: 'Only the account owner can connect organisation email.' }, { status: 403 })
   const state = randomBytes(32).toString('base64url')
   const verifier = randomBytes(32).toString('base64url')
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')

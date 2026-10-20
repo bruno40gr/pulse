@@ -17,7 +17,7 @@ function load(file, dependencies = {}, globals = {}) {
   return loaded.exports
 }
 const rules = load('lib/gmail/rules.ts')
-const helper = load('lib/gmail/conversations.ts', { '@/lib/supabase/crm-admin': {}, './security': {}, './google': {}, './rules': rules })
+const helper = load('lib/gmail/conversations.ts', { '@/lib/supabase/crm-admin': {}, './security': {}, './google': {}, './rules': rules, '@/lib/organisation-email': { organisationEmailSettings: async () => null } })
 test('MIME rejects header injection, invalid recipients and empty content', () => {
   const valid = { from: 'office@example.com', to: ['parent@example.com'], cc: [], bcc: [], subject: 'Piano lessons', body: 'Hello' }
   for (const patch of [{ subject: 'Hello\r\nBcc: attacker@example.com' }, { to: ['parent@example.com\n'] }, { to: [] }, { body: ' ' }, { subject: ' ' }]) assert.throws(() => helper.gmailMime({ ...valid, ...patch }))
@@ -43,6 +43,8 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
   const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'contact', profileId: 'one', smsContactId: 'one' }
   const live = load('lib/conversations-live.ts')
   const api = load('app/api/conversations/email/route.ts', {
+    '@/lib/organisation-email': { organisationEmailSettings: async () => null, organisationSender: async () => ({ id: 'mailbox-one', email: 'office@example.com', sender: { email: 'office@example.com', name: 'Office' }, token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] }) },
+    '@/lib/headliner-email-templates': load('lib/headliner-email-templates.ts'),
     'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },
     '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant-one', context: { membershipId: 'member-one', roleKey: 'owner', permissions: new Set() } } },
     '@/lib/permissions': { PERMISSIONS: { communicationsRead: 'read', communicationsSend: 'send', contactsRead: 'contacts', leadsRead: 'leads' } },
@@ -67,6 +69,13 @@ test('denied reads and sends never reach a mailbox or provider', async () => {
   assert.equal((await h.api.POST(h.request())).status, 403)
   assert.equal(h.calls.length, 0)
 })
+test('unfilled outreach placeholders never reach the mailbox or provider', async () => {
+  const h = routeHarness()
+  for (const patch of [{ body: 'Hello [MEMBER’S NAME]' }, { subject: '[INSTRUMENT] lessons' }, { html: '<p>[SON/DAUGHTER]</p>' }]) {
+    assert.equal((await h.api.POST(h.request(patch))).status, 400)
+  }
+  assert.equal(h.calls.length, 0)
+})
 test('mailbox list is tenant/member scoped and does not return tokens', async () => {
   const h = routeHarness({ mailboxes: [{ id: 'box', email: 'office@example.com', scopes: [] }] })
   const result = await h.api.GET(new Request('https://example.com/api/conversations/email'))
@@ -89,11 +98,27 @@ test('accepted send is audited and attempted exactly once; provider failure is n
   const result = await h.api.POST(h.request())
   assert.equal(result.status, 200); assert.equal(result.body.id, 'sent-one')
   assert.equal(h.calls.filter(call => call[0] === 'send').length, 1)
-  assert.deepEqual(h.calls.find(call => call[0] === 'mailbox'), ['mailbox', 'tenant-one', 'mailbox-one', 'member-one'])
+  assert.equal(h.calls.filter(call => call[0] === 'send').length, 1)
   assert.ok(h.calls.some(call => call[0] === 'audit'))
   const failure = routeHarness({ failSend: true })
   assert.equal((await failure.api.POST(failure.request())).status, 502)
   assert.equal(failure.calls.filter(call => call[0] === 'send').length, 1)
+})
+test('mailbox summary retains unread/direction metadata, pagination and member isolation without bodies', async () => {
+  const h = routeHarness({ threads: [
+    { id: 'known', messages: [{ id: 'inbound', internalDate: '1792252800000', labelIds: ['UNREAD'], payload: { mimeType: 'text/plain', body: { data: Buffer.from('Private body').toString('base64url') }, headers: [{ name: 'From', value: 'parent@example.com' }] } }] },
+    { id: 'unrelated', messages: [{ id: 'other', internalDate: '1792252800000', payload: { headers: [{ name: 'From', value: 'stranger@example.com' }] } }] },
+  ] })
+  const result = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1&cursor=page-one'))
+  assert.equal(result.status, 200)
+  assert.equal(result.body.threads.length, 1)
+  assert.equal(result.body.threads[0].messages[0].direction, 'inbound')
+  assert.equal(result.body.threads[0].messages[0].unread, true)
+  assert.equal(result.body.threads[0].messages[0].body, '')
+  assert.equal(result.body.nextCursor, 'page-two')
+  assert.ok(h.calls.some(call => call[0] === 'get' && call[1].includes('format=metadata')))
+  assert.deepEqual(h.calls.find(call => call[0] === 'mailbox'), ['mailbox', 'tenant-one', 'mailbox-one', 'member-one'])
+  assert.doesNotMatch(JSON.stringify(result.body), /Private body|stranger@example/)
 })
 test('history retains pagination, ignores unrelated threads and does not expose Bcc', async () => {
   const h = routeHarness({ threads: [{ id: 'thread-one', messages: [{ id: 'message-one', internalDate: '1792252800000', labelIds: ['UNREAD'], payload: { mimeType: 'text/plain', body: { data: Buffer.from('Hello').toString('base64url') }, headers: [{ name: 'From', value: 'parent@example.com' }, { name: 'Subject', value: 'Lessons' }, { name: 'Bcc', value: 'secret@example.com' }] } }] }] })

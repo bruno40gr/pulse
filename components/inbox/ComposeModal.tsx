@@ -1,5 +1,8 @@
 'use client'
 
+import { useIsMobile } from '@/lib/useMediaQuery'
+import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useState } from 'react'
 import { SlidePanel, SlidePanelHeader, Button } from '@/components/ui'
@@ -12,6 +15,7 @@ function displayName(r: Recipient) {
 }
 
 export default function ComposeModal({ onClose }: { onClose: () => void }) {
+  const isMobile = useIsMobile()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Recipient[]>([])
   const [selected, setSelected] = useState<Recipient[]>([])
@@ -61,14 +65,14 @@ export default function ComposeModal({ onClose }: { onClose: () => void }) {
   // Stage 2 — compose message to the selected recipients
   if (composing) {
     return (
-      <SlidePanel isOpen={true} onClose={onClose}>
+      <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
         <SlidePanelHeader
           title="New message"
           onClose={onClose}
           onBack={() => setComposing(false)}
           backLabel="Recipients"
         />
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ComposePanel
             recipientCount={selected.length}
             filterExplanation={`To ${selected.map(displayName).join(', ')}`}

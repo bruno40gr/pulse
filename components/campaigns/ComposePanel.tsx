@@ -1,5 +1,6 @@
 'use client'
 
+import { ComposerFooter } from '@/components/ui/ComposerFooter'
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -45,6 +46,7 @@ interface ComposePanelProps {
   leadId?: string
   /** Keep a scratch draft owned by its workspace without replacing the campaign send flow. */
   draft?: { body: string; onChange: (body: string) => void }
+  resolvedAudience?: { count: number; version: string }
   excludedRecipients?: Array<{ id: string; name: string; reason: string }>
   /** Embed the same composer with a conversation-owned draft and send transport. */
   conversation?: {
@@ -64,7 +66,7 @@ interface ResolvedPreviewRecipient {
 
 export default function ComposePanel({
   recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId, conversation, draft, excludedRecipients = []
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = [], footerLeadingAction, leadId, conversation, draft, resolvedAudience, excludedRecipients = []
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
@@ -97,14 +99,14 @@ export default function ComposePanel({
   const prePolishMessage = useRef<string>('')
 
   const isMMS = !!mediaUrl
-  const firstNamePreview = contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
+  const firstNamePreview = resolvedAudience ? 'there' : contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
-  const effectiveCount = effectiveRecipientIds.length
+  const effectiveCount = resolvedAudience?.count ?? effectiveRecipientIds.length
   const effectiveSendCount = effectiveCount
   const [tenantId, setTenantId] = useState(DEFAULT_TENANT)
   const tenantBrand = getTenantBrand(tenantId)
-  const recipientSummary = resolvedRecipientPreview.slice(0, 3)
+  const recipientSummary = resolvedAudience ? [] : resolvedRecipientPreview.slice(0, 3)
   const remainingRecipientCount = Math.max(effectiveCount - recipientSummary.length, 0)
   const showComposeBootSkeleton = !sent && (
     (initialMessage.trim() && (!brandVoiceLoaded || !initialDraftReady)) ||
@@ -437,7 +439,7 @@ export default function ComposePanel({
       const sendRes = await fetch(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId })
+        body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId, recipientVersion: resolvedAudience?.version })
       })
       const result = await sendRes.json()
 
@@ -467,11 +469,11 @@ export default function ComposePanel({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: colors.background, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
       <div style={{
         display: isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
-        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 3fr) minmax(0, 7fr)',
+        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 1fr) minmax(280px, 1fr)',
         flex: 1,
         minHeight: 0,
         overflow: 'hidden',
@@ -560,7 +562,7 @@ export default function ComposePanel({
         )}
 
         {excludedRecipients.length > 0 && <Notice variant="warning" title="Excluded from sending">
-          {excludedRecipients.map(person => <div key={person.id}>{person.name} — {person.reason}</div>)}
+          {excludedRecipients.length} {excludedRecipients.length === 1 ? 'contact cannot' : 'contacts cannot'} be reached by SMS.
         </Notice>}
 
         {/* Inline warnings */}
@@ -573,7 +575,7 @@ export default function ComposePanel({
             </div>
           ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-            {normalizedSensitiveCheck.opted_out.filter(c => !removedIds.has(c.id)).length > 0 && (
+            {!resolvedAudience && normalizedSensitiveCheck.opted_out.filter(c => !removedIds.has(c.id)).length > 0 && (
               <div style={{ marginBottom: spacing.md }}>
                 <div style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.warning, marginBottom: spacing.xs }}>
                   {normalizedSensitiveCheck.opted_out.length} opted out
@@ -584,7 +586,7 @@ export default function ComposePanel({
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
                       <span style={{ ...typography.bodySmall, color: colors.warning }}>{c.name}</span>
                       <Button variant="secondary" size="sm"
-                        onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
+                        disabled={!!resolvedAudience} onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
 
                       >
                         Remove
@@ -605,7 +607,7 @@ export default function ComposePanel({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ ...typography.bodySmall, fontWeight: typography.weightMedium, color: colors.warning }}>{c.name}</span>
                         <Button variant="secondary" size="sm"
-                          onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
+                          disabled={!!resolvedAudience} onClick={() => setRemovedIds(prev => new Set([...prev, c.id]))}
 
                         >
                           Remove
@@ -624,7 +626,7 @@ export default function ComposePanel({
           )
         )}
 
-        <SurfacePanel style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
+        <div>
           {composeBadgeVariant && (
             <div style={{ marginBottom: spacing.xs }}>
               <Badge variant={composeBadgeVariant} size="md">
@@ -682,7 +684,7 @@ export default function ComposePanel({
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: spacing.xs, fontSize: typography.sizeSm, color: colors.textMuted }}>
             <span>{isMMS ? 'MMS' : `${message.length} / 160`}</span>
           </div>
-        </SurfacePanel>
+        </div>
 
         {/* Brand-first media picker */}
         {showMediaInput && (
@@ -830,18 +832,7 @@ export default function ComposePanel({
         </div>
       )}
       </div>
-      <div style={{
-        padding: isMobile ? '12px 16px' : `${spacing.lg} ${spacing['3xl']}`,
-        borderTop: `1px solid ${colors.borderLight}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        flexWrap: 'wrap',
-        gap: '10px',
-        flexShrink: 0,
-        background: colors.surface,
-      }}>
-        {footerLeadingAction ? <div style={{ marginRight: 'auto', minWidth: 0 }}>{footerLeadingAction}</div> : null}
+      <ComposerFooter leading={footerLeadingAction}>
         <LoadingButton
           loading={isSending}
           fill={2}
@@ -852,7 +843,7 @@ export default function ComposePanel({
         >
           {isSending ? 'Sending…' : 'Send message'}
         </LoadingButton>
-      </div>
+      </ComposerFooter>
     </div>
   )
 }

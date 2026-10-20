@@ -1,4 +1,6 @@
+import { organisationEmailSettings, organisationSender } from '@/lib/organisation-email'
 import { NextResponse } from 'next/server'
+import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
@@ -27,29 +29,44 @@ export async function GET(request: Request) {
     if (!mailboxId) {
       const { data, error } = await crmSupabaseAdmin.from('gmail_connections').select('id,email,scopes').eq('tenant_id', access.tenantId).eq('connected_by', access.context.membershipId).order('email')
       if (error) throw error
-      return NextResponse.json({ emailPreview: isConversationEmailPreview({ databaseUrl: process.env.CRM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL, deployment: process.env.VERCEL_ENV }), mailboxes: (data || []).map(mailbox => ({ id: mailbox.id, email: mailbox.email, canSend: mailbox.scopes?.includes('https://www.googleapis.com/auth/gmail.send') || false })) }, { headers })
+      const shared = await organisationEmailSettings(access.tenantId)
+      const mailboxes = data || []
+      if (shared && !mailboxes.some(mailbox => mailbox.id === shared.connection_id)) {
+        const { data: connection, error: sharedError } = await crmSupabaseAdmin.from('gmail_connections').select('id,email,scopes').eq('tenant_id', access.tenantId).eq('id', shared.connection_id).maybeSingle()
+        if (sharedError) throw sharedError
+        if (connection) mailboxes.unshift(connection)
+      }
+      return NextResponse.json({ emailPreview: isConversationEmailPreview({ databaseUrl: process.env.CRM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL, deployment: process.env.VERCEL_ENV }), mailboxes: mailboxes.map(mailbox => ({ id: mailbox.id, email: mailbox.email, canSend: shared?.connection_id === mailbox.id && (mailbox.scopes?.includes('https://www.googleapis.com/auth/gmail.send') || false) })).sort((a, b) => Number(b.canSend) - Number(a.canSend)) }, { headers })
     }
-    const person = (await directory(access)).find(person => person.id === params.get('person'))
-    if (!person || !validEmail(person.email)) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
+    const summary = params.get('summary') === '1'
+    const people = await directory(access)
+    const person = people.find(person => person.id === params.get('person'))
+    if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
     const mailbox = await conversationMailbox(access.tenantId, mailboxId, access.context.membershipId)
-    const query = new URLSearchParams({ maxResults: '20', q: `from:(${person.email}) OR to:(${person.email}) OR cc:(${person.email})` })
+    const query = new URLSearchParams({ maxResults: summary ? '50' : '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
     const cursor = params.get('cursor')
     if (cursor) query.set('pageToken', cursor)
     const page = await gmailGet<{ threads?: { id: string }[]; nextPageToken?: string }>(mailbox.token, `threads?${query}`)
     const threads: LiveThread[] = []
-    for (const reference of page.threads || []) {
-      const thread = await gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(reference.id)}?format=full`)
-      if (!gmailThreadMatches(thread, person.email)) continue
+    // Bounded concurrency keeps a mailbox summary within the route's execution window.
+    const references = page.threads || []
+    const histories: GmailConversationThread[] = []
+    for (let offset = 0; offset < references.length; offset += 5) {
+      histories.push(...await Promise.all(references.slice(offset, offset + 5).map(reference => gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(reference.id)}?format=${summary ? 'metadata' : 'full'}`))))
+    }
+    for (const thread of histories) {
+      const matches = (summary ? people : [person!]).filter(person => validEmail(person.email) && gmailThreadMatches(thread, person.email))
+      if (!matches.length) continue
       const messages = (thread.messages || []).filter(message => !message.labelIds?.some(label => ['DRAFT', 'TRASH', 'SPAM'].includes(label)))
         .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)).map(message => ({
           id: message.id, channel: 'email' as const,
-          direction: emailAddresses(gmailHeader(message, 'From')).includes(mailbox.email.toLowerCase()) ? 'outbound' as const : 'inbound' as const,
-          body: gmailConversationBody(message.payload), time: new Date(Number(message.internalDate)).toLocaleString('en-US'),
+          direction: message.labelIds?.includes('SENT') || emailAddresses(gmailHeader(message, 'From')).includes(mailbox.email.toLowerCase()) ? 'outbound' as const : 'inbound' as const,
+          body: summary ? '' : gmailConversationBody(message.payload), time: new Date(Number(message.internalDate)).toLocaleString('en-US'),
           timestamp: new Date(Number(message.internalDate)).toISOString(), subject: gmailHeader(message, 'Subject'),
           unread: message.labelIds?.includes('UNREAD') || false,
           emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
         }))
-      if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
+      for (const person of matches) if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
         providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
     }
     return NextResponse.json({ threads, nextCursor: page.nextPageToken || null }, { headers })
@@ -68,12 +85,16 @@ export async function POST(request: Request) {
     || [...input.to, ...input.cc, ...input.bcc].length > 50 || /[\r\n]/.test(input.subject) || input.subject.length > 500 || !input.subject.trim() || !input.body.trim() || input.body.length > 100000) {
     return NextResponse.json({ error: 'Invalid email content or recipients.' }, { status: 400, headers })
   }
+  if (unresolvedEmailPlaceholders(`${input.subject}\n${input.body}\n${input.html || ''}`).length) {
+    return NextResponse.json({ error: 'Complete all template placeholders before sending.' }, { status: 400, headers })
+  }
   try {
     const people = await directory(access)
     const ids: string[] = [...input.to, ...input.cc, ...input.bcc]
     if (!input.to.length || ids.length !== new Set(ids).size || ids.some(id => !people.some(person => person.id === id && person.email))) return NextResponse.json({ error: 'Choose valid recipients from this account.' }, { status: 400, headers })
     const resolve = (values: string[]) => values.map(id => people.find(person => person.id === id)!.email)
-    const mailbox = await conversationMailbox(access.tenantId, input.mailboxId, access.context.membershipId)
+    const mailbox = await organisationSender(access.tenantId, access.context.membershipId, input.senderEmail)
+    if (mailbox.id !== input.mailboxId) return NextResponse.json({ error: 'Use the configured shared organisation mailbox.' }, { status: 403, headers })
     if (!mailbox.scopes?.includes('https://www.googleapis.com/auth/gmail.send')) return NextResponse.json({ error: 'Reconnect this mailbox in Settings to allow sending.' }, { status: 409, headers })
     let thread: GmailConversationThread | undefined
     if (input.threadId) {
@@ -81,7 +102,7 @@ export async function POST(request: Request) {
       thread = await gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(input.threadId)}?format=full`)
       if (!resolve(input.to).some(email => gmailThreadMatches(thread!, email))) return NextResponse.json({ error: 'The reply recipient does not belong to this thread.' }, { status: 400, headers })
     }
-    const raw = gmailMime({ from: mailbox.email, to: resolve(input.to), cc: resolve(input.cc), bcc: resolve(input.bcc), subject: input.subject, body: input.body, html: input.html, reply: thread?.messages?.at(-1) })
+    const raw = gmailMime({ from: mailbox.sender.email, fromName: mailbox.sender.name, to: resolve(input.to), cc: resolve(input.cc), bcc: resolve(input.bcc), subject: input.subject, body: input.body, html: input.html, reply: thread?.messages?.at(-1) })
     // Do not retry a send automatically: a timeout can mean Google already accepted it.
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST', headers: { Authorization: `Bearer ${mailbox.token}`, 'Content-Type': 'application/json' },

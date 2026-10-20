@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true }, { headers })
     }
     if (body?.action === 'disconnect' && typeof body.id === 'string') {
+      if (access.context.roleKey !== 'owner') return NextResponse.json({ error: 'Only the account owner can disconnect organisation email.' }, { status: 403, headers })
       const { error } = await crmSupabaseAdmin.from('gmail_connections').delete().eq('id', body.id).eq('tenant_id', access.tenantId)
       if (error) throw error
       return NextResponse.json({ ok: true }, { headers })

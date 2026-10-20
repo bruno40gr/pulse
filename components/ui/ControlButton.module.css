@@ -1,0 +1,10 @@
+.control[data-kind='tab']:hover:not(:disabled),
+.control[data-kind='tab']:focus-visible {
+  background: var(--control-active-background) !important;
+  color: var(--control-active-color) !important;
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--control-focus-color);
+  outline-offset: 2px;
+}

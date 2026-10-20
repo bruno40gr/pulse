@@ -4,6 +4,7 @@ import { decryptToken } from './security'
 import { gmailGet, googleToken } from './google'
 import type { GmailPart } from './rules'
 import { emailAddresses } from './rules'
+import { organisationEmailSettings } from '@/lib/organisation-email'
 
 export type GmailConversationMessage = {
   id: string; threadId: string; internalDate: string; labelIds?: string[]
@@ -30,20 +31,24 @@ export function gmailConversationBody(part: GmailPart): string {
 }
 
 export async function conversationMailbox(tenantId: string, mailboxId: string, membershipId: string) {
-  // A mailbox is private to the member who connected it, not every communicator in a tenant.
-  const { data, error } = await crmSupabaseAdmin.from('gmail_connections')
-    .select('id,email,refresh_token_ciphertext,scopes').eq('tenant_id', tenantId).eq('id', mailboxId).eq('connected_by', membershipId).maybeSingle()
+  const shared = await organisationEmailSettings(tenantId)
+  let query = crmSupabaseAdmin.from('gmail_connections')
+    .select('id,email,refresh_token_ciphertext,scopes').eq('tenant_id', tenantId).eq('id', mailboxId)
+  // Only the owner-selected shared mailbox is account-wide. Other existing
+  // connections remain private/read-only and cannot be used to send.
+  if (shared?.connection_id !== mailboxId) query = query.eq('connected_by', membershipId)
+  const { data, error } = await query.maybeSingle()
   if (error || !data) throw new Error('Mailbox unavailable. Connect or reconnect your mailbox in Settings.')
   const token = await googleToken({ grant_type: 'refresh_token', refresh_token: decryptToken(data.refresh_token_ciphertext) })
   return { ...data, token: token.access_token }
 }
 
 /** Header-safe RFC 2822 MIME. Bcc is envelope metadata only and never returned to readers. */
-export function gmailMime(input: { from: string; to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; html?: string; reply?: GmailConversationMessage }) {
+export function gmailMime(input: { from: string; fromName?: string; to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; html?: string; reply?: GmailConversationMessage }) {
   const addresses = [input.from, ...input.to, ...input.cc, ...input.bcc]
   if (!input.to.length || !addresses.every(validEmail) || /[\r\n]/.test(input.subject) || input.subject.length > 500 || !input.subject.trim() || !input.body.trim() || input.body.length > 100000) throw new Error('Invalid email content or recipients.')
   const headers = [
-    `From: ${input.from}`, `To: ${input.to.join(', ')}`,
+    `From: ${input.fromName ? `=?UTF-8?B?${Buffer.from(input.fromName).toString('base64')}?= <${input.from}>` : input.from}`, `To: ${input.to.join(', ')}`,
     ...(input.cc.length ? [`Cc: ${input.cc.join(', ')}`] : []),
     ...(input.bcc.length ? [`Bcc: ${input.bcc.join(', ')}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(input.subject).toString('base64')}?=`,

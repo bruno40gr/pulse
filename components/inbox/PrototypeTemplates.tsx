@@ -5,7 +5,7 @@ import type { MockRecipient, MockTemplate } from '@/lib/prototype-messaging'
 import type { PrototypeChannel } from '@/lib/conversations-prototype'
 
 export type TemplateProps = {
-  channel: PrototypeChannel; templates: MockTemplate[]; onCreate: (template: MockTemplate) => void
+  channel: PrototypeChannel; templates: MockTemplate[]; onCreate: (template: MockTemplate) => void | Promise<void>
   onApply: (template: MockTemplate, action: 'insert' | 'replace') => void
   triggerLabel?: string; compact?: boolean; initialOpen?: boolean; onDismiss?: () => void; previousEmails?: number
   currentBody: string; currentSubject?: string; person?: Pick<MockRecipient, 'name' | 'student'>

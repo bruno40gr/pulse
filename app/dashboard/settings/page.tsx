@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { getActiveTenantId, getTenantBrand } from '@/lib/tenant'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
 import AccessManagementClient from '@/components/access/AccessManagementClient'
+import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
 import GmailConnections from '@/components/settings/GmailConnections'
+import EmailSignatureSettings from '@/components/settings/EmailSignatureSettings'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
@@ -235,6 +237,7 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
   return (
     <>
       {/* Twilio */}
+      <OrganisationEmailSettings tenantId={tenantId} />
       <GmailConnections tenantId={tenantId} />
       <div style={cardS}>
         <h2 style={sectionTitleS}>Twilio</h2>
@@ -365,6 +368,7 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
   return (
     <>
       {/* Logo */}
+      <EmailSignatureSettings tenantId={tenantId} />
       <div style={cardS}>
         <h2 style={sectionTitleS}>Logo</h2>
         <p style={sectionSubS}>Your logo appears across Pulse. Enter a URL for now — file upload is coming later.</p>

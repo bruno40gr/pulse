@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     if (state.expiresAt < Date.now() || !secretMatches(request.nextUrl.searchParams.get('state') || '', state.state)) throw new Error('Invalid OAuth state')
     const accessRequest = new Request(new URL(`/api/gmail?tenant=${state.tenantId}`, request.url), { headers: request.headers })
     const access = await authorizeTenantRequest(accessRequest, { permission: PERMISSIONS.communicationsConfigure })
-    if (!access.ok || access.context?.membershipId !== state.membershipId || (access.context.roleKey !== 'owner' && !access.context.permissions.has(PERMISSIONS.leadsManage))) throw new Error('Account changed')
+    if (!access.ok || access.context?.membershipId !== state.membershipId || access.context.roleKey !== 'owner') throw new Error('Account changed')
     const code = request.nextUrl.searchParams.get('code')
     if (!code) throw new Error('Consent not granted')
     const token = await googleToken({ code, code_verifier: state.verifier, grant_type: 'authorization_code', redirect_uri: gmailRedirectUri() })

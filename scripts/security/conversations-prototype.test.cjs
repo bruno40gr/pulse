@@ -22,7 +22,8 @@ function load(file, dependencies = {}) {
   return loaded.exports
 }
 const fixtures = load('lib/conversations-prototype.ts')
-const messaging = load('lib/prototype-messaging.ts', { '@/lib/conversations-prototype': fixtures })
+const outreach = load('lib/headliner-email-templates.ts')
+const messaging = load('lib/prototype-messaging.ts', { '@/lib/conversations-prototype': fixtures, '@/lib/headliner-email-templates': outreach })
 
 test('one explicit contact contains both channel histories and genuine unread counts', () => {
   const threads = fixtures.createPrototypeThreads()

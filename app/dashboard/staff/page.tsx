@@ -1,4 +1,6 @@
 'use client'
+
+import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, type ComponentProps } from 'react'
@@ -230,14 +232,14 @@ export default function StaffPage() {
       )}
 
       {composeContact && (
-        <SlidePanel isOpen={true} onClose={() => setComposeContact(null)}>
+        <SlidePanel isOpen={true} onClose={() => setComposeContact(null)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
           <SlidePanelHeader
             title={composeContact.bulk ? `Message to ${composeContact.recipientIds.length} staff members` : `Message to ${composeContact.first_name}`}
             onClose={() => setComposeContact(null)}
             onBack={composeContact.bulk ? undefined : () => setComposeContact(null)}
             backLabel="Back to staff card"
           />
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <ComposePanel
               recipientCount={composeContact.bulk ? composeContact.recipientIds.length : 1}
               filterExplanation={composeContact.bulk ? `Message to ${composeContact.recipientIds.length} selected staff members` : `Message to ${composeContact.first_name} ${composeContact.last_name}`}

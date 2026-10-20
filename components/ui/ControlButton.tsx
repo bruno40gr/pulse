@@ -1,9 +1,10 @@
 'use client'
 
-import type { ComponentPropsWithRef } from 'react'
+import type { ComponentPropsWithRef, CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { ButtonBase } from './ButtonBase'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import styles from './ControlButton.module.css'
 
 export type ControlKind = 'close' | 'icon' | 'link' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
 
@@ -16,12 +17,17 @@ type ControlButtonProps = ComponentPropsWithRef<'button'> & {
 }
 
 /** Shared appearances for non-form controls. Keep event semantics at call sites. */
-export function ControlButton({ kind, selected = false, inverse = false, swatchColor, style, disabled, children, ...props }: ControlButtonProps) {
+export function ControlButton({ kind, selected = false, inverse = false, swatchColor, style, disabled, children, className, ...props }: ControlButtonProps) {
   return (
     <ButtonBase
       {...props}
+      className={[styles.control, className].filter(Boolean).join(' ')}
+      data-kind={kind}
       disabled={disabled}
       style={{
+        '--control-active-background': inverse ? 'rgba(255,255,255,0.08)' : colors.surfaceMuted,
+        '--control-active-color': inverse ? colors.surface : colors.text,
+        '--control-focus-color': colors.tealDark,
         fontFamily: typography.fontSans,
         fontSize: typography.sizeBase,
         fontWeight: typography.weightMedium,
@@ -52,7 +58,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         } : {}),
         ...style,
         ...(kind === 'close' ? { width: 48, height: 48, minWidth: 48, minHeight: 48, flexShrink: 0 } : {}),
-      }}
+      } as CSSProperties}
     >
       {kind === 'close' ? <X size={22} strokeWidth={2} aria-hidden="true" /> : children}
     </ButtonBase>

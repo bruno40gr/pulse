@@ -4,6 +4,16 @@ export const PROFILE_PANEL_WIDTH = 'min(75vw, 960px)'
 export const CONVERSATIONS_HOME_EVENT = 'pulse:conversations-home'
 export type ConversationSort = 'name' | 'time' | 'date'
 
+/** Reading does not attend a conversation; only a subsequent outbound reply does. */
+export function conversationAttention(threads: LiveThread[]) {
+  const pending = threads.filter(thread => thread.messages.at(-1)?.direction === 'inbound')
+  return {
+    unattended: pending.length > 0,
+    unread: pending.some(thread => thread.messages.some(message => message.direction === 'inbound' && message.unread)),
+    channels: Array.from(new Set(pending.map(thread => thread.channel))),
+  }
+}
+
 export function lastContactTimestamp(threads: LiveThread[]): string {
   const latest = threads.flatMap(thread => thread.messages).reduce((latest, message) => {
     const timestamp = message.timestamp ? Date.parse(message.timestamp) : NaN

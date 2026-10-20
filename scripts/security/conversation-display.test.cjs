@@ -10,7 +10,40 @@ const loaded = { exports: {} }
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/conversation-display.ts'), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { module: loaded, exports: loaded.exports, Date })
-const { compareConversations, newestEmail, lastContactTimestamp } = loaded.exports
+const { compareConversations, conversationAttention, newestEmail, lastContactTimestamp } = loaded.exports
+test('unread and unattended are separate; reading keeps arrow, replying clears it', () => {
+  const sms = { channel: 'sms', messages: [{ direction: 'inbound', unread: true }] }
+  assert.equal(conversationAttention([sms]).unattended, true)
+  assert.equal(conversationAttention([sms]).unread, true)
+  sms.messages[0].unread = false
+  assert.equal(conversationAttention([sms]).unattended, true)
+  assert.equal(conversationAttention([sms]).unread, false)
+  sms.messages.push({ direction: 'outbound' })
+  assert.equal(conversationAttention([sms]).unattended, false)
+  const email = { channel: 'email', messages: [{ direction: 'inbound', unread: true }] }
+  assert.equal(conversationAttention([sms, email]).unattended, true, 'SMS reply must not attend another email thread')
+  assert.equal(conversationAttention([sms, email]).channels.join(','), 'email')
+  assert.equal(conversationAttention([{ channel: 'email', messages: [] }]).unattended, false)
+})
+test('an outbound latest message does not highlight a historical unread inbound', () => {
+  assert.equal(conversationAttention([{ channel: 'email', messages: [{ direction: 'inbound', unread: true }, { direction: 'outbound' }] }]).unread, false)
+})
+test('signature uses real configured company fields and escapes all display values', () => {
+  const signatureModule = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/conversation-signature.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText, { module: signatureModule, exports: signatureModule.exports })
+  const html = signatureModule.exports.conversationSignatureHtml({ company: 'Music & Arts', phone: '+12025550123', logoUrl: 'https://assets.example.com/logo.png' }, '<Owner>', 'office@example.com')
+  assert.match(html, /Music &amp; Arts/)
+  assert.match(html, /&lt;Owner&gt;/)
+  assert.match(html, /\+12025550123/)
+  assert.match(html, /<img src="https:\/\/assets.example.com\/logo.png"/)
+  assert.doesNotMatch(html, /Warmly|office@example.com/)
+  const named = signatureModule.exports.conversationSignatureHtml({ company: '', name: '<Public sender>', phone: '123', logoUrl: '' }, 'Internal sender')
+  assert.match(named, /&lt;Public sender&gt;/)
+  assert.doesNotMatch(named, /Internal sender/)
+  assert.doesNotMatch(signatureModule.exports.conversationSignatureHtml({ company: '', phone: '', logoUrl: 'javascript:alert(1)' }, 'Owner', ''), /<img|555|sample/)
+})
 const thread = (id, timestamp) => ({ id, messages: timestamp ? [{ timestamp }] : [] })
 test('email-first history retains directory phone and SMS-first history retains email', () => {
   const liveModule = { exports: {} }
@@ -55,11 +88,12 @@ test('lead/contact drawers share width and skeleton; sidebar returns to conversa
   }
   assert.match(fs.readFileSync(path.join(root, 'app/dashboard/layout.tsx'), 'utf8'), /dispatchEvent\(new CustomEvent\(CONVERSATIONS_HOME_EVENT\)\)/)
 })
-test('desktop messaging workspaces preserve the approved 30/70 split', () => {
+test('history workspaces retain 30/70 while SMS composing gives the writing area equal space', () => {
   const sms = fs.readFileSync(path.join(root, 'components/inbox/PrototypeSmsConversation.tsx'), 'utf8')
   const composer = fs.readFileSync(path.join(root, 'components/campaigns/ComposePanel.tsx'), 'utf8')
   const email = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  for (const source of [sms, composer, email]) assert.match(source, /minmax\(0, 3fr\) minmax\(0, 7fr\)/)
+  for (const source of [sms, email]) assert.match(source, /minmax\(0, 3fr\) minmax\(0, 7fr\)/)
+  assert.match(composer, /minmax\(0, 1fr\) minmax\(280px, 1fr\)/)
 })
 
 test('contact timing groups elapsed time by local calendar day', () => {

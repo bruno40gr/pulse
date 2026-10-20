@@ -14,6 +14,7 @@ interface ModalProps {
   isOpen: boolean
   onClose?: () => void
   size?: ModalSize
+  layout?: 'fixed' | 'content'
   children: ReactNode
   closeOnBackdrop?: boolean
   closeOnEscape?: boolean
@@ -24,6 +25,7 @@ interface ModalProps {
 interface ModalHeaderProps {
   title: string
   compact?: boolean
+  titleSize?: 'default' | 'large'
   onBack?: () => void
   backLabel?: string
   description?: ReactNode
@@ -40,7 +42,7 @@ const widths: Record<ModalSize, string> = {
   wide: '1120px',
 }
 
-export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop = true, closeOnEscape = true, ariaLabel, style }: ModalProps) {
+export function Modal({ isOpen, onClose, size = 'md', layout = size === 'lg' || size === 'wide' ? 'fixed' : 'content', children, closeOnBackdrop = true, closeOnEscape = true, ariaLabel, style }: ModalProps) {
   const { mounted, rootRef, dialogRef, titleId, isTop } = useDialogLayer(isOpen, onClose, closeOnEscape)
 
   if (!isOpen || !mounted) return null
@@ -61,7 +63,7 @@ export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop 
         aria-label={ariaLabel}
         aria-labelledby={ariaLabel ? undefined : titleId}
         tabIndex={-1}
-        style={{ width: `min(100%, ${widths[size]})`, maxHeight: 'min(90dvh, 900px)', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: radius['2xl'], background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: shadows.xl, fontFamily: typography.fontSans, outline: 'none', ...style }}
+        style={{ width: `min(100%, ${widths[size]})`, height: layout === 'fixed' ? 'min(80dvh, 640px)' : undefined, maxHeight: 'min(90dvh, 900px)', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: radius['2xl'], background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: shadows.xl, fontFamily: typography.fontSans, outline: 'none', ...style }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <DialogTitleContext.Provider value={titleId}>{children}</DialogTitleContext.Provider>
@@ -71,7 +73,7 @@ export function Modal({ isOpen, onClose, size = 'md', children, closeOnBackdrop 
   )
 }
 
-export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = false }: ModalHeaderProps) {
+export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = true, titleSize = 'large' }: ModalHeaderProps) {
   const ownId = useId()
   const titleId = useContext(DialogTitleContext) || ownId
   return (
@@ -81,7 +83,7 @@ export function ModalHeader({ title, description, onClose, icon, badge, onBack, 
         {icon && <div style={{ display: 'flex', color: colors.textSecondary, flexShrink: 0, marginTop: 2 }}>{icon}</div>}
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-            <h2 id={titleId} style={{ ...typography.h2, margin: 0, color: colors.text, overflowWrap: 'anywhere' }}>{title}</h2>
+            <h2 id={titleId} style={{ ...typography.h2, ...(titleSize === 'large' ? { fontSize: typography.size2xl } : {}), margin: 0, color: colors.text, overflowWrap: 'anywhere' }}>{title}</h2>
             {badge}
           </div>
           {description && <div style={{ ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs }}>{description}</div>}

@@ -1,4 +1,5 @@
 import { prototypeEmailTemplates, type PrototypeChannel, type PrototypeThread } from '@/lib/conversations-prototype'
+import { fillOutreachTemplate } from '@/lib/headliner-email-templates'
 
 export type MockRecipient = { id: string; name: string; email: string; phone: string; student: string }
 export type MockEmailRecipients = { to: string[]; cc: string[]; bcc: string[] }
@@ -19,7 +20,7 @@ export function initialMockTemplates(): MockTemplate[] {
   ]
 }
 export function fillMockTemplate(value: string, person?: Pick<MockRecipient, 'name' | 'student'>) {
-  return value.replaceAll('{{firstName}}', person?.name.split(' ')[0] || 'there').replaceAll('{{student}}', person?.student.split(' ')[0] || 'your student')
+  return fillOutreachTemplate(value.replaceAll('{{firstName}}', person?.name.split(' ')[0] || 'there').replaceAll('{{student}}', person?.student.split(' ')[0] || 'your student'), person)
 }
 export function mockTextHtml(text: string) {
   return text.split('\n\n').map(paragraph => `<p>${paragraph.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;').replaceAll('\n', '<br>')}</p>`).join('')
