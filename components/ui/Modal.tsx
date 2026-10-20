@@ -14,7 +14,7 @@ interface ModalProps {
   isOpen: boolean
   onClose?: () => void
   size?: ModalSize
-  layout?: 'fixed' | 'content'
+  layout?: 'fixed' | 'content' | 'fullscreen'
   children: ReactNode
   closeOnBackdrop?: boolean
   closeOnEscape?: boolean
@@ -51,7 +51,7 @@ export function Modal({ isOpen, onClose, size = 'md', layout = size === 'lg' || 
     <div
       ref={rootRef}
       role="presentation"
-      style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: spacing.lg, background: 'rgba(20, 30, 34, 0.48)', backdropFilter: 'blur(2px)', animation: 'fadeIn 0.16s ease-out' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: layout === 'fullscreen' ? 0 : spacing.lg, background: 'rgba(20, 30, 34, 0.48)', backdropFilter: 'blur(2px)', animation: 'fadeIn 0.16s ease-out' }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && closeOnBackdrop && onClose && isTop()) onClose()
       }}
@@ -63,7 +63,7 @@ export function Modal({ isOpen, onClose, size = 'md', layout = size === 'lg' || 
         aria-label={ariaLabel}
         aria-labelledby={ariaLabel ? undefined : titleId}
         tabIndex={-1}
-        style={{ width: `min(100%, ${widths[size]})`, height: layout === 'fixed' ? 'min(80dvh, 640px)' : undefined, maxHeight: 'min(90dvh, 900px)', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: radius['2xl'], background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: shadows.xl, fontFamily: typography.fontSans, outline: 'none', ...style }}
+        style={{ width: layout === 'fullscreen' ? '100dvw' : `min(100%, ${widths[size]})`, height: layout === 'fullscreen' ? '100dvh' : layout === 'fixed' ? 'min(80dvh, 640px)' : undefined, maxHeight: layout === 'fullscreen' ? '100dvh' : 'min(90dvh, 900px)', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: layout === 'fullscreen' ? 0 : radius['2xl'], background: colors.surface, border: layout === 'fullscreen' ? 'none' : `1px solid ${colors.border}`, boxShadow: shadows.xl, fontFamily: typography.fontSans, outline: 'none', ...style }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <DialogTitleContext.Provider value={titleId}>{children}</DialogTitleContext.Provider>
@@ -73,7 +73,7 @@ export function Modal({ isOpen, onClose, size = 'md', layout = size === 'lg' || 
   )
 }
 
-export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = true, titleSize = 'large' }: ModalHeaderProps) {
+export function ModalHeader({ title, description, onClose, icon, badge, onBack, backLabel = 'Back', compact = true, titleSize = 'default' }: ModalHeaderProps) {
   const ownId = useId()
   const titleId = useContext(DialogTitleContext) || ownId
   return (

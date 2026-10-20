@@ -1,6 +1,7 @@
 'use client'
 
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+import ContactBulkMessageModal from '@/components/inbox/ContactBulkMessageModal'
 import MessageActions from '@/components/inbox/MessageActions'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
@@ -878,7 +879,11 @@ export default function ContactsPage() {
       )}
 
       {/* Compose slide panel */}
-      <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+      {isComposeOpen && !singleComposeContact && <ContactBulkMessageModal
+        key={composeChannel + [...selectedIds].sort().join(',')}
+        tenantId={tenantId} contacts={contacts.filter(contact => selectedIds.has(contact.id))} channel={composeChannel}
+        onClose={() => setIsComposeOpen(false)} />}
+      <SlidePanel isOpen={isComposeOpen && !!singleComposeContact} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
         <SlidePanelHeader
           title={composeChannel === 'email' ? 'Send Email' : singleComposeContact ? `Message to ${singleComposeContact.first_name}` : 'Send SMS'}
           onBack={singleComposeContact ? () => { setIsComposeOpen(false); setSelectedContact(singleComposeContact) } : undefined}

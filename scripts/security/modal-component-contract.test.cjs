@@ -17,7 +17,7 @@ function modal() {
     if (id === '@/lib/useDialogLayer') return { DialogTitleContext: { Provider: 'provider' }, useDialogLayer: () => ({ mounted: true, isTop: () => true }) }
     if (id === './BackControl') return { BackControl: 'back' }
     if (id === '@/components/ui/ControlButton') return { ControlButton: 'control' }
-    if (id === '@/lib/tokens') return { colors: {}, radius: {}, shadows: {}, spacing: { xs: '4px', xl: '24px', '2xl': '32px' }, typography: { h2: {}, size2xl: '1.5rem' } }
+    if (id === '@/lib/tokens') return { colors: {}, radius: {}, shadows: {}, spacing: { xs: '4px', xl: '24px', '2xl': '32px' }, typography: { h2: { fontSize: '1.125rem' }, size2xl: '1.5rem' } }
     return require(id)
   } })
   return exports
@@ -34,12 +34,30 @@ test('large and wide shared modals own fixed height; compact dialogs remain cont
   assert.equal(Modal({ isOpen: true, size: 'sm' }).props.children.props.style.height, undefined)
 })
 
-test('shared modal header defaults to compact spacing and larger title', () => {
+test('shared modal header defaults to compact spacing and standard 18px title', () => {
   const header = modal().ModalHeader({ title: 'Templates' })
   assert.equal(header.props.style.padding, '4px 32px')
   const heading = header.props.children[0].props.children[2].props.children[0].props.children[0]
   assert.equal(heading.type, 'h2')
-  assert.equal(heading.props.style.fontSize, '1.5rem')
+  assert.equal(heading.props.style.fontSize, '1.125rem')
+})
+
+test('fullscreen modal owns viewport sizing without drawer geometry', () => {
+  const overlay = modal().Modal({ isOpen: true, layout: 'fullscreen' })
+  assert.equal(overlay.props.style.padding, 0)
+  const style = overlay.props.children.props.style
+  assert.equal(style.width, '100dvw')
+  assert.equal(style.height, '100dvh')
+  assert.equal(style.maxHeight, '100dvh')
+  assert.equal(style.borderRadius, 0)
+})
+
+test('Contacts bulk channels share review modal then fullscreen composer, not a side panel', () => {
+  const flow = source('components/inbox/ContactBulkMessageModal.tsx')
+  assert.match(flow, /layout=\{composing \? 'fullscreen' : 'content'\}/)
+  assert.match(flow, /<ContactBulkComposer/)
+  assert.doesNotMatch(flow, /SlidePanel/)
+  assert.match(source('app/dashboard/contacts/page.tsx'), /isComposeOpen && !singleComposeContact && <ContactBulkMessageModal/)
 })
 
 test('template picker consumes shared sizing, header and gallery without local CSS', () => {

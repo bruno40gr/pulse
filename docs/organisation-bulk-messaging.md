@@ -11,6 +11,7 @@
 ## Policy
 
 - Contacts and Conversations share the same page-header **Send new text message** and **Send new email** actions, built from the shared Button component. Contacts enables them after selection. There is no recipient-routing selector.
+- Multiple selected Contacts open one shared review modal for either channel. Continue opens a full-viewport composer, never a side drawer. Single-contact profile composition retains its contextual drawer. Shared modal headings default to the standard 18px heading token.
 - Minors route to every account holder recorded in `student_accounts` and the legacy primary account. Their own destination is never a fallback.
 - Adults use their saved account-holder preference, otherwise their own details.
 - Destinations are normalised and deduplicated. Existing opt-outs suppress shared destinations, including an unselected opted-out sibling.
