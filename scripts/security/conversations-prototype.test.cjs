@@ -91,6 +91,7 @@ function harness(mobile = false, wide = true) {
     '@/components/ui/DataGridTable': { ResponsiveDataTable: ({ rows, columns, emptyContent, ariaLabel }) => React.createElement('div', { role: 'table', 'aria-label': ariaLabel }, rows.length ? rows.map(row => React.createElement('div', { key: row.id }, columns.map(column => React.createElement('div', { key: column.id }, column.render(row))))) : emptyContent) },
     '@/components/ui/ControlButton': { ControlButton: 'ControlButton' },
     '@/components/ui/PersonName': { PersonName: 'ControlButton' },
+    '@/components/ui/Disclosure': { Disclosure: 'details' },
     '@/lib/tokens': load('lib/tokens.ts'),
     '@/lib/useMediaQuery': { useMediaQuery: query => query.includes('min-width') ? wide : mobile },
     '@/lib/conversations-prototype': fixtures,

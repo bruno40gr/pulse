@@ -10,6 +10,8 @@ import { Copy, Pencil, Phone, Trash2 } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
+import { LeadActivitySection } from './LeadActivitySection'
+import { Disclosure } from '@/components/ui/Disclosure'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatLeadSource } from '@/lib/lead-sources'
 import { isLessonLead, readLessonRequestFields, LESSON_PROGRAM_OPTIONS } from '@/lib/lead-lesson-details'
@@ -240,7 +242,8 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
 export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange }: LeadDetailPanelProps) {
   const contextualCompose = useContext(ConversationComposeContext)
   const [smsOpen, setSmsOpen] = useState(false)
-  useEffect(() => { setSmsOpen(false) }, [lead.id])
+  const [mobileSection, setMobileSection] = useState<'details' | 'notes'>('details')
+  useEffect(() => { setSmsOpen(false); setMobileSection('details') }, [lead.id])
   const [serviceEditing, setServiceEditing] = useState(false)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
@@ -413,6 +416,18 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
     leadId={lead.intake_type === 'job_application' ? undefined : lead.id}
     onBack={() => { setSmsOpen(false); onSmsViewChange?.(false) }} onClose={onClose} />
 
+  const notesRail = (
+    <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
+              <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={{ ...notesSectionStyle, flex: 1, minHeight: 0, overflow: 'hidden' }} contentStyle={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
+              {isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>
+                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
+              </Disclosure> : <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
+                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
+              </DenseSectionPanel>}
+              <LeadActivitySection key={lead.id} entries={activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)} />
+            </div>
+  )
+
   return (
     <div
       className="lead-detail-panel"
@@ -441,13 +456,17 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
         actions={isMobile ? undefined : (statusControls || undefined)}
       />
 
+      {isMobile && <div role="group" aria-label="Lead panel section" style={{ display: 'flex', gap: spacing.sm, padding: spacing.sm, flexShrink: 0 }}>
+        <ControlButton kind="tab" selected={mobileSection === 'details'} aria-pressed={mobileSection === 'details'} onClick={() => setMobileSection('details')}>Details</ControlButton>
+        <ControlButton kind="tab" selected={mobileSection === 'notes'} aria-pressed={mobileSection === 'notes'} onClick={() => setMobileSection('notes')}>Notes & activity</ControlButton>
+      </div>}
       <div style={{
         flex: 1,
         minHeight: 0,
         width: '100%',
         maxWidth: '100%',
         boxSizing: 'border-box',
-        overflowY: 'auto',
+        overflowY: isMobile && mobileSection === 'details' ? 'auto' : 'hidden',
         overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
@@ -501,7 +520,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
         </div>
       </>
 
-      {isMobile ? (
+      {isMobile && mobileSection === 'notes' ? notesRail : isMobile ? (
           <div style={{
             display: "flex",
             flexDirection: "column",
@@ -515,7 +534,6 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
               <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
               <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
             </div>
-            <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
             {winback && (
               <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
                 <div style={stackStyle}>
@@ -671,15 +689,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
               </DenseSectionPanel>
             </div>
 
-            <div style={columnStyle}>
-              <DenseSectionPanel title={<SectionTitle>Notes</SectionTitle>} style={notesSectionStyle}><NotesSection title="Notes" notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} showHeader={false} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} /></DenseSectionPanel>
-              <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
-                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
-              </DenseSectionPanel>
-              <DenseSectionPanel title={<SectionTitle>Activity</SectionTitle>} tone="muted" style={activitySectionStyle}>
-                <div style={activityListStyle}>{activityEvents.length === 0 ? <div style={emptyActivityStyle}>No system activity yet.</div> : activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)}</div>
-              </DenseSectionPanel>
-            </div>
+            {notesRail}
           </div>
         )}
       </div>
@@ -688,7 +698,8 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
 }
 
 
-const columnsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
+const notesRailStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', padding: spacing.xs }
+const columnsStyle: CSSProperties = { display: 'grid', gridTemplateRows: 'minmax(0, 1fr)', overflow: 'hidden', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
 const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
 const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }
@@ -724,12 +735,11 @@ const newStatusSelectStyle: CSSProperties = { background: semanticColors.newLead
 const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, padding: spacing.md, background: colors.surfaceMuted, border: `1px solid ${colors.error}`, borderRadius: radius.md }
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }
-const notesSectionStyle: CSSProperties = { order: 2 }
+const notesSectionStyle: CSSProperties = {}
 const lessonSectionStyle: CSSProperties = { order: 3 }
 const familySectionStyle: CSSProperties = { order: 4 }
 const sourceSectionStyle: CSSProperties = { order: 5 }
-const followUpSectionStyle: CSSProperties = { order: 5 }
-const activitySectionStyle: CSSProperties = { order: 6 }
+const followUpSectionStyle: CSSProperties = { flexShrink: 0 }
 const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
 const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
 const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
@@ -740,10 +750,8 @@ const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFa
 const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const serviceTypeRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: spacing.sm, alignItems: 'end' }
 const opportunityValueEditorStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(180px, 0.7fr)', gap: spacing.sm, alignItems: 'start' }
-const activityListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const activityRowStyle: CSSProperties = { display: 'flex', gap: spacing.sm, alignItems: 'flex-start' }
 const activityMarkerStyle: CSSProperties = { width: spacing.sm, height: spacing.sm, borderRadius: radius.full, background: colors.teal, marginTop: spacing.xs, flexShrink: 0 }
 const activityContentStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }
 const activityTitleStyle: CSSProperties = { color: colors.text, fontFamily: typography.fontSans, fontSize: typography.sizeSm, fontWeight: typography.weightMedium }
 const activityTimeStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs }
-const emptyActivityStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }

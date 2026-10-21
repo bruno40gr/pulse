@@ -1,6 +1,7 @@
 'use client'
 
 import { Pencil } from 'lucide-react'
+import { Disclosure } from '@/components/ui/Disclosure'
 
 import { formatContactTiming } from '@/lib/contact-timing'
 
@@ -318,7 +319,7 @@ export default function ConversationsPrototype() {
               {contextMessages.map((message, index) => {
                 const header = <div style={{ ...row, justifyContent: 'space-between' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}><EmailDirection direction={message.direction} /><strong>{message.direction === 'inbound' ? contact.name : 'Headliner Office'}</strong></span><span style={meta}>{message.time}</span></div>
                 const content = <><p style={{ ...meta, overflowWrap: 'anywhere' }}>From: {message.direction === 'inbound' ? contact.email : PROTOTYPE_EMAIL}<br />To: {message.direction === 'inbound' ? PROTOTYPE_EMAIL : message.emailTo?.join(', ') || contact.email}{!!message.emailCc?.length && <><br />Cc: {message.emailCc.join(', ')}</>}</p><EmailBody message={message} />{message.simulated && <p style={meta}>Mock only — not sent</p>}</>
-                return index < contextMessages.length - 1 ? <details key={message.id} style={{ padding: `${spacing.xl} 0`, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing.xl }}><summary style={{ cursor: 'pointer' }}>{header}</summary>{content}</details> : <article key={message.id} style={{ padding: `${spacing.xl} 0` }}>{header}{content}</article>
+                return index < contextMessages.length - 1 ? <Disclosure key={message.id} summary={header} style={{ padding: `${spacing.xl} 0`, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing.xl }}>{content}</Disclosure> : <article key={message.id} style={{ padding: `${spacing.xl} 0` }}>{header}{content}</article>
               })}
               </div>}
               <div ref={replyEditor} style={{ marginTop: spacing.xl, paddingTop: contextMessages.length ? spacing.xl : 0, borderTop: contextMessages.length ? `1px solid ${colors.border}` : undefined, paddingBottom: spacing.xl }}>
