@@ -12,6 +12,7 @@ export type PrototypeMessage = {
   html?: string
   simulated?: boolean
   emailTo?: string[]
+  emailFrom?: string
   emailCc?: string[]
 }
 export type PrototypeThread = {

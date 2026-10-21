@@ -39,7 +39,7 @@ test('provider body is full plain text, never untrusted HTML, and contact match 
   assert.equal(helper.gmailThreadMatches({ messages: [{ payload: { headers: [{ name: 'Bcc', value: 'secret@example.com' }] } }] }, 'secret@example.com'), false)
 })
 
-function routeHarness({ denied = false, sendScope = true, failSend = false, mailboxes = [], threads = [], failRead = null } = {}) {
+function routeHarness({ denied = false, sendScope = true, failSend = false, mailboxes = [], threads = [], failRead = null, additionalPeople = [] } = {}) {
   const calls = []; const queries = []
   const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'contact', profileId: 'one', smsContactId: 'one' }
   const live = load('lib/conversations-live.ts')
@@ -54,7 +54,7 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
       const builder = { select() { return builder }, eq(key, value) { queries.push([table, key, value]); return builder }, order() { return Promise.resolve({ data: mailboxes, error: null }) } }
       return builder
     } } },
-    '@/lib/conversations-directory': { conversationDirectory: async () => [person] },
+    '@/lib/conversations-directory': { conversationDirectory: async () => [person, ...additionalPeople] },
     '@/lib/gmail/conversations': { ...helper, conversationMailbox: async (...args) => { calls.push(['mailbox', ...args]); return { id: 'mailbox-one', email: 'office@example.com', token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] } }, gmailGet: async (_, url) => { calls.push(['get', url]); if (failRead) { const failure = failRead(url); if (failure) throw failure }; return url.startsWith('threads?') ? { threads: threads.map(thread => ({ id: thread.id })), nextPageToken: 'page-two' } : threads.find(thread => url.includes(thread.id)) } },
     '@/lib/gmail/rules': rules,
     '@/lib/conversations-live': live,
@@ -242,4 +242,69 @@ test('Gmail reads retry only transient HTTP and network failures, without retain
     })
     assert.equal(calls, status === 429 ? 2 : 1)
   }
+})
+const emailMessage = (id, headers, labelIds = ['UNREAD']) => ({ id, internalDate: '1792252800000', labelIds, payload: { mimeType: 'text/plain', body: { data: Buffer.from('Message content').toString('base64url') }, headers: Object.entries(headers).map(([name, value]) => ({ name, value })) } })
+
+test('Opus notification transport senders are excluded without name, subject or quoted-body heuristics', () => {
+  for (const header of ['From', 'Sender', 'Return-Path']) {
+    const notification = emailMessage('opus', { From: 'parent@example.com', [header]: 'Headliner <no-reply@notifications.opus1.io>' })
+    assert.equal(helper.isOpusNotification(notification), true)
+    assert.equal(helper.gmailThreadMatches({ messages: [notification] }, 'parent@example.com', 'office@example.com'), false)
+  }
+  for (const from of ['mel@example.com', 'david@example.com', 'parent@example.com', 'person@opus1.io', 'person@notifications.opus1.io.evil.example']) {
+    assert.equal(helper.isOpusNotification(emailMessage('real', { From: from, 'Reply-To': 'no-reply@notifications.opus1.io', Subject: 'Your receipt' })), false)
+  }
+})
+
+test('notification-only histories disappear from summaries and contact history without mutating Gmail', async () => {
+  const threads = [{ id: 'opus-thread', messages: [emailMessage('opus', { From: 'no-reply@notifications.opus1.io', To: 'parent@example.com', Cc: 'staff@example.com' })] }]
+  for (const query of ['summary=1', 'person=person:one']) {
+    const h = routeHarness({ threads })
+    const result = await h.api.GET(new Request(`https://example.com/api/conversations/email?mailbox=mailbox-one&${query}`))
+    assert.equal(result.status, 200)
+    assert.equal(result.body.threads.length, 0)
+    assert.equal(result.body.nextCursor, 'page-two')
+    const display = load('lib/conversation-display.ts')
+    assert.equal(display.conversationAttention(result.body.threads).unattended, false)
+    assert.equal(display.lastContactTimestamp(result.body.threads), '')
+    assert.equal(h.calls.some(call => call[0] === 'send'), false)
+  }
+})
+
+test('mixed Opus threads retain genuine replies and never attribute inbound mail to CC recipients', async () => {
+  const staff = { id: 'staff', name: 'Staff', email: 'staff@example.com' }
+  const threads = [{ id: 'mixed', messages: [
+    emailMessage('opus', { From: 'parent@example.com', Sender: 'no-reply@notifications.opus1.io', To: 'office@example.com', Cc: staff.email }),
+    emailMessage('reply', { From: 'Parent <parent@example.com>', To: 'office@example.com', Cc: staff.email, 'Reply-To': 'no-reply@notifications.opus1.io' }),
+  ] }]
+  const h = routeHarness({ threads, additionalPeople: [staff] })
+  const result = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1'))
+  assert.equal(result.body.threads.length, 1)
+  const actual = result.body.threads[0]
+  assert.equal(actual.contactId, 'person:one')
+  assert.equal(actual.messages.length, 1)
+  assert.equal(actual.messages[0].id, 'reply')
+  assert.equal(actual.messages[0].direction, 'inbound')
+  assert.equal(actual.messages[0].emailFrom, 'parent@example.com')
+  assert.equal(actual.messages[0].unread, true)
+})
+
+test('each person sees their own messages rather than unrelated authors copied on a shared thread', async () => {
+  const staff = { id: 'staff', name: 'David', email: 'staff@example.com' }
+  const h = routeHarness({ additionalPeople: [staff], threads: [{ id: 'shared', messages: [
+    emailMessage('parent', { From: 'parent@example.com', To: 'office@example.com', Cc: staff.email }),
+    emailMessage('staff-direct', { From: staff.email, To: 'office@example.com', Cc: 'parent@example.com' }),
+  ] }] })
+  const result = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1'))
+  assert.equal(result.body.threads.length, 2)
+  assert.equal(result.body.threads.find(thread => thread.contactId === 'person:one').messages[0].id, 'parent')
+  assert.equal(result.body.threads.find(thread => thread.contactId === 'staff').messages[0].id, 'staff-direct')
+  assert.ok(result.body.threads.every(thread => thread.messages.length === 1))
+})
+
+test('genuine outbound messages remain outbound and do not acquire unread flags', async () => {
+  const h = routeHarness({ threads: [{ id: 'sent', messages: [emailMessage('out', { From: 'Office <office@example.com>', To: 'parent@example.com' }, ['SENT', 'UNREAD'])] }] })
+  const result = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1'))
+  assert.equal(result.body.threads[0].messages[0].direction, 'outbound')
+  assert.equal(result.body.threads[0].messages[0].unread, false)
 })

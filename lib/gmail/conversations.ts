@@ -18,8 +18,37 @@ export function validEmail(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 254 && !/[\r\n]/.test(value) && /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value)
 }
 
-export function gmailThreadMatches(thread: GmailConversationThread, email: string) {
-  return thread.messages?.some(message => emailAddresses(`${gmailHeader(message, 'From')},${gmailHeader(message, 'To')},${gmailHeader(message, 'Cc')}`).includes(email.toLowerCase())) || false
+/** Opus1 notifications are archival/operational mail, not customer conversations.
+ * See kb.opus1.io/client-automated-email-notifications and its BCC archival guide.
+ * Inspect transport sender headers too: notification copies may use a customer's
+ * address in From. Never inspect Reply-To or quoted bodies: real replies retain those.
+ */
+export function isOpusNotification(message: GmailConversationMessage): boolean {
+  return ['From', 'Sender', 'Return-Path'].some(header => emailAddresses(gmailHeader(message, header)).some(address => {
+    const domain = address.split('@')[1]
+    return domain === 'notifications.opus1.io' || domain.endsWith('.notifications.opus1.io')
+  }))
+}
+
+export function gmailConversationMessages(thread: GmailConversationThread): GmailConversationMessage[] {
+  return (thread.messages || []).filter(message => !message.labelIds?.some(label => ['DRAFT', 'TRASH', 'SPAM'].includes(label)) && !isOpusNotification(message))
+}
+
+export function gmailMessageDirection(message: GmailConversationMessage, mailboxEmail: string): 'outbound' | 'inbound' {
+  return message.labelIds?.includes('SENT') || emailAddresses(gmailHeader(message, 'From')).includes(mailboxEmail.toLowerCase()) ? 'outbound' : 'inbound'
+}
+
+/** A copied recipient is not the author of an incoming conversation. */
+export function gmailMessageMatches(message: GmailConversationMessage, email: string, mailboxEmail?: string): boolean {
+  const person = email.toLowerCase()
+  if (mailboxEmail && gmailMessageDirection(message, mailboxEmail) === 'inbound') {
+    return emailAddresses(gmailHeader(message, 'From')).includes(person)
+  }
+  return emailAddresses(`${gmailHeader(message, 'From')},${gmailHeader(message, 'To')},${gmailHeader(message, 'Cc')}`).includes(person)
+}
+
+export function gmailThreadMatches(thread: GmailConversationThread, email: string, mailboxEmail?: string) {
+  return gmailConversationMessages(thread).some(message => gmailMessageMatches(message, email, mailboxEmail))
 }
 
 /** Prefer full plain text over snippet/lead-note extraction. Untrusted HTML is never rendered. */

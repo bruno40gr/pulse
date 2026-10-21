@@ -5,7 +5,7 @@ import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { conversationDirectory } from '@/lib/conversations-directory'
-import { conversationMailbox, gmailConversationBody, gmailGet, gmailHeader, gmailMime, gmailThreadMatches, validEmail, type GmailConversationThread } from '@/lib/gmail/conversations'
+import { conversationMailbox, gmailConversationBody, gmailConversationMessages, gmailMessageDirection, gmailMessageMatches, gmailGet, gmailHeader, gmailMime, gmailThreadMatches, validEmail, type GmailConversationThread } from '@/lib/gmail/conversations'
 import { emailAddresses } from '@/lib/gmail/rules'
 import { personThread, type LiveThread } from '@/lib/conversations-live'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
@@ -72,23 +72,26 @@ export async function GET(request: Request) {
     }
     stage = 'messages'
     for (const thread of histories) {
-      const matches = (summary ? people : [person!]).filter(person => validEmail(person.email) && gmailThreadMatches(thread, person.email))
+      const matches = (summary ? people : [person!]).filter(person => validEmail(person.email) && gmailThreadMatches(thread, person.email, mailbox.email))
       if (!matches.length) continue
-      const messages = (thread.messages || []).filter(message => !message.labelIds?.some(label => ['DRAFT', 'TRASH', 'SPAM'].includes(label)))
-        .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)).map(message => {
-          const internalDate = message.internalDate?.trim() ? new Date(Number(message.internalDate)) : new Date(NaN)
-          const headerDate = new Date(gmailHeader(message, 'Date'))
-          const date = Number.isFinite(internalDate.getTime()) ? internalDate : Number.isFinite(headerDate.getTime()) ? headerDate : null
-          return ({
-          id: message.id, channel: 'email' as const,
-          direction: message.labelIds?.includes('SENT') || emailAddresses(gmailHeader(message, 'From')).includes(mailbox.email.toLowerCase()) ? 'outbound' as const : 'inbound' as const,
-          body: summary ? '' : gmailConversationBody(message.payload), time: date ? date.toLocaleString('en-US') : 'Date unavailable',
-          timestamp: date?.toISOString() || '', subject: gmailHeader(message, 'Subject'),
-          unread: message.labelIds?.includes('UNREAD') || false,
-          emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
-        }) })
-      for (const person of matches) if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
-        providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
+      for (const person of matches) {
+        const messages = gmailConversationMessages(thread).filter(message => gmailMessageMatches(message, person.email, mailbox.email))
+          .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)).map(message => {
+            const internalDate = message.internalDate?.trim() ? new Date(Number(message.internalDate)) : new Date(NaN)
+            const headerDate = new Date(gmailHeader(message, 'Date'))
+            const date = Number.isFinite(internalDate.getTime()) ? internalDate : Number.isFinite(headerDate.getTime()) ? headerDate : null
+            return ({
+            id: message.id, channel: 'email' as const,
+            direction: gmailMessageDirection(message, mailbox.email),
+            body: summary ? '' : gmailConversationBody(message.payload), time: date ? date.toLocaleString('en-US') : 'Date unavailable',
+            timestamp: date?.toISOString() || '', subject: gmailHeader(message, 'Subject'),
+            unread: gmailMessageDirection(message, mailbox.email) === 'inbound' && (message.labelIds?.includes('UNREAD') || false),
+            emailFrom: emailAddresses(gmailHeader(message, 'From')).join(', '),
+            emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
+          }) })
+        if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
+          providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
+      }
     }
     return NextResponse.json({ threads, nextCursor: page.nextPageToken || null }, { headers })
   } catch (error) {
