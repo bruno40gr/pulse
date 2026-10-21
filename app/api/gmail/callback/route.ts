@@ -8,6 +8,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 export async function GET(request: NextRequest) {
   const destination = new URL('/dashboard/settings?tab=account', request.url)
   let result = 'error'
+  let stage = 'session'
   try {
     const cookie = request.cookies.get('pulse_gmail_oauth')?.value
     if (!cookie) throw new Error('Missing OAuth state')
@@ -16,15 +17,26 @@ export async function GET(request: NextRequest) {
     const accessRequest = new Request(new URL(`/api/gmail?tenant=${state.tenantId}`, request.url), { headers: request.headers })
     const access = await authorizeTenantRequest(accessRequest, { permission: PERMISSIONS.communicationsConfigure })
     if (!access.ok || access.context?.membershipId !== state.membershipId || access.context.roleKey !== 'owner') throw new Error('Account changed')
+    stage = 'consent'
     const code = request.nextUrl.searchParams.get('code')
     if (!code) throw new Error('Consent not granted')
+    stage = 'token'
     const token = await googleToken({ code, code_verifier: state.verifier, grant_type: 'authorization_code', redirect_uri: gmailRedirectUri() })
     const scopes = token.scope?.split(' ') || []
-    if (!token.refresh_token || !['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'].every(scope => scopes.includes(scope))) throw new Error('Read and send permissions required')
+    stage = 'permissions'
+    if (!['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'].every(scope => scopes.includes(scope))) throw new Error('Read and send permissions required')
+    stage = 'offline_access'
+    if (!token.refresh_token) throw new Error('Offline access required')
+    stage = 'profile'
     const profile = await gmailGet<{ emailAddress: string }>(token.access_token, 'profile')
     const email = profile.emailAddress.toLowerCase()
+    stage = 'storage'
     const { data: existing, error: lookupError } = await crmSupabaseAdmin.from('gmail_connections').select('id,capture_from,lease_until').eq('tenant_id', state.tenantId).eq('email', email).maybeSingle()
-    if (lookupError || (existing?.lease_until && Date.parse(existing.lease_until) > Date.now())) throw new Error('Mailbox busy')
+    if (lookupError) throw new Error('Mailbox lookup failed')
+    if (existing?.lease_until && Date.parse(existing.lease_until) > Date.now()) {
+      stage = 'busy'
+      throw new Error('Mailbox busy')
+    }
     const { error } = await crmSupabaseAdmin.from('gmail_connections').upsert({
       ...(existing ? { id: existing.id } : {}), tenant_id: state.tenantId, email, refresh_token_ciphertext: encryptToken(token.refresh_token),
       connected_by: state.membershipId, capture_from: existing?.capture_from || new Date().toISOString(), last_error: null,
@@ -32,7 +44,10 @@ export async function GET(request: NextRequest) {
     }, { onConflict: 'tenant_id,email' })
     if (error) throw error
     result = 'connected'
-  } catch { /* Never include tokens or provider errors in URLs or logs. */ }
+  } catch {
+    // Only fixed, non-sensitive stage identifiers; never expose tokens or provider errors.
+    destination.searchParams.set('gmail_error', stage)
+  }
   destination.searchParams.set('gmail', result)
   const response = NextResponse.redirect(destination)
   response.cookies.set('pulse_gmail_oauth', '', { httpOnly: true, path: '/api/gmail', maxAge: 0 })

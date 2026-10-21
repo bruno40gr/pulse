@@ -52,12 +52,13 @@ test('Gmail settings renders shared components with concise copy and settings sp
 test('connected Gmail matches Twilio status box and standard action buttons', () => {
   const GmailConnections = load('components/settings/GmailConnections.tsx', {
     configured: true,
-    connections: [{ id: 'synthetic-connection', email: 'office@example.com', last_synced_at: null, last_error: null, page_token: null }],
+    connections: [{ id: 'synthetic-connection', email: 'office@example.com', last_synced_at: null, last_error: null, page_token: null, scopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'] }],
     review: [], leads: [],
   }).default
   const { colors, spacing, typography } = load('lib/tokens.ts')
   const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
   assert.ok(html.includes('✓ Gmail connected'))
+  assert.ok(html.includes('read and send access'))
   assert.ok(html.includes('office@example.com'))
   assert.ok(html.includes('Not synced yet'))
   assert.ok(html.includes(`background:${colors.surfaceMuted}`))
@@ -77,4 +78,15 @@ test('loading Gmail does not offer a duplicate connection before data arrives', 
   const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
   assert.ok(html.includes('Loading…'))
   assert.ok(!html.includes('Connect Google mailbox'))
+})
+
+test('read-only mailbox is not presented as ready for sending', () => {
+  const GmailConnections = load('components/settings/GmailConnections.tsx', {
+    configured: true,
+    connections: [{ id: 'connection', email: 'office@example.com', scopes: ['https://www.googleapis.com/auth/gmail.readonly'] }],
+    review: [], leads: [],
+  }).default
+  const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
+  assert.ok(html.includes('Gmail connection needs authorization — read and send access required'))
+  assert.ok(!html.includes('✓ Gmail connected'))
 })

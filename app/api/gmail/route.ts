@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   if (!access.context || (access.context.roleKey !== 'owner' && !access.context.permissions.has(PERMISSIONS.leadsManage))) return NextResponse.json({ error: 'Lead management permission is required.' }, { status: 403, headers })
   const [connections, review] = await Promise.all([
-    crmSupabaseAdmin.from('gmail_connections').select('id,email,capture_from,last_synced_at,last_error,page_token').eq('tenant_id', access.tenantId).order('email'),
+    crmSupabaseAdmin.from('gmail_connections').select('id,email,capture_from,last_synced_at,last_error,page_token,scopes').eq('tenant_id', access.tenantId).order('email'),
     crmSupabaseAdmin.from('gmail_outreach').select('id,sender,subject,body,sent_at,candidate_lead_ids').eq('tenant_id', access.tenantId).eq('status', 'review').order('sent_at', { ascending: false }).limit(50),
   ])
   if (connections.error || review.error) return NextResponse.json({ configured: gmailConfigured(), error: 'Gmail data is unavailable. Verify the Gmail migration and database access in this Odeon environment before connecting mailboxes.' }, { status: 503, headers })

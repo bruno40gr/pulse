@@ -6,7 +6,7 @@ import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 type Workspace = {
   configured: boolean
-  connections: { id: string; email: string; capture_from: string; last_synced_at: string | null; last_error: string | null; page_token: string | null }[]
+  connections: { id: string; email: string; capture_from: string; last_synced_at: string | null; last_error: string | null; page_token: string | null; scopes?: string[] }[]
   review: { id: string; sender: string; subject: string; body: string; sent_at: string; candidate_lead_ids: string[] }[]
   leads: { id: string; program_label: string | null; service_label: string | null; crm_contacts: { full_name: string } | { full_name: string }[] | null }[]
 }
@@ -26,8 +26,20 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
   }, [tenantId])
   useEffect(() => {
     void load().catch(error => setError(error.message))
-    const result = new URLSearchParams(window.location.search).get('gmail')
-    if (result === 'error') setError('Google connection could not be completed. Allow both reading and sending email, then try again. If your organization restricts third-party apps, ask your Google Workspace administrator for access.')
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('gmail') === 'error') {
+      const messages: Record<string, string> = {
+        session: 'The connection session expired or your signed-in account changed. Start the connection again from this page.',
+        consent: 'Google authorization was cancelled or did not return an authorization code. Your existing connection has not changed.',
+        token: 'The app could not exchange Google’s authorization code. The deployment administrator needs to check the OAuth client credentials and callback URL.',
+        permissions: 'Google did not grant both read and send access. Your existing connection has not changed. Allow both permissions when reconnecting.',
+        offline_access: 'Google did not return offline access for the mailbox. Your existing connection has not changed. Reconnect to request offline access again.',
+        profile: 'Google authorization returned, but the app could not read the Gmail profile. The deployment administrator needs to check Gmail API availability and access.',
+        storage: 'The app could not save the Google connection. Your existing connection has not changed. The deployment administrator needs to check database access.',
+        busy: 'The mailbox was syncing when the connection returned. Your existing connection has not changed. Wait for syncing to finish before reconnecting.',
+      }
+      setError(messages[params.get('gmail_error') || ''] || 'The Google reconnect did not complete. Any previously saved connection is still shown below; it does not confirm this reconnect succeeded. The failure reason was not recorded by this version of the app.')
+    }
   }, [load])
 
   const action = async (body: Record<string, string>) => {
@@ -78,7 +90,7 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
     {data && !data.configured && <p style={{ color: colors.textMuted }}>Google OAuth credentials and token encryption must be configured by your deployment administrator.</p>}
     {data?.connections.map(connection => <div key={connection.id} style={{ marginTop: spacing.xl }}>
       <div style={{ background: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing['2xl'], display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-        <div style={{ fontSize: typography.sizeMd, color: colors.success, fontWeight: typography.weightSemibold }}>✓ Gmail connected</div>
+        <div style={{ fontSize: typography.sizeMd, color: connection.scopes?.includes('https://www.googleapis.com/auth/gmail.send') && connection.scopes?.includes('https://www.googleapis.com/auth/gmail.readonly') ? colors.success : colors.warning, fontWeight: typography.weightSemibold }}>{connection.scopes?.includes('https://www.googleapis.com/auth/gmail.send') && connection.scopes?.includes('https://www.googleapis.com/auth/gmail.readonly') ? '✓ Gmail connected — read and send access' : 'Gmail connection needs authorization — read and send access required'}</div>
         <div style={{ fontSize: typography.sizeBase, color: colors.text, overflowWrap: 'anywhere' }}>
           Mailbox: <span style={{ fontWeight: typography.weightMedium }}>{connection.email}</span>
         </div>
