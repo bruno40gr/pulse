@@ -3,7 +3,7 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness, HEAD, DEMO } = require('./synthetic-harness.cjs')
 
-function setup({ signoff = null, error = null, role = 'staff', permissions = [], auth = true, connected = true } = {}) {
+function setup({ signoff = null, error = null, role = 'staff', permissions = [], auth = true, connected = true, logos = { logo_on_white_url: 'https://assets.example.com/brand.png', logo_on_dark_url: 'https://assets.example.com/dark.png' } } = {}) {
   const harness = createHarness()
   harness.setScenario({
     authUser: auth ? { id: 'auth' } : null,
@@ -17,7 +17,7 @@ function setup({ signoff = null, error = null, role = 'staff', permissions = [],
       roles: [{ id: 'role', tenant_id: HEAD, key: role }],
       role_permissions: permissions.map((_, i) => ({ role_id: 'role', permission_id: String(i) })),
       permissions: permissions.map((key, i) => ({ id: String(i), key })),
-      tenant_settings: [{ tenant_id: HEAD, logo_url: 'https://assets.example.com/brand.png', email_signature: { name: 'Shared Office', title: 'Shared Title', phone: '123' } }],
+      tenant_settings: [{ tenant_id: HEAD, logo_url: 'https://assets.example.com/brand.png', ...logos, email_signature: { name: 'Shared Office', title: 'Shared Title', phone: '123' } }],
     },
     errors: error ? { tenant_memberships: error } : {},
   })
@@ -149,5 +149,18 @@ test('staff without brand permissions can load the tenant logo and opt out witho
     const query = harness.getQueries().find(query => query.table === 'tenant_settings')
     assert.ok(query.filters.some(([, key, value]) => key === 'tenant_id' && value === HEAD))
     assert.equal(harness.getWrites().length, 0)
+  }
+})
+
+test('both background logos must be configured before a member can enable the signature logo', async () => {
+  for (const logos of [{}, { logo_on_white_url: 'https://assets.example.com/white.png' }, { logo_on_dark_url: 'https://assets.example.com/dark.png' }, { logo_on_white_url: 'https://assets.example.com/white.png', logo_on_dark_url: 'http://unsafe.example.com/dark.png' }]) {
+    const { route, harness } = setup({ logos, signoff: { name: 'Alex', role: '', includeCompanyLogo: true } })
+    const data = await (await route.GET(request())).json()
+    assert.equal(data.companyLogoUrl, '')
+    assert.equal(data.includeCompanyLogo, false)
+    assert.equal(data.logoUrl, '')
+    assert.equal((await route.PUT(request({ name: 'Alex', role: '', includeCompanyLogo: true }))).status, 400)
+    assert.equal(harness.getWrites().length, 0)
+    assert.equal((await route.PUT(request({ name: 'Alex', role: '', includeCompanyLogo: false }))).status, 200)
   }
 })

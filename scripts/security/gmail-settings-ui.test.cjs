@@ -109,6 +109,18 @@ test('Email signature uses a company logo checkbox without helpers and labels th
   assert.ok(!html.slice(html.indexOf('aria-label="Email signature preview"')).includes('>Preview<'))
 })
 
+test('signature logo checkbox is disabled and unchecked when Brand logo setup is incomplete', () => {
+  const values = [{ name: 'Alex', role: '', includeCompanyLogo: true, phone: '' }, false, false, true, '', false, true, '']
+  let index = 0
+  const Component = load('components/settings/EmailSignatureSettings.tsx', undefined, {
+    react: { ...React, useEffect: () => {}, useState: () => React.useState(values[index++]) },
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant' }))
+  const checkbox = html.match(/<input[^>]*type="checkbox"[^>]*>/)[0]
+  assert.ok(checkbox.includes('disabled=""'))
+  assert.ok(!checkbox.includes('checked'))
+})
+
 test('connected Gmail matches Twilio status box and standard action buttons', () => {
   const GmailConnections = load('components/settings/GmailConnections.tsx', {
     configured: true,

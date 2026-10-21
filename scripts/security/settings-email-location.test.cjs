@@ -60,6 +60,10 @@ test('Brand no longer contains shared email signature settings', () => {
   const html = render('brand')
   assert.ok(html.includes('Logo'))
   assert.ok(!html.includes('data-panel='))
+  assert.ok(html.includes('Logo on white'))
+  assert.ok(html.includes('Logo on dark'))
+  assert.ok(html.includes('We recommend adding two versions'))
+  assert.ok(!html.includes('file upload is coming later'))
 })
 
 test('Moving email panels preserves integration and brand permission gates', () => {

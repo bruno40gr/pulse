@@ -3,7 +3,7 @@
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getActiveTenantId, getTenantBrand } from '@/lib/tenant'
+import { getActiveTenantId } from '@/lib/tenant'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
 import AccessManagementClient from '@/components/access/AccessManagementClient'
 import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
@@ -314,6 +314,7 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
 
 function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, cardS, sectionTitleS, sectionSubS }: { tenantId: string; canAccessDesignSystem: boolean } & SettingsStyles) {
   const [logoUrl, setLogoUrl] = useState('')
+  const [darkLogoUrl, setDarkLogoUrl] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
   const [brandMarkdown, setBrandMarkdown] = useState('')
   const [approvedImages, setApprovedImages] = useState<MediaAsset[]>([])
@@ -327,7 +328,8 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
       .then(r => r.json())
       .then(data => {
         if (data && !data.error) {
-          setLogoUrl(data.logo_url || getTenantBrand(tenantId).logoUrl)
+          setLogoUrl(data.logo_on_white_url || '')
+          setDarkLogoUrl(data.logo_on_dark_url || '')
           setBrandVoice(data.brand_voice || '')
           setBrandMarkdown(data.brand_markdown || '')
         }
@@ -349,7 +351,7 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
       const res = await fetch(`/api/brand-settings?tenant=${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logo_url: logoUrl, brand_voice: brandVoice, brand_markdown: brandMarkdown }),
+        body: JSON.stringify({ logo_on_white_url: logoUrl, logo_on_dark_url: darkLogoUrl, brand_voice: brandVoice, brand_markdown: brandMarkdown }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -375,13 +377,16 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
       {/* Logo */}
       <div style={cardS}>
         <h2 style={sectionTitleS}>Logo</h2>
-        <p style={sectionSubS}>Your logo appears across Pulse. Enter a URL for now — file upload is coming later.</p>
+        <p style={sectionSubS}>We recommend adding two versions of your logo, for use on white and dark backgrounds.</p>
         <div style={{ marginTop: spacing.xl }}>
-          <label style={labelS}>Logo URL</label>
-          <input type="text" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://yourbrand.com/logo.png" style={inputS} />
+          <label htmlFor="logo-on-white" style={labelS}>Logo on white</label>
+          <input id="logo-on-white" type="url" maxLength={2048} value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://yourbrand.com/logo-on-white.png" style={inputS} />
           {logoUrl && (
-            <img src={logoUrl} alt="Logo preview" style={{ marginTop: spacing.md, maxHeight: '64px', borderRadius: radius.md, background: colors.surfaceMuted, padding: spacing.sm }} onError={e => (e.currentTarget.style.display = 'none')} />
+            <img src={logoUrl} alt="Logo on white preview" style={{ marginTop: spacing.md, maxHeight: '64px', borderRadius: radius.md, background: '#fff', padding: spacing.sm }} />
           )}
+          <label htmlFor="logo-on-dark" style={{ ...labelS, marginTop: spacing.xl }}>Logo on dark</label>
+          <input id="logo-on-dark" type="url" maxLength={2048} value={darkLogoUrl} onChange={e => setDarkLogoUrl(e.target.value)} placeholder="https://yourbrand.com/logo-on-dark.png" style={inputS} />
+          {darkLogoUrl && <img src={darkLogoUrl} alt="Logo on dark preview" style={{ marginTop: spacing.md, maxHeight: '64px', borderRadius: radius.md, background: '#111', padding: spacing.sm }} />}
           <div style={{ marginTop: spacing.xl }}>
             <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save logo'}</Button>
           </div>

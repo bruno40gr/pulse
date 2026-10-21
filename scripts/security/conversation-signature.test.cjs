@@ -13,7 +13,7 @@ function setup({ permissions = ['communications.read', 'tenant_settings.manage']
       role_permissions: permissions.map((_, i) => ({ role_id: 'role', permission_id: String(i) })),
       permissions: permissions.map((key, i) => ({ id: String(i), key })),
       tenants: [{ id: HEAD, name: 'STAGING — Synthetic Music School' }],
-      tenant_settings: [{ tenant_id: HEAD, logo_url: 'https://example.com/white-logo.png', email_signature: { company: 'Public Music School', phone: '+12025550100', name: 'Office', logoUrl: 'https://example.com/black-logo.png' } }],
+      tenant_settings: [{ tenant_id: HEAD, logo_url: 'https://example.com/white-logo.png', logo_on_white_url: 'https://example.com/white-logo.png', logo_on_dark_url: 'https://example.com/dark-logo.png', email_signature: { company: 'Public Music School', phone: '+12025550100', name: 'Office', logoUrl: 'https://example.com/black-logo.png' } }],
       twilio_config: [{ tenant_id: HEAD, phone_number: '+12025550999', auth_token: 'secret' }],
     },
     errors: error ? { tenant_settings: error } : {},

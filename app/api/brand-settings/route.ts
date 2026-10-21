@@ -4,8 +4,9 @@ import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { PERMISSIONS } from '@/lib/permissions'
 import { requirePermission } from '@/lib/request-context'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { validSignatureLogoUrl } from '@/lib/email-signature-fields'
 
-const DEFAULTS = { logo_url: null, brand_voice: null, brand_markdown: null }
+const DEFAULTS = { logo_url: null, logo_on_white_url: null, logo_on_dark_url: null, brand_voice: null, brand_markdown: null }
 
 function isMissingTableError(error: unknown): boolean {
   const databaseError = error as { code?: string; message?: string } | null
@@ -13,6 +14,7 @@ function isMissingTableError(error: unknown): boolean {
   const msg = databaseError?.message || ''
   return (
     code === 'PGRST116' ||
+    code === '42703' ||
     code === 'PGRST204' ||
     code === 'PGRST205' ||
     code === '42P01' ||
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('tenant_settings')
-      .select('logo_url, brand_voice, brand_markdown')
+      .select('logo_url, logo_on_white_url, logo_on_dark_url, brand_voice, brand_markdown')
       .eq('tenant_id', tenantId)
       .maybeSingle()
 
@@ -52,6 +54,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Expected a brand settings object.' }, { status: 400 })
     }
     const logo_url = typeof body?.logo_url === 'string' ? body.logo_url.trim() || null : null
+    const logos: Record<string, string | null> = {}
+    for (const key of ['logo_on_white_url', 'logo_on_dark_url']) {
+      if (body[key] === undefined) continue
+      if (typeof body[key] !== 'string' || body[key].length > 2048 || !validSignatureLogoUrl(body[key].trim())) return NextResponse.json({ error: 'Use a public HTTPS URL for each logo.' }, { status: 400 })
+      logos[key] = body[key].trim() || null
+    }
     const brand_voice = typeof body?.brand_voice === 'string' ? body.brand_voice.trim() || null : null
     const brand_markdown = typeof body?.brand_markdown === 'string' ? body.brand_markdown.trim() || null : null
     if ((logo_url?.length || 0) > 2048 || (brand_voice?.length || 0) > 10000 || (brand_markdown?.length || 0) > 50000) {
@@ -61,15 +69,15 @@ export async function PUT(request: Request) {
     const { data, error } = await supabaseAdmin
       .from('tenant_settings')
       .upsert(
-        { tenant_id: tenantId, logo_url, brand_voice, brand_markdown, updated_at: new Date().toISOString() },
+        { tenant_id: tenantId, logo_url: logos.logo_on_white_url === undefined ? logo_url : logos.logo_on_white_url, ...logos, brand_voice, brand_markdown, updated_at: new Date().toISOString() },
         { onConflict: 'tenant_id' }
       )
-      .select('logo_url, brand_voice, brand_markdown')
+      .select('logo_url, logo_on_white_url, logo_on_dark_url, brand_voice, brand_markdown')
       .single()
 
     if (error) {
       if (isMissingTableError(error)) {
-        return NextResponse.json({ error: 'Tenant settings are unavailable until Migration 012 is applied.' }, { status: 503 })
+        return NextResponse.json({ error: 'Brand logo settings are unavailable until Migration 028 is applied.' }, { status: 503 })
       }
       throw error
     }
@@ -79,7 +87,7 @@ export async function PUT(request: Request) {
       actorMembershipId: permission.context.membershipId,
       eventType: 'tenant_settings.brand_updated',
       metadata: {
-        changed_fields: ['logo_url', 'brand_voice', 'brand_markdown'],
+        changed_fields: ['logo_url', ...Object.keys(logos), 'brand_voice', 'brand_markdown'],
       },
     })
 

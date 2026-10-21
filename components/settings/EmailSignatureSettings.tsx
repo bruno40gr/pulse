@@ -52,7 +52,7 @@ export default function EmailSignatureSettings({ tenantId }: { tenantId: string 
       <Input label="Name" aria-label="Name" value={signoff.name} maxLength={200} disabled={busy} onChange={event => { setSignoff(current => ({ ...current, name: event.target.value })); setSaved(false) }} />
       <Input label="Role" aria-label="Role" value={signoff.role} maxLength={200} disabled={busy} onChange={event => { setSignoff(current => ({ ...current, role: event.target.value })); setSaved(false) }} />
       <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-        <input type="checkbox" checked={signoff.includeCompanyLogo} disabled={busy} onChange={event => { setSignoff(current => ({ ...current, includeCompanyLogo: event.target.checked })); setSaved(false) }} />
+        <input type="checkbox" checked={Boolean(companyLogoUrl) && signoff.includeCompanyLogo} disabled={busy || !companyLogoUrl} onChange={event => { setSignoff(current => ({ ...current, includeCompanyLogo: event.target.checked })); setSaved(false) }} />
         Include company logo
       </label>
       <Input label="Phone number" type="tel" inputMode="numeric" value={signoff.phone} maxLength={11} disabled={busy} placeholder="XXX-XXXXXXX" onChange={event => { setSignoff(current => ({ ...current, phone: formatSignaturePhone(event.target.value).slice(0, 11) })); setSaved(false) }} />
