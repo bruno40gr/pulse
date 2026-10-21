@@ -103,7 +103,6 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const [mailboxes, setMailboxes] = useState<(Mailbox & { canSend: boolean })[]>([])
   const [mailboxId, setMailboxId] = useState('')
   const [mailboxesLoaded, setMailboxesLoaded] = useState(false)
-  const [emailCursor, setEmailCursor] = useState<string | null>(null)
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailError, setEmailError] = useState('')
   const [loadedEmailPeople, setLoadedEmailPeople] = useState<string[]>([])
@@ -294,7 +293,6 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       if (request !== emailRequest.current) return
       setThreads(current => [...current.filter(thread => thread.channel !== 'email' || thread.contactId !== personId || ((cursor || emailDrafts[thread.id]) && !data.threads.some((next: LiveThread) => next.id === thread.id))),
         ...data.threads as LiveThread[]])
-      setEmailCursor(data.nextCursor)
       setLoadedEmailPeople(current => [...new Set([...current, personId])])
     } catch (error) { if (request === emailRequest.current) setEmailError(error instanceof Error ? error.message : 'Could not load email.') }
     finally { if (request === emailRequest.current) setEmailLoading(false) }
@@ -626,7 +624,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     }} />}
 
     <Modal isOpen={leaveSmsOpen} onClose={() => setLeaveSmsOpen(false)} ariaLabel="Discard message and go back" size="sm"><ModalHeader title="Go back to Conversations?" onClose={() => setLeaveSmsOpen(false)} /><ModalBody>Going back to conversations will discard the current message</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setLeaveSmsOpen(false)}>Cancel</Button><Button onClick={leaveSms}>Continue</Button></ModalFooter></Modal>
-    {location.channel === 'email' && location.view !== 'contacts' && <div style={row}>{emailLoading && <p role="status">Loading email…</p>}{mailboxId && <Button variant="secondary" disabled={emailLoading || sending} onClick={() => void loadEmails(contact.id)}>Refresh email</Button>}{emailCursor && <Button disabled={emailLoading || sending} onClick={() => void loadEmails(contact.id, emailCursor)}>Load more emails</Button>}</div>}
+    {location.channel === 'email' && location.view !== 'contacts' && emailLoading && <p role="status">Loading email…</p>}
     {notice && <p role="status" style={{ ...meta, marginTop: spacing.xl }}>{notice}</p>}
   </PageContainer>
 }
