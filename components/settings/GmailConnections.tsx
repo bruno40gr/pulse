@@ -11,6 +11,14 @@ type Workspace = {
   leads: { id: string; program_label: string | null; service_label: string | null; crm_contacts: { full_name: string } | { full_name: string }[] | null }[]
 }
 
+function clearConnectionResult() {
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('gmail') && !url.searchParams.has('gmail_error')) return
+  url.searchParams.delete('gmail')
+  url.searchParams.delete('gmail_error')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 export default function GmailConnections({ tenantId }: { tenantId: string }) {
   const [data, setData] = useState<Workspace | null>(null)
   const [error, setError] = useState('')
@@ -27,6 +35,9 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
   useEffect(() => {
     void load().catch(error => setError(error.message))
     const params = new URLSearchParams(window.location.search)
+    // OAuth results describe one attempt, not the mailbox's current state.
+    // Consume them so returning to Settings cannot replay an old failure.
+    clearConnectionResult()
     if (params.get('gmail') === 'error') {
       const messages: Record<string, string> = {
         session: 'The connection session expired or your signed-in account changed. Start the connection again from this page.',
@@ -49,6 +60,14 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
       const response = await fetch(`/api/gmail?tenant=${encodeURIComponent(tenantId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Mailbox action failed.')
+      if (body.action === 'disconnect') {
+        clearConnectionResult()
+        setError('')
+        setMessage('')
+        setConnectOpen(false)
+        await load()
+        return
+      }
       setMessage(body.action === 'sync' ? result.busy ? 'This mailbox is already syncing.' : `${result.recorded} email notes captured. ${result.review} need review.${result.more ? ' More messages remain; run Sync again or let the scheduled job continue.' : ''}` : 'Mailbox settings updated.')
       await load()
     } catch (error) { setError(error instanceof Error ? error.message : 'Mailbox action failed.') } finally { setBusy(false) }
@@ -102,7 +121,7 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
       <div style={{ display: 'flex', gap: spacing.md, flexWrap: 'wrap', marginTop: spacing.xl }}>
         <Button variant="secondary" disabled={busy} onClick={() => void action({ action: 'sync', id: connection.id })}>Sync now</Button>
         <Button variant="secondary" disabled={busy || !data.configured} onClick={() => { setError(''); setConnectOpen(true) }}>Reconnect</Button>
-        <Button variant="destructive" disabled={busy} onClick={() => { if (window.confirm(`Disconnect ${connection.email}? Existing lead notes remain. Remove Pulse access in your Google account too if you want to revoke the Google grant.`)) void action({ action: 'disconnect', id: connection.id }) }}>Disconnect</Button>
+        <Button variant="destructive" disabled={busy} onClick={() => { if (window.confirm(`Disconnect ${connection.email}? This app will stop sending and syncing email with this mailbox. Your existing lead notes will not be deleted.`)) void action({ action: 'disconnect', id: connection.id }) }}>Disconnect</Button>
       </div>
     </div>)}
     {Boolean(data?.connections.length) && <div style={{ marginTop: spacing.md }}>

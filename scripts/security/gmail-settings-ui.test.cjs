@@ -9,12 +9,13 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const root = path.resolve(__dirname, '../..')
 
-function load(file, workspace) {
+function load(file, workspace, runtime) {
   const loaded = { exports: {} }
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
-  const context = vm.createContext({ module: loaded, exports: loaded.exports, require: id => {
+  const context = vm.createContext({ ...runtime?.globals, module: loaded, exports: loaded.exports, require: id => {
+    if (id === 'react' && runtime) return runtime.react
     if (id === 'react' && file === 'components/settings/GmailConnections.tsx' && workspace !== undefined) {
       let stateIndex = 0
       return { ...React, useState: initial => React.useState(stateIndex++ === 0 ? workspace : initial) }
@@ -89,4 +90,94 @@ test('read-only mailbox is not presented as ready for sending', () => {
   const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
   assert.ok(html.includes('Gmail connection needs authorization — read and send access required'))
   assert.ok(!html.includes('✓ Gmail connected'))
+})
+
+test('OAuth error is shown once, then removed from the URL without changing the settings tab', async () => {
+  let href = 'https://example.com/dashboard/settings?tab=account&gmail=error&gmail_error=session#email'
+  const errors = []
+  const effects = []
+  const replacements = []
+  const state = { existing: 'navigation state' }
+  const runtime = {
+    globals: {
+      URL, URLSearchParams,
+      window: {
+        location: { get href() { return href }, get search() { return new URL(href).search } },
+        history: { state, replaceState(value, title, url) { replacements.push({ value, url }); href = new URL(url, href).href } },
+      },
+      fetch: async () => ({ ok: true, json: async () => ({ configured: true, connections: [], review: [], leads: [] }) }),
+    },
+    react: {
+      useState: (() => { let index = 0; return initial => [initial, index++ === 1 ? value => errors.push(value) : () => {}] })(),
+      useCallback: callback => callback,
+      useEffect: callback => effects.push(callback),
+    },
+  }
+  const Component = load('components/settings/GmailConnections.tsx', undefined, runtime).default
+  Component({ tenantId: 'tenant' })
+  effects[0]()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.match(errors[0], /connection session expired/)
+  assert.equal(replacements.length, 1)
+  assert.equal(replacements[0].value, state)
+  assert.equal(replacements[0].url, '/dashboard/settings?tab=account#email')
+  errors.length = 0
+  effects[0]()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(errors, [])
+  assert.equal(replacements.length, 1)
+})
+
+test('disconnect confirmation explains the result without Google permission jargon', () => {
+  const source = fs.readFileSync(path.join(root, 'components/settings/GmailConnections.tsx'), 'utf8')
+  assert.match(source, /This app will stop sending and syncing email with this mailbox/)
+  assert.match(source, /Your existing lead notes will not be deleted/)
+  assert.doesNotMatch(source, /Google grant|Remove Pulse access/)
+})
+
+test('disconnect flushes previous connection errors and returns to a clean connect prompt', async () => {
+  const workspace = { configured: true, connections: [{ id: 'mailbox', email: 'office@example.com', scopes: [] }], review: [], leads: [] }
+  const states = [workspace, 'Old connection error', 'Old message', false, {}, false]
+  let stateIndex = 0
+  let href = 'https://example.com/dashboard/settings?tab=account&gmail=error&gmail_error=session'
+  const calls = []
+  const runtime = {
+    globals: {
+      URL, URLSearchParams,
+      window: {
+        confirm: () => true,
+        location: { get href() { return href } },
+        history: { state: null, replaceState(state, title, url) { href = new URL(url, href).href } },
+      },
+      fetch: async (url, options) => {
+        calls.push(options?.method || 'GET')
+        return { ok: true, json: async () => options?.method === 'POST' ? { ok: true } : { ...workspace, connections: [] } }
+      },
+    },
+    react: {
+      useState: () => { const index = stateIndex++; return [states[index], value => { states[index] = value }] },
+      useCallback: callback => callback,
+      useEffect: () => {},
+    },
+  }
+  const Component = load('components/settings/GmailConnections.tsx', undefined, runtime).default
+  function findDisconnect(node) {
+    if (!node || typeof node !== 'object') return null
+    if (node.props?.children === 'Disconnect') return node
+    for (const child of [node.props?.children].flat(Infinity)) {
+      const found = findDisconnect(child)
+      if (found) return found
+    }
+    return null
+  }
+  findDisconnect(Component({ tenantId: 'tenant' })).props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(calls, ['POST', 'GET'])
+  assert.equal(states[1], '')
+  assert.equal(states[2], '')
+  assert.equal(href, 'https://example.com/dashboard/settings?tab=account')
+  stateIndex = 0
+  const html = renderToStaticMarkup(Component({ tenantId: 'tenant' }))
+  assert.match(html, /Connect with Google/)
+  assert.doesNotMatch(html, /Old connection error|Old message|Mailbox settings updated/)
 })
