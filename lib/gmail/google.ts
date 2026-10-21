@@ -9,11 +9,18 @@ export async function googleToken(parameters: Record<string, string>): Promise<{
   if (!result.access_token) throw new Error('Google did not return mailbox access.')
   return result
 }
-/** Fixed status only: never retain provider bodies, request URLs or credentials. */
+const readReasons = ['rateLimitExceeded', 'userRateLimitExceeded', 'dailyLimitExceeded', 'quotaExceeded', 'insufficientPermissions', 'domainPolicy', 'forbidden', 'authError'] as const
+type ReadReason = typeof readReasons[number] | 'unknown'
+
+/** Only allowlisted classifications survive parsing; provider text is never retained. */
 export class GmailReadError extends Error {
-  constructor(public readonly status: number) {
+  constructor(public readonly status: number, public readonly reason: ReadReason = 'unknown') {
     super('Gmail could not be read. Please try again.')
     this.name = 'GmailReadError'
+  }
+
+  get retryable() {
+    return this.status === 0 || this.status === 429 || this.status >= 500 || ['rateLimitExceeded', 'userRateLimitExceeded'].includes(this.reason)
   }
 }
 
@@ -31,11 +38,18 @@ export async function gmailGet<T>(token: string, path: string): Promise<T> {
       continue
     }
     if (response.ok) return response.json()
-    if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
+    let reason: ReadReason = 'unknown'
+    try {
+      const body = await response.json()
+      const reasons: unknown[] = Array.isArray(body?.error?.errors) ? body.error.errors.map((item: { reason?: unknown } | null) => item?.reason) : []
+      reason = readReasons.find(known => reasons.includes(known)) || 'unknown'
+    } catch { /* Invalid provider bodies never replace the safe status. */ }
+    const error = new GmailReadError(response.status, reason)
+    if (attempt === 0 && error.retryable) {
       await new Promise(resolve => setTimeout(resolve, 1000))
       continue
     }
-    throw new GmailReadError(response.status)
+    throw error
   }
   throw new GmailReadError(0)
 }

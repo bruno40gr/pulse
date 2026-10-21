@@ -250,31 +250,44 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [tenantId, mailboxId])
   useEffect(() => {
     setEmailSummaries([])
-    if (!tenantId || !mailboxId) return
+    // Background history must not compete with composing/sending, or scan the
+    // entire mailbox on every minute tick (and multiply that work across tabs).
+    if (!tenantId || !mailboxId || location.view === 'compose' || location.view === 'sms-compose') return
     let cancelled = false
     let running = false
+    let olderCursor: string | null = null
+    let scannedFirstPage = false
+    const controller = new AbortController()
     const refresh = async () => {
-      if (running) return
+      if (running || cancelled || document.visibilityState === 'hidden') return
       running = true
       try {
         const summaries: LiveThread[] = []
-        let cursor: string | null = null
-        do {
+        const loadPage = async (cursor: string | null) => {
           const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, summary: '1' })
           if (cursor) params.set('cursor', cursor)
-          const data = await requestJson(`/api/conversations/email?${params}`)
-          if (cancelled) return
+          const data = await requestJson(`/api/conversations/email?${params}`, { signal: controller.signal })
           summaries.push(...data.threads)
-          cursor = data.nextCursor
-        } while (cursor)
-        if (!cancelled) { setEmailSummaries(summaries); setSummaryError('') }
+          return data.nextCursor as string | null
+        }
+        const next = await loadPage(null)
+        if (cancelled) return
+        // Refresh recent mail, then advance at most ONE older page per tick.
+        // Accumulate older summaries instead of re-downloading every old thread.
+        if (scannedFirstPage && olderCursor) olderCursor = await loadPage(olderCursor)
+        else if (!scannedFirstPage) olderCursor = next
+        scannedFirstPage = true
+        if (!cancelled) {
+          setEmailSummaries(current => [...current.filter(thread => !summaries.some(next => next.id === thread.id)), ...summaries])
+          setSummaryError('')
+        }
       } catch { if (!cancelled) setSummaryError('Email attention status could not be refreshed. SMS status is still available.') }
       finally { running = false }
     }
     void refresh()
     const interval = window.setInterval(() => { void refresh() }, 60000)
-    return () => { cancelled = true; window.clearInterval(interval) }
-  }, [tenantId, mailboxId])
+    return () => { cancelled = true; controller.abort(); window.clearInterval(interval) }
+  }, [tenantId, mailboxId, location.view])
   useEffect(() => {
     if (!previewHistory) return
     const sampleThreads = createConversationEmailPreview(people)
@@ -298,7 +311,8 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     finally { if (request === emailRequest.current) setEmailLoading(false) }
   }, [tenantId, mailboxId, emailDrafts, people])
   useEffect(() => {
-    if (!location.contactId || location.view === 'contacts' || location.view === 'sms-compose') return
+    // A new message needs sender/recipient data, not a Gmail history request.
+    if (!location.contactId || location.view !== 'contact' || location.channel !== 'email') return
     void loadEmails(location.contactId)
     const requestRef = emailRequest
     return () => { requestRef.current++ }
@@ -556,7 +570,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="lg"><ModalHeader compact title="Select text message recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody style={{ display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} results={smsOptions.filter(person => `${person.first_name} ${person.last_name} ${person.phone}`.toLowerCase().includes(smsRecipientQuery.trim().toLowerCase()))} selected={smsOptions.filter(person => newSms.ids.includes(person.id))} handleSearch={setSmsRecipientQuery} toggleRecipient={person => setNewSms(current => current ? { ...current, ids: current.ids.includes(person.id) ? current.ids.filter(id => id !== person.id) : [...current.ids, person.id] } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
       <Modal isOpen={discardOpen} onClose={() => setDiscardOpen(false)} ariaLabel="Discard text message" size="sm"><ModalHeader title="Discard this text message?" onClose={() => setDiscardOpen(false)} /><ModalBody>Your recipients and unsent text will be removed.</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep message</Button><Button variant="destructive" onClick={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }) }}>Discard message</Button></ModalFooter></Modal>
     </section> : <p role="status">This text message is no longer available. Go back to Conversations to start a new message.</p> : standalone && composing && active && draft ? <section aria-label="New email message" style={{ minWidth: 0, width: '100%' }}>
-      {(sendError || emailError) && <Notice variant="error" style={{ marginBottom: spacing.md }}>{sendError || emailError}</Notice>}
+      {sendError && <Notice variant="error" style={{ marginBottom: spacing.md }}>{sendError}</Notice>}
       {discardOpen && <section aria-label="Discard email draft" style={{ padding: spacing.lg }}><p>Discard this draft?</p><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep draft</Button><Button onClick={discardDraft}>Discard draft</Button></section>}
       {templateError && <p role="status" style={meta}>{templateError}</p>}
       {signatureError && <p role="status" style={meta}>{signatureError}</p>}
@@ -572,7 +586,8 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
             {(['sms', 'email'] as const).map(channel => <ControlButton key={channel} kind="toggle" selected={location.channel === channel} aria-pressed={location.channel === channel} onClick={() => switchChannel(channel)}>{channel === 'sms' ? 'SMS' : 'Email'}</ControlButton>)}
           </div>}
         </header>
-        {(sendError || (location.channel === 'email' && emailError)) && <Notice variant="error" style={{ margin: spacing.md, flexShrink: 0 }}>{sendError || emailError}</Notice>}
+        {sendError && <Notice variant="error" style={{ margin: spacing.md, flexShrink: 0 }}>{sendError}</Notice>}
+        {location.channel === 'email' && location.view !== 'compose' && emailError && <Notice variant="warning" style={{ margin: spacing.md, flexShrink: 0 }}><div style={row}><span>{emailError}</span><Button variant="secondary" size="sm" disabled={emailLoading} onClick={() => void loadEmails(contact.id)}>Retry history</Button></div></Notice>}
         {location.channel === 'sms' ? <PrototypeSmsConversation key={sms.id} compact={!!embedded} live disabled={sending || !contact.phone} thread={sms} mobile={mobile} draft={smsDrafts[sms.id] || ''} onChange={value => setSmsDrafts(current => ({ ...current, [sms.id]: value }))} onSend={() => void sendSms().catch(() => {})} onDraft={async () => {
           const data = await requestJson('/api/draft-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: smsDrafts[sms.id]?.trim() || 'Write a warm friendly reply', recipient_context: `Writing to ${contact.name}. Recent conversation: ${sms.messages.slice(-5).map(message => `${message.direction}: ${message.body}`).join('\n')}` }) })
           return data.draft

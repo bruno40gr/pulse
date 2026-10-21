@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
     stage = 'mailbox'
     const mailbox = await conversationMailbox(access.tenantId, mailboxId, access.context.membershipId)
-    const query = new URLSearchParams({ maxResults: summary ? '50' : '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
+    const query = new URLSearchParams({ maxResults: '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
     const cursor = params.get('cursor')
     if (cursor) query.set('pageToken', cursor)
     stage = 'list'
@@ -92,11 +92,14 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ threads, nextCursor: page.nextPageToken || null }, { headers })
   } catch (error) {
-    const code = error instanceof GmailReadError ? `history_${stage}_${error.status}` : `history_${stage}`
+    const code = error instanceof GmailReadError ? `history_${stage}_${error.status}_${error.reason}` : `history_${stage}`
     // Only fixed stage/status identifiers are exposed. No provider errors,
     // mailbox addresses, message content or tokens are logged or returned.
     console.warn('Email history request failed', { code })
-    return NextResponse.json({ error: `Email history could not be loaded. Sending is still available. Please try opening the conversation again. Reference: ${code}.`, code }, { status: 503, headers })
+    const message = error instanceof GmailReadError && error.retryable
+      ? 'Email history is temporarily busy. Please try again shortly.'
+      : 'Email history is unavailable right now. Your draft has not been changed.'
+    return NextResponse.json({ error: message, code }, { status: 503, headers })
   }
 }
 

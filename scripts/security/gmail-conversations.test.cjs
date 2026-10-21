@@ -168,11 +168,51 @@ test('history failures stay visible with safe diagnostics, not reconnect instruc
     const h = routeHarness({ failRead: () => failure })
     const result = await h.api.GET(new Request('https://app.headlinerma.com/api/conversations/email?mailbox=mailbox-one&person=person:one'))
     assert.equal(result.status, 503)
-    assert.match(result.body.code, /^history_list(?:_429)?$/)
+    assert.match(result.body.code, /^history_list(?:_429_unknown)?$/)
     assert.doesNotMatch(JSON.stringify(result.body), /private|credentials|reconnect|Settings/)
     assert.equal(result.body.threads, undefined)
     assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
   }
+})
+
+test('403 rate limits are retried, but permission/policy denials are not and diagnostics are sanitized', async () => {
+  for (const reason of ['rateLimitExceeded', 'userRateLimitExceeded', 'insufficientPermissions', 'domainPolicy', 'private-token-and-address']) {
+    let calls = 0
+    const provider = load('lib/gmail/google.ts', {}, { setTimeout: callback => callback(), fetch: async () => {
+      calls++
+      return { ok: false, status: 403, json: async () => ({ error: { message: 'private provider details', errors: [{ reason }] } }) }
+    } })
+    await assert.rejects(provider.gmailGet('secret-token', 'threads'), error => {
+      assert.equal(error.reason, reason.startsWith('private') ? 'unknown' : reason)
+      assert.equal(error.retryable, ['rateLimitExceeded', 'userRateLimitExceeded'].includes(reason))
+      assert.doesNotMatch(JSON.stringify(error), /private|secret|address/)
+      return true
+    })
+    assert.equal(calls, ['rateLimitExceeded', 'userRateLimitExceeded'].includes(reason) ? 2 : 1)
+  }
+})
+
+test('history API keeps diagnostics separate from plain-language errors and never sends on a read failure', async () => {
+  const h = routeHarness({ failRead: () => new google.GmailReadError(403, 'userRateLimitExceeded') })
+  const result = await h.api.GET(new Request('https://app.headlinerma.com/api/conversations/email?mailbox=mailbox-one&person=person:one'))
+  assert.equal(result.body.code, 'history_list_403_userRateLimitExceeded')
+  assert.match(result.body.error, /temporarily busy/)
+  assert.doesNotMatch(result.body.error, /history_|403|reconnect|Sending is still available/)
+  assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
+})
+
+test('new drafts do not load history and background summaries are bounded, cancellable and hidden-tab aware', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
+  const summary = source.slice(source.indexOf('    setEmailSummaries([])'), source.indexOf('    if (!previewHistory)'))
+  assert.ok(!summary.includes('do {'))
+  assert.ok(!summary.includes('while (cursor)'))
+  assert.match(summary, /location.view === 'compose'/)
+  assert.match(summary, /document.visibilityState === 'hidden'/)
+  assert.match(summary, /controller.abort\(\)/)
+  assert.match(summary, /else if \(!scannedFirstPage\) olderCursor = next/)
+  assert.match(source, /location.view !== 'contact' \|\| location.channel !== 'email'/)
+  assert.ok(!source.includes('{sendError || emailError}'))
+  assert.match(source, />Retry history<\/Button>/)
 })
 
 test('Gmail reads retry only transient HTTP and network failures, without retaining provider details', async () => {
