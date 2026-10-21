@@ -150,13 +150,13 @@ test('switching to SMS saves email draft and resuming keeps subject, body and re
 test('global email is a clean standalone compose view and saved draft resumes there', () => {
   const h = harness(); h.click('New message')
   h.find(node => node.type === 'NewMessage').props.onEmail({ to: ['chen', 'rivera'], cc: [], bcc: [] }); h.render()
-  assert.equal(h.find(node => node.type === 'PageHeader').props.title, 'New message')
+  assert.equal(h.find(node => node.type === 'EmailComposer').props.title, 'New message')
   for (const unwanted of ['Email conversations', 'Previous email context', 'Conversation with Alex Chen', '<Tabs']) assert.ok(!h.html().includes(unwanted))
   const composer = h.find(node => node.type === 'EmailComposer')
   composer.props.onChange({ ...composer.props.draft, subject: 'Everyone', html: '<p>Hello</p>' }); h.render()
   h.click('Save as draft'); assert.ok(h.html().includes('You have a message in draft')); assert.ok(h.html().includes('Hello'))
   h.click('Continue draft')
-  assert.equal(h.find(node => node.type === 'PageHeader').props.title, 'New message')
+  assert.equal(h.find(node => node.type === 'EmailComposer').props.title, 'New message')
   assert.equal(h.find(node => node.type === 'EmailComposer').props.draft.html, '<p>Hello</p>')
 })
 

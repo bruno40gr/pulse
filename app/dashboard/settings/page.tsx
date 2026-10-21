@@ -111,14 +111,13 @@ export default function SettingsPage() {
     color: colors.textSecondary,
     margin: 0,
     lineHeight: 1.6,
-    maxWidth: '560px',
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles' }, { key: 'permissions' as const, label: 'Permissions' }] : []),
     { key: 'account', label: 'Account settings' },
     ...(accountContext?.canManageIntegrations ? [{ key: 'integrations' as const, label: 'Integrations' }] : []),
     ...(accountContext?.canManageBrand ? [{ key: 'brand' as const, label: 'Brand' }] : []),
+    ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles' }, { key: 'permissions' as const, label: 'Permissions' }] : []),
   ]
 
   return (
@@ -246,7 +245,6 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
       {/* Twilio */}
       <div style={cardS}>
         <h2 style={sectionTitleS}>Twilio</h2>
-        <p style={sectionSubS}>Connect your Twilio account to send SMS. When connected, your sending number is shown and messages appear in the Pulse inbox.</p>
 
         {loading ? (
           <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
@@ -299,7 +297,6 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
       {/* EmailJS */}
       <div style={cardS}>
         <h2 style={sectionTitleS}>EmailJS</h2>
-        <p style={sectionSubS}>Send transactional email from Pulse.</p>
         <div style={{ marginTop: spacing.xl, padding: spacing['2xl'], border: `1px dashed ${colors.border}`, borderRadius: radius.lg, textAlign: 'center', color: colors.textMuted, fontSize: typography.sizeBase }}>
           Coming soon
         </div>
@@ -422,13 +419,12 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
       </div>
 
       <div id="ai-highlights" style={{ scrollMarginTop: spacing['2xl'] }}>
-        <HighlightsSettings tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
+        <HighlightsSettings tenantId={tenantId} cardS={cardS} sectionTitleS={sectionTitleS} />
       </div>
 
       {/* Brand voice */}
       <div style={cardS}>
         <h2 style={sectionTitleS}>Brand voice</h2>
-        <p style={sectionSubS}>Describe how your business sounds and what you care about. This shapes every AI-generated message across Pulse.</p>
 
         {loading ? (
           <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
@@ -475,7 +471,7 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
 
 /* ───────────────────────── AI highlights ───────────────────────── */
 
-function HighlightsSettings({ tenantId, cardS, sectionTitleS, sectionSubS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties; sectionSubS: React.CSSProperties }) {
+function HighlightsSettings({ tenantId, cardS, sectionTitleS }: { tenantId: string; cardS: React.CSSProperties; sectionTitleS: React.CSSProperties }) {
   const [threshold, setThreshold] = useState(3)
   const [focusAreas, setFocusAreas] = useState<string[]>(['retention', 'billing', 'growth'])
   const [storedBaseFontSize, setStoredBaseFontSize] = useState(16)
@@ -526,7 +522,6 @@ function HighlightsSettings({ tenantId, cardS, sectionTitleS, sectionSubS }: { t
   return (
     <div style={cardS}>
       <h2 style={sectionTitleS}>AI Highlights</h2>
-      <p style={sectionSubS}>Calibrate how many highlights Pulse surfaces on your dashboard and which areas to prioritize. These settings apply across the organization.</p>
 
       {loading ? (
         <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>

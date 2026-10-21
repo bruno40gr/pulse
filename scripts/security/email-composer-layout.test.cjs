@@ -58,6 +58,12 @@ test('email actions are top-right, preview is beside templates, and obsolete con
   const actions = email.slice(email.indexOf('<div aria-label="Email actions"'), email.indexOf('<EmailComposerFields'))
   assert.ok(actions.includes("justifyContent: 'flex-end'"))
   assert.ok(actions.includes('<Send size={14} />{sendLabel}'))
+  assert.match(email, /<PageHeader title=\{title\}[^>]*right=\{sendAction\} singleLine/)
+  assert.match(email, /whiteSpace: 'nowrap'/)
+  for (const file of ['components/inbox/Conversations.tsx', 'components/inbox/ConversationsPrototype.tsx']) {
+    assert.match(read(file), /!standalone && <div ref=\{heading\}/)
+    assert.match(read(file), /<PrototypeEmailComposer title="New message" onBack=\{goBackToConversations\}/)
+  }
   assert.ok(!email.includes('Save as draft'))
   assert.ok(!email.includes('Discard draft'))
   assert.ok(!email.includes('Draft {replying'))

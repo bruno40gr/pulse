@@ -15,7 +15,7 @@ function getTenantId(request: Request): string {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM_PROMPT = `You are a contact filter assistant for a small business messaging tool called Pulse.
+const SYSTEM_PROMPT = `You are a contact filter assistant for a small business messaging tool.
 You receive a natural language query about contacts and must convert it into a structured filter. You only parse intent — you never return contact ids.
 
 Return ONLY valid JSON with this exact shape (no markdown, no backticks):

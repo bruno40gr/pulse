@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       max_tokens: 4096,
       messages: [{
         role: 'user',
-        content: `You are helping a small business import their contact spreadsheet into a messaging tool called Pulse.
+        content: `You are helping a small business import their contact spreadsheet into a messaging tool.
 
 Analyze these CSV headers and sample data, then suggest field mappings.
 
@@ -63,7 +63,9 @@ Skip columns with no clear contact meaning like invoice numbers or payment amoun
       }]
     })
 
-    const raw = (response.content[0] as any).text
+    const content = response.content[0]
+    if (!content || content.type !== 'text') throw new Error('No field mapping was returned.')
+    const raw = content.text
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     try {
       const result = JSON.parse(jsonMatch ? jsonMatch[0] : raw)

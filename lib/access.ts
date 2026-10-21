@@ -41,7 +41,7 @@ function fromBase64Url(value: string) {
 
 async function sign(value: string) {
   const secret = getSessionSecret()
-  if (!secret) throw new Error('Pulse session secret is not configured.')
+  if (!secret) throw new Error('Session secret is not configured.')
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value))
   let binary = ''
@@ -112,7 +112,7 @@ export async function assertTenantAccess(
   tenantId: string
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const actor = await getRequestActor(request)
-  if (!actor) return { ok: false, status: 401, error: 'Pulse access required.' }
+  if (!actor) return { ok: false, status: 401, error: 'Sign-in required.' }
   if (!canAccessTenant(actor, tenantId)) {
     return { ok: false, status: 403, error: 'You do not have access to this account.' }
   }

@@ -55,7 +55,7 @@ export async function PUT(request: Request) {
 
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return NextResponse.json({ error: 'Expected a Pulse settings object.' }, { status: 400 })
+      return NextResponse.json({ error: 'Expected a settings object.' }, { status: 400 })
     }
 
     const highlight_threshold = Math.min(5, Math.max(1, Number(body.highlight_threshold) || 3))

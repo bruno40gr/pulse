@@ -245,12 +245,12 @@ export default function ConversationsPrototype() {
   const draftAction = 'Reply'
 
   return <PageContainer style={{ padding: mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0, color: colors.text, fontFamily: typography.fontSans }}>
-    <div ref={heading} tabIndex={-1} style={{ outline: 'none' }}>
+    {!standalone && <div ref={heading} tabIndex={-1} style={{ outline: 'none' }}>
       <PageHeader title={location.view === 'sms-compose' ? 'Write a text message' : location.view === 'contacts' ? 'Conversations' : standalone ? 'New message' : contact.name}
         titleAction={location.view !== 'contacts' && location.view !== 'lead' && location.view !== 'sms-compose' && !standalone ? <ControlButton kind="link" aria-label={`Open lead for ${contact.name}`} onClick={() => navigate({ view: 'lead' })}>View lead</ControlButton> : undefined}
         onBack={location.view === 'contacts' ? undefined : goBackToConversations} backLabel="Back to Conversations"
         right={location.view === 'contacts' ? <div style={row}><Button onClick={() => { setNewMessageChannel('sms'); setNewMessageOpen(true) }}>Send new text message</Button><Button onClick={() => { setNewMessageChannel('email'); setNewMessageOpen(true) }}>Send new email</Button></div> : undefined} />
-    </div>
+    </div>}
 
     {location.view === 'contacts' ? <div style={{ width: '100%', minWidth: 0 }}>
       <section aria-label="Conversation filters" style={{ display: 'grid', gridTemplateColumns: mobile ? 'minmax(0, 1fr)' : 'minmax(0, 2fr) repeat(2, minmax(0, 1fr))', alignItems: 'end', gap: spacing.md, marginBottom: spacing.lg }}>
@@ -288,7 +288,7 @@ export default function ConversationsPrototype() {
       <Modal isOpen={discardOpen} onClose={() => setDiscardOpen(false)} ariaLabel="Discard text message" size="sm"><ModalHeader title="Discard this text message?" onClose={() => setDiscardOpen(false)} /><ModalBody>Your recipients and unsent text will be removed.</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep message</Button><Button variant="destructive" onClick={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }) }}>Discard message</Button></ModalFooter></Modal>
     </section> : <p role="status">This text message is no longer available. Go back to Conversations to start a new message.</p> : standalone && composing && active && draft ? <section aria-label="New email message" style={{ minWidth: 0, width: '100%' }}>
       {discardOpen && <section aria-label="Discard email draft" style={{ padding: spacing.lg }}><p>Discard this draft?</p><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep draft</Button><Button onClick={discardDraft}>Discard draft</Button></section>}
-      <PrototypeEmailComposer key={active.id} name="" email="" student="" draft={draft} onChange={updateDraft} onSend={sendEmail} onCollapse={returnToConversation} onDiscard={() => setDiscardOpen(true)} replying={false} signatureHtml={signatureHtml} senderName={senderName} people={contacts} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} />
+      <PrototypeEmailComposer title="New message" onBack={goBackToConversations} key={active.id} name="" email="" student="" draft={draft} onChange={updateDraft} onSend={sendEmail} onCollapse={returnToConversation} onDiscard={() => setDiscardOpen(true)} replying={false} signatureHtml={signatureHtml} senderName={senderName} people={contacts} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} />
     </section> : location.view === 'lead' ? <SurfacePanel style={{ maxWidth: 900 }}>
       <section aria-label="Lead preview"><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><BackControl label="Back to conversation" onClick={returnToConversation} /><SectionTitle>{contact.student}</SectionTitle></div><p style={meta}>{contact.interest} · {contact.stage}</p><SectionTitle>Notes</SectionTitle><p style={meta}>{contact.note}</p></section>
     </SurfacePanel> : <SurfacePanel padding="0" style={{ ...pane, height: 'max(280px, calc(100dvh - 240px))', overflow: 'hidden' }}>

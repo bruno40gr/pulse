@@ -92,12 +92,12 @@ export default function GatePage() {
         body: JSON.stringify({ instructorId, password }),
       })
       const body = await response.json()
-      if (!response.ok) throw new Error(body.error || 'Could not enter Pulse.')
+      if (!response.ok) throw new Error(body.error || 'Could not sign in.')
       setActiveTenantId(TENANT_BRAND.headliner.id)
       router.push('/dashboard')
       router.refresh()
     } catch (error) {
-      setStaffError(error instanceof Error ? error.message : 'Could not enter Pulse.')
+      setStaffError(error instanceof Error ? error.message : 'Could not sign in.')
     } finally {
       setStaffLoading(false)
     }

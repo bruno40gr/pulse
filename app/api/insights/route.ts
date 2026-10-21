@@ -221,7 +221,7 @@ export async function GET(request: Request) {
         max_tokens: 2048,
         messages: [{
           role: 'user',
-          content: `You are a relationship assistant for ${tenant?.name}, a small service business using Pulse to stay connected with their customers.
+          content: `You are a relationship assistant for ${tenant?.name}, a small service business staying connected with their customers.
 
 Today is ${today.toLocaleDateString()}.
 
