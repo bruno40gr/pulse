@@ -95,7 +95,7 @@ export function ModalHeader({ title, onClose, icon, badge, onBack, backLabel = '
 }
 
 export function ModalBody({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing.xl, ...style }}>{children}</div>
+  return <div style={{ ...typography.body, color: colors.text, flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing.xl, ...style }}>{children}</div>
 }
 
 export function ModalFooter({ children, leading, style }: { children: ReactNode; leading?: ReactNode; style?: CSSProperties }) {

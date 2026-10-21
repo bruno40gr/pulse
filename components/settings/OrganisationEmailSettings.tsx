@@ -22,7 +22,7 @@ export default function OrganisationEmailSettings({ tenantId }: { tenantId: stri
     const result = await response.json()
     if (!response.ok) throw new Error(result.error || 'Email settings unavailable.')
     setData(result)
-    if (!connection) { setConnectionId(result.settings?.connection_id || ''); setDisplayName(result.settings?.display_name || ''); setSignatureText(result.settings?.signature_text || ''); setAliases(result.settings?.aliases || []) }
+    if (!connection) { setConnectionId(result.settings?.connection_id || (result.connections.length === 1 ? result.connections[0].id : '')); setDisplayName(result.settings?.display_name || ''); setSignatureText(result.settings?.signature_text || ''); setAliases(result.settings?.aliases || []) }
   }, [tenantId])
   useEffect(() => { void load().catch(error => setError(error.message)) }, [load])
   async function save() {
@@ -36,9 +36,10 @@ export default function OrganisationEmailSettings({ tenantId }: { tenantId: stri
     } catch (error) { setError(error instanceof Error ? error.message : 'Settings could not be saved.') } finally { setBusy(false) }
   }
   if (data && !data.owner) return null
-  return <SurfacePanel style={{ marginBottom: spacing.xl }}>
-    <SectionTitle>Organisation email</SectionTitle>
-    <p style={{ ...typography.body, color: colors.textSecondary }}>Set up one shared organisation mailbox. Staff can send as the organisation or as their assigned, verified same-domain alias. Personal mailboxes cannot be used for sending.</p>
+  if (data && !data.connections.length) return null
+  return <SurfacePanel padding={spacing['3xl']} style={{ ...typography.body, marginBottom: spacing.xl }}>
+    <SectionTitle>Business sender</SectionTitle>
+    <p style={{ ...typography.body, color: colors.textSecondary }}>Choose the business name customers see in the From field. Your personal sign-off is managed above.</p>
     {error && <Notice variant="error">{error}</Notice>}
     {notice && <Notice>{notice}</Notice>}
     {data?.warning && <Notice variant="warning">{data.warning}</Notice>}
@@ -47,9 +48,11 @@ export default function OrganisationEmailSettings({ tenantId }: { tenantId: stri
         <option value="">Choose an organisation mailbox</option>
         {data.connections.map(connection => <option key={connection.id} value={connection.id}>{connection.email}</option>)}
       </Select>
-      {!data.connections.length && <p>Connect the shared Google mailbox in Gmail settings below first.</p>}
-      <Input label="Organisation sender name" value={displayName} disabled={busy} onChange={event => setDisplayName(event.target.value)} placeholder="Your organisation" />
-      <Textarea label="Organisation signature" value={signatureText} maxLength={5000} rows={4} disabled={busy} onChange={event => setSignatureText(event.target.value)} hint="Optional. Leave blank to use the shared mailbox’s Google signature or the organisation signature below." />
+      <Input label="Business sender name" aria-label="Business sender name" value={displayName} disabled={busy} onChange={event => setDisplayName(event.target.value)} placeholder="Your business name" />
+      <details>
+      <summary>Advanced sender settings (optional)</summary>
+      <p style={{ ...typography.bodySmall, color: colors.textSecondary }}>Separate staff sending addresses are optional. Only Google-verified addresses explicitly assigned here can be used. You do not need aliases to send from the shared business mailbox.</p>
+      <Textarea label="Legacy shared signature" value={signatureText} maxLength={5000} rows={4} disabled={busy} onChange={event => setSignatureText(event.target.value)} hint="Retained for compatibility. The current email composers use your personal sign-off instead." />
       {data.verifiedAliases.map(alias => {
         const assignment = aliases.find(item => item.email === alias.sendAsEmail)
         return <div key={alias.sendAsEmail} style={{ display: 'grid', gap: spacing.sm }}><Select label={`Who can send as ${alias.sendAsEmail}?`} aria-label={`Assign ${alias.sendAsEmail}`} value={assignment?.membershipId || ''} disabled={busy} onChange={event => {
@@ -58,8 +61,8 @@ export default function OrganisationEmailSettings({ tenantId }: { tenantId: stri
           setAliases(current => [...current.filter(item => item.email !== alias.sendAsEmail), ...(member ? [{ email: alias.sendAsEmail.toLowerCase(), membershipId: member.id, name: `${person?.first_name || ''} ${person?.last_name || ''}`.trim() || alias.displayName || alias.sendAsEmail }] : [])])
         }}><option value="">Not available to staff</option>{data.members.map(member => { const person = Array.isArray(member.people) ? member.people[0] : member.people; return <option key={member.id} value={member.id}>{person?.first_name} {person?.last_name} · {person?.email}</option> })}</Select>{assignment && <><Input label={`Sender name for ${alias.sendAsEmail}`} value={assignment.name} disabled={busy} onChange={event => setAliases(current => current.map(item => item.email === alias.sendAsEmail ? { ...item, name: event.target.value } : item))} /><Textarea label={`Signature for ${alias.sendAsEmail}`} value={assignment.signatureText || ''} maxLength={5000} rows={4} disabled={busy} onChange={event => setAliases(current => current.map(item => item.email === alias.sendAsEmail ? { ...item, signatureText: event.target.value } : item))} hint="Optional. Leave blank to use the alias’s Google signature or the organisation signature." /></>}</div>
       })}
-      <p style={{ ...typography.bodySmall, color: colors.textSecondary }}>Add and verify sender aliases and their signatures on the shared mailbox in Google first, then assign them here. All members with messaging permission can use the organisation sender. Each member alias is available only to its assigned member. If an alias has no Google signature, the organisation signature below is used with its sender name.</p>
-      <div><Button disabled={busy || !connectionId || !displayName.trim() || !!data.warning} onClick={() => void save()}>{busy ? 'Saving…' : 'Save organisation email'}</Button></div>
+      </details>
+      <div><Button disabled={busy || !connectionId || !displayName.trim() || !!data.warning} onClick={() => void save()}>{busy ? 'Saving…' : 'Save business sender'}</Button></div>
     </div>}
   </SurfacePanel>
 }

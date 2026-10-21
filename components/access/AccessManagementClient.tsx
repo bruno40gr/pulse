@@ -751,11 +751,10 @@ function RolesPanel({
 }
 
 const fieldLabelStyle: React.CSSProperties = {
+  ...typography.label,
   display: 'block',
   marginBottom: spacing.xs,
   color: colors.text,
-  fontSize: typography.sizeSm,
-  fontWeight: typography.weightMedium,
 }
 
 const inputStyle: React.CSSProperties = {

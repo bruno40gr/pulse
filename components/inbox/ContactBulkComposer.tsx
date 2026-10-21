@@ -82,7 +82,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
     return () => { cancelled = true }
   }, [tenantId, selectionKey, channel])
   const sender = senders.find(sender => sender.email === draft.senderEmail)
-  const signatureHtml = sender?.signatureHtml ? sanitizePrototypeHtml(sender.signatureHtml) : signature && sender ? conversationSignatureHtml({ ...signature, name: sender.name, title: sender.mine ? signature.title : '' }, sender.name) : ''
+  const signatureHtml = signature?.personal ? conversationSignatureHtml(signature, '') : sender?.signatureHtml ? sanitizePrototypeHtml(sender.signatureHtml) : signature && sender ? conversationSignatureHtml({ ...signature, name: sender.name, title: sender.mine ? signature.title : '' }, sender.name) : ''
 
   async function send(body: string, html: string) {
     if (!audience || !sender || sending) return

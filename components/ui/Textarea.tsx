@@ -12,7 +12,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
         {label && (
-          <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
+          <label style={{ ...typography.label, color: colors.text }}>
             {label}
           </label>
         )}
@@ -37,7 +37,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           }}
           {...props}
         />
-        {hint && <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans }}>{hint}</span>}
+        {hint && <span style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
       </div>
     )
   }

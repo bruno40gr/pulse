@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Notice, SectionTitle, Select, SurfacePanel } from '@/components/ui'
+import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, SectionTitle, Select, SurfacePanel } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 type Workspace = {
@@ -17,6 +17,7 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [choices, setChoices] = useState<Record<string, string>>({})
+  const [connectOpen, setConnectOpen] = useState(false)
   const load = useCallback(async () => {
     const response = await fetch(`/api/gmail?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store' })
     const body = await response.json()
@@ -26,7 +27,7 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
   useEffect(() => {
     void load().catch(error => setError(error.message))
     const result = new URLSearchParams(window.location.search).get('gmail')
-    if (result === 'error') setError('Google connection could not be completed. Check configuration, grant read-only mail access and try again.')
+    if (result === 'error') setError('Google connection could not be completed. Allow both reading and sending email, then try again. If your organization restricts third-party apps, ask your Google Workspace administrator for access.')
   }, [load])
 
   const action = async (body: Record<string, string>) => {
@@ -50,14 +51,29 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
     } catch (error) { setError(error instanceof Error ? error.message : 'Could not connect Google.'); setBusy(false) }
   }
 
-  return <SurfacePanel padding={spacing['3xl']} style={{ marginBottom: spacing.xl, boxShadow: 'none' }}>
-    <SectionTitle style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold }}>Gmail</SectionTitle>
-    <p style={{ color: colors.textSecondary, fontSize: typography.sizeBase, margin: 0, lineHeight: 1.6, maxWidth: '560px' }}>Connect the mailbox you use to contact leads. Sent emails from the connected account are automatically logged as lead activity and added to the matching lead’s notes.</p>
+  return <SurfacePanel padding={spacing['3xl']} style={{ ...typography.body, marginBottom: spacing.xl, boxShadow: 'none' }}>
+    <SectionTitle>{data?.connections.length === 0 ? 'Connect Business email' : 'Business Email'}</SectionTitle>
+    <p style={{ color: colors.textSecondary, margin: 0 }}>This will allow us to send and receive email from your email provider.</p>
+    <Modal isOpen={connectOpen} onClose={busy ? undefined : () => setConnectOpen(false)} size="md">
+      <ModalHeader title="Connect your business email" onClose={busy ? undefined : () => setConnectOpen(false)} />
+      <ModalBody style={typography.body}>
+        <p>Connect the email account your team uses to communicate with customers. When you do that, Google will ask you to allow us to:</p>
+        <ul style={{ paddingLeft: spacing.xl, lineHeight: 1.6 }}>
+          <li><strong>Read email:</strong> to show customer conversations and keep email activity up to date.</li>
+          <li><strong>Send email:</strong> to send messages you or your authorized staff choose to send from the app.</li>
+        </ul>
+        {error && <Notice variant="warning">{error}</Notice>}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" disabled={busy} onClick={() => setConnectOpen(false)}>Not now</Button>
+        <Button disabled={busy || !data?.configured} onClick={() => void connect()}>{busy ? 'Connecting…' : 'Continue with Google'}</Button>
+      </ModalFooter>
+    </Modal>
     {error && <Notice variant="warning" style={{ marginTop: spacing.md }}>{error}</Notice>}
     {message && <Notice variant="info" style={{ marginTop: spacing.md }}>{message}</Notice>}
     {!data && !error && <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>}
     {data?.connections.length === 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xl }}>
-      <Button onClick={() => void connect()} disabled={busy || !data.configured}>Connect Google mailbox</Button>
+      <Button onClick={() => { setError(''); setConnectOpen(true) }} disabled={busy || !data.configured}>Connect with Google</Button>
     </div>}
     {data && !data.configured && <p style={{ color: colors.textMuted }}>Google OAuth credentials and token encryption must be configured by your deployment administrator.</p>}
     {data?.connections.map(connection => <div key={connection.id} style={{ marginTop: spacing.xl }}>
@@ -73,12 +89,12 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
       {connection.last_error && <Notice variant="warning">{connection.last_error}</Notice>}
       <div style={{ display: 'flex', gap: spacing.md, flexWrap: 'wrap', marginTop: spacing.xl }}>
         <Button variant="secondary" disabled={busy} onClick={() => void action({ action: 'sync', id: connection.id })}>Sync now</Button>
-        <Button variant="secondary" disabled={busy || !data.configured} onClick={() => void connect()}>Reconnect</Button>
+        <Button variant="secondary" disabled={busy || !data.configured} onClick={() => { setError(''); setConnectOpen(true) }}>Reconnect</Button>
         <Button variant="destructive" disabled={busy} onClick={() => { if (window.confirm(`Disconnect ${connection.email}? Existing lead notes remain. Remove Pulse access in your Google account too if you want to revoke the Google grant.`)) void action({ action: 'disconnect', id: connection.id }) }}>Disconnect</Button>
       </div>
     </div>)}
     {Boolean(data?.connections.length) && <div style={{ marginTop: spacing.md }}>
-      <Button variant="ghost" disabled={busy || !data?.configured} onClick={() => void connect()}>Connect another mailbox</Button>
+      <Button variant="ghost" disabled={busy || !data?.configured} onClick={() => { setError(''); setConnectOpen(true) }}>Connect another mailbox</Button>
     </div>}
     {Boolean(data?.review.length) && <h3 style={{ marginTop: spacing.xl }}>Emails needing lead matching</h3>}
     {data?.review.map(item => <div key={item.id} style={{ marginTop: spacing.lg, borderTop: `1px solid ${colors.border}`, paddingTop: spacing.md }}>

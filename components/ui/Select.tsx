@@ -14,7 +14,7 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', ...wrapperStyle }}>
       {label && (
-        <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
+        <label style={{ ...typography.label, color: colors.text }}>
           {label}
         </label>
       )}
@@ -40,7 +40,7 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
       >
         {children}
       </select>
-      {hint && <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans }}>{hint}</span>}
+      {hint && <span style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
     </div>
   )
 }

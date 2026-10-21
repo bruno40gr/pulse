@@ -22,7 +22,7 @@ function load(file, workspace) {
     if (['react', 'react/jsx-runtime', 'lucide-react'].includes(id)) return require(id)
     if (id === '@/lib/tokens') return load('lib/tokens.ts')
     if (id === './ControlButton') return { ControlButton: props => React.createElement('button', { 'aria-label': props['aria-label'], onClick: props.onClick }, props.children) }
-    if (id === '@/components/ui') return Object.fromEntries(['Button', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]]))
+    if (id === '@/components/ui') return { ...Object.fromEntries(['Button', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]])), Modal: ({ isOpen, children }) => isOpen ? React.createElement('div', { role: 'dialog' }, children) : null, ModalBody: ({ children }) => React.createElement('div', null, children), ModalFooter: ({ children }) => React.createElement('div', null, children), ModalHeader: ({ title }) => React.createElement('h2', null, title) }
     if (id.startsWith('@/components/ui/')) return load(`${id.replace('@/', '')}.tsx`)
     throw new Error(`Blocked dependency ${id}`)
   } })
@@ -34,13 +34,18 @@ test('Gmail settings renders shared components with concise copy and settings sp
   const GmailConnections = load('components/settings/GmailConnections.tsx', { configured: true, connections: [], review: [], leads: [] }).default
   const { spacing, typography } = load('lib/tokens.ts')
   const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
-  assert.match(html, /<h2[^>]*>Gmail<\/h2>/)
-  assert.ok(html.includes('Connect the mailbox you use to contact leads. Sent emails from the connected account are automatically logged as lead activity and added to the matching lead’s notes.</p>'))
+  assert.match(html, /<h2[^>]*>Connect Business email<\/h2>/)
+  assert.ok(html.includes('This will allow us to send and receive email from your email provider.'))
+  assert.ok(!html.includes('When you do that, Google will ask you to allow us to:'))
+  assert.ok(!html.includes('<strong>Read email:</strong>'))
+  assert.ok(!html.includes('<strong>Send email:</strong>'))
+  assert.ok(!html.includes('Connecting your account does not send any emails.'))
+  assert.ok(html.includes(`font-size:${typography.body.fontSize}`))
   for (const removed of ['Only Contacted or Booked', 'Read-only access.', 'Historical import is not enabled.']) assert.ok(!html.includes(removed))
   assert.ok(html.includes(`padding:${spacing['3xl']}`))
   assert.ok(html.includes(`font-size:${typography.sizeBase}`))
   assert.ok(html.includes('box-shadow:none'))
-  assert.match(html, /<button[^>]*>Connect Google mailbox<\/button>/)
+  assert.match(html, /<button[^>]*>Connect with Google<\/button>/)
   assert.ok(!html.includes('Gmail connected'))
 })
 

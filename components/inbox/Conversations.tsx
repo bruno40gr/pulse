@@ -121,7 +121,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const mailbox = mailboxes.find(item => item.id === mailboxId)
   const previewHistory = emailPreview && mailboxesLoaded && !mailboxes.length
   const senderEmail = authorisedSender?.email || mailbox?.email || (emailPreview ? 'preview@example.com' : '')
-  const signatureHtml = authorisedSender?.signatureHtml ? sanitizePrototypeHtml(authorisedSender.signatureHtml) : signature ? conversationSignatureHtml({ ...signature, name: senderName }, senderName) : ''
+  const signatureHtml = signature?.personal ? conversationSignatureHtml(signature, memberName) : authorisedSender?.signatureHtml ? sanitizePrototypeHtml(authorisedSender.signatureHtml) : signature ? conversationSignatureHtml({ ...signature, name: senderName }, senderName) : ''
   const canComposeEmail = emailPreview || (!!mailbox?.canSend && !!authorisedSender)
   const fromControl = <Select aria-label="Send email from" disabled={sending || !organisationSenders.length} value={authorisedSender?.email || ''} onChange={event => setSenderId(event.target.value)}>{!authorisedSender && <option value="">{organisationSenders.length ? 'Select a sender' : 'Set up organisation email in Settings'}</option>}{organisationSenders.map(sender => <option key={sender.email} value={sender.email}>{sender.mine ? 'Me — ' : ''}{sender.name} — {sender.email}</option>)}</Select>
 

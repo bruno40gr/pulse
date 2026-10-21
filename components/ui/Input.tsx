@@ -12,7 +12,7 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
       {label && (
-        <label style={{ fontSize: typography.sizeSm, fontWeight: typography.weightMedium, color: colors.text, fontFamily: typography.fontSans }}>
+        <label style={{ ...typography.label, color: colors.text }}>
           {label}
         </label>
       )}
@@ -34,8 +34,8 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
         }}
         {...props}
       />
-      {hint && !error && <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans }}>{hint}</span>}
-      {error && <span style={{ fontSize: typography.sizeXs, color: colors.error, fontFamily: typography.fontSans }}>{error}</span>}
+      {hint && !error && <span style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
+      {error && <span style={{ ...typography.helper, color: colors.error }}>{error}</span>}
     </div>
   )
 }

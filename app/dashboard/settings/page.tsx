@@ -9,6 +9,7 @@ import AccessManagementClient from '@/components/access/AccessManagementClient'
 import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
 import GmailConnections from '@/components/settings/GmailConnections'
 import EmailSignatureSettings from '@/components/settings/EmailSignatureSettings'
+import PersonalEmailSignoff from '@/components/settings/PersonalEmailSignoff'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
@@ -47,7 +48,8 @@ export default function SettingsPage() {
       .then(data => {
         setAccountContext(data)
         const requestedTab = new URLSearchParams(window.location.search).get('tab')
-        if (requestedTab === 'permissions' && data.canManageRoles) setTab('permissions')
+        if (requestedTab === 'account') setTab('account')
+        else if (requestedTab === 'permissions' && data.canManageRoles) setTab('permissions')
         else if (requestedTab === 'integrations' && data.canManageIntegrations) setTab('integrations')
         else if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
         else if (data.canManageRoles) setTab('roles')
@@ -74,26 +76,26 @@ export default function SettingsPage() {
     padding: `${spacing.md} ${spacing.lg}`,
     border: `1px solid ${colors.border}`,
     borderRadius: radius.lg,
-    fontSize: typography.sizeMd,
+    fontSize: typography.sizeBase,
     fontFamily: typography.fontSans,
     boxSizing: 'border-box',
     outline: 'none',
     background: colors.surface,
   }
   const labelS: React.CSSProperties = {
-    fontSize: typography.sizeSm,
-    fontWeight: typography.weightMedium,
+    ...typography.label,
     color: colors.text,
     display: 'block',
     marginTop: spacing.xl,
   }
   const hintS: React.CSSProperties = {
-    fontSize: typography.sizeXs,
+    ...typography.helper,
     color: colors.textMuted,
     marginTop: spacing.xs,
     display: 'block',
   }
   const cardS: React.CSSProperties = {
+    ...typography.body,
     background: colors.surface,
     border: `1px solid ${colors.border}`,
     borderRadius: radius.xl,
@@ -101,13 +103,12 @@ export default function SettingsPage() {
     marginBottom: spacing.xl,
   }
   const sectionTitleS: React.CSSProperties = {
-    fontSize: typography.sizeLg,
-    fontWeight: typography.weightSemibold,
+    ...typography.h2,
     color: colors.text,
-    margin: '0 0 4px',
+    margin: `0 0 ${spacing.md}`,
   }
   const sectionSubS: React.CSSProperties = {
-    fontSize: typography.sizeBase,
+    ...typography.body,
     color: colors.textSecondary,
     margin: 0,
     lineHeight: 1.6,
@@ -116,13 +117,13 @@ export default function SettingsPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     ...(accountContext?.canManageRoles ? [{ key: 'roles' as const, label: 'Roles' }, { key: 'permissions' as const, label: 'Permissions' }] : []),
+    { key: 'account', label: 'Account settings' },
     ...(accountContext?.canManageIntegrations ? [{ key: 'integrations' as const, label: 'Integrations' }] : []),
     ...(accountContext?.canManageBrand ? [{ key: 'brand' as const, label: 'Brand' }] : []),
-    { key: 'account', label: 'Account settings' },
   ]
 
   return (
-    <PageContainer>
+    <PageContainer style={typography.body}>
       {/* Header */}
       <PageHeader
         title="Settings"
@@ -150,7 +151,13 @@ export default function SettingsPage() {
           {tab === 'permissions' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded view="permissions" />}
           {tab === 'integrations' && accountContext?.canManageIntegrations && <IntegrationsTab tenantId={tenantId} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
           {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} canAccessDesignSystem={accountContext.canAccessDesignSystem} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
-          {tab === 'account' && accountContext && <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
+          {tab === 'account' && accountContext && <>
+            {accountContext.canManageIntegrations && <GmailConnections tenantId={tenantId} />}
+            <PersonalEmailSignoff tenantId={tenantId} />
+            {accountContext.canManageIntegrations && <OrganisationEmailSettings tenantId={tenantId} />}
+            {accountContext.canManageBrand && <EmailSignatureSettings tenantId={tenantId} />}
+            <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
+          </>}
         </>
       )}
     </PageContainer>
@@ -239,8 +246,6 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
   return (
     <>
       {/* Twilio */}
-      <OrganisationEmailSettings tenantId={tenantId} />
-      <GmailConnections tenantId={tenantId} />
       <div style={cardS}>
         <h2 style={sectionTitleS}>Twilio</h2>
         <p style={sectionSubS}>Connect your Twilio account to send SMS. When connected, your sending number is shown and messages appear in the Pulse inbox.</p>
@@ -370,7 +375,6 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
   return (
     <>
       {/* Logo */}
-      <EmailSignatureSettings tenantId={tenantId} />
       <div style={cardS}>
         <h2 style={sectionTitleS}>Logo</h2>
         <p style={sectionSubS}>Your logo appears across Pulse. Enter a URL for now — file upload is coming later.</p>

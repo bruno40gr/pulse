@@ -1,4 +1,4 @@
-import { colors, typography } from '@/lib/tokens'
+import { colors, spacing, typography } from '@/lib/tokens'
 
 interface SectionTitleProps {
   children: React.ReactNode
@@ -11,7 +11,7 @@ export function SectionTitle({ children, style }: SectionTitleProps) {
       ...typography.h2,
       color: colors.text,
       margin: 0,
-      marginBottom: '4px',
+      marginBottom: spacing.md,
       fontFamily: typography.fontSans,
       ...style,
     }}>

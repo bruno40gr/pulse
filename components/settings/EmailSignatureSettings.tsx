@@ -37,14 +37,14 @@ export default function EmailSignatureSettings({ tenantId }: { tenantId: string 
     } catch (error) { setError(error instanceof Error ? error.message : 'Could not save signature.') } finally { setBusy(false) }
   }
 
-  return <section id="email-signature" aria-label="Email signature" style={{ padding: spacing['3xl'], border: `1px solid ${colors.border}`, borderRadius: 12, background: colors.surface, marginBottom: spacing.xl }}>
-    <h2 style={{ fontSize: typography.sizeLg, marginTop: 0 }}>Email signature</h2>
+  return <section id="email-signature" aria-label="Email signature" style={{ ...typography.body, padding: spacing['3xl'], border: `1px solid ${colors.border}`, borderRadius: 12, background: colors.surface, marginBottom: spacing.xl }}>
+    <h2 style={{ ...typography.h2, marginTop: 0 }}>Email signature</h2>
     <p style={{ color: colors.textSecondary }}>Shared by this workspace. Use your public company name, not an internal staging label. Leave the signature name blank to use the signed-in sender’s name.</p>
     <p style={{ color: colors.textSecondary }}>Use a black/dark logo designed for white email backgrounds. This is separate from the app logo. No email address or sign-off is added.</p>
     {loading ? <p>Loading signature…</p> : <>
-      {([['company', 'Public company name'], ['name', 'Signature name (optional)'], ['title', 'Shared admin title (optional)'], ['phone', 'Public contact phone number'], ['logoUrl', 'Black/dark email logo URL (HTTPS)']] as const).map(([key, label]) => <label key={key} style={{ display: 'block', marginTop: spacing.lg }}>
+      {([['company', 'Public company name'], ['name', 'Signature name (optional)'], ['title', 'Shared admin title (optional)'], ['phone', 'Public contact phone number'], ['logoUrl', 'Black/dark email logo URL (HTTPS)']] as const).map(([key, label]) => <label key={key} style={{ ...typography.label, display: 'block', marginTop: spacing.lg }}>
         {label}
-        <input type={key === 'phone' ? 'tel' : key === 'logoUrl' ? 'url' : 'text'} value={signature[key] || ''} onChange={event => { setSignature(current => ({ ...current, [key]: event.target.value })); setSaved(false) }} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: spacing.sm, padding: spacing.md, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, color: colors.text }} />
+        <input type={key === 'phone' ? 'tel' : key === 'logoUrl' ? 'url' : 'text'} value={signature[key] || ''} onChange={event => { setSignature(current => ({ ...current, [key]: event.target.value })); setSaved(false) }} style={{ fontFamily: typography.fontSans, fontSize: typography.sizeBase, display: 'block', width: '100%', boxSizing: 'border-box', marginTop: spacing.sm, padding: spacing.md, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, color: colors.text }} />
       </label>)}
       <div aria-label="Signature preview" style={{ background: '#fff', color: '#111', padding: spacing.xl, marginTop: spacing.xl, border: `1px solid ${colors.border}`, borderRadius: 8 }}>
         <strong>{signature.name || 'Sender’s name'}</strong>

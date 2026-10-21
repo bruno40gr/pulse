@@ -4,6 +4,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { requirePermission } from '@/lib/request-context'
+import { personalEmailSignoff } from '@/lib/personal-email-signoff'
 
 /** Only public signature fields; never expose communications credentials. */
 export async function GET(request: Request) {
@@ -15,7 +16,13 @@ export async function GET(request: Request) {
     supabaseAdmin.from('twilio_config').select('phone_number').eq('tenant_id', access.tenantId).maybeSingle(),
   ])
   const signature = brand.data?.email_signature || {}
-  return NextResponse.json({ company: signature.company || '', name: signature.name || '', title: signature.title || '', logoUrl: signature.logoUrl || '', phone: signature.phone || phone.data?.phone_number || '', setupRequired: !!brand.error || !signature.phone, storageAvailable: !brand.error }, { headers })
+  if (!access.context) return NextResponse.json({ error: 'Sign in to load your email signature.' }, { status: 403, headers })
+  try {
+    const signoff = await personalEmailSignoff(access.tenantId, access.context.membershipId, access.context.personId)
+    return NextResponse.json({ company: signature.company || '', name: signoff.name, title: signoff.role, personal: true, logoUrl: signature.logoUrl || '', phone: signature.phone || phone.data?.phone_number || '', setupRequired: !!brand.error || !signature.phone, storageAvailable: !brand.error }, { headers })
+  } catch {
+    return NextResponse.json({ error: 'Your email sign-off could not be loaded.' }, { status: 503, headers })
+  }
 }
 
 export async function PUT(request: Request) {
