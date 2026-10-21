@@ -9,10 +9,33 @@ export async function googleToken(parameters: Record<string, string>): Promise<{
   if (!result.access_token) throw new Error('Google did not return mailbox access.')
   return result
 }
+/** Fixed status only: never retain provider bodies, request URLs or credentials. */
+export class GmailReadError extends Error {
+  constructor(public readonly status: number) {
+    super('Gmail could not be read. Please try again.')
+    this.name = 'GmailReadError'
+  }
+}
+
 export async function gmailGet<T>(token: string, path: string): Promise<T> {
-  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
-    headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000), cache: 'no-store',
-  })
-  if (!response.ok) throw new Error('Gmail could not be read. Check the connection and try again.')
-  return response.json()
+  // Reads are safe to retry. Sending deliberately does not use this helper.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let response: Response
+    try {
+      response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
+        headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000), cache: 'no-store',
+      })
+    } catch {
+      if (attempt === 1) throw new GmailReadError(0)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      continue
+    }
+    if (response.ok) return response.json()
+    if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      continue
+    }
+    throw new GmailReadError(response.status)
+  }
+  throw new GmailReadError(0)
 }

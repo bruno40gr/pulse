@@ -10,6 +10,7 @@ import { emailAddresses } from '@/lib/gmail/rules'
 import { personThread, type LiveThread } from '@/lib/conversations-live'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { isConversationEmailPreview } from '@/lib/conversations-preview'
+import { GmailReadError } from '@/lib/gmail/google'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsRead })
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status, headers })
   if (!access.context) return NextResponse.json({ error: 'Sign in to read email.' }, { status: 403, headers })
+  let stage: 'mailboxes' | 'directory' | 'mailbox' | 'list' | 'threads' | 'messages' = 'mailboxes'
   try {
     const params = new URL(request.url).searchParams
     const mailboxId = params.get('mailbox')
@@ -39,39 +41,62 @@ export async function GET(request: Request) {
       return NextResponse.json({ emailPreview: isConversationEmailPreview({ databaseUrl: process.env.CRM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL, deployment: process.env.VERCEL_ENV }), mailboxes: mailboxes.map(mailbox => ({ id: mailbox.id, email: mailbox.email, canSend: shared?.connection_id === mailbox.id && (mailbox.scopes?.includes('https://www.googleapis.com/auth/gmail.send') || false) })).sort((a, b) => Number(b.canSend) - Number(a.canSend)) }, { headers })
     }
     const summary = params.get('summary') === '1'
+    stage = 'directory'
     const people = await directory(access)
     const person = people.find(person => person.id === params.get('person'))
     if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
+    stage = 'mailbox'
     const mailbox = await conversationMailbox(access.tenantId, mailboxId, access.context.membershipId)
     const query = new URLSearchParams({ maxResults: summary ? '50' : '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
     const cursor = params.get('cursor')
     if (cursor) query.set('pageToken', cursor)
+    stage = 'list'
     const page = await gmailGet<{ threads?: { id: string }[]; nextPageToken?: string }>(mailbox.token, `threads?${query}`)
     const threads: LiveThread[] = []
     // Bounded concurrency keeps a mailbox summary within the route's execution window.
     const references = page.threads || []
     const histories: GmailConversationThread[] = []
+    stage = 'threads'
     for (let offset = 0; offset < references.length; offset += 5) {
-      histories.push(...await Promise.all(references.slice(offset, offset + 5).map(reference => gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(reference.id)}?format=${summary ? 'metadata' : 'full'}`))))
+      const batch = await Promise.all(references.slice(offset, offset + 5).map(async reference => {
+        try {
+          return await gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(reference.id)}?format=${summary ? 'metadata' : 'full'}`)
+        } catch (error) {
+          // A thread can be deleted between list and get. Other failures must
+          // remain visible rather than silently presenting incomplete history.
+          if (error instanceof GmailReadError && error.status === 404) return null
+          throw error
+        }
+      }))
+      histories.push(...batch.filter((thread): thread is GmailConversationThread => thread !== null))
     }
+    stage = 'messages'
     for (const thread of histories) {
       const matches = (summary ? people : [person!]).filter(person => validEmail(person.email) && gmailThreadMatches(thread, person.email))
       if (!matches.length) continue
       const messages = (thread.messages || []).filter(message => !message.labelIds?.some(label => ['DRAFT', 'TRASH', 'SPAM'].includes(label)))
-        .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)).map(message => ({
+        .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)).map(message => {
+          const internalDate = message.internalDate?.trim() ? new Date(Number(message.internalDate)) : new Date(NaN)
+          const headerDate = new Date(gmailHeader(message, 'Date'))
+          const date = Number.isFinite(internalDate.getTime()) ? internalDate : Number.isFinite(headerDate.getTime()) ? headerDate : null
+          return ({
           id: message.id, channel: 'email' as const,
           direction: message.labelIds?.includes('SENT') || emailAddresses(gmailHeader(message, 'From')).includes(mailbox.email.toLowerCase()) ? 'outbound' as const : 'inbound' as const,
-          body: summary ? '' : gmailConversationBody(message.payload), time: new Date(Number(message.internalDate)).toLocaleString('en-US'),
-          timestamp: new Date(Number(message.internalDate)).toISOString(), subject: gmailHeader(message, 'Subject'),
+          body: summary ? '' : gmailConversationBody(message.payload), time: date ? date.toLocaleString('en-US') : 'Date unavailable',
+          timestamp: date?.toISOString() || '', subject: gmailHeader(message, 'Subject'),
           unread: message.labelIds?.includes('UNREAD') || false,
           emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
-        }))
+        }) })
       for (const person of matches) if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
         providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
     }
     return NextResponse.json({ threads, nextCursor: page.nextPageToken || null }, { headers })
-  } catch {
-    return NextResponse.json({ error: 'Email history unavailable. Check your mailbox connection in Settings.' }, { status: 503, headers })
+  } catch (error) {
+    const code = error instanceof GmailReadError ? `history_${stage}_${error.status}` : `history_${stage}`
+    // Only fixed stage/status identifiers are exposed. No provider errors,
+    // mailbox addresses, message content or tokens are logged or returned.
+    console.warn('Email history request failed', { code })
+    return NextResponse.json({ error: `Email history could not be loaded. Sending is still available. Please try opening the conversation again. Reference: ${code}.`, code }, { status: 503, headers })
   }
 }
 
