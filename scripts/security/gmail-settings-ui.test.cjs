@@ -69,29 +69,29 @@ test('staff sender controls are hidden for outside-domain and missing signed-in 
   }
 })
 
-test('same-domain staff sender instructions explain shared sending and missing verified address', () => {
+test('same-domain users see no staff setup instructions when there are no distinct verified addresses', () => {
   const workspace = { owner: true, settings: null, connections: [{ id: 'box', email: 'admin@example.com' }], members: [], verifiedAliases: [], warning: '' }
   let index = 0
   const Component = load('components/settings/OrganisationEmailSettings.tsx', undefined, {
     react: { ...React, useEffect: () => {}, useCallback: callback => callback, useState: initial => React.useState(index++ === 0 ? workspace : index === 2 ? 'box' : initial) },
   }).default
   const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant', signedInEmail: 'bruno@example.com' }))
-  assert.ok(html.includes('Send from a staff email address'))
-  assert.ok(html.includes('To send from admin@example.com, leave this section unchanged.'))
-  assert.ok(html.includes('To send from bruno@example.com instead, assign that address to yourself below'))
-  assert.ok(html.includes('Your address is not in this mailbox'))
+  assert.ok(!html.includes('Staff sender addresses'))
+  assert.ok(!html.includes('To send from'))
+  assert.ok(!html.includes('Your address is not in this mailbox'))
+  assert.ok(!html.includes('Your name and role at the end'))
   assert.ok(!html.includes('Legacy shared signature'))
 })
 
-test('one Email signature panel displays name, role, logo upload or URL, then formatted phone', () => {
-  const values = [{ name: 'Alex', role: 'Teacher', logoUrl: '', phone: '012-3456789' }, false, false, true, '', false, true]
+test('Email signature uses a company logo checkbox without helpers and labels the preview outside its border', () => {
+  const values = [{ name: 'Alex', role: 'Teacher', includeCompanyLogo: true, phone: '012-3456789' }, false, false, true, '', false, true, 'https://assets.example.com/brand.png']
   let index = 0
   const Component = load('components/settings/EmailSignatureSettings.tsx', undefined, {
     react: { ...React, useEffect: () => {}, useState: () => React.useState(values[index++]) },
   }).default
   const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant' }))
   assert.match(html, /<h2[^>]*>Email signature<\/h2>/)
-  const labels = ['>Name<', '>Role<', '>Company logo URL<', 'Upload company logo', '>Phone number<']
+  const labels = ['>Name<', '>Role<', 'Include company logo', '>Phone number<']
   let previous = -1
   for (const label of labels) {
     const position = html.indexOf(label)
@@ -102,6 +102,11 @@ test('one Email signature panel displays name, role, logo upload or URL, then fo
   assert.ok(html.includes('XXX-XXXXXXX'))
   assert.ok(!html.includes('Your email sign-off'))
   assert.ok(!html.includes('Legacy shared signature'))
+  for (const removed of ['Company logo URL', 'Upload company logo', 'type="file"', 'Leave blank', 'Your job title', '10 digits, formatted', 'Added to emails you send']) assert.ok(!html.includes(removed), removed)
+  assert.ok(html.includes('type="checkbox"'))
+  assert.ok(html.includes('https://assets.example.com/brand.png'))
+  assert.ok(html.indexOf('>Preview</div>') < html.indexOf('aria-label="Email signature preview"'))
+  assert.ok(!html.slice(html.indexOf('aria-label="Email signature preview"')).includes('>Preview<'))
 })
 
 test('connected Gmail matches Twilio status box and standard action buttons', () => {

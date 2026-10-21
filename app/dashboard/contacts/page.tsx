@@ -6,7 +6,7 @@ import MessageActions from '@/components/inbox/MessageActions'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
-import { PersonNameButton } from '@/components/ui/PersonName'
+import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useRef } from 'react'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
@@ -493,13 +493,13 @@ export default function ContactsPage() {
               : contact.staff_id || contact.custom_fields?.contact_kind === 'instructor'
                 ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined}
           />
-          <PersonNameButton
+          <PersonName as="button"
             type="button"
             onClick={(event) => handleNameClick(contact, event)}
             style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
             {contact.first_name} {contact.last_name}
-          </PersonNameButton>
+          </PersonName>
           {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
@@ -559,7 +559,7 @@ export default function ContactsPage() {
       width: 'minmax(160px, 0.9fr)',
       sortable: true,
       sortKey: 'instructor',
-      render: (contact) => <span style={{ color: colors.textSecondary }}>{contact.instructor?.name || '—'}</span>,
+      render: (contact) => contact.instructor?.name ? <PersonName>{contact.instructor.name}</PersonName> : <span style={{ color: colors.textSecondary }}>—</span>,
     },
   ]
 

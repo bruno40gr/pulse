@@ -17,7 +17,7 @@ function setup({ signoff = null, error = null, role = 'staff', permissions = [],
       roles: [{ id: 'role', tenant_id: HEAD, key: role }],
       role_permissions: permissions.map((_, i) => ({ role_id: 'role', permission_id: String(i) })),
       permissions: permissions.map((key, i) => ({ id: String(i), key })),
-      tenant_settings: [{ tenant_id: HEAD, email_signature: { name: 'Shared Office', title: 'Shared Title', phone: '123' } }],
+      tenant_settings: [{ tenant_id: HEAD, logo_url: 'https://assets.example.com/brand.png', email_signature: { name: 'Shared Office', title: 'Shared Title', phone: '123' } }],
     },
     errors: error ? { tenant_memberships: error } : {},
   })
@@ -29,7 +29,7 @@ test('prefills the signed-in member profile name, not the shared workspace signa
   const { route } = setup()
   const response = await route.GET(request())
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { name: 'Alex Smith', role: '', logoUrl: '', phone: '', storageAvailable: true, connected: true })
+  assert.deepEqual(await response.json(), { name: 'Alex Smith', role: '', includeCompanyLogo: false, companyLogoUrl: 'https://assets.example.com/brand.png', logoUrl: '', phone: '', storageAvailable: true, connected: true })
 })
 
 test('signature settings stay hidden until a tenant mailbox is connected', async () => {
@@ -45,7 +45,7 @@ test('signature settings stay hidden until a tenant mailbox is connected', async
 test('loads saved personal name and role and preserves intentionally empty sign-offs', async () => {
   for (const signoff of [{ name: 'Alex', role: 'Teacher' }, { name: '', role: '' }]) {
     const { route } = setup({ signoff })
-    assert.deepEqual(await (await route.GET(request())).json(), { ...signoff, logoUrl: '', phone: '', storageAvailable: true, connected: true })
+    assert.deepEqual(await (await route.GET(request())).json(), { ...signoff, includeCompanyLogo: false, companyLogoUrl: 'https://assets.example.com/brand.png', logoUrl: '', phone: '', storageAvailable: true, connected: true })
   }
 })
 
@@ -109,8 +109,8 @@ test('missing personal storage permits profile defaults but never claims signatu
   assert.equal(signoff.storageAvailable, false)
 })
 
-test('unified signature saves all four fields on the signed-in membership and renders them in order', async () => {
-  const fields = { name: 'Alex', role: 'Teacher', logoUrl: 'https://assets.example.com/logo.png', phone: '0123456789' }
+test('unified signature saves the brand logo preference on the signed-in membership and renders fields in order', async () => {
+  const fields = { name: 'Alex', role: 'Teacher', includeCompanyLogo: true, phone: '0123456789' }
   const { route, harness } = setup()
   const response = await route.PUT(request(fields))
   assert.equal(response.status, 200)
@@ -130,7 +130,7 @@ test('unified signature saves all four fields on the signed-in membership and re
 
 test('unified signature rejects unsafe logos and invalid phone numbers without writes', async () => {
   const { route, harness } = setup()
-  for (const extra of [{ logoUrl: 'javascript:alert(1)' }, { logoUrl: 'http://example.com/a.png' }, { logoUrl: 'https://user:pass@example.com/a.png' }, { phone: '123' }, { phone: '012-34567890' }, { phone: 1234567890 }]) {
+  for (const extra of [{ includeCompanyLogo: 'yes' }, { logoUrl: 'javascript:alert(1)' }, { logoUrl: 'http://example.com/a.png' }, { logoUrl: 'https://user:pass@example.com/a.png' }, { phone: '123' }, { phone: '012-34567890' }, { phone: 1234567890 }]) {
     assert.equal((await route.PUT(request({ name: 'Alex', role: '', ...extra }))).status, 400)
   }
   assert.equal(harness.getWrites().length, 0)
@@ -138,4 +138,16 @@ test('unified signature rejects unsafe logos and invalid phone numbers without w
   assert.equal(formatSignaturePhone('0123456789'), '012-3456789')
   assert.equal(formatSignaturePhone('012-3456789'), '012-3456789')
   assert.equal(formatSignaturePhone(''), '')
+})
+
+test('staff without brand permissions can load the tenant logo and opt out without changing the brand', async () => {
+  for (const includeCompanyLogo of [true, false]) {
+    const { route, harness } = setup({ signoff: { name: 'Alex', role: '', includeCompanyLogo, logoUrl: 'https://old.example.com/logo.png' } })
+    const data = await (await route.GET(request())).json()
+    assert.equal(data.companyLogoUrl, 'https://assets.example.com/brand.png')
+    assert.equal(data.logoUrl, includeCompanyLogo ? data.companyLogoUrl : '')
+    const query = harness.getQueries().find(query => query.table === 'tenant_settings')
+    assert.ok(query.filters.some(([, key, value]) => key === 'tenant_id' && value === HEAD))
+    assert.equal(harness.getWrites().length, 0)
+  }
 })

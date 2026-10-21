@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/Button'
+import { PersonName } from '@/components/ui/PersonName'
 import { useEffect, useState } from 'react'
 import { House } from 'lucide-react'
 import { Badge } from '@/components/ui'
@@ -135,8 +136,8 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                 <td style={{ padding: '12px 24px' }}>
                   <input type="checkbox" checked={isSelected} readOnly />
                 </td>
-                <td style={{ padding: '12px', fontWeight: 500 }}>
-                  {contact.first_name} {contact.last_name}
+                <td style={{ padding: '12px' }}>
+                  <PersonName>{contact.first_name} {contact.last_name}</PersonName>
                 </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{instrument || '—'}</td>
                 <td style={{ padding: '10px 16px', fontSize: '12px', color: '#6B6B6B' }}>
@@ -154,7 +155,7 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                 </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.email || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{serviceType || '—'}</td>
-                <td style={{ padding: '12px', color: '#6B6B6B' }}>{instructor || '—'}</td>
+                <td style={{ padding: '12px' }}>{instructor ? <PersonName>{instructor}</PersonName> : '—'}</td>
                 <td style={{ padding: '12px 24px' }}>
                   <Badge variant={
                     contact.opted_out ? 'error' :

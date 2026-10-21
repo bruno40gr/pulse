@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Input, Notice, SectionTitle, Select, SurfacePanel } from '@/components/ui'
 import type { OrganisationAlias, OrganisationEmailSettings as Settings } from '@/lib/organisation-email-policy'
-import { spacing, typography, colors } from '@/lib/tokens'
+import { spacing, typography } from '@/lib/tokens'
 
 type Member = { id: string; people: { first_name: string; last_name: string; email: string } | { first_name: string; last_name: string; email: string }[] }
 type Workspace = { owner: boolean; settings: Settings | null; connections: { id: string; email: string }[]; members: Member[]; verifiedAliases: { sendAsEmail: string; displayName?: string }[]; warning: string }
@@ -39,10 +39,10 @@ export default function OrganisationEmailSettings({ tenantId, signedInEmail }: {
   if (data && !data.connections.length) return null
   const sharedEmail = data?.connections.find(connection => connection.id === connectionId)?.email || ''
   const domain = sharedEmail.trim().toLowerCase().split('@')[1]
-  const showStaffAddresses = Boolean(domain && signedInEmail?.trim().toLowerCase().split('@')[1] === domain)
+  const staffAddresses = data?.verifiedAliases.filter(alias => alias.sendAsEmail.trim().toLowerCase() !== sharedEmail.trim().toLowerCase()) || []
+  const showStaffAddresses = Boolean(domain && signedInEmail?.trim().toLowerCase().split('@')[1] === domain && staffAddresses.length)
   return <SurfacePanel padding={spacing['3xl']} style={{ ...typography.body, marginBottom: spacing.xl }}>
     <SectionTitle>Business sender</SectionTitle>
-    <p style={{ ...typography.body, color: colors.textSecondary }}>Choose the mailbox and business name customers see when your team sends email. Your name and role at the end of each email are set in Email signature above.</p>
     {error && <Notice variant="error">{error}</Notice>}
     {data?.warning && <Notice variant="warning">{data.warning}</Notice>}
     {data?.owner && <div style={{ display: 'grid', gap: spacing.lg }}>
@@ -52,10 +52,8 @@ export default function OrganisationEmailSettings({ tenantId, signedInEmail }: {
       </Select>
       <Input label="Business sender name" aria-label="Business sender name" value={displayName} disabled={busy} onChange={event => setDisplayName(event.target.value)} placeholder="Your business name" />
       {showStaffAddresses && <details>
-      <summary>Send from a staff email address (optional)</summary>
-      <p style={{ ...typography.bodySmall, color: colors.textSecondary }}>To send from {sharedEmail}, leave this section unchanged. To send from {signedInEmail} instead, assign that address to yourself below, then save. It will become an option in the email composer’s From field. This does not change your email signature.</p>
-      {!data.verifiedAliases.some(alias => alias.sendAsEmail.toLowerCase() === signedInEmail?.trim().toLowerCase()) && <p style={{ ...typography.bodySmall, color: colors.textSecondary }}>Your address is not in this mailbox’s verified sending addresses. Before it can be assigned here, add and verify it in the shared mailbox’s Gmail settings under Accounts → Send mail as. You can keep sending from {sharedEmail} without doing this.</p>}
-      {data.verifiedAliases.map(alias => {
+      <summary>Staff sender addresses</summary>
+      {staffAddresses.map(alias => {
         const assignment = aliases.find(item => item.email === alias.sendAsEmail)
         return <div key={alias.sendAsEmail} style={{ display: 'grid', gap: spacing.sm }}><Select label={`Who can send as ${alias.sendAsEmail}?`} aria-label={`Assign ${alias.sendAsEmail}`} value={assignment?.membershipId || ''} disabled={busy} onChange={event => {
           const member = data.members.find(member => member.id === event.target.value)

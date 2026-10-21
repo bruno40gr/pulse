@@ -11,6 +11,7 @@ import { useWorkspaceHistory } from '@/lib/useWorkspaceHistory'
 import { BackControl } from '@/components/ui/BackControl'
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { ControlButton } from '@/components/ui/ControlButton'
+import { PersonName } from '@/components/ui/PersonName'
 import PrototypeEmailComposer, { type PrototypeEmailDraft } from '@/components/inbox/PrototypeEmailComposer'
 import PrototypeSmsConversation from '@/components/inbox/PrototypeSmsConversation'
 import { colors, spacing, typography } from '@/lib/tokens'
@@ -270,7 +271,7 @@ export default function ConversationsPrototype() {
       })} getRowKey={person => person.id} ariaLabel="Conversations" minDesktopWidth={360} alignToSelectionInset stickyHeaderOffset={0}
         sort={contactSort} onSortChange={setContactSort} onRowClick={person => selectContact(person.id)} emptyContent="No conversations match your filters."
         columns={[
-          { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => <div><ControlButton kind="link" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textDecoration: 'none', textAlign: 'left' }}>{person.name}</ControlButton><div style={{ ...meta, marginTop: spacing.xs }}>{person.newSms} new SMS · {person.newEmails} unread emails</div></div> },
+          { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => <div><PersonName as="button" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textAlign: 'left' }}>{person.name}</PersonName><div style={{ ...meta, marginTop: spacing.xs }}>{person.newSms} new SMS · {person.newEmails} unread emails</div></div> },
           { id: 'time', header: 'Last contacted', width: 'minmax(180px, 1fr)', sortable: true, sortKey: 'time', defaultSortDirection: 'desc', render: person => formatContactTiming(latestMessage(person)?.timestamp) },
         ]} />
       </SurfacePanel>

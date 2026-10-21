@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ComponentProps } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge, Button, Notice, PageHeader, ResponsiveDataTable, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import { PersonName } from '@/components/ui/PersonName'
 import { getActiveTenantId } from '@/lib/tenant'
 import { isFundingDemoTenant, loadDemoFunding, recalculateDemoFundingCase, resetDemoFunding, saveDemoFundingCase } from '@/lib/funding/demo'
 import { FundingSummary } from './FundingSummary'
@@ -150,7 +151,7 @@ export default function FundedCasesWorkspace() {
       id: 'student', header: 'Student', width: 'minmax(180px, 1.1fr)', sortable: true, sortKey: 'student',
       render: item => (
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: colors.text, fontWeight: typography.weightSemibold }}>{item.student}</div>
+          <PersonName>{item.student}</PersonName>
           {openingCaseId === item.id && <div style={secondaryTextStyle}>Opening…</div>}
         </div>
       ),

@@ -14,11 +14,16 @@ const nameStyle = {
   overflowWrap: 'anywhere' as const,
 }
 
-/** The shared name treatment for people in CRM lists and conversations. */
-export function PersonName({ children, ...props }: { children: React.ReactNode }) {
-  return <span {...props} style={nameStyle}>{children}</span>
-}
+type PersonNameProps =
+  | ({ as?: 'span' } & ComponentPropsWithoutRef<'span'>)
+  | ({ as: 'button' } & ComponentPropsWithoutRef<'button'>)
 
-export function PersonNameButton({ style, ...props }: ComponentPropsWithoutRef<'button'>) {
-  return <ControlButton kind="link" {...props} style={{ ...style, ...nameStyle }} />
+/** One name appearance for every people table; button mode preserves native action semantics. */
+export function PersonName(props: PersonNameProps) {
+  if (props.as === 'button') {
+    const { as: element, style, type = 'button', ...buttonProps } = props
+    return <ControlButton kind="name" {...buttonProps} type={type} style={{ ...style, ...nameStyle }} data-person-name={element} />
+  }
+  const { as: element = 'span', style, ...spanProps } = props
+  return <span {...spanProps} style={{ ...style, ...nameStyle }} data-person-name={element} />
 }

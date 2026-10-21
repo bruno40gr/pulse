@@ -6,7 +6,7 @@ import { ButtonBase } from './ButtonBase'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import styles from './ControlButton.module.css'
 
-export type ControlKind = 'close' | 'icon' | 'link' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
+export type ControlKind = 'close' | 'icon' | 'link' | 'name' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
 
 type ControlButtonProps = ComponentPropsWithRef<'button'> & {
   kind: ControlKind
@@ -43,6 +43,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         gap: spacing.xs,
         ...(kind === 'icon' || kind === 'close' ? { width: 32, height: 32, flexShrink: 0, padding: spacing.xs } : {}),
         ...(kind === 'link' ? { padding: 0, color: colors.link, textDecoration: 'none' } : {}),
+        ...(kind === 'name' ? { padding: 0, color: colors.text, textDecoration: 'none' } : {}),
         ...(kind === 'row' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'space-between' } : {}),
         ...(kind === 'navigation' ? { width: '100%', padding: `${spacing.sm} ${spacing.md}`, textAlign: 'left', justifyContent: 'flex-start' } : {}),
         ...(kind === 'tab' ? { padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.border}` } : {}),

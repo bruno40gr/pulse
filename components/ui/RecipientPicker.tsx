@@ -5,6 +5,7 @@ import { ResponsiveDataTable } from './DataGridTable'
 import { Input } from './Input'
 import { Button } from './Button'
 import { RecipientChip } from './RecipientChip'
+import { PersonName } from './PersonName'
 import { colors, spacing, typography } from '@/lib/tokens'
 
 export interface PickerRecipient { id: string; name: string; detail: string; disabled?: boolean }
@@ -50,7 +51,7 @@ export function RecipientPicker({ label, people, selected, onChange, query, onQu
     <div style={{ flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined, maxHeight: fill ? undefined : 320, overflow: 'auto' }}>
       <ResponsiveDataTable rows={people} getRowKey={person => person.id} ariaLabel={`${label} search results`} minDesktopWidth={480} mobileBreakpoint={0} loading={loading} emptyContent="No matching contacts available."
         columns={[
-          { id: 'name', header: 'Name', width: 'minmax(140px, 1fr)', render: person => <strong>{person.name}</strong> },
+          { id: 'name', header: 'Name', width: 'minmax(140px, 1fr)', render: person => <PersonName>{person.name}</PersonName> },
           { id: 'detail', header: detailLabel, width: 'minmax(220px, 1.5fr)', render: person => person.detail },
         ]}
         selection={{ selectedKeys: new Set(selectedIds), isSelectable: person => !person.disabled, allSelected, selectAllLabel: allSelected ? 'Deselect all' : 'Select all', getRowLabel: person => `${selectedIds.includes(person.id) ? 'Remove' : 'Add'} ${person.name} ${selectedIds.includes(person.id) ? 'from' : 'to'} ${label}`,

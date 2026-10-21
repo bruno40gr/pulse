@@ -1,17 +1,25 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { validSignatureLogoUrl } from '@/lib/email-signature-fields'
 
 export async function personalEmailSignoff(tenantId: string, membershipId: string, personId: string) {
-  const [membership, person] = await Promise.all([
+  const [membership, person, brand] = await Promise.all([
     supabaseAdmin.from('tenant_memberships').select('email_signoff').eq('tenant_id', tenantId).eq('id', membershipId).maybeSingle(),
     supabaseAdmin.from('people').select('first_name,last_name').eq('id', personId).maybeSingle(),
+    supabaseAdmin.from('tenant_settings').select('logo_url').eq('tenant_id', tenantId).maybeSingle(),
   ])
   if (person.error) throw new Error('Your profile name could not be loaded.')
   if (membership.error && !['42703', 'PGRST204'].includes(membership.error.code)) throw new Error('Your email sign-off could not be loaded.')
   const profileName = [person.data?.first_name, person.data?.last_name].filter(Boolean).join(' ')
+  if (brand.error && !['42703', 'PGRST204', 'PGRST205', '42P01'].includes(brand.error.code)) throw new Error('Company logo could not be loaded.')
+  const brandUrl = typeof brand.data?.logo_url === 'string' ? brand.data.logo_url.trim() : ''
+  const companyLogoUrl = validSignatureLogoUrl(brandUrl) ? brandUrl : ''
+  const includeCompanyLogo = membership.data?.email_signoff?.includeCompanyLogo ?? Boolean(membership.data?.email_signoff?.logoUrl)
   return {
     name: membership.data?.email_signoff?.name ?? profileName,
     role: membership.data?.email_signoff?.role ?? '',
-    logoUrl: membership.data?.email_signoff?.logoUrl ?? '',
+    includeCompanyLogo,
+    companyLogoUrl,
+    logoUrl: includeCompanyLogo ? companyLogoUrl : '',
     phone: membership.data?.email_signoff?.phone ?? '',
     storageAvailable: !membership.error,
   }

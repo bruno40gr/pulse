@@ -659,7 +659,7 @@ function AccountSettingsTab({ context, inputS, labelS, hintS, cardS, sectionTitl
         ) : (
           <div style={{ marginTop: spacing.xl, padding: spacing.xl, borderRadius: radius.lg, background: colors.surfaceMuted, color: colors.textSecondary, fontSize: typography.sizeBase, lineHeight: 1.6 }}>
             {context.email && <div style={{ color: colors.text, fontWeight: typography.weightMedium, marginBottom: spacing.xs }}>{context.email}</div>}
-            Email and password changes become available after your personal staff account is linked. You are currently signed in through the shared staff access flow.
+            Email and password changes become available after your personal staff account is linked.
           </div>
         )}
       </div>

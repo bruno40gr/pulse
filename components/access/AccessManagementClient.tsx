@@ -2,6 +2,7 @@
 
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { ControlButton } from '@/components/ui/ControlButton'
+import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -531,7 +532,7 @@ function PeopleAccessPanel({
               return <><div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
                       <Avatar firstName={membership.person?.first_name || ''} lastName={membership.person?.last_name || ''} size={36} src={getStaffAvatarUrl(tenantId, fullName(membership))} />
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', fontWeight: typography.weightSemibold, color: colors.text }}>{fullName(membership)}{role?.key === 'owner' && <Badge size="sm" variant="info" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0 }}><ShieldCheck size={13} aria-hidden="true" />Owner</Badge>}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}><PersonName>{fullName(membership)}</PersonName>{role?.key === 'owner' && <Badge size="sm" variant="info" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0 }}><ShieldCheck size={13} aria-hidden="true" />Owner</Badge>}</div>
                         <div style={{ fontSize: typography.sizeSm, color: colors.textMuted }}>{membership.person?.email || 'No email yet'}</div>
                       </div>
                     </div></>

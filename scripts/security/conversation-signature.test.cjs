@@ -23,7 +23,7 @@ function setup({ permissions = ['communications.read', 'tenant_settings.manage']
 const request = body => new Request(`http://synthetic.invalid/api/conversations/signature?tenant=${HEAD}`, body === undefined ? {} : { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const valid = { company: 'Public Company', name: '', phone: '+12025550100', logoUrl: 'https://example.com/black.png' }
 
-test('signature reads explicit public fields, not internal workspace name, app logo or credentials', async () => {
+test('signature reads personal fields and the shared Brand logo, not internal workspace name or credentials', async () => {
   const { route } = setup()
   const response = await route.GET(request())
   assert.equal(response.status, 200)
@@ -32,15 +32,15 @@ test('signature reads explicit public fields, not internal workspace name, app l
   assert.equal(data.name, 'Alex')
   assert.equal(data.title, 'Teacher')
   assert.equal(data.phone, '012-3456789')
-  assert.equal(data.logoUrl, 'https://example.com/personal-logo.png')
-  assert.doesNotMatch(JSON.stringify(data), /STAGING|Synthetic|white-logo|secret/)
+  assert.equal(data.logoUrl, 'https://example.com/white-logo.png')
+  assert.doesNotMatch(JSON.stringify(data), /STAGING|Synthetic|personal-logo|secret/)
 })
 
 test('unified signature is independent of legacy workspace signature storage and Twilio', async () => {
   const { route } = setup({ error: { code: '42703', message: 'column missing' } })
   const data = await (await route.GET(request())).json()
   assert.equal(data.company, '')
-  assert.equal(data.logoUrl, 'https://example.com/personal-logo.png')
+  assert.equal(data.logoUrl, '')
   assert.equal(data.phone, '012-3456789')
   assert.equal(data.storageAvailable, true)
 })

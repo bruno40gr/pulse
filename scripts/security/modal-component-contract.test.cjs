@@ -58,7 +58,7 @@ test('Settings separates staff roles from permission editing and uses the shared
   assert.doesNotMatch(access, /<Tabs|Add account|<table/)
   assert.match(access, /<ResponsiveDataTable<Membership, string>/)
   assert.match(access, /<Plus size=\{16\} \/>Add Staff/)
-  assert.match(access, /fullName\(membership\)\}\{role\?\.key === 'owner'/)
+  assert.match(access, /<PersonName>\{fullName\(membership\)\}<\/PersonName>\{role\?\.key === 'owner'/)
   assert.doesNotMatch(access, /data.currentRoleKey === 'owner' \? 'Owner' : 'Admin'/)
   assert.doesNotMatch(access, /Manage the people who work in your organization|Define roles and choose the permissions|Your role|isCurrentOwner/)
   const people = access.slice(access.indexOf('function PeopleAccessPanel'), access.indexOf('function AccessLoadingState'))

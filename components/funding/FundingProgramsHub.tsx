@@ -2,6 +2,7 @@
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { PersonName } from '@/components/ui/PersonName'
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Plus, Search } from 'lucide-react'
 import { BackControl, Badge, Button, EmptyState, Input, LoadingButton, Modal, ModalBody, ModalFooter, ModalHeader, Notice, ResponsiveDataTable, SlidePanel, SlidePanelHeader, SurfacePanel, Textarea, type DataTableColumn } from '@/components/ui'
@@ -163,7 +164,7 @@ function programStudentColumns(program: FundingProgram): DataTableColumn<Funding
   const columns: DataTableColumn<FundingCase, string>[] = [
     {
       id: 'student', header: 'Student', width: 'minmax(170px, 1.1fr)',
-      render: item => <div style={{ color: colors.text, fontWeight: typography.weightSemibold }}>{item.student}</div>,
+      render: item => <PersonName>{item.student}</PersonName>,
     },
     { id: 'status', header: 'Status', width: '145px', render: item => <FundingStatusBadge item={item} /> },
   ]

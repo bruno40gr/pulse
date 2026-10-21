@@ -28,8 +28,9 @@ export async function PUT(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body || typeof body.name !== 'string' || typeof body.role !== 'string' || body.name.length > 200 || body.role.length > 200) return NextResponse.json({ error: 'Use a name and role of up to 200 characters each.' }, { status: 400, headers })
   if (body.logoUrl !== undefined && (typeof body.logoUrl !== 'string' || body.logoUrl.length > 2048 || !validSignatureLogoUrl(body.logoUrl.trim()))) return NextResponse.json({ error: 'Use a public HTTPS URL for the company logo.' }, { status: 400, headers })
+  if (body.includeCompanyLogo !== undefined && typeof body.includeCompanyLogo !== 'boolean') return NextResponse.json({ error: 'Choose whether to include the company logo.' }, { status: 400, headers })
   if (body.phone !== undefined && (typeof body.phone !== 'string' || body.phone.length > 30 || (body.phone.trim() && !/^\d{3}-?\d{7}$/.test(body.phone.trim())))) return NextResponse.json({ error: 'Use a 10-digit phone number in XXX-XXXXXXX format.' }, { status: 400, headers })
-  const signoff = { name: body.name.trim(), role: body.role.trim(), ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl.trim() } : {}), ...(body.phone !== undefined ? { phone: formatSignaturePhone(body.phone.trim()) } : {}) }
+  const signoff = { name: body.name.trim(), role: body.role.trim(), ...(body.includeCompanyLogo !== undefined ? { includeCompanyLogo: body.includeCompanyLogo } : body.logoUrl !== undefined ? { logoUrl: body.logoUrl.trim() } : {}), ...(body.phone !== undefined ? { phone: formatSignaturePhone(body.phone.trim()) } : {}) }
   const { data, error } = await supabaseAdmin.from('tenant_memberships').update({ email_signoff: signoff }).eq('tenant_id', access.tenantId).eq('id', access.context.membershipId).select('id').maybeSingle()
   if (error || !data) return NextResponse.json({ error: 'Your email sign-off could not be saved. Please try again later.' }, { status: 503, headers })
   return NextResponse.json(signoff, { headers })
