@@ -29,7 +29,7 @@ test('prefills the signed-in member profile name, not the shared workspace signa
   const { route } = setup()
   const response = await route.GET(request())
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { name: 'Alex Smith', role: '', storageAvailable: true, connected: true })
+  assert.deepEqual(await response.json(), { name: 'Alex Smith', role: '', logoUrl: '', phone: '', storageAvailable: true, connected: true })
 })
 
 test('signature settings stay hidden until a tenant mailbox is connected', async () => {
@@ -45,7 +45,7 @@ test('signature settings stay hidden until a tenant mailbox is connected', async
 test('loads saved personal name and role and preserves intentionally empty sign-offs', async () => {
   for (const signoff of [{ name: 'Alex', role: 'Teacher' }, { name: '', role: '' }]) {
     const { route } = setup({ signoff })
-    assert.deepEqual(await (await route.GET(request())).json(), { ...signoff, storageAvailable: true, connected: true })
+    assert.deepEqual(await (await route.GET(request())).json(), { ...signoff, logoUrl: '', phone: '', storageAvailable: true, connected: true })
   }
 })
 
@@ -97,7 +97,7 @@ test('composer signature uses personal name and role rather than shared settings
 test('personal signature escapes HTML and respects blank names without a fallback or duplicate company signature', () => {
   const { harness } = setup()
   const { conversationSignatureHtml } = harness.load('lib/conversation-signature.ts')
-  assert.equal(conversationSignatureHtml({ personal: true, name: '', title: 'Teacher' }, 'Shared Office'), '')
+  assert.equal(conversationSignatureHtml({ personal: true, name: '', title: 'Teacher' }, 'Shared Office'), '<p>Teacher</p>')
   assert.equal(conversationSignatureHtml({ personal: true, name: '<Alex>', title: 'Music & arts' }, 'Shared Office'), '<p><strong>&lt;Alex&gt;</strong><br>Music &amp; arts</p>')
 })
 
@@ -107,4 +107,35 @@ test('missing personal storage permits profile defaults but never claims signatu
   const signoff = await personalEmailSignoff(HEAD, 'mine', 'person')
   assert.equal(signoff.name, 'Alex Smith')
   assert.equal(signoff.storageAvailable, false)
+})
+
+test('unified signature saves all four fields on the signed-in membership and renders them in order', async () => {
+  const fields = { name: 'Alex', role: 'Teacher', logoUrl: 'https://assets.example.com/logo.png', phone: '0123456789' }
+  const { route, harness } = setup()
+  const response = await route.PUT(request(fields))
+  assert.equal(response.status, 200)
+  const saved = await response.json()
+  assert.equal(saved.phone, '012-3456789')
+  const write = harness.getWrites()[0]
+  assert.equal(write.table, 'tenant_memberships')
+  assert.ok(write.filters.some(([, key, value]) => key === 'id' && value === 'mine'))
+  const read = setup({ signoff: saved, permissions: ['communications.read'] })
+  const loaded = await (await read.route.GET(request())).json()
+  for (const key of Object.keys(saved)) assert.equal(loaded[key], saved[key])
+  const composer = await (await read.harness.load('app/api/conversations/signature/route.ts').GET(request())).json()
+  const html = read.harness.load('lib/conversation-signature.ts').conversationSignatureHtml(composer, 'Shared Office')
+  assert.match(html, /Alex.*Teacher.*<img.*012-3456789/)
+  assert.ok(!html.includes('Shared Office'))
+})
+
+test('unified signature rejects unsafe logos and invalid phone numbers without writes', async () => {
+  const { route, harness } = setup()
+  for (const extra of [{ logoUrl: 'javascript:alert(1)' }, { logoUrl: 'http://example.com/a.png' }, { logoUrl: 'https://user:pass@example.com/a.png' }, { phone: '123' }, { phone: '012-34567890' }, { phone: 1234567890 }]) {
+    assert.equal((await route.PUT(request({ name: 'Alex', role: '', ...extra }))).status, 400)
+  }
+  assert.equal(harness.getWrites().length, 0)
+  const { formatSignaturePhone } = harness.load('lib/email-signature-fields.ts')
+  assert.equal(formatSignaturePhone('0123456789'), '012-3456789')
+  assert.equal(formatSignaturePhone('012-3456789'), '012-3456789')
+  assert.equal(formatSignaturePhone(''), '')
 })

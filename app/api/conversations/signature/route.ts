@@ -11,15 +11,10 @@ export async function GET(request: Request) {
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.communicationsRead })
   const headers = { 'Cache-Control': 'private, no-store' }
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status, headers })
-  const [brand, phone] = await Promise.all([
-    supabaseAdmin.from('tenant_settings').select('email_signature').eq('tenant_id', access.tenantId).maybeSingle(),
-    supabaseAdmin.from('twilio_config').select('phone_number').eq('tenant_id', access.tenantId).maybeSingle(),
-  ])
-  const signature = brand.data?.email_signature || {}
   if (!access.context) return NextResponse.json({ error: 'Sign in to load your email signature.' }, { status: 403, headers })
   try {
     const signoff = await personalEmailSignoff(access.tenantId, access.context.membershipId, access.context.personId)
-    return NextResponse.json({ company: signature.company || '', name: signoff.name, title: signoff.role, personal: true, logoUrl: signature.logoUrl || '', phone: signature.phone || phone.data?.phone_number || '', setupRequired: !!brand.error || !signature.phone, storageAvailable: !brand.error }, { headers })
+    return NextResponse.json({ company: '', name: signoff.name, title: signoff.role, personal: true, logoUrl: signoff.logoUrl, phone: signoff.phone, setupRequired: !signoff.storageAvailable, storageAvailable: signoff.storageAvailable }, { headers })
   } catch {
     return NextResponse.json({ error: 'Your email sign-off could not be loaded.' }, { status: 503, headers })
   }

@@ -9,7 +9,6 @@ import AccessManagementClient from '@/components/access/AccessManagementClient'
 import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
 import GmailConnections from '@/components/settings/GmailConnections'
 import EmailSignatureSettings from '@/components/settings/EmailSignatureSettings'
-import PersonalEmailSignoff from '@/components/settings/PersonalEmailSignoff'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
@@ -153,9 +152,8 @@ export default function SettingsPage() {
           {tab === 'brand' && accountContext?.canManageBrand && <BrandTab tenantId={tenantId} canAccessDesignSystem={accountContext.canAccessDesignSystem} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />}
           {tab === 'account' && accountContext && <>
             {accountContext.canManageIntegrations && <GmailConnections tenantId={tenantId} />}
-            <PersonalEmailSignoff tenantId={tenantId} />
-            {accountContext.canManageIntegrations && <OrganisationEmailSettings tenantId={tenantId} />}
-            {accountContext.canManageBrand && <EmailSignatureSettings tenantId={tenantId} />}
+            <EmailSignatureSettings tenantId={tenantId} />
+            {accountContext.canManageIntegrations && <OrganisationEmailSettings tenantId={tenantId} signedInEmail={accountContext.email} />}
             <AccountSettingsTab context={accountContext} inputS={inputS} labelS={labelS} hintS={hintS} cardS={cardS} sectionTitleS={sectionTitleS} sectionSubS={sectionSubS} />
           </>}
         </>

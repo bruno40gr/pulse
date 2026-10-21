@@ -11,6 +11,8 @@ export async function personalEmailSignoff(tenantId: string, membershipId: strin
   return {
     name: membership.data?.email_signoff?.name ?? profileName,
     role: membership.data?.email_signoff?.role ?? '',
+    logoUrl: membership.data?.email_signoff?.logoUrl ?? '',
+    phone: membership.data?.email_signoff?.phone ?? '',
     storageAvailable: !membership.error,
   }
 }

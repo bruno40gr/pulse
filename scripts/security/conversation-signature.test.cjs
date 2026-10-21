@@ -8,7 +8,7 @@ function setup({ permissions = ['communications.read', 'tenant_settings.manage']
   harness.setScenario({
     authUser: { id: 'auth' },
     fixtures: {
-      tenant_memberships: [{ id: 'membership', tenant_id: HEAD, auth_user_id: 'auth', role_id: 'role', status: 'active' }],
+      tenant_memberships: [{ id: 'membership', tenant_id: HEAD, auth_user_id: 'auth', role_id: 'role', status: 'active', email_signoff: { name: 'Alex', role: 'Teacher', logoUrl: 'https://example.com/personal-logo.png', phone: '012-3456789' } }],
       roles: [{ id: 'role', tenant_id: HEAD, key: 'admin' }],
       role_permissions: permissions.map((_, i) => ({ role_id: 'role', permission_id: String(i) })),
       permissions: permissions.map((key, i) => ({ id: String(i), key })),
@@ -28,19 +28,21 @@ test('signature reads explicit public fields, not internal workspace name, app l
   const response = await route.GET(request())
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.equal(data.company, 'Public Music School')
-  assert.equal(data.phone, '+12025550100')
-  assert.equal(data.logoUrl, 'https://example.com/black-logo.png')
+  assert.equal(data.company, '')
+  assert.equal(data.name, 'Alex')
+  assert.equal(data.title, 'Teacher')
+  assert.equal(data.phone, '012-3456789')
+  assert.equal(data.logoUrl, 'https://example.com/personal-logo.png')
   assert.doesNotMatch(JSON.stringify(data), /STAGING|Synthetic|white-logo|secret/)
 })
 
-test('missing signature migration degrades safely without copying staging name or white logo', async () => {
+test('unified signature is independent of legacy workspace signature storage and Twilio', async () => {
   const { route } = setup({ error: { code: '42703', message: 'column missing' } })
   const data = await (await route.GET(request())).json()
   assert.equal(data.company, '')
-  assert.equal(data.logoUrl, '')
-  assert.equal(data.phone, '+12025550999')
-  assert.equal(data.storageAvailable, false)
+  assert.equal(data.logoUrl, 'https://example.com/personal-logo.png')
+  assert.equal(data.phone, '012-3456789')
+  assert.equal(data.storageAvailable, true)
 })
 
 test('signature updates require settings-manage permission', async () => {

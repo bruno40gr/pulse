@@ -45,7 +45,8 @@ test('Account precedes Integrations and groups all email panels in their existin
   const html = render('account')
   assert.ok(html.indexOf('>Account settings<') < html.indexOf('>Integrations<'))
   const panels = [...html.matchAll(/data-panel="([^"]+)"/g)].map(match => match[1])
-  assert.deepEqual(panels, ['GmailConnections', 'PersonalEmailSignoff', 'OrganisationEmailSettings', 'EmailSignatureSettings'])
+  assert.deepEqual(panels, ['GmailConnections', 'EmailSignatureSettings', 'OrganisationEmailSettings'])
+  assert.ok(!html.includes('data-panel="PersonalEmailSignoff"'))
   assert.ok(html.includes('Email &amp; password'))
 })
 
@@ -63,8 +64,8 @@ test('Brand no longer contains shared email signature settings', () => {
 
 test('Moving email panels preserves integration and brand permission gates', () => {
   const html = render('account', { ...owner, canManageRoles: false, canManageIntegrations: false, canManageBrand: false })
-  assert.ok(html.includes('data-panel="PersonalEmailSignoff"'))
-  for (const name of ['GmailConnections', 'OrganisationEmailSettings', 'EmailSignatureSettings']) assert.ok(!html.includes(`data-panel="${name}"`))
+  assert.ok(html.includes('data-panel="EmailSignatureSettings"'))
+  for (const name of ['GmailConnections', 'OrganisationEmailSettings']) assert.ok(!html.includes(`data-panel="${name}"`))
   assert.ok(!html.includes('>Integrations<'))
 })
 

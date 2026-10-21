@@ -16,14 +16,16 @@ function load(file, workspace, runtime) {
   }).outputText
   const context = vm.createContext({ ...runtime?.globals, module: loaded, exports: loaded.exports, require: id => {
     if (id === 'react' && runtime) return runtime.react
-    if (id === 'react' && file === 'components/settings/GmailConnections.tsx' && workspace !== undefined) {
+    if (id === 'react' && ['components/settings/GmailConnections.tsx', 'components/settings/OrganisationEmailSettings.tsx'].includes(file) && workspace !== undefined) {
       let stateIndex = 0
       return { ...React, useState: initial => React.useState(stateIndex++ === 0 ? workspace : initial) }
     }
     if (['react', 'react/jsx-runtime', 'lucide-react'].includes(id)) return require(id)
     if (id === '@/lib/tokens') return load('lib/tokens.ts')
+    if (id === '@/lib/email-signature-fields') return load('lib/email-signature-fields.ts')
+    if (id === '@/lib/conversation-signature') return load('lib/conversation-signature.ts')
     if (id === './ControlButton') return { ControlButton: props => React.createElement('button', { 'aria-label': props['aria-label'], onClick: props.onClick }, props.children) }
-    if (id === '@/components/ui') return { ...Object.fromEntries(['Button', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]])), Modal: ({ isOpen, children }) => isOpen ? React.createElement('div', { role: 'dialog' }, children) : null, ModalBody: ({ children }) => React.createElement('div', null, children), ModalFooter: ({ children }) => React.createElement('div', null, children), ModalHeader: ({ title }) => React.createElement('h2', null, title) }
+    if (id === '@/components/ui') return { ...Object.fromEntries(['Button', 'Input', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]])), Modal: ({ isOpen, children }) => isOpen ? React.createElement('div', { role: 'dialog' }, children) : null, ModalBody: ({ children }) => React.createElement('div', null, children), ModalFooter: ({ children }) => React.createElement('div', null, children), ModalHeader: ({ title }) => React.createElement('h2', null, title) }
     if (id.startsWith('@/components/ui/')) return load(`${id.replace('@/', '')}.tsx`)
     throw new Error(`Blocked dependency ${id}`)
   } })
@@ -48,6 +50,58 @@ test('Gmail settings renders shared components with concise copy and settings sp
   assert.ok(html.includes('box-shadow:none'))
   assert.match(html, /<button[^>]*>Connect with Google<\/button>/)
   assert.ok(!html.includes('Gmail connected'))
+})
+
+test('staff sender controls are hidden for outside-domain and missing signed-in emails', () => {
+  const workspace = { owner: true, settings: null, connections: [{ id: 'box', email: 'admin@example.com' }], members: [], verifiedAliases: [], warning: '' }
+  for (const signedInEmail of ['staff@gmail.com', 'staff@other.com', null]) {
+    const Component = load('components/settings/OrganisationEmailSettings.tsx', undefined, {
+      react: { ...React, useEffect: () => {}, useCallback: callback => callback, useState: (() => {
+        let index = 0
+        return initial => React.useState(index++ === 0 ? workspace : index === 2 ? 'box' : initial)
+      })() },
+    }).default
+    const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant', signedInEmail }))
+    assert.ok(html.includes('Business sender'))
+    assert.ok(!html.includes('Send from a staff email address'))
+    assert.ok(!html.includes('Legacy shared signature'))
+    assert.ok(!html.includes('Organisation email saved'))
+  }
+})
+
+test('same-domain staff sender instructions explain shared sending and missing verified address', () => {
+  const workspace = { owner: true, settings: null, connections: [{ id: 'box', email: 'admin@example.com' }], members: [], verifiedAliases: [], warning: '' }
+  let index = 0
+  const Component = load('components/settings/OrganisationEmailSettings.tsx', undefined, {
+    react: { ...React, useEffect: () => {}, useCallback: callback => callback, useState: initial => React.useState(index++ === 0 ? workspace : index === 2 ? 'box' : initial) },
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant', signedInEmail: 'bruno@example.com' }))
+  assert.ok(html.includes('Send from a staff email address'))
+  assert.ok(html.includes('To send from admin@example.com, leave this section unchanged.'))
+  assert.ok(html.includes('To send from bruno@example.com instead, assign that address to yourself below'))
+  assert.ok(html.includes('Your address is not in this mailbox'))
+  assert.ok(!html.includes('Legacy shared signature'))
+})
+
+test('one Email signature panel displays name, role, logo upload or URL, then formatted phone', () => {
+  const values = [{ name: 'Alex', role: 'Teacher', logoUrl: '', phone: '012-3456789' }, false, false, true, '', false, true]
+  let index = 0
+  const Component = load('components/settings/EmailSignatureSettings.tsx', undefined, {
+    react: { ...React, useEffect: () => {}, useState: () => React.useState(values[index++]) },
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Component, { tenantId: 'tenant' }))
+  assert.match(html, /<h2[^>]*>Email signature<\/h2>/)
+  const labels = ['>Name<', '>Role<', '>Company logo URL<', 'Upload company logo', '>Phone number<']
+  let previous = -1
+  for (const label of labels) {
+    const position = html.indexOf(label)
+    assert.ok(position > previous, label)
+    previous = position
+  }
+  assert.ok(html.includes('012-3456789'))
+  assert.ok(html.includes('XXX-XXXXXXX'))
+  assert.ok(!html.includes('Your email sign-off'))
+  assert.ok(!html.includes('Legacy shared signature'))
 })
 
 test('connected Gmail matches Twilio status box and standard action buttons', () => {
