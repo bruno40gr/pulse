@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     links: [
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/dashboard/leads', label: 'Leads' },
+      { href: '/dashboard/rsvps', label: 'Event RSVPs' },
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/contacts', label: 'Contacts' },
       { href: '/dashboard/inbox', label: 'Conversations' },

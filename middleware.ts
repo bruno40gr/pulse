@@ -23,6 +23,8 @@ export async function middleware(request: NextRequest) {
     || pathname === '/api/internal/sms-reconcile' || pathname === '/api/internal/gmail-sync') {
     return NextResponse.next({ request })
   }
+  // RSVP capture is public; the guest-list endpoint remains session protected.
+  if (pathname === '/api/event-rsvps/public' && request.method === 'POST') return NextResponse.next({ request })
   const isPublicPath = pathname === '/login'
     || pathname === '/signup'
     || pathname === '/claim'
