@@ -336,16 +336,16 @@ test('billing preview handles future starts, leap months, year boundaries and on
   assert.equal(single.current.total, 2500)
   assert.equal(single.next.total, 0)
 })
-test('selected slots show only the name, use a booked style, and span their actual duration', () => {
+test('other booked lessons show instrument and teacher while the active lesson stays name-only', () => {
   const hooks = hookRunner()
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
   const first = { ...ready().lessons[0], duration: '60', studentId: 'demo-avery' }
   const second = { ...domain.newLesson('second'), studentId: 'demo-riley' }
   const props = { lesson: second, lessons: [first, second], student: domain.enrollmentPeople[2], students: [domain.enrollmentPeople[0], domain.enrollmentPeople[2]], manager: null, onChange() {} }
   const tree = hooks.render(Component, props)
-  const booked = elements(tree).filter(node => node.props?.className?.includes('bookedSlot') && node.props.children === 'Avery Lane' && node.props['aria-label']?.includes('Nov 3'))
+  const booked = elements(tree).filter(node => node.props?.className?.includes('bookedSlot') && node.props.children === 'Avery Lane, Piano with Jordan' && node.props['aria-label']?.includes('Nov 3'))
   assert.equal(booked.length, 1)
-  assert.equal(booked[0].props.children, 'Avery Lane')
+  assert.equal(booked[0].props.children, 'Avery Lane, Piano with Jordan')
   assert.match(booked[0].props.style.gridRow, /span 2/)
   assert.ok(!booked[0].props.className.includes('shortLesson'))
   assert.ok(!elements(tree).some(node => node.props?.className === 'selectionRow'))
