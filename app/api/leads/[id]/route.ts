@@ -1,3 +1,4 @@
+import { leadBirthdayProblem } from '@/lib/lead-birthday'
 import { NextResponse } from 'next/server'
 import { isLessonLead } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
@@ -399,6 +400,11 @@ export async function PATCH(
     if (automationAction && requestedStatus) {
       return NextResponse.json({ error: 'Choose either a status or an automation action.' }, { status: 400 })
     }
+    if (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)) {
+      const birthdayProblem = leadBirthdayProblem(body.payload)
+      if (birthdayProblem) return NextResponse.json({ error: birthdayProblem }, { status: 400 })
+    }
+
     const requestedLostReason = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
       ? (body.payload as Record<string, unknown>).lost_reason
       : null
@@ -491,6 +497,16 @@ export async function PATCH(
     }
 
     if (existingLeadError) throw existingLeadError
+
+    if (body.expected_updated_at !== undefined && body.expected_updated_at !== existingLead.updated_at) {
+      return NextResponse.json({ error: 'The lead changed while editing. Refresh and try again.' }, { status: 409 })
+    }
+    if (body.intake_type !== undefined) {
+      if (!['lesson_inquiry', 'tour_request', 'service_inquiry'].includes(body.intake_type)) {
+        return NextResponse.json({ error: 'A valid lead type is required.' }, { status: 400 })
+      }
+      leadUpdates.intake_type = body.intake_type
+    }
 
     const automation = readStatusAutomation(existingLead.payload)
     const pipelineLead = isLessonLead(existingLead.intake_type) || existingLead.intake_type === 'service_inquiry'

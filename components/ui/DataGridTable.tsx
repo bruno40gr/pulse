@@ -2,7 +2,7 @@
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
 
-import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
@@ -53,6 +53,7 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   stickyHeaderOffset?: number
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
+  getDetailRows?: (row: Row, index: number) => { key: string; cells: ReactNode[] }[]
   ariaLabel?: string
   style?: CSSProperties
 }
@@ -122,6 +123,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   stickyHeaderOffset,
   onRowClick,
   getRowStyle,
+  getDetailRows,
   ariaLabel = 'Data table',
   style,
 }: ResponsiveDataTableProps<Row, SortKey>) {
@@ -244,6 +246,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             const customRowStyle = getRowStyle?.(row, index)
             const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
             return (
+              <Fragment key={rowKey}>
               <div
                 key={rowKey}
                 role="row"
@@ -290,6 +293,13 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   </div>
                 ))}
               </div>
+              {getDetailRows?.(row, index).map(detail => <div key={detail.key} role="row" onClick={event => {
+                if (onRowClick && !isInteractiveTarget(event.target, event.currentTarget)) onRowClick(row, index, event)
+              }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: customRowStyle?.borderBottom || desktopRowStyle.borderBottom, cursor: onRowClick ? 'pointer' : 'default' }}>
+                {selection && <div role="cell" />}
+                {columns.map((column, columnIndex) => <div key={column.id} role="cell" style={{ ...desktopCellStyle, justifyContent: alignToJustify(column.align) }}>{detail.cells[columnIndex]}</div>)}
+              </div>)}
+              </Fragment>
             )
           })}
         </div>

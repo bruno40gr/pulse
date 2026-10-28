@@ -1,6 +1,12 @@
 // Shared payload vocabulary for website submissions, manual entry and editing.
 export const LESSON_LEAD_TYPES = ['lesson_inquiry', 'tour_request']
-export const LESSON_PROGRAM_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Little Rockers', 'Tiny Keys', 'Other']
+export const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
+export const LESSON_PROGRAM_GROUPS = [
+  { label: 'Private lessons', options: LESSON_INSTRUMENT_OPTIONS.map(instrument => `Private · ${instrument}`) },
+  { label: 'Semi-private lessons', options: LESSON_INSTRUMENT_OPTIONS.map(instrument => `Semi-private · ${instrument}`) },
+  { label: 'Group programs', options: ['Tiny Keys', 'Little Rockers', 'Band'] },
+]
+export const LESSON_PROGRAM_OPTIONS = LESSON_PROGRAM_GROUPS.flatMap(group => group.options)
 
 export function isLessonLead(intakeType: string | undefined) {
   return !!intakeType && LESSON_LEAD_TYPES.includes(intakeType)
@@ -20,6 +26,7 @@ export function leadBelongsToTab(
 export type LessonRequestFields = {
   studentName: string
   studentAge: string
+  studentBirthday: string
   experience: string
   preferredDays: string
   preferredTimes: string
@@ -43,6 +50,7 @@ export function readLessonRequestFields(payload: Record<string, unknown> | null 
   return {
     studentName: text(payload?.student_name),
     studentAge: text(field('age', 'student_age', 'child_age', 'prospect_age')),
+    studentBirthday: text(field('date_of_birth', 'birth_date')),
     experience: text(field('experience', 'experience_level')),
     preferredDays: text(field('preferred_days', 'days_available')),
     preferredTimes: text(field('preferred_times', 'preferred_time')),
@@ -56,6 +64,7 @@ export function lessonRequestPayload(fields: LessonRequestFields): Record<string
   return {
     student_name: fields.studentName.trim() || null,
     age: fields.studentAge.trim() || null,
+    date_of_birth: fields.studentBirthday || null,
     experience: fields.experience.trim() || null,
     preferred_days: list(fields.preferredDays),
     preferred_times: list(fields.preferredTimes),

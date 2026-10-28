@@ -16,6 +16,12 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { LeadDetailPanel } from './LeadDetailPanel'
+import { LeadStudentsEditor } from './LeadStudentsEditor'
+import { LeadInlineEditor } from './LeadInlineEditor'
+import { matchesLeadInquirySearch } from '@/lib/lead-inquiry-search'
+import { leadStudentDetailRows, leadStudentsPatch, readLeadStudents, syncStudentContact } from '@/lib/lead-students'
+import type { LeadStudent } from '@/lib/lead-students'
+import { validBirthday } from '@/lib/lead-birthday'
 import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
@@ -40,7 +46,7 @@ type ManualLeadFormState = LessonRequestFields & {
   source: LeadSource
   programLabel: string
   serviceLabel: string
-  familyInterestedCount: number
+  students: LeadStudent[]
   referrer: string
   campaign: string
   promotionType: string
@@ -169,7 +175,6 @@ type LeadEditFormState = LessonRequestFields & {
 const LEAD_DETAIL_STATUS_OPTIONS = LEAD_STATUSES
 const JOB_APPLICATION_DETAIL_STATUS_OPTIONS = ['new', 'contacted', 'audition_scheduled', 'audition_completed', 'offer_sent', 'hired', 'rejected', 'withdrew', 'ghosted']
 const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet', 'Other']
-const MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS = LESSON_PROGRAM_OPTIONS
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
   { key: 'service_inquiry', label: 'Service inquiries' },
@@ -189,8 +194,6 @@ const PROMOTION_TYPE_OPTIONS = [
   { value: 'other', label: 'Other promotion' },
 ]
 
-const NET_NEW_WINDOW_MS = 24 * 60 * 60 * 1000
-const NET_NEW_ROW_BACKGROUND = '#EAF2FF'
 
 const LEAD_DETAIL_PANEL_TABS: Array<{ key: LeadDetailPanelTabKey, label: string }> = [
   { key: 'details', label: 'Details' },
@@ -207,7 +210,7 @@ function createInitialManualLeadForm(activeTab: LeadTabKey): ManualLeadFormState
     source: 'phone_call',
     programLabel: '',
     serviceLabel: '',
-    familyInterestedCount: 1,
+    students: readLeadStudents({}, null).map(student => ({ ...student, same_as_contact: true, relationship_to_contact: 'self' })),
     referrer: '',
     campaign: '',
     promotionType: '',
@@ -549,7 +552,7 @@ function getStartOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
 }
 
-export default function LeadsView() {
+export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [tabCounts, setTabCounts] = useState<Record<LeadTabKey, number>>({
     lesson_inquiry: 0,
@@ -598,6 +601,7 @@ export default function LeadsView() {
   const [manualLeadForm, setManualLeadForm] = useState<ManualLeadFormState>(() => createInitialManualLeadForm('lesson_inquiry'))
   const [manualLeadError, setManualLeadError] = useState('')
   const [manualLeadSaving, setManualLeadSaving] = useState(false)
+  const [manualLeadQueued, setManualLeadQueued] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailSaving, setDetailSaving] = useState(false)
   const [detailError, setDetailError] = useState('')
@@ -620,12 +624,14 @@ export default function LeadsView() {
     siblings: [],
   })
 
+  const [inquirySearch, setInquirySearch] = useState('')
+  const visibleLeads = useMemo(() => leads.filter(lead => matchesLeadInquirySearch(lead, inquirySearch)), [leads, inquirySearch])
   const sortedLeads = useMemo(() => {
     const compareText = (left: string, right: string) => left.localeCompare(right, undefined, { sensitivity: 'base' })
     const compareNumbers = (left: number, right: number) => left - right
     const direction = sortDirection === 'asc' ? 1 : -1
 
-    return [...leads].sort((left, right) => {
+    return [...visibleLeads].sort((left, right) => {
       if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
@@ -645,7 +651,7 @@ export default function LeadsView() {
       if (comparison === 0) comparison = compareNumbers(new Date(right.created_at).getTime(), new Date(left.created_at).getTime())
       return comparison * direction
     })
-  }, [activeTab, leads, sortDirection, sortKey])
+  }, [activeTab, visibleLeads, sortDirection, sortKey])
 
   const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
     setLeadPanelDrafts((current) => {
@@ -829,7 +835,7 @@ export default function LeadsView() {
 
   const toggleSelectAllVisible = () => {
     setSelectedIds((current) => {
-      const visibleIds = leads.map((lead) => lead.id)
+      const visibleIds = visibleLeads.map((lead) => lead.id)
       const allSelected = visibleIds.every((id) => current.has(id))
       const next = new Set(current)
 
@@ -930,7 +936,7 @@ export default function LeadsView() {
   }
 
   useEffect(() => {
-    if (!selectedLeadId) return
+    if (!selectedLeadId || isEditLeadOpen) return
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target
       if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
@@ -940,7 +946,7 @@ export default function LeadsView() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeadId, leads])
+  }, [selectedLeadId, leads, isEditLeadOpen])
 
   const openAddLead = () => {
     setManualLeadError('')
@@ -952,12 +958,14 @@ export default function LeadsView() {
     if (manualLeadSaving) return
     setIsAddLeadOpen(false)
     setManualLeadError('')
+    setManualLeadQueued(false)
   }
 
   const updateManualLeadField = <K extends keyof ManualLeadFormState>(field: K, value: ManualLeadFormState[K]) => {
     setManualLeadForm((current) => ({
       ...current,
       [field]: value,
+      ...(['fullName', 'email', 'phone'].includes(field) ? { students: syncStudentContact(current.students, { name: field === 'fullName' ? String(value) : current.fullName, email: field === 'email' ? String(value) : current.email, phone: field === 'phone' ? String(value) : current.phone }) } : {}),
       ...(field === 'intakeType'
         ? {
             programLabel: isLessonLead(String(value)) ? current.programLabel : '',
@@ -980,8 +988,8 @@ export default function LeadsView() {
       const trimmedMessage = manualLeadForm.message.trim()
       if (trimmedMessage) payload.message = trimmedMessage
       if (isLessonLead(manualLeadForm.intakeType)) {
-        payload.family_members_interested = manualLeadForm.familyInterestedCount
-        Object.assign(payload, lessonRequestPayload(manualLeadForm), { parent_name: manualLeadForm.fullName.trim() })
+        Object.assign(payload, lessonRequestPayload(manualLeadForm), manualLeadForm.students[0]?.relationship_to_contact === 'self' ? {} : { parent_name: manualLeadForm.fullName.trim() })
+        Object.assign(payload, leadStudentsPatch(manualLeadForm.students).payload)
       }
       if (manualLeadForm.intakeType === 'service_inquiry') {
         const serviceType = getServiceTypeByLabel(manualLeadForm.serviceLabel)
@@ -994,7 +1002,7 @@ export default function LeadsView() {
         }
       }
 
-      const response = await fetchJsonWithTimeout<{ lead_intake_id?: string }>(`/api/intake`, {
+      const response = await fetchJsonWithTimeout<{ lead_intake_id?: string; queued?: boolean; receipt_id?: string }>(`/api/intake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1005,7 +1013,7 @@ export default function LeadsView() {
           full_name: manualLeadForm.fullName.trim(),
           email: manualLeadForm.email.trim() || null,
           phone: manualLeadForm.phone.trim() || null,
-          program_label: isLessonLead(manualLeadForm.intakeType) ? manualLeadForm.programLabel.trim() || null : null,
+          program_label: isLessonLead(manualLeadForm.intakeType) ? leadStudentsPatch(manualLeadForm.students).program_label || null : null,
           service_label: manualLeadForm.intakeType === 'service_inquiry' ? manualLeadForm.serviceLabel.trim() || null : null,
           utm_source: manualLeadForm.source,
           utm_campaign: manualLeadForm.campaign.trim() || null,
@@ -1013,6 +1021,12 @@ export default function LeadsView() {
           payload,
         }),
       })
+
+      if (response.queued) {
+        setManualLeadError(`Inquiry safely queued${response.receipt_id ? ` (receipt ${response.receipt_id})` : ''}. It is not yet visible in Leads. Close this panel; do not resubmit.`)
+        setManualLeadQueued(true)
+        return
+      }
 
       invalidateLeadListCache()
       await fetchLeads({ force: true })
@@ -1350,7 +1364,7 @@ export default function LeadsView() {
     return `${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}`
   }, [loading, leads.length])
   const selectedCount = selectedIds.size
-  const allVisibleSelected = leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id))
+  const allVisibleSelected = visibleLeads.length > 0 && visibleLeads.every((lead) => selectedIds.has(lead.id))
   const deleteRecordLabel = activeTab === 'job_application' ? 'application' : 'lead'
   const deleteRecordLabelPlural = activeTab === 'job_application' ? 'applications' : 'leads'
 
@@ -1402,15 +1416,16 @@ export default function LeadsView() {
       render: (lead) => <PersonName>{lead.contact?.full_name || 'Unknown'}</PersonName>,
     },
     {
-      id: 'contact',
-      header: 'Contact',
-      width: 'minmax(170px, 1.25fr)',
-      render: (lead) => (
-        <div style={tableCellStyle}>
-          <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || 'No phone'}</div>
-          <div style={subtleTextStyle}>{lead.contact?.email || 'No email'}</div>
-        </div>
-      ),
+      id: 'phone',
+      header: 'Phone',
+      width: 'minmax(140px, 0.9fr)',
+      render: (lead) => <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || '—'}</div>,
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      width: 'minmax(200px, 1.25fr)',
+      render: (lead) => <div style={cellTextStyle}>{lead.contact?.email || '—'}</div>,
     },
     {
       id: 'followUp',
@@ -1440,17 +1455,18 @@ export default function LeadsView() {
     },
     {
       id: 'program',
-      header: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details',
-      sortLabel: activeTab === 'lesson_inquiry' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service details',
+      header: activeTab === 'lesson_inquiry' || activeTab === 'winback' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service',
+      sortLabel: activeTab === 'lesson_inquiry' || activeTab === 'winback' ? 'Program' : activeTab === 'job_application' ? 'Positions' : 'Service',
       width: 'minmax(150px, 1fr)',
       sortable: true,
       sortKey: 'program',
-      render: (lead) => (
-        <div style={tableCellStyle}>
-          <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>
-          <div style={subtleTextStyle}>From {formatLabel(lead.source_form)}</div>
-        </div>
-      ),
+      render: (lead) => <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>,
+    },
+    {
+      id: 'source',
+      header: 'Source',
+      width: 'minmax(110px, 0.7fr)',
+      render: (lead) => <div style={cellTextStyle}>{lead.source_form ? formatLabel(lead.source_form) : '—'}</div>,
     },
   ], [activeTab])
   const prospectAge = (() => {
@@ -1861,6 +1877,7 @@ export default function LeadsView() {
         </div>
 
         <div style={filterBarStyle}>
+          <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
           <Button type="button" variant="secondary" size="sm" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
@@ -1889,9 +1906,18 @@ export default function LeadsView() {
 
         {error && <MessageBox>{error}</MessageBox>}
 
+        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
         <ResponsiveDataTable
           rows={sortedLeads}
           columns={leadColumns}
+          getDetailRows={lead => !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
+            .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: leadColumns.map(column => {
+              if (column.id === 'name') return <span key={column.id}>{student.name || '—'}</span>
+              if (column.id === 'phone') return <div key={column.id} style={cellTextStyle}>{formatPhoneNumber(student.phone) || '—'}</div>
+              if (column.id === 'email') return <div key={column.id} style={cellTextStyle}>{student.email || '—'}</div>
+              if (column.id === 'program') return <div key={column.id} style={cellTextStyle}>{student.instrument_interest || '—'}</div>
+              return null
+            }) }))}
           getRowKey={(lead) => lead.id}
           sort={{ key: sortKey, direction: sortDirection }}
           onSortChange={(nextSort) => {
@@ -1903,7 +1929,7 @@ export default function LeadsView() {
             onToggle: (lead) => toggleLeadSelection(lead.id),
             onToggleAll: toggleSelectAllVisible,
             allSelected: allVisibleSelected,
-            someSelected: selectedCount > 0 && !allVisibleSelected,
+            someSelected: visibleLeads.some(lead => selectedIds.has(lead.id)) && !allVisibleSelected,
             selectAllLabel: 'Select all visible leads',
             getRowLabel: (lead) => lead.contact?.full_name || 'lead',
           }}
@@ -1911,20 +1937,19 @@ export default function LeadsView() {
           skeletonRows={6}
           emptyContent={(
             <EmptyState
-              title={`No ${LEAD_TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase() || 'leads'} yet`}
-              description={activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
+              title={inquirySearch.trim() ? 'No matching inquiries' : `No ${LEAD_TABS.find((tab) => tab.key === activeTab)?.label.toLowerCase() || 'leads'} yet`}
+              description={inquirySearch.trim() ? 'Try another contact or student name, or load more inquiries.' : activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
             />
           )}
-          minDesktopWidth={1180}
+          minDesktopWidth={1500}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
-          getRowStyle={(lead) => ({
+          getRowStyle={(lead, index) => ({
+            borderBottom: `1px solid ${colors.border}`,
             background: selectedIds.has(lead.id)
               ? '#F5F8FF'
               : selectedLeadId === lead.id
                 ? '#FBFCFF'
-                : Date.now() - new Date(lead.created_at).getTime() <= NET_NEW_WINDOW_MS
-                  ? NET_NEW_ROW_BACKGROUND
-                  : colors.surface,
+                : index % 2 === 0 ? colors.surface : colors.surfaceMuted,
           })}
           ariaLabel="Leads"
         />
@@ -1942,13 +1967,6 @@ export default function LeadsView() {
           {manualLeadError && <MessageBox>{manualLeadError}</MessageBox>}
 
           <div style={manualLeadFormGridStyle}>
-            <Input
-              label={isLessonLead(manualLeadForm.intakeType) ? "Parent / contact name" : "Full name"}
-              value={manualLeadForm.fullName}
-              onChange={(event) => updateManualLeadField('fullName', event.target.value)}
-              placeholder="Jane Smith"
-              error={!manualLeadForm.fullName.trim() ? 'Required' : undefined}
-            />
             <Select
               label="Lead type"
               value={manualLeadForm.intakeType}
@@ -1959,12 +1977,18 @@ export default function LeadsView() {
               <option value="service_inquiry">Service inquiry</option>
             </Select>
             <Input
+              label="Contact name"
+              value={manualLeadForm.fullName}
+              onChange={(event) => updateManualLeadField('fullName', event.target.value)}
+              placeholder="Jane Smith"
+              error={!manualLeadForm.fullName.trim() ? 'Required' : undefined}
+            />
+            <Input
               label="Email"
               type="email"
               value={manualLeadForm.email}
               onChange={(event) => updateManualLeadField('email', event.target.value)}
               placeholder="name@example.com"
-              hint="Email or phone is required for follow-up."
             />
             <Input
               label="Phone"
@@ -1974,51 +1998,10 @@ export default function LeadsView() {
               placeholder="(555) 123-4567"
               error={!manualLeadForm.email.trim() && !manualLeadForm.phone.trim() ? 'Email or phone is required' : undefined}
             />
-            <Select
-              label="Source"
-              value={manualLeadForm.source}
-              onChange={(event) => updateManualLeadField('source', event.target.value as LeadSource)}
-            >
-              {LEAD_SOURCE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Select>
             {isLessonLead(manualLeadForm.intakeType) ? (
               <>
-                <Select
-                  label="Program or instrument"
-                  value={manualLeadForm.programLabel}
-                  onChange={(event) => updateManualLeadField('programLabel', event.target.value)}
-                >
-                  <option value="">Select program or instrument</option>
-                  {MANUAL_PROGRAM_OR_INSTRUMENT_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </Select>
-                <LessonRequestInputs value={manualLeadForm} onChange={updateManualLeadField} />
-                <div style={manualLeadStepperWrapStyle}>
-                  <FieldLabel style={manualLeadStepperLabelStyle}>Family members interested</FieldLabel>
-                  <div style={manualLeadStepperRowStyle}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => updateManualLeadField('familyInterestedCount', Math.max(1, manualLeadForm.familyInterestedCount - 1))}
-                      disabled={manualLeadSaving || manualLeadForm.familyInterestedCount <= 1}
-                    >
-                      −
-                    </Button>
-                    <div style={manualLeadStepperValueStyle}>{manualLeadForm.familyInterestedCount}</div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => updateManualLeadField('familyInterestedCount', manualLeadForm.familyInterestedCount + 1)}
-                      disabled={manualLeadSaving}
-                    >
-                      +
-                    </Button>
-                  </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <LeadStudentsEditor students={manualLeadForm.students} onChange={students => updateManualLeadField('students', students)} disabled={manualLeadSaving} contact={{ name: manualLeadForm.fullName, email: manualLeadForm.email, phone: manualLeadForm.phone }} />
                 </div>
               </>
             ) : (
@@ -2042,31 +2025,45 @@ export default function LeadsView() {
                 </div>
               </>
             )}
-            <Input
-              label="How did they find us"
-              value={manualLeadForm.referrer}
-              onChange={(event) => updateManualLeadField('referrer', event.target.value)}
-              placeholder="Google, parent referral, flyer…"
-            />
-            <Input
-              label="Campaign"
-              value={manualLeadForm.campaign}
-              onChange={(event) => updateManualLeadField('campaign', event.target.value)}
-              placeholder="Hot Chili Cool Cars"
-            />
-            <Select
-              label="Promotion type"
-              value={manualLeadForm.promotionType}
-              onChange={(event) => updateManualLeadField('promotionType', event.target.value)}
-            >
-              {PROMOTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </Select>
-            <Input
-              label="Offer details"
-              value={manualLeadForm.promotionOffer}
-              onChange={(event) => updateManualLeadField('promotionOffer', event.target.value)}
-              placeholder="$5 first class or 40% off first month"
-            />
+            <details style={{ gridColumn: '1 / -1', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md }}>
+              <summary style={{ cursor: 'pointer', fontSize: typography.sizeSm }}>Attribution &amp; sourcing</summary>
+              <div style={{ ...manualLeadFormGridStyle, marginTop: spacing.md }}>
+                <Select
+                  label="Source"
+                  value={manualLeadForm.source}
+                  onChange={(event) => updateManualLeadField('source', event.target.value as LeadSource)}
+                >
+                  {LEAD_SOURCE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </Select>
+                <Input
+                  label="How did they find us"
+                  value={manualLeadForm.referrer}
+                  onChange={(event) => updateManualLeadField('referrer', event.target.value)}
+                  placeholder="Google, parent referral, flyer…"
+                />
+                <Input
+                  label="Campaign"
+                  value={manualLeadForm.campaign}
+                  onChange={(event) => updateManualLeadField('campaign', event.target.value)}
+                  placeholder="Hot Chili Cool Cars"
+                />
+                <Select
+                  label="Promotion type"
+                  value={manualLeadForm.promotionType}
+                  onChange={(event) => updateManualLeadField('promotionType', event.target.value)}
+                >
+                  {PROMOTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </Select>
+                <Input
+                  label="Offer details"
+                  value={manualLeadForm.promotionOffer}
+                  onChange={(event) => updateManualLeadField('promotionOffer', event.target.value)}
+                  placeholder="$5 first class or 40% off first month"
+                />
+              </div>
+            </details>
           </div>
 
           <Textarea
@@ -2084,7 +2081,7 @@ export default function LeadsView() {
             <Button
               type="button"
               onClick={() => void handleCreateLead()}
-              disabled={manualLeadSaving || !manualLeadForm.fullName.trim() || (!manualLeadForm.email.trim() && !manualLeadForm.phone.trim())}
+              disabled={manualLeadSaving || manualLeadQueued || manualLeadForm.students.some(student => student.date_of_birth && !validBirthday(student.date_of_birth)) || !manualLeadForm.fullName.trim() || (!manualLeadForm.email.trim() && !manualLeadForm.phone.trim())}
             >
               {manualLeadSaving ? 'Saving…' : 'Create lead'}
             </Button>
@@ -2118,13 +2115,16 @@ export default function LeadsView() {
         </div>
       </SlidePanel>
 
-      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} fullScreen={isMobileLayout} width={PROFILE_PANEL_WIDTH}>
+      <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} closeOnBackdrop={!(correctionPrototype && isEditLeadOpen)} closeOnEscape={!(correctionPrototype && isEditLeadOpen)} fullScreen={isMobileLayout} width={PROFILE_PANEL_WIDTH}>
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <ProfilePanelSkeleton />}
 
-          {selectedLead && !detailLoading && (
+          {selectedLead && !detailLoading && (correctionPrototype && isEditLeadOpen ? (
+            <LeadInlineEditor key={selectedLead.id} lead={selectedLead} onClose={() => setIsEditLeadOpen(false)} onSaved={async () => { await openLead(selectedLead.id); invalidateLeadListCache(); await fetchLeads({ force: true }) }} />
+          ) : (
             <LeadDetailPanel
+              staticDetails={correctionPrototype}
               lead={selectedLead}
               saving={detailSaving}
               calling={callingLead}
@@ -2139,9 +2139,9 @@ export default function LeadsView() {
                 return await saveDetail(patch)
               }}
             />
-          )}
+          ))}
         </div>
-        {selectedLead && !detailLoading && !smsViewOpen && (
+        {selectedLead && !detailLoading && !smsViewOpen && !(correctionPrototype && isEditLeadOpen) && (
           <div style={{ ...leadFooterStyle, padding: isMobileLayout ? `${spacing.sm} ${spacing.md}` : leadFooterStyle.padding, justifyContent: isMobileLayout ? 'space-between' : 'flex-end', gap: isMobileLayout ? spacing.sm : spacing.md, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             <Button
               type="button"
@@ -2192,7 +2192,7 @@ export default function LeadsView() {
         <WinbackImportPanel onClose={() => setIsWinbackImportOpen(false)} onImported={async () => { setIsWinbackImportOpen(false); invalidateLeadListCache(); await fetchLeads({ force: true }) }} />
       </SlidePanel>
 
-      <SlidePanel isOpen={isEditLeadOpen} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">
+      <SlidePanel isOpen={isEditLeadOpen && !correctionPrototype} onClose={() => setIsEditLeadOpen(false)} width="min(92vw, 680px)">
         <SlidePanelHeader title="Edit lead" subtitle="Update contact details, request context, and attribution." onClose={() => setIsEditLeadOpen(false)} />
         {leadEditForm && (
           <div style={manualLeadPanelBodyStyle}>
@@ -2243,13 +2243,14 @@ export default function LeadsView() {
   )
 }
 
-function LessonRequestInputs({ value, onChange }: {
+function LessonRequestInputs({ value, onChange, includeStudent = true }: {
   value: LessonRequestFields
+  includeStudent?: boolean
   onChange: (field: keyof LessonRequestFields, value: string) => void
 }) {
   return <>
-    <Input label="Student name" value={value.studentName} onChange={e => onChange('studentName', e.target.value)} />
-    <Input label="Student age" value={value.studentAge} onChange={e => onChange('studentAge', e.target.value)} />
+    {includeStudent && <Input label="Student name" value={value.studentName} onChange={e => onChange('studentName', e.target.value)} />}
+    {includeStudent && <Input label="Student birthday" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={value.studentBirthday} onChange={e => onChange('studentBirthday', e.target.value)} hint={value.studentAge ? `Previously reported age: ${value.studentAge}; not a birthday.` : undefined} />}
     <Input label="Experience" value={value.experience} onChange={e => onChange('experience', e.target.value)} />
     <Input label="Available days" placeholder="Monday, Wednesday" value={value.preferredDays} onChange={e => onChange('preferredDays', e.target.value)} />
     <Input label="Preferred times" placeholder="After school, mornings" value={value.preferredTimes} onChange={e => onChange('preferredTimes', e.target.value)} />
@@ -2910,11 +2911,6 @@ const deleteCopyStyle: React.CSSProperties = {
   lineHeight: 1.6,
 }
 
-const manualLeadStepperWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: spacing.xs,
-}
 
 const manualLeadStepperLabelStyle: React.CSSProperties = {
   marginBottom: 0,
@@ -2924,19 +2920,7 @@ const manualLeadStepperLabelStyle: React.CSSProperties = {
   fontFamily: typography.fontSans,
 }
 
-const manualLeadStepperRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: spacing.sm,
-}
 
-const manualLeadStepperValueStyle: React.CSSProperties = {
-  minWidth: '32px',
-  textAlign: 'center',
-  fontSize: typography.sizeBase,
-  color: colors.text,
-  fontFamily: typography.fontSans,
-}
 
 const manualLeadSessionValueWrapStyle: React.CSSProperties = {
   display: 'flex',

@@ -1,3 +1,4 @@
+import { leadBirthdayProblem } from '@/lib/lead-birthday'
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -136,6 +137,9 @@ export async function POST(request: Request) {
     if (!sourceForm) return jsonWithCors(request, { error: 'source_form is required' }, { status: 400 })
     if (!fullName) return jsonWithCors(request, { error: 'full_name is required' }, { status: 400 })
     if (!email && !phone) return jsonWithCors(request, { error: 'email or phone is required' }, { status: 400 })
+
+    const birthdayProblem = leadBirthdayProblem(payload)
+    if (birthdayProblem) return jsonWithCors(request, { error: birthdayProblem }, { status: 400 })
 
     if (crmCallbackCaptureEnabled()) {
       // Public website capture is pinned to the configured school, not a client choice.

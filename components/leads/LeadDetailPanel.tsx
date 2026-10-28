@@ -6,7 +6,7 @@ import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { useContext, useEffect, useState, type CSSProperties } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
-import { Copy, Pencil, Phone, Trash2 } from 'lucide-react'
+import { Copy, Pencil, Phone } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -14,14 +14,16 @@ import { LeadActivitySection } from './LeadActivitySection'
 import { Disclosure } from '@/components/ui/Disclosure'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatLeadSource } from '@/lib/lead-sources'
-import { isLessonLead, readLessonRequestFields, LESSON_PROGRAM_OPTIONS } from '@/lib/lead-lesson-details'
+import { isLessonLead, readLessonRequestFields } from '@/lib/lead-lesson-details'
 import { getLeadOpportunityValue } from '@/lib/lead-value'
-import { familyMembersChanged, normalizeFamilyMembers } from '@/lib/lead-family'
+import { normalizeFamilyMembers } from '@/lib/lead-family'
+import { type LeadStudent, readLeadStudents, leadStudentsPatch } from '@/lib/lead-students'
+import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { readStatusAutomation } from '@/lib/lead-status-automation'
+import { reviewWinbackHierarchy } from '@/lib/winback-hierarchy'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
-type FamilyMember = { name: string; age: string; instrument_interest: string }
 type OpportunityValueUnit = 'mo' | 'session'
 type ServiceEditorState = { types: string[]; newType: string; opportunityValue: string; opportunityValueUnit: OpportunityValueUnit }
 
@@ -53,6 +55,7 @@ type LeadDetail = {
 }
 
 interface LeadDetailPanelProps {
+  staticDetails?: boolean
   lead: LeadDetail
   saving: boolean
   onPatch: (patch: Record<string, unknown>) => Promise<boolean>
@@ -83,7 +86,6 @@ const WINBACK_STATUSES = [
   { value: 're_enrolled', label: 'Re-enrolled' },
   { value: 'closed', label: 'Closed' },
 ]
-const INSTRUMENTS = LESSON_PROGRAM_OPTIONS
 const QUICK_FOLLOW_UPS = [
   { value: 'tomorrow', label: 'Tomorrow', days: 1 },
   { value: 'next_week', label: 'Next week', days: 7 },
@@ -163,19 +165,6 @@ function getStatusTone(status: string) {
   return tone === 'booked' || !tone ? semanticColors.warning : semanticColors[tone]
 }
 
-function getLeadAge(payload: Record<string, unknown>) {
-  if (typeof payload.age === 'number' && Number.isFinite(payload.age)) return Math.floor(payload.age)
-  const birthDate = typeof payload.date_of_birth === 'string' ? payload.date_of_birth : typeof payload.birth_date === 'string' ? payload.birth_date : null
-  if (!birthDate) return null
-  const date = new Date(birthDate)
-  if (Number.isNaN(date.getTime())) return null
-  const today = new Date()
-  let age = today.getFullYear() - date.getFullYear()
-  const hasNotHadBirthday = today.getMonth() < date.getMonth() || (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
-  if (hasNotHadBirthday) age -= 1
-  return age >= 0 ? age : null
-}
-
 function statusLabel(status: string, payload: Record<string, unknown>) {
   if (status !== 'lost') return label(status)
   const lostReason = typeof payload.lost_reason === 'string' ? LOST_REASONS.find((reason) => reason.value === payload.lost_reason)?.label : undefined
@@ -200,16 +189,6 @@ function getNumericPayloadValue(payload: Record<string, unknown>, key: string) {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
-}
-
-function getFamilyMember(value: unknown): FamilyMember | null {
-  if (!value || typeof value !== 'object') return null
-  const member = value as Record<string, unknown>
-  return {
-    name: typeof member.name === 'string' ? member.name : '',
-    age: typeof member.age === 'string' || typeof member.age === 'number' ? String(member.age) : '',
-    instrument_interest: typeof member.instrument_interest === 'string' ? member.instrument_interest : '',
-  }
 }
 
 function activityLabel(event: LeadEvent) {
@@ -239,7 +218,7 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   )
 }
 
-export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange }: LeadDetailPanelProps) {
+export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange, staticDetails = false }: LeadDetailPanelProps) {
   const contextualCompose = useContext(ConversationComposeContext)
   const [smsOpen, setSmsOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<'details' | 'notes'>('details')
@@ -250,7 +229,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
   const [stageSelection, setStageSelection] = useState('')
   const [copied, setCopied] = useState(false)
   const [lesson, setLesson] = useState({ accountHolderName: '', instrument: '', experience: '', days: '', times: '' })
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [students, setStudents] = useState<LeadStudent[]>([])
   const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '', opportunityValueUnit: 'session' })
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
@@ -259,9 +238,10 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
   const lessonRequest = readLessonRequestFields(lead.payload)
   const isService = lead.intake_type === 'service_inquiry'
   const serviceValue = getNumericPayloadValue(lead.payload, 'session_value')
+  const familyMembers = students.slice(1)
   const opportunity = isLesson ? getLeadOpportunityValue({ intakeType: lead.intake_type, payload: { ...lead.payload, siblings: familyMembers } }) : isService ? serviceValue : null
   const familyMemberCount = normalizeFamilyMembers(familyMembers).length
-  const familyDirty = familyMembersChanged(familyMembers, lead.payload.siblings)
+  const familyDirty = JSON.stringify(students) !== JSON.stringify(readLeadStudents(lead.payload, lead.program_label))
   const opportunityUnit = isLesson ? '/mo' : isService ? `/${getOpportunityValueUnit(lead.payload)}` : ''
   const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
@@ -282,7 +262,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
       days: readLessonRequestFields(lead.payload).preferredDays,
       times: readLessonRequestFields(lead.payload).preferredTimes,
     })
-    setFamilyMembers(Array.isArray(lead.payload.siblings) ? lead.payload.siblings.map(getFamilyMember).filter((member): member is FamilyMember => Boolean(member)) : [])
+    setStudents(readLeadStudents(lead.payload, lead.program_label))
     setServiceEditor({
       types: getServiceTypes(lead),
       newType: '',
@@ -346,37 +326,56 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
     if (saved) setServiceEditing(false)
   }
 
-  const updateFamilyMember = (index: number, patch: Partial<FamilyMember>) => {
-    setFamilyMembers((current) => current.map((member, memberIndex) => memberIndex === index ? { ...member, ...patch } : member))
+  const saveStudents = async () => {
+    await onPatch(leadStudentsPatch(students, lead.payload))
   }
 
-  const saveFamilyMembers = async () => {
-    const members = normalizeFamilyMembers(familyMembers)
-    const saved = await onPatch({
-      payload: {
-        siblings: members,
-        sibling_count: members.length,
-      },
-    })
-    if (saved) setFamilyMembers(members)
-  }
-
-  const deleteFamilyMember = async (index: number) => {
-    const members = familyMembers.filter((_, memberIndex) => memberIndex !== index)
-    const savedMembers = Array.isArray(lead.payload.siblings) ? lead.payload.siblings : []
-    if (index < savedMembers.length) {
-      const saved = await onPatch({ payload: { siblings: normalizeFamilyMembers(members), sibling_count: normalizeFamilyMembers(members).length } })
-      if (!saved) return
-    }
-    setFamilyMembers(members)
-  }
+  const hierarchyReview = reviewWinbackHierarchy(lead)
+  const studentsSection = staticDetails ? <>
+    <DenseSectionPanel title={<SectionTitle>Contact</SectionTitle>}>
+      <div style={twoColumnStyle}>
+        <Field label="Lead type" value={label(lead.intake_type)} />
+        <Field label="Contact name" value={lead.contact?.full_name || ''} />
+        <Field label="Email" value={lead.contact?.email || ''} />
+        <Field label="Phone" value={formatPhoneNumber(lead.contact?.phone) || ''} />
+      </div>
+    </DenseSectionPanel>
+    <DenseSectionPanel title={<SectionTitle>Students</SectionTitle>}>
+      <div style={stackStyle}>{readLeadStudents(lead.payload, lead.program_label).map((student, index) => <div key={index} style={{ ...stackStyle, borderTop: index ? `1px solid ${colors.border}` : undefined, paddingTop: index ? spacing.md : undefined }}>
+        <div style={twoColumnStyle}>
+          <Field label="Student name" value={student.name} />
+          <Field label="Email" value={student.email} />
+          <Field label="Phone" value={formatPhoneNumber(student.phone) || ''} />
+          <Field label="Birthday" value={student.date_of_birth} />
+          <Field label="Relationship" value={label(student.relationship_to_contact)} />
+        </div>
+        <div style={twoColumnStyle}>
+          <Field label="Service" value={[...new Set(student.instrument_interest.split(',').map(item => item.trim().startsWith('Semi-private · ') ? 'Semi-private' : item.trim().startsWith('Private · ') ? 'Private' : ['Tiny Keys', 'Little Rockers', 'Band'].includes(item.trim()) ? 'Group' : '').filter(Boolean))].join(', ')} />
+          <Field label="Program" value={student.instrument_interest} />
+          <Field label="Experience" value={student.preferences?.experience || ''} />
+          <Field label="Available days" value={student.preferences?.preferredDays || ''} />
+          <Field label="Preferred times" value={student.preferences?.preferredTimes || ''} />
+        </div>
+      </div>)}</div>
+    </DenseSectionPanel>
+  </> : <>
+    {hierarchyReview && <DenseSectionPanel title={<SectionTitle>Win-back contact review</SectionTitle>}>
+      <p role="status" style={{ fontSize: typography.sizeSm }}>{hierarchyReview.warning}</p>
+      <Field label="Imported contact label (unverified role)" value={hierarchyReview.importedContactLabel} />
+      <Field label="Recorded parent / contact" value={hierarchyReview.recordedParentName} />
+      <Field label="Recorded student" value={hierarchyReview.recordedStudentName} />
+      {hierarchyReview.duplicateStudentRows && <p role="alert">The same student name appears in the main student and sibling rows. Review the original records; no rows have been merged or removed.</p>}
+    </DenseSectionPanel>}
+    <LeadStudentsEditor key={lead.id} students={students} onChange={setStudents} disabled={saving} dirty={familyDirty} onSave={() => void saveStudents()} contact={lead.source_form === '2026-disenrollment-import' ? undefined : { name: lead.contact?.full_name || '', email: lead.contact?.email || '', phone: lead.contact?.phone || '' }} />
+    <p style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>One inquiry, one status. The contact can also be a learner. Notes, communication and follow-up are shared across these students; messaging remains addressed to the inquiry contact.</p>
+    {typeof lead.payload.family_members_interested === 'number' && lead.payload.family_members_interested > students.length && <p role="status">The inquiry reports {lead.payload.family_members_interested} interested people; only {students.length} student rows are available. Confirm the missing details with the contact.</p>}
+  </>
 
   const statusTone = getStatusTone(lead.status)
   const contactName = lead.contact?.full_name || 'Unknown lead'
   const contactNameParts = contactName.trim().split(/\s+/)
   const contactFirstName = contactNameParts[0] || 'L'
   const contactLastName = contactNameParts.slice(1).join(' ') || contactFirstName
-  const leadAge = getLeadAge(lead.payload)
   const statusStageSelect = (
     <Select
       aria-label="Change lead status"
@@ -403,12 +402,12 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
     <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
       <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border, minWidth: 0, maxWidth: '100%' }}>
         <span style={{ ...statusLabelStyle, color: statusTone.text, whiteSpace: isMobile ? 'normal' : 'nowrap' }}>{statusLabel(lead.status, lead.payload)}</span>
-        {!isMobile && <>
+        {!staticDetails && !isMobile && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
           {statusStageSelect}
         </>}
       </div>
-      {isMobile && statusStageSelect}
+      {!staticDetails && isMobile && statusStageSelect}
     </div>
   )
 
@@ -419,7 +418,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
   const notesRail = (
     <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
               <NotesSection key={lead.id} title="Notes" panel notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} />
-              {isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>
+              {staticDetails ? <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}><Field label="Date" value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : ''} /><Field label="Reminder note" value={lead.follow_up_note || ''} /></DenseSectionPanel> : isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>
                 <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
               </Disclosure> : <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
                 <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
@@ -446,7 +445,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
       }}
     >
       <SlidePanelHeader
-        title={leadAge === null ? contactName : `${contactName} (${leadAge})`}
+        title={contactName}
         subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
         avatar={{ firstName: contactFirstName, lastName: contactLastName, size: isMobile ? 36 : 48 }}
         titleSize={isMobile ? typography.sizeLg : typography.size2xl}
@@ -537,9 +536,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
             {winback && (
               <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
                 <div style={stackStyle}>
-                  <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                  {staticDetails ? <Field label="Win-back status" value={label(winbackStatus)} /> : <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                     {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-                  </Select>
+                  </Select>}
                   <div style={oneColumnStyle}>
                     <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || "Not provided"} />
                     <Field label="Former program" value={lead.program_label || "Not provided"} />
@@ -547,8 +546,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
                 </div>
               </DenseSectionPanel>
             )}
-            {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-              <div style={oneColumnStyle}><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
+            {isLesson && studentsSection}
+            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle>Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
+              <div style={oneColumnStyle}><Field label="Contact name" value={lead.contact?.full_name || ''} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
             </DenseSectionPanel>}
             {isService && <DenseSectionPanel
               title={<SectionTitle>Service details</SectionTitle>}
@@ -613,24 +613,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
                 <Field label="Referrer" value={lead.referrer || ""} />
               </div>
             </DenseSectionPanel>
-            {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
-              <div style={familyMembersStyle}>
-                {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
-                {familyMembers.map((member, index) => {
-                  const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
-                  return (
-                    <div key={index} style={familyMemberStyle}>
-                      <div style={familyMemberRowStyle}>
-                        <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
-                        <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                        <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><ControlButton kind="icon" type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} ><Trash2 size={15} /></ControlButton>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary"  size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
-            </DenseSectionPanel>}
+
           </div>
         ) : (
           <div style={columnsStyle}>
@@ -642,9 +625,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
               {winback && (
                 <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
                   <div style={stackStyle}>
-                    <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                    {staticDetails ? <Field label="Win-back status" value={label(winbackStatus)} /> : <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                       {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-                    </Select>
+                    </Select>}
                     <div style={twoColumnStyle}>
                       <Field label="Disenrolled" value={disenrollmentDate ? dateLabel(disenrollmentDate) : disenrollmentMonth || "Not provided"} />
                       <Field label="Former program" value={lead.program_label || "Not provided"} />
@@ -652,30 +635,14 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
                   </div>
                 </DenseSectionPanel>
               )}
-              {isLesson && <DenseSectionPanel title={<SectionTitle>Lesson details</SectionTitle>} style={lessonSectionStyle}>
-                <div style={twoColumnStyle}><Field label="Parent / contact name" value={lead.contact?.full_name || ''} /><Field label="Student name" value={lessonRequest.studentName} /><Field label="Student age" value={lessonRequest.studentAge} /><Field label="Program or instrument" value={lead.program_label || lesson.instrument} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
+              {isLesson && studentsSection}
+            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle>Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
+                <div style={twoColumnStyle}><Field label="Contact name" value={lead.contact?.full_name || ''} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
               </DenseSectionPanel>}
               {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
               </DenseSectionPanel>}
-              {isLesson && <DenseSectionPanel title={<SectionTitle>Family members</SectionTitle>} actions={<Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFamilyMembers((current) => [...current, { name: "", age: "", instrument_interest: "" }])}>Add family member</Button>} style={familySectionStyle}>
-                <div style={familyMembersStyle}>
-                  {familyMembers.length === 0 && <div style={emptyFamilyMembersStyle}>No family members.</div>}
-                  {familyMembers.map((member, index) => {
-                    const instrumentOptions = member.instrument_interest && !INSTRUMENTS.includes(member.instrument_interest) ? [member.instrument_interest, ...INSTRUMENTS] : INSTRUMENTS
-                    return (
-                      <div key={index} style={familyMemberStyle}>
-                        <div style={familyMemberRowStyle}>
-                          <Input label="Name" value={member.name} onChange={(event) => updateFamilyMember(index, { name: event.target.value })} />
-                          <Input label="Age" inputMode="numeric" value={member.age} onChange={(event) => updateFamilyMember(index, { age: event.target.value })} />
-                          <Select label="Instrument / service" value={member.instrument_interest} onChange={(event) => updateFamilyMember(index, { instrument_interest: event.target.value })}><option value="">Select program</option>{instrumentOptions.map((instrument) => <option key={instrument} value={instrument}>{instrument}</option>)}</Select><ControlButton kind="icon" type="button" aria-label={`Delete family member ${index + 1}`} title="Delete family member" disabled={saving} onClick={() => void deleteFamilyMember(index)} ><Trash2 size={15} /></ControlButton>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                {familyDirty && <div style={actionRowStyle}><Button type="button" variant="primary"  size="sm" disabled={saving} onClick={() => void saveFamilyMembers()}>{saving ? "Saving…" : "Save family members"}</Button></div>}
-              </DenseSectionPanel>}
+
               <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
                 <div style={twoColumnStyle}>
                   <Field label="Source" value={formatLeadSource(lead.payload.source)} />
@@ -736,15 +703,10 @@ const lostStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap
 const leftMetricsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.sm }
 const metricSectionStyle: CSSProperties = { order: 1 }
 const lessonSectionStyle: CSSProperties = { order: 3 }
-const familySectionStyle: CSSProperties = { order: 4 }
 const sourceSectionStyle: CSSProperties = { order: 5 }
 const followUpSectionStyle: CSSProperties = { flexShrink: 0 }
 const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
 const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
-const familyMembersStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
-const familyMemberStyle: CSSProperties = { padding: spacing.sm, border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }
-const familyMemberRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(40px, 0.35fr) minmax(0, 1.2fr) auto', gap: spacing.xs, alignItems: 'end' }
-const removeFamilyMemberButtonStyle: CSSProperties = { padding: 0, border: 'none', background: 'transparent', color: colors.link, fontFamily: typography.fontSans, fontSize: typography.sizeSm, textDecoration: 'none', cursor: 'pointer' }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
 const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const serviceTypeRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: spacing.sm, alignItems: 'end' }
