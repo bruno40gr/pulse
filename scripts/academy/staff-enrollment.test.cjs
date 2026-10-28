@@ -19,7 +19,7 @@ function load(file, overrides = {}) {
   }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
-  }).outputText, { exports: output, require: localRequire, crypto: require('node:crypto').webcrypto }, { filename: file, timeout: 1000 })
+  }).outputText, { exports: output, require: localRequire, window: overrides.window, document: overrides.document, Element: overrides.Element, crypto: require('node:crypto').webcrypto }, { filename: file, timeout: 1000 })
   return output
 }
 const domain = load(path.join(root, 'lib/academy-staff-enrollment.ts'))
@@ -114,7 +114,7 @@ function hookRunner() {
   const state = []
   let index = 0
   return {
-    react: { useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value }] } },
+    react: { useEffect() {}, useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value }] } },
     render(component, props) { index = 0; return component(props) },
   }
 }
@@ -494,7 +494,8 @@ test('changing the first lesson teacher frees Robin for an overlapping sibling l
   assert.equal(available().length, 0)
   const props = () => ({ lesson: first, lessons: [first, second], student, students: [student, sibling], manager: null, onChange(patch) { first = { ...first, ...patch } }, onSelectLesson() {} })
   let tree = hooks.render(Component, props())
-  elements(tree).find(node => node.props?.children === 'Change teacher').props.onClick()
+  assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
+  elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
   tree = hooks.render(Component, props())
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   elements(group).find(node => node.props?.children === 'Jordan Vale').props.onClick()
@@ -513,11 +514,12 @@ test('clearing a guitar booking preserves the lesson and frees Robin for voice',
   const sibling = { ...domain.enrollmentPeople[2], id: 'two' }
   const props = () => ({ lesson, lessons: [lesson, second], student, manager: null, onChange(patch) { lesson = { ...lesson, ...patch } }, onSelectLesson() {} })
   let tree = hooks.render(Component, props())
+  assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
   elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
   tree = hooks.render(Component, props())
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   assert.equal(elements(group).filter(node => node.type === 'button' && node.props['aria-pressed'] !== undefined).length, 1)
-  elements(tree).find(node => node.props?.children === 'Clear time').props.onClick()
+  elements(tree).find(node => node.props?.children === 'Clear time slot').props.onClick()
   assert.equal(lesson.teacher, '')
   assert.equal(lesson.time, '')
   assert.equal(lesson.id, 'guitar')
@@ -530,24 +532,40 @@ test('clearing a guitar booking preserves the lesson and frees Robin for voice',
 
 test('teacher editing ignores preference filters but still excludes conflicting teachers', () => {
   const hooks = hookRunner()
-  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
+  let effect
+  let cleanup
+  hooks.react.useEffect = callback => { effect = callback }
+  const listeners = new Map()
+  const document = { addEventListener(name, callback) { listeners.set(name, callback) }, removeEventListener(name) { listeners.delete(name) } }
+  class Element { constructor(inside) { this.inside = inside } closest() { return this.inside } }
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react, document, Element }).default
   const first = { ...schedule.selectScheduleSlot(domain.newLesson('first'), '2026-11-03', '16:00', 'Robin Ellis'), studentId: 'one' }
   const second = { ...schedule.selectScheduleSlot(domain.newLesson('second'), '2026-11-03', '16:00', 'Jordan Vale'), studentId: 'two' }
   const props = { lesson: first, lessons: [first, second], student: null, manager: null, onChange() {} }
   let tree = hooks.render(Component, props)
   for (const input of elements(tree).filter(node => node.props?.type === 'checkbox')) input.props.onChange({ target: { checked: false } })
   tree = hooks.render(Component, props)
-  elements(tree).find(node => node.props?.children === 'Change teacher').props.onClick()
+  assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
+  elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
   tree = hooks.render(Component, props)
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   assert.ok(elements(group).some(node => node.props?.children === 'Robin Ellis'))
   assert.ok(!elements(group).some(node => node.props?.children === 'Jordan Vale'))
-  elements(group).find(node => node.props?.children === 'Cancel').props.onClick()
+  assert.ok(!elements(group).some(node => node.props?.children === 'Cancel'))
+  const actions = elements(group).filter(node => node.type === 'button')
+  assert.equal(actions.at(-1).props.children, 'Clear time slot')
+  cleanup = effect()
+  listeners.get('pointerdown')({ target: new Element(true) })
+  tree = hooks.render(Component, props)
+  assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Change teacher'))
+  listeners.get('pointerdown')({ target: new Element(false) })
+  cleanup()
+  assert.equal(listeners.size, 0)
   tree = hooks.render(Component, props)
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Change teacher'))
 })
 
-test('scheduling cannot delete a lesson and Back returns to lesson setup', () => {
+test('calendar lesson deletion requires confirmation, supports cancel, and returns to setup for the last lesson', () => {
   const hooks = hookRunner()
   hooks.react.useRef = () => ({ current: null })
   const stateHook = hooks.react.useState
@@ -560,15 +578,29 @@ test('scheduling cannot delete a lesson and Back returns to lesson setup', () =>
     }
     return stateHook(initial)
   }
-  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react }).default
+  const browser = { confirm() { return false } }
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react, window: browser }).default
   let tree = hooks.render(Component, {})
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   tree = hooks.render(Component, {})
   assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Remove lesson 2'))
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   tree = hooks.render(Component, {})
-  assert.ok(!elements(tree).some(node => node.props?.['aria-label']?.startsWith('Remove lesson')))
-  elements(tree).find(node => node.props?.children?.some?.(child => child === 'Back')).props.onClick()
+  const warnings = []
+    browser.confirm = message => { warnings.push(message); return false }
+    elements(tree).find(node => node.props?.['aria-label'] === 'Remove lesson 2').props.onClick({ stopPropagation() {} })
+    tree = hooks.render(Component, {})
+    assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Remove lesson 2'))
+    assert.match(warnings[0], /cannot be undone/)
+    assert.match(warnings[0], /Avery Lane/)
+    browser.confirm = () => true
+    elements(tree).find(node => node.props?.['aria-label'] === 'Remove lesson 2').props.onClick({ stopPropagation() {} })
+    tree = hooks.render(Component, {})
+    assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Remove lesson 2'))
+    assert.ok(elements(tree).some(node => node.type === 'h2' && node.props.children === 'Choose times'))
+    elements(tree).find(node => node.props?.['aria-label'] === 'Remove lesson 1').props.onClick({ stopPropagation() {} })
+    tree = hooks.render(Component, {})
+    assert.ok(elements(tree).some(node => node.type === 'h2' && node.props.children === 'Set up lessons'))
   tree = hooks.render(Component, {})
   assert.ok(elements(tree).some(node => node.props?.children?.some?.(child => child === 'Add another lesson')))
 })
@@ -595,7 +627,36 @@ test('entering the calendar selects the first lesson instead of the last added l
   const calendar = elements(tree).find(node => node.props?.onSelectLesson && node.props?.lessons)
   assert.equal(calendar.props.lessons.length, 3)
   assert.equal(calendar.props.lesson.id, calendar.props.lessons[0].id)
+  calendar.props.onChange({ teacher: 'Jordan Vale', start: '2026-11-03', time: '16:00' })
+  tree = hooks.render(Component, {})
+  assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Time selected'))
+  assert.ok(!elements(tree).some(node => node.props?.children?.includes?.('Next unscheduled lesson')))
+  assert.ok(!elements(tree).some(node => node.props?.children?.includes?.('Add another lesson')))
+  const remove = elements(tree).find(node => node.props?.['aria-label'] === 'Remove lesson 1')
+  assert.equal(elements(remove).filter(node => typeof node.props?.children === 'string').length, 0)
   calendar.props.onSelectLesson(calendar.props.lessons[2].id)
   tree = hooks.render(Component, {})
   assert.equal(elements(tree).find(node => node.props?.onSelectLesson && node.props?.lessons).props.lesson.id, calendar.props.lessons[2].id)
+})
+
+
+test('completed person cards expose only Edit and restore lookup inside the editor', () => {
+  for (const studentLookup of [false, true]) {
+    const hooks = hookRunner()
+    const { PersonPicker } = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react })
+    const props = { title: 'Person', value: domain.enrollmentPeople[0], people: domain.enrollmentPeople, studentLookup, onChange() {}, onAdd() {} }
+    let tree = hooks.render(PersonPicker, props)
+    assert.ok(!elements(tree).some(node => node.props?.children === 'Use an existing person'))
+    assert.ok(!elements(tree).some(node => node.type === 'input'))
+    elements(tree).find(node => node.props?.children === 'Edit').props.onClick()
+    tree = hooks.render(PersonPicker, props)
+    assert.equal(elements(tree).filter(node => node.type === 'input' && node.props.type !== 'checkbox').length, 4)
+    assert.ok(elements(tree).some(node => studentLookup ? node.type === 'input' && node.props.type === 'checkbox' : node.props?.children === 'Use an existing person'))
+  }
+})
+
+test('calendar card strip never wraps and shows at most four desktop cards', () => {
+  const css = fs.readFileSync(path.join(root, 'app/content-studio-prototype/enrollment/enrollment.module.css'), 'utf8')
+  assert.match(css, /grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: calc\(\(100% - 36px\) \/ 4\)/)
+  assert.match(css, /overflow-x: auto/)
 })
