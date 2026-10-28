@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, Check, Plus, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { colors, typography } from '@/lib/tokens'
 import {
@@ -11,12 +11,17 @@ import {
 } from '@/lib/academy-staff-enrollment'
 import styles from './enrollment.module.css'
 import LessonSchedule from './LessonSchedule'
-import { availableScheduleTeachers, formatScheduleDate } from '@/lib/academy-enrollment-schedule'
+import { availableScheduleTeachers, formatScheduleDate, formatScheduleTime } from '@/lib/academy-enrollment-schedule'
 import { enrollmentBillingPreview } from '@/lib/academy-enrollment-pricing'
 
 const steps = ['Family', 'Lessons', 'Times', 'Pricing', 'Payment']
 const fullName = (person: EnrollmentPerson | null) => person ? `${person.firstName} ${person.lastName}` : ''
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`
+
+const lessonEndTime = (lesson: LessonChoice) => {
+  const minutes = Number(lesson.time.slice(0, 2)) * 60 + Number(lesson.time.slice(3)) + Number(lesson.duration)
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
 
 export function PersonPicker({ title, value, people, onChange, onAdd, studentLookup = false }: {
   title: string; value: EnrollmentPerson | null; people: readonly EnrollmentPerson[]
@@ -34,8 +39,8 @@ export function PersonPicker({ title, value, people, onChange, onAdd, studentLoo
 
   return <section className={styles.personPicker}>
     {title && <h3>{title}</h3>}
-    {studentLookup && <label className={styles.lookupToggle}><input type="checkbox" checked={finding} onChange={event => { setFinding(event.target.checked); setQuery('') }} />Enroll an existing student or lead</label>}
-    {value && !creating && !finding ? <div className={styles.person}><div><strong>{fullName(value)}</strong>{value.email && <p>{value.email}</p>}{value.phone && <p>{value.phone}</p>}</div><div className={styles.personActions}><Button type="button" variant="ghost" onClick={() => setCreating(true)}>Edit</Button><Button type="button" variant="ghost" onClick={() => setFinding(true)}>Use an existing person</Button></div></div>
+    {studentLookup && (creating || finding || !value) && <label className={styles.lookupToggle}><input type="checkbox" checked={finding} onChange={event => { setFinding(event.target.checked); setQuery('') }} />Enroll an existing student or lead</label>}
+    {value && !creating && !finding ? <div className={styles.person}><div><strong>{fullName(value)}</strong>{value.email && <p>{value.email}</p>}{value.phone && <p>{value.phone}</p>}</div><div className={styles.personActions}><Button type="button" variant="ghost" onClick={() => setCreating(true)}>Edit</Button></div></div>
       : !finding ? <div onBlur={event => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
         if (value && !personDetailsError(value)) { onAdd(value); setCreating(false) }
@@ -126,15 +131,16 @@ export default function StaffEnrollment() {
               </div>
               {draft.student && <label className={styles.payer}>Who will pay?<select value={draft.payer} onChange={event => patch({ payer: event.target.value as EnrollmentDraft['payer'] })}><option value="student">{fullName(draft.student)}</option>{draft.manager && <option value="manager">{fullName(draft.manager)}</option>}{draft.otherPayer && <option value="other">{draft.otherPayer.name || 'Another payer'}</option>}</select></label>}
             </>}
-            {(step === 1 || step === 2) && <><h2>{step === 1 ? 'Set up lessons' : 'Choose times'}</h2><div className={step === 2 ? styles.bookingLayout : undefined}><div className={styles.studentCards} aria-label="Student lessons">{draft.lessons.map((lesson, index) => <section key={lesson.id} className={`${styles.studentCard} ${activeLesson.id === lesson.id ? styles.selectedCard : ''}`} onFocus={() => setActiveLessonId(lesson.id)} onClick={() => setActiveLessonId(lesson.id)}>
-              <div className={styles.sectionHeading}><button type="button" className={styles.cardSelect} aria-pressed={activeLesson.id === lesson.id} onClick={() => setActiveLessonId(lesson.id)}>{fullName(lessonStudent(draft, lesson)) || 'Choose a student'}</button>{step === 1 && draft.lessons.filter(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id).length > 1 && <Button type="button" variant="ghost" aria-label={`Remove lesson ${index + 1}`} onClick={event => { event.stopPropagation(); patch({ lessons: draft.lessons.filter(item => item.id !== lesson.id) }) }}><X size={16} /></Button>}</div>
+            {(step === 1 || step === 2) && <><h2>{step === 1 ? 'Set up lessons' : 'Choose times'}</h2><div className={step === 2 ? styles.bookingLayout : undefined}><div className={styles.studentCards} role="region" tabIndex={step === 2 ? 0 : undefined} aria-label="Student lessons">{draft.lessons.map((lesson, index) => <section key={lesson.id} className={`${styles.studentCard} ${activeLesson.id === lesson.id ? styles.selectedCard : ''}`} onFocus={() => setActiveLessonId(lesson.id)} onClick={() => setActiveLessonId(lesson.id)}>
+              <div className={styles.sectionHeading}><button type="button" className={styles.cardSelect} aria-pressed={activeLesson.id === lesson.id} onClick={() => setActiveLessonId(lesson.id)}>{fullName(lessonStudent(draft, lesson)) || 'Choose a student'}</button>{(step === 2 || draft.lessons.filter(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id).length > 1) && <Button type="button" variant="ghost" className={styles.lessonDelete} size="sm" title="Remove lesson" aria-label={`Remove lesson ${index + 1}`} onClick={event => { event.stopPropagation(); if (step === 2 && !window.confirm(`Remove ${lesson.instrument} for ${fullName(lessonStudent(draft, lesson))}? This removes the lesson and its selected time from this enrollment draft and cannot be undone. Existing family bookings are not affected. If this is the student’s only lesson, you will return to lesson setup.`)) return; const remaining = draft.lessons.filter(item => item.id !== lesson.id); patch({ lessons: remaining }); setActiveLessonId(remaining[0]?.id || ''); if (step === 2 && !remaining.some(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id)) move(1) }}><Trash2 size={16} aria-hidden="true" /></Button>}</div>
               {step === 1 ? <div className={styles.fields}>
                 {lesson.addedLesson && students.length > 1 && <label>Student<select value={lesson.studentId || ''} onChange={event => updateLesson(lesson.id, { studentId: event.target.value, teacher: '', start: '', time: '' })}><option value="">Choose a student</option>{students.map(person => <option key={person.id} value={person.id}>{fullName(person)}</option>)}</select></label>}
                 <label>Instrument<select value={lesson.instrument} onChange={event => updateLesson(lesson.id, { instrument: event.target.value, teacher: '', time: '', start: '' })}>{['Piano', 'Guitar', 'Voice', 'Drums', 'Violin'].map(value => <option key={value}>{value}</option>)}</select></label>
                 <label>Length<select value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}><option value="30">30 minutes</option><option value="60">60 minutes</option></select></label>
                 <label>Cadence<select value={lesson.frequency} onChange={event => updateLesson(lesson.id, { frequency: event.target.value })}><option value="Monthly subscription">Weekly</option><option value="À-la-carte">One lesson</option></select></label>
               </div> : <p>{lesson.instrument} · {lesson.frequency === 'Monthly subscription' ? 'Weekly' : 'One lesson'} · {lesson.duration} minutes</p>}
-            </section>)}{step === 1 && <Button type="button" variant="secondary" onClick={() => { const id = crypto.randomUUID(); const nextStudent = students.length === 1 ? students[0] : null; patch({ lessons: [...draft.lessons, { ...newLesson(id), studentId: nextStudent?.id || '', addedLesson: true }] }); setActiveLessonId(id) }}><Plus size={15} aria-hidden="true" />Add another lesson</Button>}</div>
+              {step === 2 && <p className={styles.lessonStatus}>{lesson.teacher && lesson.start && lesson.time ? <><span><Check className={styles.bookingCheck} size={13} aria-label="Time selected" />{formatScheduleDate(lesson.start, { weekday: 'short', month: 'short', day: 'numeric' })} · {formatScheduleTime(lesson.time)}–{formatScheduleTime(lessonEndTime(lesson))}</span></> : <span>Choose a time</span>}</p>}
+            </section>)}</div>{step === 1 && <Button type="button" variant="secondary" onClick={() => { const id = crypto.randomUUID(); const nextStudent = students.length === 1 ? students[0] : null; patch({ lessons: [...draft.lessons, { ...newLesson(id), studentId: nextStudent?.id || '', addedLesson: true }] }); setActiveLessonId(id) }}><Plus size={15} aria-hidden="true" />Add another lesson</Button>}
               {step === 2 && activeLesson && <LessonSchedule key={`${activeLesson.id}-${activeLesson.instrument}-${activeLesson.duration}-${activeLesson.studentId}`} lesson={activeLesson} lessons={draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId || draft.student?.id }))} student={lessonStudent(draft, activeLesson)} students={students} manager={draft.manager} onSelectLesson={setActiveLessonId} onChange={value => updateLesson(activeLesson.id, value)} />}
             </div></>}
             {step === 3 && <><h2>Review pricing</h2><p className={styles.payerLine}>Billing preview · {formatScheduleDate(billing.today, { month: 'long', day: 'numeric', year: 'numeric' })}</p><p>Billed monthly on the 1st for the lessons scheduled that month.</p>{[{ title: 'Due today', period: billing.current }, { title: `Due on ${formatScheduleDate(billing.nextDate, { month: 'long', day: 'numeric', year: 'numeric' })}`, period: billing.next }].map(({ title, period }) => <section key={title} className={styles.lesson}><h3>{title}</h3>{period.lines.map(({ lesson, dates, price, total }) => <div key={lesson.id} className={styles.billingLine}><strong>{fullName(lessonStudent(draft, lesson))} · {lesson.instrument} · {lesson.duration} minutes</strong><p>{dates.length} {formatScheduleDate(dates[0], { weekday: 'long' })}{dates.length === 1 ? '' : 's'} · {dates.map(date => formatScheduleDate(date)).join(', ')}</p><p>{lesson.frequency === 'Monthly subscription' ? 'Monthly subscription' : 'One lesson'} · {money(price.base)} per lesson{price.discount > 0 ? ` − ${money(price.discount)} teacher discount = ${money(price.total)}` : ''}</p><p>{dates.length} × {money(price.total)} = <strong>{money(total)}</strong></p></div>)}{period.lines.length === 0 && <p>No lessons to bill.</p>}<dl><dt className={styles.total}>{title}</dt><dd className={styles.total}>{money(period.total)}</dd></dl></section>)}<p className={styles.payerLine}>Paid by {payerName}</p></>}
