@@ -250,7 +250,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
             const details = getDetailRows?.(row, index) || []
             return (
-              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.textMuted}` : undefined, opacity: customRowStyle?.opacity } : undefined}>
+              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity } : undefined}>
               <div
                 key={rowKey}
                 role="row"
@@ -266,7 +266,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   background: rowBackground,
                   cursor: onRowClick ? 'pointer' : 'default',
                   ...customRowStyle,
-                  ...(groupedRows ? { height: 40, paddingTop: 0, paddingBottom: 0, borderBottom: 'none', opacity: 1 } : undefined),
+                  ...(groupedRows ? { height: 32, paddingTop: 0, paddingBottom: 0, borderBottom: 'none', opacity: 1 } : undefined),
                 }}
               >
                 {selection && (

@@ -1415,7 +1415,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(120px, 1fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <div title={lead.contact?.full_name || 'Unknown'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName>{lead.contact?.full_name || 'Unknown'}</PersonName></div>,
+      render: (lead) => <div title={lead.contact?.full_name || 'Unknown'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName weight="semibold">{lead.contact?.full_name || 'Unknown'}</PersonName></div>,
     },
     {
       id: 'phone',
@@ -1917,7 +1917,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           columns={leadColumns}
           getDetailRows={lead => !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
             .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: leadColumns.map(column => {
-              if (column.id === 'name') return <span key={column.id} style={{ ...secondaryCellStyle, display: 'flex', gap: spacing.xs, paddingLeft: 20 }}><span aria-hidden="true" style={{ color: colors.textMuted }}>↳</span>{student.name || 'Student name not recorded'}</span>
+              if (column.id === 'name') return <div key={column.id} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: spacing.sm }}><PersonName weight="normal">{student.name || 'Student name not recorded'}</PersonName></div>
               if (column.id === 'phone') return <div key={column.id} style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
               if (column.id === 'email') return <div key={column.id} style={secondaryCellStyle}>{student.email || ''}</div>
               if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
@@ -1954,7 +1954,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               ? '#F5F8FF'
               : selectedLeadId === lead.id
                 ? '#FBFCFF'
-                : index % 2 === 0 ? colors.surface : colors.backgroundSecondary,
+                : index % 2 === 0 ? colors.surface : colors.surfaceMuted,
           })}
           ariaLabel="Leads"
         />
