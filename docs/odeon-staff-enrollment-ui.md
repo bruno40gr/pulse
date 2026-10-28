@@ -1,0 +1,48 @@
+# Staff enrollment screen
+
+Open `/content-studio-prototype/enrollment` on the development server while signed in as an account administrator. It uses the existing prototype-area access checks and stays outside the dashboard layout.
+
+## Current workflow
+
+Staff handle phone calls and walk-ins. They register a student, add parents or guardians and dependents where needed, add a subscription, choose a teacher and slot, and then take payment details. Inbound booking requests and approval are parked.
+
+## Screen
+
+1. Add the parent or guardian first when applicable, followed by students. Each new person opens directly in four fields: first name, last name, email and phone. For each student, “Enroll an existing student or lead” opens the secondary search. Unchecking it returns to the entered details without clearing them. Guardian lookup retains “Use an existing person.” The search uses fictional local people only, not live student or lead records. “Add another student” adds siblings in the same enrollment draft. New details update as staff type. Leaving the person form turns valid details into a card; Continue also retains the details. Edit reopens the fields. Choose who pays.
+2. Set instrument, cadence (Weekly or One lesson), and length (30 or 60 minutes) for each student. Each student automatically gets a lesson without a student dropdown. Additional lessons show a student dropdown when there are multiple students; staff must choose who the lesson is for. No calendar appears in this step.
+3. Choose times. Entering this step selects the first lesson, regardless of which lesson was added or edited last. Read-only student lesson cards stack on the left of one shared calendar, or above it on smaller screens. Select a card to arrange that lesson. One available teacher selects immediately; several open teacher choices beside the clicked time, within the calendar. Teacher preference is always visible above the calendar as checkboxes. The previous heading and sample-schedule row are removed. Available times show start/end times and length, with no duration legend. The calendar uses fixed half-hour grid tracks. Full-hour blocks span two tracks; overlapping start options use separate lanes so half-hour starts remain available. A chosen slot is replaced by a single name-only dark block, not another block underneath. Other family bookings remain dark while switching students. The active lesson uses a distinct dark green. Teacher checkboxes include both teachers by default; unchecking both hides available options but never family bookings. Pending multiple-teacher choices appear inline at the selected option, not below the calendar. Clicking a draft booking selects its lesson card; clicking the active booking opens teacher editing. “Change teacher” lists teachers available at the saved time regardless of the preference filters. “Clear time” removes only the selected teacher/date/time, preserving the lesson and making that teacher available to siblings again. Alternative times remain selectable. The scheduling step has no lesson-delete X; use Back to add or remove lessons in Step 2. In the sample data, only Robin teaches guitar and voice, so a different time may be needed instead of a different teacher. existing family appointments are non-interactive blocks rather than buttons that do nothing. Family lessons remain visible with student names. Go back to Lessons to edit details; changing an instrument or length clears that lesson’s chosen time.
+4. Review Due today and Due on November 1, 2026. Each line shows student, instrument, duration, scheduled dates, weekday count, rate, discount, multiplication, and subtotal. An explicitly active teacher gets the saved 50% benefit on their own enrollments. A parent’s benefit does not automatically transfer.
+5. Select a test card or leave payment for later, then save a local draft. “Add another payer” accepts a person or organization name, email and phone. This payer can be selected alongside the student and guardian; details remain when switching payers. Name and email format are checked before saving. The saved draft copies payer details. One payer per enrollment is supported, not split payments. No payer identity, sponsorship authorization or real billing integration is implied.
+
+Weekly keeps the existing monthly-subscription billing label internally; One lesson keeps the existing à-la-carte plan. This split does not add new recurrence or billing rules.
+
+The screen uses fictional people, teachers and prices. New names remain in page memory. No real card data is accepted. Saving never activates an enrollment, takes payment, reserves a slot, sends a message or writes to a database. Activation, subscription billing rules and payment timing still need agreement before integration. The screen is an initial design and does not implement the full client profile, real availability, identity review or related-student benefit approval.
+
+The calendar opens on the sample week of November 2, 2026, with weekday hours from 2–7 pm in America/Los_Angeles. Staff can move between weeks. Sample teacher working hours repeat; sample booked appointments are dated. Available times account for instrument, lesson length, teacher bookings, the student’s existing lessons and other lessons being added. Siblings can take lessons simultaneously with different teachers. A teacher cannot take two lessons at once.
+
+Sample gap limits are 60 minutes for Jordan and 90 minutes for Robin. A proposed lesson must be within that limit of an existing lesson on the teacher’s day. An empty day can start with any in-hours lesson. These are demonstration values and a proposed meaning of the rule, not confirmed teacher settings. A full implementation needs each teacher’s actual limits, empty-day policy, working blocks and recurrence handling. Existing long gaps are not repaired or used to reject unrelated existing bookings. The first date is rechecked when continuing. Future occurrences are not validated across a series.
+
+Choosing a slot sets the first lesson date, time and teacher. Rooms, travel time and real reservations remain unimplemented. The family list does not represent a parent’s personal calendar or declared availability. Pricing uses each lesson’s student; teacher benefits are not transferred to siblings.
+
+Monthly subscription currently represents weekly lessons with a monthly billing label in this design. The local billing preview uses October 27, 2026 as its fixed enrollment date. The proposed rule bills weekly lessons monthly on the 1st using actual scheduled occurrences, not a fixed four-week or annualized rate. Due today includes the remaining current-month lessons from the selected start date, plus one-off lessons even if booked in a later month. The next invoice counts next-month occurrences from each selected start date. Partial months are prorated by lesson count; discounts apply per student before multiplication. Holidays, cancellations, taxes, credits, and future recurrence availability are not modeled. This is a proposed calculation for review, not an approved billing policy or real invoice; actual subscription creation remains unimplemented. À-la-carte selections represent individual dated lessons. Converted-lead and existing-student entry points are not connected to this local screen; those future entry points should supply known people and bypass repeated data entry.
+
+## Language
+
+Keep labels short and use plain language. Show errors after an action needs them. Keep implementation notes in documentation. Avoid slogans, contrast framing, repeated warnings and explanatory text that does not help complete the current step.
+
+## Files
+
+- `/Users/brunowong/pulse/app/content-studio-prototype/enrollment/StaffEnrollment.tsx`
+- `/Users/brunowong/pulse/app/content-studio-prototype/enrollment/page.tsx`
+- `/Users/brunowong/pulse/app/content-studio-prototype/enrollment/enrollment.module.css`
+- `/Users/brunowong/pulse/lib/academy-staff-enrollment.ts`
+- `/Users/brunowong/pulse/lib/academy-enrollment-schedule.ts`
+- `/Users/brunowong/pulse/lib/academy-enrollment-pricing.ts`
+- `/Users/brunowong/pulse/app/content-studio-prototype/enrollment/LessonSchedule.tsx`
+- `/Users/brunowong/pulse/scripts/academy/staff-enrollment.test.cjs`
+
+The installed Next.js package has no `node_modules/next/dist/docs/` directory. This screen follows the existing prototype page and client component structure. No new dependencies or access changes were introduced.
+
+## Checks
+
+The academy suite passed 194 tests. Enrollment checks include existing-student checkbox and result selection, exhaustive displayed one-hour-option click checks, booked-lesson switching, teacher reassignment freeing sibling availability, clear-time recovery, filtered/conflicting teacher edits, scheduling deletion guard and Back navigation, default person fields, change and blur interactions, automatic lessons for each student, separate lesson-details and scheduling steps, scheduling and save validation, student-card selection, per-student pricing, always-visible teacher filtering, additional-lesson student assignment, name-only booked blocks, proportional full-hour grid spans, checkbox filtering, third-party payer validation and save interactions, date-count billing previews, immediate single-teacher slot selection, multiple-teacher choices at a time, named family lessons, gap limits and simultaneous sibling lessons with separate teachers. TypeScript, targeted ESLint and whitespace checks passed. No interactive browser or visual review was performed.
