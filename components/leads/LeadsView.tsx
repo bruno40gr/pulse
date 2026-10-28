@@ -31,11 +31,12 @@ import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
 import { getLeadSignal } from '@/lib/lead-signal'
+import { compareLeadAction, isTerminalLead, leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
-type LeadSortKey = 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
+type LeadSortKey = 'action' | 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
 type ManualLeadFormState = LessonRequestFields & {
@@ -568,7 +569,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortKey, setSortKey] = useState<LeadSortKey>('created')
+  const [sortKey, setSortKey] = useState<LeadSortKey>('action')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
@@ -632,6 +633,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     const direction = sortDirection === 'asc' ? 1 : -1
 
     return [...visibleLeads].sort((left, right) => {
+      if (sortKey === 'action') return compareLeadAction(left, right, activeTab)
       if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
@@ -1379,7 +1381,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const followUpAt = getLeadFollowUpAt(selectedLead)
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
 
-  const leadColumns = useMemo<DataTableColumn<LeadRecord, LeadSortKey>[]>(() => [
+  const leadColumns = useMemo<DataTableColumn<LeadRecord, LeadSortKey>[]>(() => ([
     {
       id: 'signal',
       header: '',
@@ -1413,19 +1415,19 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(120px, 1fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <PersonName>{lead.contact?.full_name || 'Unknown'}</PersonName>,
+      render: (lead) => <div title={lead.contact?.full_name || 'Unknown'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName>{lead.contact?.full_name || 'Unknown'}</PersonName></div>,
     },
     {
       id: 'phone',
       header: 'Phone',
       width: 'minmax(140px, 0.9fr)',
-      render: (lead) => <div style={cellTextStyle}>{formatPhoneNumber(lead.contact?.phone) || '—'}</div>,
+      render: (lead) => <div style={secondaryCellStyle}>{leadTablePhone(lead.contact?.phone)}</div>,
     },
     {
       id: 'email',
       header: 'Email',
       width: 'minmax(200px, 1.25fr)',
-      render: (lead) => <div style={cellTextStyle}>{lead.contact?.email || '—'}</div>,
+      render: (lead) => <div style={secondaryCellStyle}>{lead.contact?.email || ''}</div>,
     },
     {
       id: 'followUp',
@@ -1435,10 +1437,10 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       sortKey: 'followUp',
       render: (lead) => {
         const followUp = getLeadFollowUpAt(lead)
-        if (!followUp) return <div style={cellTextStyle}>—</div>
+        if (!followUp || getFollowUpTone(followUp).urgency === 'none') return null
         const followUpTone = getFollowUpTone(followUp)
         return (
-          <span style={{ ...leadCardFollowUpStyle, color: followUpTone.color, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightNormal }}>
+          <span title={followUpTone.label || 'Follow-up scheduled'} style={{ ...leadCardFollowUpStyle, fontVariantNumeric: 'tabular-nums', color: isUrgentFollowUp(followUpTone) ? followUpTone.color : colors.tableSecondary, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightMedium }}>
             {formatFollowUpDate(followUp)}
           </span>
         )
@@ -1451,7 +1453,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       sortable: true,
       sortKey: 'lastActivity',
       defaultSortDirection: 'desc',
-      render: (lead) => <div style={{ ...cellTextStyle, whiteSpace: 'normal' }}>{formatLastActivity(lead.last_activity_at)}</div>,
+      render: (lead) => <div style={{ ...secondaryCellStyle, whiteSpace: 'nowrap' }}>{formatLastActivity(lead.last_activity_at)}</div>,
     },
     {
       id: 'program',
@@ -1460,15 +1462,16 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(150px, 1fr)',
       sortable: true,
       sortKey: 'program',
-      render: (lead) => <div style={cellTextStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>,
+      render: (lead) => <div title={formatSourcePage(lead.source_page, lead.program_label || lead.service_label)} style={secondaryCellStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>,
     },
     {
       id: 'source',
       header: 'Source',
       width: 'minmax(110px, 0.7fr)',
-      render: (lead) => <div style={cellTextStyle}>{lead.source_form ? formatLabel(lead.source_form) : '—'}</div>,
+      render: (lead) => <div style={secondaryCellStyle}>{lead.source_form ? formatLabel(lead.source_form) : ''}</div>,
     },
-  ], [activeTab])
+  // Retain the signal implementation for a future opt-in, but hide its column now.
+  ] satisfies DataTableColumn<LeadRecord, LeadSortKey>[]).filter(column => column.id !== 'signal'), [activeTab])
   const prospectAge = (() => {
     const payload = selectedLead?.payload
     const candidates = [
@@ -1878,6 +1881,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
         <div style={filterBarStyle}>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
+          <ControlButton kind="toggle" aria-pressed={sortKey === 'action'} selected={sortKey === 'action'} title="Prioritize due follow-ups and active inquiries among loaded leads" onClick={() => { setSortKey('action'); setSortDirection('asc') }}>Action first</ControlButton>
           <Button type="button" variant="secondary" size="sm" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
@@ -1908,14 +1912,15 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
         {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
         <ResponsiveDataTable
+          groupedRows
           rows={sortedLeads}
           columns={leadColumns}
           getDetailRows={lead => !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
             .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: leadColumns.map(column => {
-              if (column.id === 'name') return <span key={column.id}>{student.name || '—'}</span>
-              if (column.id === 'phone') return <div key={column.id} style={cellTextStyle}>{formatPhoneNumber(student.phone) || '—'}</div>
-              if (column.id === 'email') return <div key={column.id} style={cellTextStyle}>{student.email || '—'}</div>
-              if (column.id === 'program') return <div key={column.id} style={cellTextStyle}>{student.instrument_interest || '—'}</div>
+              if (column.id === 'name') return <span key={column.id} style={{ ...secondaryCellStyle, display: 'flex', gap: spacing.xs, paddingLeft: 20 }}><span aria-hidden="true" style={{ color: colors.textMuted }}>↳</span>{student.name || 'Student name not recorded'}</span>
+              if (column.id === 'phone') return <div key={column.id} style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
+              if (column.id === 'email') return <div key={column.id} style={secondaryCellStyle}>{student.email || ''}</div>
+              if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
               return null
             }) }))}
           getRowKey={(lead) => lead.id}
@@ -1941,15 +1946,15 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               description={inquirySearch.trim() ? 'Try another contact or student name, or load more inquiries.' : activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
             />
           )}
-          minDesktopWidth={1500}
+          minDesktopWidth={1300}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead, index) => ({
-            borderBottom: `1px solid ${colors.border}`,
+            opacity: isTerminalLead(lead, activeTab) ? 0.6 : 1,
             background: selectedIds.has(lead.id)
               ? '#F5F8FF'
               : selectedLeadId === lead.id
                 ? '#FBFCFF'
-                : index % 2 === 0 ? colors.surface : colors.surfaceMuted,
+                : index % 2 === 0 ? colors.surface : colors.backgroundSecondary,
           })}
           ariaLabel="Leads"
         />
@@ -2332,6 +2337,11 @@ const cellTextStyle: React.CSSProperties = {
   minWidth: 0,
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
+}
+
+const secondaryCellStyle: React.CSSProperties = {
+  ...cellTextStyle, color: colors.tableSecondary, fontWeight: typography.weightNormal,
+  fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 }
 
 const tableCellStyle: React.CSSProperties = {

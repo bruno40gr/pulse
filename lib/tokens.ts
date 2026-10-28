@@ -13,6 +13,7 @@ export const colors = {
   // Neutrals
   text: '#1A1A1A',
   textSecondary: '#6B7280',
+  tableSecondary: '#666666',
   textMuted: '#9CA3AF',
   border: '#E5E7EB',
   borderLight: '#F3F4F6',

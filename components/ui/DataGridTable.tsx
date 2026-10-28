@@ -2,7 +2,7 @@
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
 
-import { Fragment, useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
@@ -54,6 +54,8 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
   getDetailRows?: (row: Row, index: number) => { key: string; cells: ReactNode[] }[]
+  /** Opt-in inquiry grouping; other tables retain their existing row density. */
+  groupedRows?: boolean
   ariaLabel?: string
   style?: CSSProperties
 }
@@ -124,6 +126,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   onRowClick,
   getRowStyle,
   getDetailRows,
+  groupedRows = false,
   ariaLabel = 'Data table',
   style,
 }: ResponsiveDataTableProps<Row, SortKey>) {
@@ -245,8 +248,9 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             const selectable = selection?.isSelectable?.(row) ?? true
             const customRowStyle = getRowStyle?.(row, index)
             const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
+            const details = getDetailRows?.(row, index) || []
             return (
-              <Fragment key={rowKey}>
+              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.textMuted}` : undefined, opacity: customRowStyle?.opacity } : undefined}>
               <div
                 key={rowKey}
                 role="row"
@@ -262,6 +266,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   background: rowBackground,
                   cursor: onRowClick ? 'pointer' : 'default',
                   ...customRowStyle,
+                  ...(groupedRows ? { height: 40, paddingTop: 0, paddingBottom: 0, borderBottom: 'none', opacity: 1 } : undefined),
                 }}
               >
                 {selection && (
@@ -293,13 +298,13 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   </div>
                 ))}
               </div>
-              {getDetailRows?.(row, index).map(detail => <div key={detail.key} role="row" onClick={event => {
+              {details.map(detail => <div key={detail.key} role="row" onClick={event => {
                 if (onRowClick && !isInteractiveTarget(event.target, event.currentTarget)) onRowClick(row, index, event)
-              }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: customRowStyle?.borderBottom || desktopRowStyle.borderBottom, cursor: onRowClick ? 'pointer' : 'default' }}>
+              }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: groupedRows ? 'none' : customRowStyle?.borderBottom || desktopRowStyle.borderBottom, ...(groupedRows ? { height: 32, paddingTop: 0, paddingBottom: 0, color: colors.textSecondary } : undefined), cursor: onRowClick ? 'pointer' : 'default' }}>
                 {selection && <div role="cell" />}
                 {columns.map((column, columnIndex) => <div key={column.id} role="cell" style={{ ...desktopCellStyle, justifyContent: alignToJustify(column.align) }}>{detail.cells[columnIndex]}</div>)}
               </div>)}
-              </Fragment>
+              </div>
             )
           })}
         </div>
