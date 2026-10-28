@@ -64,8 +64,8 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
           const planned = lessons.filter(item => lessonOccursOn(item, date))
           const existing = family.filter(event => event.date === date)
           const booked: CalendarBlock[] = [
-            ...planned.map(item => ({ id: item.id, time: item.time, duration: Number(item.duration), label: name(item.studentId || student?.id), booked: true, active: item.id === lesson.id })),
-            ...existing.map(event => ({ id: event.id, time: event.time, duration: event.duration, label: event.studentName, booked: true })),
+            ...planned.map(item => ({ id: item.id, time: item.time, duration: Number(item.duration), label: item.id === lesson.id ? name(item.studentId || student?.id) : `${name(item.studentId || student?.id)}, ${item.instrument} with ${item.teacher.split(' ')[0]}`, booked: true, active: item.id === lesson.id })),
+            ...existing.map(event => ({ id: event.id, time: event.time, duration: event.duration, label: `${event.studentName}, ${event.instrument} with ${event.teacher.split(' ')[0]}`, booked: true })),
           ]
           const open: CalendarBlock[] = scheduleTimes.flatMap(time => {
             // A booked lesson replaces its start option rather than adding another block.
