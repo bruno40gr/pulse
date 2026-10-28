@@ -46,6 +46,21 @@ test('list channel controls share contact header placement and opening respects 
   assert.match(source, /filterConversationChannels\(contacts, channelFilter\)\.filter/)
   assert.match(source, /if \(channelFilter !== 'all'\) \{ next.channel = channelFilter/)
 })
+test('Email retains reachable contacts before summaries or older history have loaded', () => {
+  const people = [
+    { name: 'Older email', email: 'older@example.com', newSms: 1, newEmails: 0, threads: [{ channel: 'sms', messages: [{ direction: 'inbound', timestamp: '2026-10-28T12:00:00Z' }] }] },
+    { name: 'No email', email: '', newSms: 0, newEmails: 0, threads: [] },
+  ]
+  const before = JSON.stringify(people)
+  const filtered = loaded.exports.filterConversationChannels(people, 'email')
+  assert.equal(filtered.length, 1)
+  assert.equal(filtered[0].name, 'Older email')
+  assert.equal(filtered[0].threads.length, 0)
+  assert.equal(filtered[0].newSms, 0)
+  assert.equal(conversationAttention(filtered[0].threads).unattended, false)
+  assert.equal(lastContactTimestamp(filtered[0].threads), '')
+  assert.equal(JSON.stringify(people), before)
+})
 test('unattended icons distinguish email from SMS and retain both for mixed channels', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
   assert.match(source, /attention.channels.includes\('sms'\) && <ArrowDownLeft/)

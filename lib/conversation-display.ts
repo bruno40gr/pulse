@@ -6,11 +6,13 @@ export type ConversationSort = 'name' | 'time' | 'date'
 export type ConversationFilter = 'all' | 'sms' | 'email'
 
 /** Project the displayed audience before calculating attention, dates and ordering. */
-export function filterConversationChannels<T extends { threads: LiveThread[]; newSms: number; newEmails: number }>(people: T[], channel: ConversationFilter): T[] {
+export function filterConversationChannels<T extends { email?: string; threads: LiveThread[]; newSms: number; newEmails: number }>(people: T[], channel: ConversationFilter): T[] {
   if (channel === 'all') return people
   return people.flatMap(person => {
     const threads = person.threads.filter(thread => thread.channel === channel && thread.messages.length > 0)
-    return threads.length ? [{ ...person, threads, newSms: channel === 'sms' ? person.newSms : 0, newEmails: channel === 'email' ? person.newEmails : 0 }] : []
+    // Email history loads on demand. Do not hide its entry point just because
+    // the mailbox summary has not reached this contact's older threads yet.
+    return threads.length || (channel === 'email' && person.email?.trim()) ? [{ ...person, threads, newSms: channel === 'sms' ? person.newSms : 0, newEmails: channel === 'email' ? person.newEmails : 0 }] : []
   })
 }
 
