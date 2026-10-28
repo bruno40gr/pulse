@@ -139,11 +139,14 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .eq('tenant_id', tenantId)
     .in('intake_type', LESSON_LEAD_TYPES)
     .neq('source_form', WINBACK_SOURCE_FORM)
+    .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const serviceQuery = crmSupabaseAdmin
     .from('lead_intakes')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('intake_type', 'service_inquiry')
+    .neq('source_form', WINBACK_SOURCE_FORM)
+    .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const jobsQuery = crmSupabaseAdmin
     .from('job_applications')
     .select('id', { count: 'exact', head: true })
@@ -153,6 +156,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('source_form', WINBACK_SOURCE_FORM)
+    .neq('status', 'won')
 
   if (status && status !== 'all') {
     lessonQuery.eq('status', status)
@@ -160,23 +164,32 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     jobsQuery.eq('status', status)
   }
 
-  const [lessonResult, serviceResult, jobsResult, winbackResult] = await Promise.all([
+  const enrolledQuery = crmSupabaseAdmin.from('lead_intakes').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry']).eq('status', 'won')
+  const lostQuery = crmSupabaseAdmin.from('lead_intakes').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry']).neq('source_form', WINBACK_SOURCE_FORM).in('status', ['lost', 'ghosted_us', 'ghosted'])
+  if (status && status !== 'all') { enrolledQuery.eq('status', status); lostQuery.eq('status', status) }
+  const [lessonResult, serviceResult, jobsResult, winbackResult, enrolledResult, lostResult] = await Promise.all([
     withTimeout(lessonQuery, LEADS_QUERY_TIMEOUT_MS, 'lesson lead count query'),
     withTimeout(serviceQuery, LEADS_QUERY_TIMEOUT_MS, 'service lead count query'),
     withTimeout(jobsQuery, LEADS_QUERY_TIMEOUT_MS, 'job application count query'),
     withTimeout(winbackQuery, LEADS_QUERY_TIMEOUT_MS, 'win-back count query'),
+    withTimeout(enrolledQuery, LEADS_QUERY_TIMEOUT_MS, 'enrolled count query'),
+    withTimeout(lostQuery, LEADS_QUERY_TIMEOUT_MS, 'lost count query'),
   ])
 
   if (lessonResult.error) throw lessonResult.error
   if (serviceResult.error) throw serviceResult.error
   if (jobsResult.error) throw jobsResult.error
   if (winbackResult.error) throw winbackResult.error
+  if (enrolledResult.error) throw enrolledResult.error
+  if (lostResult.error) throw lostResult.error
 
   return {
     lesson_inquiry: lessonResult.count ?? 0,
     service_inquiry: serviceResult.count ?? 0,
     job_application: jobsResult.count ?? 0,
     winback: winbackResult.count ?? 0,
+    enrolled: enrolledResult.count ?? 0,
+    lost: lostResult.count ?? 0,
   }
 }
 
@@ -409,10 +422,14 @@ export async function GET(request: Request) {
 
     if (status) query = query.eq('status', status)
     if (category) query = query.eq('category', category)
-    if (intakeType === 'winback') query = query.eq('source_form', WINBACK_SOURCE_FORM)
+    if (intakeType === 'winback') query = query.eq('source_form', WINBACK_SOURCE_FORM).neq('status', 'won')
+    else if (intakeType === 'enrolled' || intakeType === 'lost') {
+      query = query.in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
+      query = intakeType === 'enrolled' ? query.eq('status', 'won') : query.neq('source_form', WINBACK_SOURCE_FORM).in('status', ['lost', 'ghosted_us', 'ghosted'])
+    }
     else if (intakeType) {
       query = intakeType === 'lesson_inquiry' ? query.in('intake_type', LESSON_LEAD_TYPES) : query.eq('intake_type', intakeType)
-      if (intakeType === 'lesson_inquiry') query = query.neq('source_form', WINBACK_SOURCE_FORM)
+      if (intakeType === 'lesson_inquiry' || intakeType === 'service_inquiry') query = query.neq('source_form', WINBACK_SOURCE_FORM).not('status', 'in', '(won,lost,ghosted_us,ghosted)')
     }
 
     const result = await withTimeout(
@@ -492,6 +509,8 @@ export async function DELETE(request: Request) {
       if (intakeType === 'winback') selectedRecordQuery = selectedRecordQuery.eq('source_form', WINBACK_SOURCE_FORM)
       else if (intakeType === 'lesson_inquiry') selectedRecordQuery = selectedRecordQuery.in('intake_type', LESSON_LEAD_TYPES).neq('source_form', WINBACK_SOURCE_FORM)
       else if (intakeType === 'service_inquiry') selectedRecordQuery = selectedRecordQuery.eq('intake_type', intakeType)
+      else if (intakeType === 'enrolled') selectedRecordQuery = selectedRecordQuery.in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry']).eq('status', 'won')
+      else if (intakeType === 'lost') selectedRecordQuery = selectedRecordQuery.in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry']).neq('source_form', WINBACK_SOURCE_FORM).in('status', ['lost', 'ghosted_us', 'ghosted'])
     }
 
     const selectedRecordResult = await withTimeout(

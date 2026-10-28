@@ -39,6 +39,7 @@ import { createConversationEmailPreview } from '@/lib/conversations-email-previe
 import { compareConversations, conversationAttention, CONVERSATIONS_HOME_EVENT, filterConversationChannels, lastContactTimestamp, newestEmail, type ConversationFilter, type ConversationSort } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import type { ConversationChannel } from '@/lib/conversation-links'
+import { currentEmailMonth, emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
 
 const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
 const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
@@ -143,8 +144,8 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const [templateError, setTemplateError] = useState('')
   const [search, setSearch] = useState('')
   const [channelFilter, setChannelFilter] = useState<ConversationFilter>('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() => currentEmailMonth().from)
+  const [dateTo, setDateTo] = useState(() => currentEmailMonth().to)
   const [sort, setSort] = useState<ConversationSort>('time')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const workspace = useRef<HTMLDivElement>(null)
@@ -270,7 +271,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       try {
         const summaries: LiveThread[] = []
         const loadPage = async (cursor: string | null) => {
-          const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, summary: '1' })
+          const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, summary: '1', from: dateFrom, to: dateTo })
           if (cursor) params.set('cursor', cursor)
           const data = await requestJson(`/api/conversations/email?${params}`, { signal: controller.signal })
           summaries.push(...data.threads)
@@ -300,7 +301,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     void refresh()
     const interval = window.setInterval(() => { void refresh() }, 60000)
     return () => { cancelled = true; controller.abort(); window.clearInterval(interval); refreshEmailSummaries.current = null }
-  }, [tenantId, mailboxId, location.view])
+  }, [tenantId, mailboxId, location.view, dateFrom, dateTo])
   useEffect(() => {
     if (!previewHistory) return
     const sampleThreads = createConversationEmailPreview(people)
@@ -309,11 +310,11 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [previewHistory, people])
   const emailRequest = useRef(0)
   const loadEmails = useCallback(async (personId: string, cursor?: string) => {
-    if (!mailboxId || !personId || !tenantId || !people.some(person => person.id === personId && person.email.trim())) return
+    if (!mailboxId || !personId || !tenantId || !people.some(person => person.id === personId && person.email.trim() && isLeadEmailContact(person))) return
     const request = ++emailRequest.current
     setEmailLoading(true); setEmailError('')
     try {
-      const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, person: personId })
+      const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, person: personId, from: dateFrom, to: dateTo })
       if (cursor) params.set('cursor', cursor)
       const data = await requestJson(`/api/conversations/email?${params}`)
       if (request !== emailRequest.current) return
@@ -322,7 +323,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       setLoadedEmailPeople(current => [...new Set([...current, personId])])
     } catch (error) { if (request === emailRequest.current) setEmailError(error instanceof Error ? error.message : 'Could not load email.') }
     finally { if (request === emailRequest.current) setEmailLoading(false) }
-  }, [tenantId, mailboxId, emailDrafts, people])
+  }, [tenantId, mailboxId, emailDrafts, people, dateFrom, dateTo])
   useEffect(() => {
     // A new message needs sender/recipient data, not a Gmail history request.
     if (!location.contactId || location.view !== 'contact' || location.channel !== 'email') return
@@ -331,7 +332,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     return () => { requestRef.current++ }
     // Draft changes must not refetch and replace the reader while typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.channel, location.contactId, location.view, mailboxId, tenantId])
+  }, [location.channel, location.contactId, location.view, mailboxId, tenantId, dateFrom, dateTo])
   const pageFocusKey = location.view === 'sms-compose' ? 'sms-compose' : location.view === 'contacts' ? 'contacts' : `${location.contactId}-conversation`
   useEffect(() => { heading.current?.focus() }, [pageFocusKey])
   useEffect(() => {
@@ -343,17 +344,29 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [location.view, location.activeId])
 
   const markEmailLocallyRead = (thread: LiveThread): LiveThread => thread.channel === 'email' ? { ...thread, unread: thread.messages.some(message => message.direction === 'inbound' && message.unread && !readEmailIds.has(message.id)), messages: thread.messages.map(message => readEmailIds.has(message.id) ? { ...message, unread: false } : message) } : thread
+  const scopeEmail = (thread: LiveThread): LiveThread => {
+    if (thread.channel !== 'email' || emailDrafts[thread.id]) return thread
+    const person = people.find(person => person.id === thread.contactId)
+    if (!person || !isLeadEmailContact(person)) return { ...thread, messages: [] }
+    try {
+      const range = emailDateRange(dateFrom, dateTo)
+      return { ...thread, messages: thread.messages.filter(message => {
+        const timestamp = Date.parse(message.timestamp || '')
+        return timestamp >= range.start && timestamp < range.end
+      }) }
+    } catch { return { ...thread, messages: [] } }
+  }
   const summaryIsNewer = (summary: LiveThread) => {
     const loaded = threads.find(thread => thread.id === summary.id)
-    return !loaded || lastContactTimestamp([summary]) > lastContactTimestamp([loaded])
+    return !loaded || lastContactTimestamp([scopeEmail(summary)]) > lastContactTimestamp([scopeEmail(loaded)])
   }
   const newerSummaries = emailSummaries.filter(summaryIsNewer)
-  const contactHistories = [...threads.filter(thread => !newerSummaries.some(summary => summary.id === thread.id)), ...newerSummaries].map(markEmailLocallyRead)
+  const contactHistories = [...threads.filter(thread => !newerSummaries.some(summary => summary.id === thread.id)), ...newerSummaries].map(scopeEmail).filter(thread => thread.channel !== 'email' || thread.messages.length || emailDrafts[thread.id]).map(markEmailLocallyRead)
   const contacts = groupPrototypeContacts(mergeConversationThreads(people, contactHistories)).sort((a, b) => compareConversations(a, b, sort, sortDirection))
   const contact = contacts.find(item => item.id === location.contactId) || contacts[0] || { ...personThread({ id: '', name: 'Contact', email: '', phone: '', student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), threads: [], newSms: 0, newEmails: 0 }
   const selectedPerson = people.find(person => person.id === contact.id)
 
-  const emails = threads.filter(thread => thread.contactId === contact.id && thread.channel === 'email').map(markEmailLocallyRead).sort((a, b) => lastContactTimestamp([b]).localeCompare(lastContactTimestamp([a])))
+  const emails = threads.filter(thread => thread.contactId === contact.id && thread.channel === 'email').map(scopeEmail).filter(thread => thread.messages.length || emailDrafts[thread.id]).map(markEmailLocallyRead).sort((a, b) => lastContactTimestamp([b]).localeCompare(lastContactTimestamp([a])))
   const active = emails.find(thread => thread.id === location.activeId) || newestEmail(emails)
   useEffect(() => {
     if (location.channel !== 'email' || location.view !== 'contact' || (!desktop && location.screen !== 'reader') || !active) return
@@ -406,6 +419,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedTenant, requestedRecipient, requestedChannel, requestedCompose, tenantId, loading, loadError, people])
   const visibleContacts = filterConversationChannels(contacts, channelFilter).filter(person => {
+    if (channelFilter === 'email' && !person.threads.some(thread => thread.channel === 'email' && thread.messages.length)) return false
     const matches = `${person.name} ${person.student} ${person.email} ${person.phone} ${person.threads.flatMap(thread => thread.messages.map(message => message.body)).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
     const date = latestMessage(person)?.timestamp?.slice(0, 10) || ''
     return matches && (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo)
@@ -551,7 +565,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
         <Input type="search" aria-label="Search conversations" placeholder="Search conversations…" value={search} onChange={event => setSearch(event.target.value)} />
         <Input type="date" aria-label="From date" label="From date" value={dateFrom} max={dateTo || undefined} onChange={event => setDateFrom(event.target.value)} />
         <Input type="date" aria-label="To date" label="To date" value={dateTo} min={dateFrom || undefined} onChange={event => setDateTo(event.target.value)} />
-        {(search || dateFrom || dateTo) && <Button variant="ghost" onClick={() => { setSearch(''); setDateFrom(''); setDateTo('') }}>Clear filters</Button>}
+        {(search || dateFrom || dateTo) && <Button variant="ghost" onClick={() => { setSearch(''); setDateFrom(currentEmailMonth().from); setDateTo(currentEmailMonth().to) }}>Reset to current month</Button>}
       </section>
       {newSms?.body.trim() && <Notice title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(newSms.body)}</p><div style={row}><Button variant="secondary" onClick={() => setNewSms(null)}>Discard draft</Button><Button onClick={() => navigate({ view: 'sms-compose', activeId: newSms.id, channel: 'sms' })}>Continue draft</Button></div></Notice>}
       {Object.entries(smsDrafts).filter(([, body]) => body.trim()).map(([id]) => { const thread = threads.find(item => item.id === id); return thread ? <Notice key={id} title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(smsDrafts[id])}</p><div style={row}><Button variant="secondary" onClick={() => setSmsDrafts(current => { const next = { ...current }; delete next[id]; return next })}>Discard draft</Button><Button onClick={() => navigate({ view: 'contact', contactId: thread.contactId, channel: 'sms', activeId: thread.id, screen: 'reader' })}>Continue draft</Button></div></Notice> : null })}
@@ -573,10 +587,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           { id: 'time', header: 'Last contacted', width: 'minmax(180px, 1fr)', sortable: true, sortKey: 'time', defaultSortDirection: 'desc', render: person => channelFilter === 'email' && !person.threads.length && !loadedEmailPeople.includes(person.id) ? 'Open to load email history' : formatContactTiming(lastContactTimestamp(person.threads)) },
         ]} />
       </SurfacePanel>
-      {channelFilter === 'email' && <p role="status" style={meta}>Open a contact to load their email history directly.{summaryLoading ? ' Loading email conversations…' : ''}</p>}
+      {channelFilter === 'email' && <p role="status" style={meta}>Emails sent to or received from lead contacts within the selected date range.{summaryLoading ? ' Loading email conversations…' : ''}</p>}
       {summaryError && <p role="status" style={meta}>{summaryError}</p>}
       {emailError && <Notice variant="warning">{emailError}</Notice>}
-      {(summaryHasMore || summaryError) && <Button type="button" variant="secondary" size="sm" disabled={summaryLoading} onClick={() => { void refreshEmailSummaries.current?.() }}>{summaryLoading ? 'Loading email conversations…' : summaryError ? 'Retry email history' : 'Load older email conversations'}</Button>}
+      {(summaryHasMore || summaryError) && <Button type="button" variant="secondary" size="sm" disabled={summaryLoading} onClick={() => { void refreshEmailSummaries.current?.() }}>{summaryLoading ? 'Loading email conversations…' : summaryError ? 'Retry email history' : 'Load more emails in date range'}</Button>}
     </div> : location.view === 'sms-compose' ? composingSms && newSms ? <section aria-label="New SMS composer" style={{ minWidth: 0 }}>
       <SurfacePanel padding="0" style={{ ...pane, height: 'max(440px, calc(100dvh - 160px))', overflow: 'hidden' }}>
         <div style={{ ...row, justifyContent: 'flex-end', padding: `${spacing.sm} ${spacing.lg}`, borderBottom: `1px solid ${colors.border}` }}>

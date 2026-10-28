@@ -41,7 +41,7 @@ test('provider body is full plain text, never untrusted HTML, and contact match 
 
 function routeHarness({ denied = false, sendScope = true, failSend = false, mailboxes = [], threads = [], failRead = null, additionalPeople = [] } = {}) {
   const calls = []; const queries = []
-  const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'contact', profileId: 'one', smsContactId: 'one' }
+  const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'lead', profileId: 'one', smsContactId: 'one' }
   const live = load('lib/conversations-live.ts')
   const api = load('app/api/conversations/email/route.ts', {
     '@/lib/gmail/google': google,
@@ -54,6 +54,7 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
       const builder = { select() { return builder }, eq(key, value) { queries.push([table, key, value]); return builder }, order() { return Promise.resolve({ data: mailboxes, error: null }) } }
       return builder
     } } },
+    '@/lib/conversation-email-range': load('lib/conversation-email-range.ts'),
     '@/lib/conversations-directory': { conversationDirectory: async () => [person, ...additionalPeople] },
     '@/lib/gmail/conversations': { ...helper, conversationMailbox: async (...args) => { calls.push(['mailbox', ...args]); return { id: 'mailbox-one', email: 'office@example.com', token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] } }, gmailGet: async (_, url) => { calls.push(['get', url]); if (failRead) { const failure = failRead(url); if (failure) throw failure }; return url.startsWith('threads?') ? { threads: threads.map(thread => ({ id: thread.id })), nextPageToken: 'page-two' } : threads.find(thread => url.includes(thread.id)) } },
     '@/lib/gmail/rules': rules,
@@ -131,7 +132,7 @@ test('history retains pagination, ignores unrelated threads and does not expose 
   assert.ok(h.calls.some(call => call[0] === 'get' && call[1].includes('pageToken=page-one')))
 })
 
-test('invalid Gmail dates use the Date header or an honest unknown date without losing history', async () => {
+test('invalid Gmail dates use the Date header and unknown dates stay outside a bounded range', async () => {
   const messages = ['bad-date', '', '999999999999999999999999'].map((internalDate, index) => ({
     id: `message-${index}`, internalDate, payload: { headers: [
       { name: 'From', value: 'parent@example.com' },
@@ -142,12 +143,9 @@ test('invalid Gmail dates use the Date header or an honest unknown date without 
   const result = await h.api.GET(new Request('https://app.headlinerma.com/api/conversations/email?mailbox=mailbox-one&person=person:one'))
   assert.equal(result.status, 200)
   const actual = result.body.threads[0].messages
-  assert.equal(actual.length, 3)
+  assert.equal(actual.length, 1)
   assert.equal(actual.find(message => message.id === 'message-0').timestamp, '2026-10-21T05:00:00.000Z')
-  for (const id of ['message-1', 'message-2']) {
-    assert.equal(actual.find(message => message.id === id).timestamp, '')
-    assert.equal(actual.find(message => message.id === id).time, 'Date unavailable')
-  }
+  assert.ok(actual.every(message => message.timestamp))
 })
 
 test('a deleted thread does not break the remaining history on either production hostname', async () => {
@@ -292,7 +290,7 @@ test('mixed Opus threads retain genuine replies and never attribute inbound mail
 })
 
 test('each person sees their own messages rather than unrelated authors copied on a shared thread', async () => {
-  const staff = { id: 'staff', name: 'David', email: 'staff@example.com' }
+  const staff = { id: 'staff', name: 'David', email: 'staff@example.com', profileType: 'lead' }
   const h = routeHarness({ additionalPeople: [staff], threads: [{ id: 'shared', messages: [
     emailMessage('parent', { From: 'parent@example.com', To: 'office@example.com', Cc: staff.email }),
     emailMessage('staff-direct', { From: staff.email, To: 'office@example.com', Cc: 'parent@example.com' }),
@@ -302,6 +300,26 @@ test('each person sees their own messages rather than unrelated authors copied o
   assert.equal(result.body.threads.find(thread => thread.contactId === 'person:one').messages[0].id, 'parent')
   assert.equal(result.body.threads.find(thread => thread.contactId === 'staff').messages[0].id, 'staff-direct')
   assert.ok(result.body.threads.every(thread => thread.messages.length === 1))
+})
+
+test('email reads exclude non-leads and old messages even inside matching threads', async () => {
+  const h = routeHarness({ additionalPeople: [{ id: 'contact', profileType: 'contact', email: 'current@example.com' }], threads: [
+    { id: 'mixed', messages: [emailMessage('old', { From: 'parent@example.com', To: 'office@example.com' }), emailMessage('current', { From: 'parent@example.com', To: 'office@example.com' })].map((message, index) => ({ ...message, internalDate: String(Date.parse(index ? '2026-10-20T12:00:00Z' : '2026-09-20T12:00:00Z')) })) },
+    { id: 'unrelated', messages: [emailMessage('non-lead', { From: 'current@example.com', To: 'office@example.com' })] },
+  ] })
+  for (const scope of ['summary=1', 'person=person:one']) {
+    const response = await h.api.GET(new Request(`https://example.com/api/conversations/email?mailbox=mailbox-one&${scope}&from=2026-10-01&to=2026-10-31`))
+    assert.equal(response.status, 200)
+    assert.equal(response.body.threads.length, 1)
+    assert.deepEqual(Array.from(response.body.threads[0].messages, message => message.id), ['current'])
+  }
+  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=contact'))).status, 404)
+  const older = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=person:one&from=2026-09-01&to=2026-09-30'))
+  assert.deepEqual(Array.from(older.body.threads[0].messages, message => message.id), ['old'])
+  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1&from=invalid'))).status, 400)
+  const query = new URLSearchParams(h.calls.find(call => call[0] === 'get' && call[1].startsWith('threads?'))[1].split('?')[1]).get('q')
+  assert.match(query, /after:\d+ before:\d+/)
+  assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
 })
 
 test('genuine outbound messages remain outbound and do not acquire unread flags', async () => {

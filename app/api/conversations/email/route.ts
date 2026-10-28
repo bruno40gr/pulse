@@ -11,6 +11,7 @@ import { personThread, type LiveThread } from '@/lib/conversations-live'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { isConversationEmailPreview } from '@/lib/conversations-preview'
 import { GmailReadError } from '@/lib/gmail/google'
+import { emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -42,12 +43,16 @@ export async function GET(request: Request) {
     }
     const summary = params.get('summary') === '1'
     stage = 'directory'
-    const people = await directory(access)
+    const people = (await directory(access)).filter(isLeadEmailContact)
     const person = people.find(person => person.id === params.get('person'))
     if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
     stage = 'mailbox'
     const mailbox = await conversationMailbox(access.tenantId, mailboxId, access.context.membershipId)
-    const query = new URLSearchParams({ maxResults: '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
+    let range: ReturnType<typeof emailDateRange>
+    try { range = emailDateRange(params.get('from'), params.get('to')) }
+    catch { return NextResponse.json({ error: 'Choose a valid email date range.' }, { status: 400, headers }) }
+    const audience = summary ? '' : `(from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email}))`
+    const query = new URLSearchParams({ maxResults: '20', q: `-in:trash -in:spam after:${range.start / 1000 - 1} before:${range.end / 1000} ${audience}`.trim() })
     const cursor = params.get('cursor')
     if (cursor) query.set('pageToken', cursor)
     stage = 'list'
@@ -88,7 +93,10 @@ export async function GET(request: Request) {
             unread: gmailMessageDirection(message, mailbox.email) === 'inbound' && (message.labelIds?.includes('UNREAD') || false),
             emailFrom: emailAddresses(gmailHeader(message, 'From')).join(', '),
             emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
-          }) })
+          }) }).filter(message => {
+            const timestamp = Date.parse(message.timestamp)
+            return timestamp >= range.start && timestamp < range.end
+          })
         if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
           providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
       }

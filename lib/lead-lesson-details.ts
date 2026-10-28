@@ -13,12 +13,17 @@ export function isLessonLead(intakeType: string | undefined) {
 }
 
 export function leadBelongsToTab(
-  lead: { intake_type: string; category?: string | null; source_form?: string | null },
+  lead: { intake_type: string; status?: string; category?: string | null; source_form?: string | null },
   tab: string,
 ): boolean {
   if (tab === 'winback') {
-    return lead.category === 'winback' || lead.source_form === '2026-disenrollment-import'
+    return lead.status !== 'won' && (lead.category === 'winback' || lead.source_form === '2026-disenrollment-import')
   }
+  const inquiry = isLessonLead(lead.intake_type) || lead.intake_type === 'service_inquiry'
+  if (tab === 'enrolled') return inquiry && lead.status === 'won'
+  if (tab === 'lost') return inquiry && ['lost', 'ghosted_us', 'ghosted'].includes(lead.status || '') && lead.source_form !== '2026-disenrollment-import' && lead.category !== 'winback'
+  if (inquiry && ['won', 'lost', 'ghosted_us', 'ghosted'].includes(lead.status || '')) return false
+  if (lead.category === 'winback' || lead.source_form === '2026-disenrollment-import') return false
   if (tab === 'lesson_inquiry') return isLessonLead(lead.intake_type)
   return lead.intake_type === tab
 }

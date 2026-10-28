@@ -359,7 +359,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
       </div>)}</div>
     </DenseSectionPanel>
   </> : <>
-    {hierarchyReview && <DenseSectionPanel title={<SectionTitle>Win-back contact review</SectionTitle>}>
+    {hierarchyReview && <DenseSectionPanel title={<SectionTitle>Disenrolled contact review</SectionTitle>}>
       <p role="status" style={{ fontSize: typography.sizeSm }}>{hierarchyReview.warning}</p>
       <Field label="Imported contact label (unverified role)" value={hierarchyReview.importedContactLabel} />
       <Field label="Recorded parent / contact" value={hierarchyReview.recordedParentName} />
@@ -534,9 +534,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
               <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
             </div>
             {winback && (
-              <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
+              <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>
                 <div style={stackStyle}>
-                  {staticDetails ? <Field label="Win-back status" value={label(winbackStatus)} /> : <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                  {staticDetails ? <Field label="Disenrolled status" value={label(winbackStatus)} /> : <Select label="Disenrolled status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                     {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                   </Select>}
                   <div style={oneColumnStyle}>
@@ -623,9 +623,9 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
                 <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
               </div>
               {winback && (
-                <DenseSectionPanel title={<SectionTitle>Win-back</SectionTitle>} style={lessonSectionStyle}>
+                <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>
                   <div style={stackStyle}>
-                    {staticDetails ? <Field label="Win-back status" value={label(winbackStatus)} /> : <Select label="Win-back status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
+                    {staticDetails ? <Field label="Disenrolled status" value={label(winbackStatus)} /> : <Select label="Disenrolled status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                       {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                     </Select>}
                     <div style={twoColumnStyle}>

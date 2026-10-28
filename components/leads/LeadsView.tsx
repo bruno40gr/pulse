@@ -31,10 +31,10 @@ import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
 import { getLeadSignal } from '@/lib/lead-signal'
-import { compareLeadAction, isTerminalLead, leadTablePhone } from '@/lib/lead-table-priority'
+import { compareLeadAction, leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
 
-type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback'
+type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback' | 'enrolled' | 'lost'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'action' | 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
@@ -179,8 +179,9 @@ const LESSON_INSTRUMENT_OPTIONS = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums'
 const LEAD_TABS: Array<{ key: LeadTabKey, label: string }> = [
   { key: 'lesson_inquiry', label: 'Lesson requests' },
   { key: 'service_inquiry', label: 'Service inquiries' },
-  { key: 'job_application', label: 'Teacher applications' },
-  { key: 'winback', label: 'Win-back' },
+  { key: 'enrolled', label: 'Enrolled' },
+  { key: 'lost', label: 'Lost' },
+  { key: 'winback', label: 'Disenrolled' },
 ]
 
 const PROMOTION_TYPE_OPTIONS = [
@@ -413,6 +414,9 @@ function getActivityActor(event: { payload?: Record<string, unknown> | null }) {
 }
 
 function getStatusOptionsForTab(tab: LeadTabKey) {
+  if (tab === 'enrolled') return ['all', 'won']
+  if (tab === 'lost') return ['all', 'lost', 'ghosted_us']
+  if (tab === 'lesson_inquiry' || tab === 'service_inquiry') return ['all', ...getStatusSortOrder(tab).filter(status => !['won', 'lost', 'ghosted_us', 'ghosted'].includes(status))]
   return ['all', ...getStatusSortOrder(tab)]
 }
 
@@ -560,6 +564,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     service_inquiry: 0,
     job_application: 0,
     winback: 0,
+    enrolled: 0,
+    lost: 0,
   })
   const [pipelineValue, setPipelineValue] = useState(0)
   const [closedSinceOct1, setClosedSinceOct1] = useState(0)
@@ -1173,6 +1179,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           : lead
       )))
       invalidateLeadListCache()
+      if (!leadBelongsToTab(data, activeTab)) await fetchLeads({ force: true })
       return true
     } catch (error: unknown) {
       if (requestId === leadSaveRequestRef.current && selectedLeadIdRef.current === leadId) {
@@ -1370,7 +1377,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const deleteRecordLabel = activeTab === 'job_application' ? 'application' : 'lead'
   const deleteRecordLabelPlural = activeTab === 'job_application' ? 'applications' : 'leads'
 
-  const selectedLeadType = selectedLead ? ((selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import') ? 'Win-back' : formatLabel(selectedLead.intake_type)) : 'Loading lead...'
+  const selectedLeadType = selectedLead ? ((selectedLead.category === 'winback' || selectedLead.source_form === '2026-disenrollment-import') ? 'Disenrolled' : formatLabel(selectedLead.intake_type)) : 'Loading lead...'
   const selectedProgram = selectedLead ? formatSourcePage(selectedLead.source_page, selectedLead.program_label || selectedLead.service_label) : 'Loading...'
   const selectedSource = selectedLead ? getLeadSource(selectedLead, selectedLead.payload) : 'Loading...'
   const selectedCampaign = selectedLead?.utm_campaign || '—'
@@ -1869,13 +1876,12 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           </div>
         </div>
 
-        <div style={{ overflowX: isMobileLayout ? 'hidden' : 'auto', marginBottom: spacing.lg }}>
+        <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
           <Tabs
             items={leadTabItems}
             activeKey={activeTab}
-            onChange={setActiveTab}
-            compact={isMobileLayout}
-            style={isMobileLayout ? { width: '100%', justifyContent: 'space-between' } : undefined}
+            onChange={tab => { setStatusFilter('all'); setActiveTab(tab) }}
+            style={isMobileLayout ? { width: 'max-content', minWidth: '100%' } : undefined}
           />
         </div>
 
@@ -1894,7 +1900,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             wrapperStyle={filterSelectWrapStyle}
           >
             {getStatusOptionsForTab(activeTab).map((option) => (
-              <option key={option} value={option}>{activeTab === 'winback' ? `Win-back: ${formatLabel(option)}` : `Status: ${formatLabel(option)}`}</option>
+              <option key={option} value={option}>{activeTab === 'winback' ? `Disenrolled: ${formatLabel(option)}` : `Status: ${formatLabel(option)}`}</option>
             ))}
           </Select>
           {selectedCount > 0 && (
@@ -1949,7 +1955,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           minDesktopWidth={1300}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead, index) => ({
-            opacity: isTerminalLead(lead, activeTab) ? 0.6 : 1,
             background: selectedIds.has(lead.id)
               ? '#F5F8FF'
               : selectedLeadId === lead.id
@@ -2174,11 +2179,11 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
 
       <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Message selected Win-back students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={() => setIsBulkComposeOpen(false)} backLabel="Back to Win-back students" />
+        <SlidePanelHeader title="Message selected Disenrolled students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={() => setIsBulkComposeOpen(false)} backLabel="Back to Disenrolled students" />
         <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
           <ComposePanel
             recipientCount={selectedCount}
-            filterExplanation={`Win-back: ${selectedCount} selected former students`}
+            filterExplanation={`Disenrolled: ${selectedCount} selected former students`}
             recipientIds={leads.filter((lead) => selectedIds.has(lead.id)).map((lead) => lead.contact_id)}
             channel="sms"
             mode="bulk"
