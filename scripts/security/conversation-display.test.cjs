@@ -11,6 +11,50 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/conve
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { module: loaded, exports: loaded.exports, Date })
 const { compareConversations, conversationAttention, newestEmail, lastContactTimestamp } = loaded.exports
+test('channel filtering scopes history, attention, counts, search and sorting without mutation', () => {
+  const people = [
+    { name: 'Mixed', newSms: 1, newEmails: 0, threads: [
+      { channel: 'sms', messages: [{ direction: 'inbound', unread: true, body: 'SMS only', timestamp: '2026-10-28T12:00:00Z' }] },
+      { channel: 'email', messages: [{ direction: 'outbound', body: 'Email only', timestamp: '2026-10-25T12:00:00Z' }] },
+    ] },
+    { name: 'Email', newSms: 0, newEmails: 1, threads: [{ channel: 'email', messages: [{ direction: 'inbound', unread: true, timestamp: '2026-10-27T12:00:00Z' }] }] },
+    { name: 'Empty', newSms: 0, newEmails: 0, threads: [{ channel: 'sms', messages: [] }] },
+  ]
+  const before = JSON.stringify(people)
+  const email = loaded.exports.filterConversationChannels(people, 'email')
+  assert.equal(email.length, 2)
+  assert.equal(email[0].newSms, 0)
+  assert.equal(conversationAttention(email[0].threads).unattended, false)
+  assert.equal(lastContactTimestamp(email[0].threads).slice(0, 10), '2026-10-25')
+  assert.equal(email[0].threads.flatMap(thread => thread.messages).some(message => message.body === 'SMS only'), false)
+  assert.equal(email.slice().sort((a, b) => compareConversations(a, b, 'time', 'desc'))[0].name, 'Email')
+  const sms = loaded.exports.filterConversationChannels(people, 'sms')
+  assert.equal(sms.length, 1)
+  assert.equal(sms[0].newEmails, 0)
+  assert.equal(conversationAttention(sms[0].threads).unread, true)
+  assert.equal(loaded.exports.filterConversationChannels(people, 'all'), people)
+  assert.equal(JSON.stringify(people), before)
+})
+test('list channel controls share contact header placement and opening respects the filter', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
+  const list = source.slice(source.indexOf('<SurfacePanel padding="0" style={{ overflow:'), source.indexOf('<ResponsiveDataTable rows={visibleContacts}'))
+  assert.match(list, /<header/)
+  assert.match(list, /justifyContent: 'space-between'/)
+  assert.match(list, /aria-label="Filter conversation channel"/)
+  assert.match(list, /<ControlButton key=\{channel\} kind="toggle"/)
+  assert.match(list, /aria-pressed=\{channelFilter === channel\}/)
+  assert.match(source, /filterConversationChannels\(contacts, channelFilter\)\.filter/)
+  assert.match(source, /if \(channelFilter !== 'all'\) \{ next.channel = channelFilter/)
+})
+test('unattended icons distinguish email from SMS and retain both for mixed channels', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
+  assert.match(source, /attention.channels.includes\('sms'\) && <ArrowDownLeft/)
+  assert.match(source, /attention.channels.includes\('email'\) && <Mail/)
+  const pending = channel => ({ channel, messages: [{ direction: 'inbound', unread: false }] })
+  assert.equal(conversationAttention([pending('email')]).channels.join(','), 'email')
+  assert.equal(conversationAttention([pending('sms')]).channels.join(','), 'sms')
+  assert.equal(conversationAttention([pending('sms'), pending('email')]).channels.join(','), 'sms,email')
+})
 test('unread and unattended are separate; reading keeps arrow, replying clears it', () => {
   const sms = { channel: 'sms', messages: [{ direction: 'inbound', unread: true }] }
   assert.equal(conversationAttention([sms]).unattended, true)

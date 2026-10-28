@@ -4,7 +4,7 @@ import { Pencil } from 'lucide-react'
 import { Disclosure } from '@/components/ui/Disclosure'
 
 import { formatContactTiming } from '@/lib/contact-timing'
-import { ArrowDownLeft } from 'lucide-react'
+import { ArrowDownLeft, Mail } from 'lucide-react'
 import { conversationSignatureHtml, type ConversationSignature } from '@/lib/conversation-signature'
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
@@ -36,7 +36,7 @@ import { initialMockTemplates, type MockEmailRecipients, type MockTemplate } fro
 import { prototypeHtmlText, prototypePreviewDocument } from '@/lib/conversations-prototype-html'
 import { resolveConversationRecipient } from '@/lib/conversation-links'
 import { createConversationEmailPreview } from '@/lib/conversations-email-preview'
-import { compareConversations, conversationAttention, CONVERSATIONS_HOME_EVENT, lastContactTimestamp, newestEmail, type ConversationSort } from '@/lib/conversation-display'
+import { compareConversations, conversationAttention, CONVERSATIONS_HOME_EVENT, filterConversationChannels, lastContactTimestamp, newestEmail, type ConversationFilter, type ConversationSort } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import type { ConversationChannel } from '@/lib/conversation-links'
 
@@ -139,6 +139,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const [templates, setTemplates] = useState<MockTemplate[]>(() => initialMockTemplates().filter(template => template.channel === 'sms'))
   const [templateError, setTemplateError] = useState('')
   const [search, setSearch] = useState('')
+  const [channelFilter, setChannelFilter] = useState<ConversationFilter>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sort, setSort] = useState<ConversationSort>('time')
@@ -393,11 +394,11 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     // Process a link once, never recreate drafts during polling, consent loads or Back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedTenant, requestedRecipient, requestedChannel, requestedCompose, tenantId, loading, loadError, people])
-  const visibleContacts = contacts.filter(person => {
+  const visibleContacts = filterConversationChannels(contacts, channelFilter).filter(person => {
     const matches = `${person.name} ${person.student} ${person.email} ${person.phone} ${person.threads.flatMap(thread => thread.messages.map(message => message.body)).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
     const date = latestMessage(person)?.timestamp?.slice(0, 10) || ''
     return matches && (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo)
-  })
+  }).sort((a, b) => compareConversations(a, b, sort, sortDirection))
   const showEmailList = desktop || (location.screen === 'list' && emails.length > 0)
   const showReader = desktop || location.screen === 'reader' || !emails.length
 
@@ -429,7 +430,8 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }
   function selectContact(id: string) {
     const person = contacts.find(item => item.id === id)!
-    const next = remembered.current[id] || { ...initialLocation, contactId: id, channel: person.channel }
+    const next = { ...(remembered.current[id] || { ...initialLocation, contactId: id, channel: person.channel }) }
+    if (channelFilter !== 'all') { next.channel = channelFilter; next.activeId = ''; next.screen = 'reader' }
     history.navigate({ ...next, view: 'contact' })
     setNotice('')
     if (next.channel === 'sms') markSmsRead(id)
@@ -545,12 +547,18 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       {Object.entries(emailDrafts).map(([id, saved]) => <Notice key={id} title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(saved.bodyText || prototypeHtmlText(saved.html) || saved.subject || 'New email')}</p><div style={row}><Button variant="secondary" onClick={() => { setEmailDrafts(current => { const next = { ...current }; delete next[id]; return next }); setThreads(current => current.filter(thread => thread.id !== id || thread.messages.length)) }}>Discard draft</Button><Button onClick={() => { const thread = threads.find(item => item.id === id); if (thread) navigate({ view: 'compose', activeId: id, contactId: thread.contactId, channel: 'email', screen: 'reader' }) }}>Continue draft</Button></div></Notice>)}
 
       <SurfacePanel padding="0" style={{ overflow: 'hidden' }}>
+      <header style={{ ...row, flexWrap: 'nowrap', justifyContent: 'space-between', padding: mobile ? spacing.md : spacing.xl, borderBottom: `1px solid ${colors.border}` }}>
+        <SectionTitle style={{ marginBottom: 0 }}>Conversations</SectionTitle>
+        <div role="group" aria-label="Filter conversation channel" style={{ display: 'flex', gap: spacing.sm, flexShrink: 0 }}>
+          {(['all', 'sms', 'email'] as const).map(channel => <ControlButton key={channel} kind="toggle" selected={channelFilter === channel} aria-pressed={channelFilter === channel} onClick={() => setChannelFilter(channel)}>{channel === 'all' ? 'All' : channel === 'sms' ? 'SMS' : 'Email'}</ControlButton>)}
+        </div>
+      </header>
       <ResponsiveDataTable rows={visibleContacts} getRowKey={person => person.id} ariaLabel="Conversations" minDesktopWidth={360} alignToSelectionInset stickyHeaderOffset={0}
         getRowStyle={person => conversationAttention(person.threads).unread ? { background: '#F0F8FA' } : undefined}
         sort={{ key: sort, direction: sortDirection }} onSortChange={next => { setSort(next.key); setSortDirection(next.direction) }}
         onRowClick={person => selectContact(person.id)} emptyContent="No conversations match your filters."
         columns={[
-          { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => { const attention = conversationAttention(person.threads); return <div><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{attention.unattended && <span role="img" aria-label={attention.unread ? 'Unread and unattended message' : 'Unattended message'} title={`Awaiting your reply · ${attention.channels.join(' and ')}${attention.unread ? ' · Unread' : ''}`} style={{ color: colors.tealDark, display: 'inline-flex', flexShrink: 0 }}><ArrowDownLeft size={20} aria-hidden="true" /></span>}<PersonName as="button" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textAlign: 'left' }}>{person.name}</PersonName></div><div style={{ ...meta, marginTop: spacing.xs }}>{attention.unattended && <span style={{ color: colors.tealDark }}>{attention.unread ? 'Unread · Unattended' : 'Unattended'} · </span>}{person.newSms} new SMS{loadedEmailPeople.includes(person.id) || emailSummaries.some(thread => thread.contactId === person.id) ? ` · ${person.newEmails} unread emails` : ''}</div></div> } },
+          { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => { const attention = conversationAttention(person.threads); return <div><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{attention.unattended && <span role="img" aria-label={attention.unread ? 'Unread and unattended message' : 'Unattended message'} title={`Awaiting your reply · ${attention.channels.join(' and ')}${attention.unread ? ' · Unread' : ''}`} style={{ color: colors.tealDark, display: 'inline-flex', flexShrink: 0 }}>{attention.channels.includes('sms') && <ArrowDownLeft size={20} aria-hidden="true" />}{attention.channels.includes('email') && <Mail size={20} aria-hidden="true" />}</span>}<PersonName as="button" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textAlign: 'left' }}>{person.name}</PersonName></div><div style={{ ...meta, marginTop: spacing.xs }}>{attention.unattended && <span style={{ color: colors.tealDark }}>{attention.unread ? 'Unread · Unattended' : 'Unattended'} · </span>}{channelFilter !== 'email' && `${person.newSms} new SMS`}{channelFilter !== 'sms' && (loadedEmailPeople.includes(person.id) || emailSummaries.some(thread => thread.contactId === person.id)) ? `${channelFilter === 'all' ? ' · ' : ''}${person.newEmails} unread emails` : ''}</div></div> } },
           { id: 'time', header: 'Last contacted', width: 'minmax(180px, 1fr)', sortable: true, sortKey: 'time', defaultSortDirection: 'desc', render: person => formatContactTiming(lastContactTimestamp(person.threads)) },
         ]} />
       </SurfacePanel>

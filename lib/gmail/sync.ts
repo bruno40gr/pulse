@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { decryptToken } from './security'
 import { googleToken, gmailGet } from './google'
-import { emailAddresses, emailBody, emailDecision, emailNote, matchEmailLeads, type EmailLead, type GmailPart } from './rules'
+import { EMAIL_CAPTURE_STATUSES, emailAddresses, emailBody, emailDecision, emailNote, matchEmailLeads, type EmailLead, type GmailPart } from './rules'
 
 type Connection = { id: string; tenant_id: string; email: string; refresh_token_ciphertext: string; connected_by: string; capture_from: string; last_synced_at: string | null; sync_until: string; page_token: string | null }
 type GmailMessage = { id: string; internalDate: string; labelIds?: string[]; payload: GmailPart & { headers?: { name: string; value: string }[] } }
@@ -32,7 +32,7 @@ export async function syncMailbox(tenantId: string, connectionId: string, budget
       if (offset >= 10000) throw new Error('Lead matching exceeds this deployment batch limit.')
       const { data: leadRows, error: leadError } = await crmSupabaseAdmin.from('lead_intakes')
         .select('id,contact_id,status,created_at,payload,crm_contacts(email)')
-        .eq('tenant_id', tenantId).in('intake_type', ['lesson_inquiry', 'tour_request', 'service_inquiry']).in('status', ['new', 'contacted', 'booked'])
+        .eq('tenant_id', tenantId).in('intake_type', ['lesson_inquiry', 'tour_request', 'service_inquiry']).in('status', EMAIL_CAPTURE_STATUSES)
         .order('id').range(offset, offset + 999)
       if (leadError) throw new Error('Lead matching unavailable.')
       leads.push(...(leadRows || []) as EmailLead[])

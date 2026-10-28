@@ -1,6 +1,10 @@
 export type GmailPart = { mimeType?: string; filename?: string; body?: { data?: string }; parts?: GmailPart[] }
 export type EmailLead = { id: string; contact_id: string; status: string; created_at: string; payload: Record<string, unknown> | null; crm_contacts: { email?: string | null } | { email?: string | null }[] | null }
 
+// Capture correspondence throughout conversion; status automation is guarded
+// separately by gmail_record_outreach. `enrolled` supports imported legacy rows.
+export const EMAIL_CAPTURE_STATUSES = ['new', 'contacted', 'booked', 'processing', 'won', 'enrolled']
+
 export function emailAddresses(value: string): string[] {
   return [...new Set((value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(email => email.toLowerCase()))]
 }
@@ -8,7 +12,7 @@ export function emailAddresses(value: string): string[] {
 export function matchEmailLeads(leads: EmailLead[], recipients: string[], sentAt: string): EmailLead[] {
   const emails = new Set(recipients.map(email => email.toLowerCase()))
   return leads.filter(lead => {
-    if (!['new', 'contacted', 'booked'].includes(lead.status) || lead.created_at > sentAt || lead.payload?.winback) return false
+    if (!EMAIL_CAPTURE_STATUSES.includes(lead.status) || lead.created_at > sentAt || lead.payload?.winback) return false
     const contact = Array.isArray(lead.crm_contacts) ? lead.crm_contacts[0] : lead.crm_contacts
     const values = [contact?.email, lead.payload?.email, lead.payload?.parent_email, lead.payload?.guardian_email, lead.payload?.account_holder_email]
     return values.some(value => typeof value === 'string' && emails.has(value.trim().toLowerCase()))

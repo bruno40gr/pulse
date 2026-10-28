@@ -29,9 +29,16 @@ test('family email payload and multiple inquiries return candidates without gues
   const sibling = { ...lead, id: 'sibling', crm_contacts: null, payload: { parent_email: 'parent@example.com' } }
   assert.equal(rules.matchEmailLeads([lead,sibling], ['parent@example.com'], '2026-10-10T12:00:00Z').length, 2)
 })
-test('old messages, closed cases and winback do not match', () => {
+test('capture continues through enrolling, won and legacy enrolled without changing the lead', () => {
+  for (const status of ['new', 'contacted', 'booked', 'processing', 'won', 'enrolled']) {
+    const candidate = { ...lead, status }
+    assert.equal(rules.matchEmailLeads([candidate], ['parent@example.com'], '2026-10-10T12:00:00Z')[0], candidate)
+    assert.equal(candidate.status, status)
+  }
+})
+test('old messages, rejected cases and winback do not match', () => {
   assert.equal(rules.matchEmailLeads([lead], ['parent@example.com'], '2026-09-10T12:00:00Z').length, 0)
-  for (const status of ['won','lost','enrolled']) assert.equal(rules.matchEmailLeads([{ ...lead, status }], ['parent@example.com'], '2026-10-10T12:00:00Z').length, 0)
+  for (const status of ['lost','spam','ghosted_us','unknown']) assert.equal(rules.matchEmailLeads([{ ...lead, status }], ['parent@example.com'], '2026-10-10T12:00:00Z').length, 0)
   assert.equal(rules.matchEmailLeads([{ ...lead, payload: { winback: true } }], ['parent@example.com'], '2026-10-10T12:00:00Z').length, 0)
 })
 test('plain text preferred and reply/signature text excluded', () => {

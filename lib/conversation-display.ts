@@ -3,6 +3,16 @@ import type { LiveThread } from '@/lib/conversations-live'
 export const PROFILE_PANEL_WIDTH = 'min(75vw, 960px)'
 export const CONVERSATIONS_HOME_EVENT = 'pulse:conversations-home'
 export type ConversationSort = 'name' | 'time' | 'date'
+export type ConversationFilter = 'all' | 'sms' | 'email'
+
+/** Project the displayed audience before calculating attention, dates and ordering. */
+export function filterConversationChannels<T extends { threads: LiveThread[]; newSms: number; newEmails: number }>(people: T[], channel: ConversationFilter): T[] {
+  if (channel === 'all') return people
+  return people.flatMap(person => {
+    const threads = person.threads.filter(thread => thread.channel === channel && thread.messages.length > 0)
+    return threads.length ? [{ ...person, threads, newSms: channel === 'sms' ? person.newSms : 0, newEmails: channel === 'email' ? person.newEmails : 0 }] : []
+  })
+}
 
 /** Reading does not attend a conversation; only a subsequent outbound reply does. */
 export function conversationAttention(threads: LiveThread[]) {

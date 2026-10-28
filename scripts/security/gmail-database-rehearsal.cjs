@@ -77,6 +77,22 @@ try {
   assert.equal(sql(`SELECT status FROM lead_intakes WHERE id='${lead}';`), 'booked')
   record(receipt(), 'contacted')
   assert.equal(sql(`SELECT status FROM lead_intakes WHERE id='${lead}';`), 'booked', 'No downgrade')
+  for (const status of ['processing', 'won', 'enrolled']) {
+    sql(`UPDATE lead_intakes SET status='${status}' WHERE id='${lead}';`)
+    for (const decision of ['contacted', 'booked']) {
+      const id = receipt()
+      const beforeNotes = Number(sql("SELECT count(*) FROM lead_events WHERE event_type='note_added';"))
+      const beforeChanges = sql("SELECT count(*) FROM lead_events WHERE event_type='status_automated';")
+      record(id, decision)
+      record(id, decision)
+      assert.equal(sql(`SELECT status FROM lead_intakes WHERE id='${lead}';`), status, 'Converted status never regresses')
+      assert.equal(Number(sql("SELECT count(*) FROM lead_events WHERE event_type='note_added';")), beforeNotes + 1, 'One note per message')
+      assert.equal(sql("SELECT count(*) FROM lead_events WHERE event_type='status_automated';"), beforeChanges)
+      assert.equal(sql(`SELECT count(*) FROM lead_events e JOIN gmail_outreach m ON m.event_id=e.id
+        WHERE m.id='${id}' AND m.status='recorded' AND m.lead_id='${lead}'
+        AND e.contact_id='${contact}' AND e.lead_intake_id='${lead}' AND e.tenant_id='${tenant}';`), '1', 'Note retains both lead and contact linkage')
+    }
+  }
   sql(`UPDATE lead_intakes SET status='new',payload='{"status_automation":{"paused":true}}' WHERE id='${lead}';`)
   record(receipt(), 'booked')
   assert.equal(sql(`SELECT status FROM lead_intakes WHERE id='${lead}';`), 'new', 'Manual pause respected')

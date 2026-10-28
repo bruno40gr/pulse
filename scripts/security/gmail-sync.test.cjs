@@ -8,11 +8,11 @@ const ts = require('typescript')
 const root = path.resolve(__dirname,'../..')
 const tenant = '00000000-0000-0000-0000-000000000001'
 
-function setup({ ambiguous = false, unrelated = false, failWrite = false, busy = false, bulk = false, nextPage = false } = {}) {
+function setup({ ambiguous = false, unrelated = false, failWrite = false, busy = false, bulk = false, nextPage = false, status = 'new', siblingStatus = status } = {}) {
   const receipts = []; const records = []; const updates = []; const queries = []
   const connection = { id:'mailbox',tenant_id:tenant,email:'office@example.com',refresh_token_ciphertext:'encrypted',connected_by:'admin',capture_from:'2026-10-01T00:00:00Z',last_synced_at:null,sync_until:'2026-10-14T12:00:00Z',page_token:null }
-  const leads = [{ id:'lead1',contact_id:'contact1',status:'new',created_at:'2026-10-01T00:00:00Z',payload:{},crm_contacts:{email:'parent@example.com'} }]
-  if (ambiguous) leads.push({...leads[0],id:'lead2'})
+  const leads = [{ id:'lead1',contact_id:'contact1',intake_type:'lesson_inquiry',status,created_at:'2026-10-01T00:00:00Z',payload:{},crm_contacts:{email:'parent@example.com'} }]
+  if (ambiguous) leads.push({...leads[0],id:'lead2',status:siblingStatus})
   const db = {
     async rpc(name,args) {
       if (name === 'gmail_claim_sync') return { data: busy ? [] : [connection],error:null }
@@ -25,10 +25,10 @@ function setup({ ambiguous = false, unrelated = false, failWrite = false, busy =
       throw new Error('Unexpected RPC')
     },
     from(table) {
-      let operation='select',payload,filters=[]
+      let operation='select',payload,filters=[],inFilters=[]
       const result=()=>{
-        queries.push({table,operation,filters,payload})
-        if(table==='lead_intakes')return {data:leads,error:null}
+        queries.push({table,operation,filters,inFilters,payload})
+        if(table==='lead_intakes')return {data:leads.filter(row=>inFilters.every(([key,values])=>values.includes(row[key]))),error:null}
         if(table==='gmail_connections'){updates.push(payload);return {data:null,error:null}}
         if(table==='gmail_outreach') {
           if(operation==='insert'){const row={...payload,id:`receipt${receipts.length}`,status:'review',event_id:'event'};receipts.push(row);return {data:row,error:null}}
@@ -37,7 +37,7 @@ function setup({ ambiguous = false, unrelated = false, failWrite = false, busy =
         throw new Error('Unexpected table')
       }
       let builder
-      builder=new Proxy({}, { get(_,method){ if(method==='then')return (resolve,reject)=>Promise.resolve(result()).then(resolve,reject);return (...args)=>{if(['insert','update'].includes(method)){operation=method;payload=args[0]}if(method==='eq')filters.push(args);return builder} } })
+      builder=new Proxy({}, { get(_,method){ if(method==='then')return (resolve,reject)=>Promise.resolve(result()).then(resolve,reject);return (...args)=>{if(['insert','update'].includes(method)){operation=method;payload=args[0]}if(method==='eq')filters.push(args);if(method==='in')inFilters.push(args);return builder} } })
       return builder
     },
   }
@@ -60,7 +60,7 @@ function setup({ ambiguous = false, unrelated = false, failWrite = false, busy =
     }})
     new vm.Script(code).runInContext(context);cache.set(file,loaded.exports);return loaded.exports
   }
-  return {sync:load('lib/gmail/sync.ts').syncMailbox,receipts,records,updates,queries}
+  return {sync:load('lib/gmail/sync.ts').syncMailbox,receipts,records,updates,queries,leads}
 }
 
 test('sync captures dated quote once across repeated syncs',async()=>{
@@ -73,6 +73,24 @@ test('sync captures dated quote once across repeated syncs',async()=>{
 test('ambiguous inquiries remain in review and do not receive notes',async()=>{
   const h=setup({ambiguous:true});const result=await h.sync(tenant,'mailbox')
   assert.equal(result.review,1);assert.equal(h.records.length,0);assert.equal(h.receipts[0].candidate_lead_ids.length,2)
+})
+for(const status of ['processing','won','enrolled'])test(`sync captures ${status} correspondence once and retains lead/contact identity`,async()=>{
+  const h=setup({status});await h.sync(tenant,'mailbox');await h.sync(tenant,'mailbox')
+  assert.equal(h.receipts.length,1);assert.equal(h.records.length,1)
+  assert.equal(h.records[0].p_lead,'lead1');assert.equal(h.leads[0].contact_id,'contact1')
+  assert.equal(h.leads[0].status,status)
+  assert.ok(h.queries.find(query=>query.table==='lead_intakes').inFilters.some(([key,values])=>key==='status'&&values.includes(status)))
+})
+test('capture remains deduplicated when a previously captured lead converts',async()=>{
+  const h=setup();await h.sync(tenant,'mailbox');h.leads[0].status='won';await h.sync(tenant,'mailbox')
+  assert.equal(h.receipts.length,1);assert.equal(h.records.length,1);assert.equal(h.leads[0].contact_id,'contact1')
+})
+test('converted and active inquiries sharing an address remain ambiguous',async()=>{
+  const h=setup({ambiguous:true,status:'processing',siblingStatus:'new'});const result=await h.sync(tenant,'mailbox')
+  assert.equal(result.review,1);assert.equal(h.records.length,0);assert.equal(h.receipts[0].candidate_lead_ids.length,2)
+})
+for(const status of ['lost','spam','ghosted_us'])test(`sync still excludes ${status} leads`,async()=>{
+  const h=setup({status});await h.sync(tenant,'mailbox');assert.equal(h.receipts.length,0)
 })
 for(const options of [{unrelated:true},{bulk:true}])test(`unrelated and bulk mail is not persisted: ${JSON.stringify(options)}`,async()=>{
   const h=setup(options);await h.sync(tenant,'mailbox');assert.equal(h.receipts.length,0)

@@ -1,5 +1,6 @@
 'use client'
 import { TaskCompletionButton } from './TaskCompletionButton'
+import { DenseSectionPanel } from './DenseSectionPanel'
 
 import { useEffect, useRef, useState } from 'react'
 import { Shield } from 'lucide-react'
@@ -30,6 +31,8 @@ interface NotesSectionProps {
   signifierLabel?: string
   helperText?: string
   showHeader?: boolean
+  /** Card header actions and a fixed composer above independently scrolling history. */
+  panel?: boolean
   autoSaveOnBlur?: boolean
   draft?: string
   onDraftChange?: (draft: string) => void
@@ -53,6 +56,7 @@ export function NotesSection({
   signifierLabel,
   helperText,
   showHeader = true,
+  panel = false,
   autoSaveOnBlur = false,
   draft,
   onDraftChange,
@@ -94,9 +98,9 @@ export function NotesSection({
     }
   }
 
-  return (
-    <div>
-      {showHeader && (
+  const content = (
+    <div style={panel ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : undefined}>
+      {showHeader && !panel && (
         <div style={{ marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
@@ -148,6 +152,7 @@ export function NotesSection({
         </div>
       )}
 
+      <div style={panel ? { flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' } : undefined} aria-label="Note history">
       {notes.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
           {notes.map((entry, i) => (
@@ -195,8 +200,10 @@ export function NotesSection({
           ))}
         </div>
       )}
+      {panel && notes.length === 0 && <p style={{ ...typography.bodySmall, color: colors.textMuted }}>No notes yet.</p>}
+      </div>
 
-      {!showInput && !showHeader ? (
+      {!showInput && !showHeader && !panel ? (
         <Button variant="secondary" size="sm"
           onClick={() => setShowInput(true)}
           style={{ width: '100%' }}
@@ -214,8 +221,8 @@ export function NotesSection({
           }}>+</span>
           {addLabel}
         </Button>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+      ) : showInput ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, ...(panel ? { order: -1, flexShrink: 0, marginBottom: spacing.md } : {}) }}>
           {mentionsEnabled ? (
             <MentionTextarea
               value={input}
@@ -241,7 +248,18 @@ export function NotesSection({
             <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
+  )
+
+  if (!panel) return content
+
+  return (
+    <DenseSectionPanel title={title}
+      actions={!showInput ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setShowInput(true)}>{addLabel}</Button> : undefined}
+      style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
+      contentStyle={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {content}
+    </DenseSectionPanel>
   )
 }
