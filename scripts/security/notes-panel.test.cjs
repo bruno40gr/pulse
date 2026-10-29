@@ -89,3 +89,33 @@ test('saving state disables the card action and lead drawer opts into panel layo
   const source = fs.readFileSync(path.join(root, 'components/leads/LeadDetailPanel.tsx'), 'utf8')
   assert.match(source, /<NotesSection key=\{lead.id\} title="Notes" panel/)
 })
+
+test('edit preserves failed drafts, saves changes and allows cancellation', async () => {
+  let accepted = false
+  const calls = []
+  const { render } = setup({ notes: [{ id: 'note', text: 'Original', timestamp: '2026-10-01', actor_avatar_url: '/author.png', editable: true }],
+    onEdit: async (entry, text) => { calls.push([entry.id, text]); return accepted } })
+  let tree = render()
+  assert.equal(find(tree, node => node.type === 'Avatar').props.src, '/author.png')
+  button(tree, 'Edit').props.onClick()
+  tree = render()
+  find(tree, node => node.props?.['aria-label'] === 'Edit note').props.onChange({ target: { value: 'Corrected' } })
+  button(render(), 'Save changes').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(find(render(), node => node.props?.['aria-label'] === 'Edit note').props.value, 'Corrected')
+  accepted = true
+  button(render(), 'Save changes').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.ok(button(render(), 'Edit'))
+  assert.deepEqual(calls, [['note', 'Corrected'], ['note', 'Corrected']])
+  button(render(), 'Edit').props.onClick()
+  button(render(), 'Cancel edit').props.onClick()
+  assert.ok(button(render(), 'Edit'))
+})
+
+test('notes without explicit author edit permission have no Edit button', () => {
+  for (const editable of [false, undefined]) {
+    const { render } = setup({ notes: [{ id: 'other', text: 'Another author', timestamp: '2026-10-01', editable }], onEdit: async () => true })
+    assert.equal(button(render(), 'Edit'), undefined)
+  }
+})

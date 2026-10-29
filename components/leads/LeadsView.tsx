@@ -30,6 +30,7 @@ import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValu
 import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
+import { compareNewestLead, isNewLead, NEW_LEAD_ROW_BACKGROUND, NEW_LEAD_WINDOW_MS } from '@/lib/lead-table-order'
 import { getLeadSignal } from '@/lib/lead-signal'
 import { compareLeadAction, leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
@@ -559,6 +560,22 @@ function getStartOfLocalDay(value: Date) {
 
 export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
   const [leads, setLeads] = useState<LeadRecord[]>([])
+  const [rowNow, setRowNow] = useState(() => Date.now())
+  useEffect(() => {
+    const now = Date.now()
+    const boundaries = leads.flatMap(lead => {
+      const created = Date.parse(lead.created_at)
+      return [created, created + NEW_LEAD_WINDOW_MS].filter(at => Number.isFinite(at) && at > now)
+    })
+    const refresh = () => setRowNow(Date.now())
+    const next = boundaries.reduce<number | null>((earliest, at) => earliest === null || at < earliest ? at : earliest, null)
+    const timer = next === null ? null : window.setTimeout(refresh, Math.min(next - now + 1, 2147483647))
+    window.addEventListener('focus', refresh)
+    return () => {
+      if (timer !== null) window.clearTimeout(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [leads, rowNow])
   const [tabCounts, setTabCounts] = useState<Record<LeadTabKey, number>>({
     lesson_inquiry: 0,
     service_inquiry: 0,
@@ -575,7 +592,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortKey, setSortKey] = useState<LeadSortKey>('action')
+  const [sortKey, setSortKey] = useState<LeadSortKey>('created')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
@@ -640,24 +657,23 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
     return [...visibleLeads].sort((left, right) => {
       if (sortKey === 'action') return compareLeadAction(left, right, activeTab)
+      if (sortKey === 'created') return compareNewestLead(left, right) * (sortDirection === 'desc' ? 1 : -1)
       if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
       if (sortKey === 'program') comparison = compareText(left.program_label || left.service_label || '', right.program_label || right.service_label || '')
-      if (sortKey === 'created') comparison = compareNumbers(new Date(left.created_at).getTime(), new Date(right.created_at).getTime())
       if (sortKey === 'lastActivity') comparison = compareNumbers(new Date(left.last_activity_at).getTime(), new Date(right.last_activity_at).getTime())
       if (sortKey === 'followUp') {
         const leftFollowUp = getLeadFollowUpAt(left)
         const rightFollowUp = getLeadFollowUpAt(right)
-        if (!leftFollowUp && !rightFollowUp) return 0
+        if (!leftFollowUp && !rightFollowUp) return compareNewestLead(left, right)
         if (!leftFollowUp) return 1
         if (!rightFollowUp) return -1
         const leftTime = leftFollowUp ? new Date(leftFollowUp).getTime() : Number.POSITIVE_INFINITY
         const rightTime = rightFollowUp ? new Date(rightFollowUp).getTime() : Number.POSITIVE_INFINITY
         comparison = compareNumbers(leftTime, rightTime)
       }
-      if (comparison === 0) comparison = compareNumbers(new Date(right.created_at).getTime(), new Date(left.created_at).getTime())
-      return comparison * direction
+      return comparison === 0 ? compareNewestLead(left, right) : comparison * direction
     })
   }, [activeTab, visibleLeads, sortDirection, sortKey])
 
@@ -1959,7 +1975,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               ? '#F5F8FF'
               : selectedLeadId === lead.id
                 ? '#FBFCFF'
-                : index % 2 === 0 ? colors.surface : colors.background,
+                : isNewLead(lead, Math.max(rowNow, Date.now()))
+                  ? NEW_LEAD_ROW_BACKGROUND
+                  : index % 2 === 0 ? colors.surface : colors.background,
           })}
           ariaLabel="Leads"
         />
