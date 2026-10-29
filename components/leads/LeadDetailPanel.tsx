@@ -3,7 +3,7 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
-import { useContext, useEffect, useState, type CSSProperties } from 'react'
+import { useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import { Copy, Pencil, Phone } from 'lucide-react'
@@ -55,6 +55,7 @@ type LeadDetail = {
 }
 
 interface LeadDetailPanelProps {
+  renderEditor?: (renderHeader: (onRequestClose: () => void) => ReactNode) => ReactNode
   staticDetails?: boolean
   lead: LeadDetail
   saving: boolean
@@ -218,7 +219,7 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   )
 }
 
-export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange, staticDetails = false }: LeadDetailPanelProps) {
+export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange, staticDetails = false }: LeadDetailPanelProps) {
   const contextualCompose = useContext(ConversationComposeContext)
   const [smsOpen, setSmsOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<'details' | 'notes'>('details')
@@ -415,6 +416,20 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
     leadId={lead.intake_type === 'job_application' ? undefined : lead.id}
     onBack={() => { setSmsOpen(false); onSmsViewChange?.(false) }} onClose={onClose} />
 
+  const renderHeader = (onRequestClose: () => void) => (
+      <SlidePanelHeader
+        title={contactName}
+        subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
+        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: isMobile ? 36 : 48 }}
+        titleSize={isMobile ? typography.sizeLg : typography.size2xl}
+        compact={isMobile}
+        onClose={onRequestClose}
+        titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
+        actions={isMobile ? undefined : (statusControls || undefined)}
+      />
+  )
+  if (renderEditor) return renderEditor(renderHeader)
+
   const notesRail = (
     <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
               <NotesSection key={lead.id} title="Notes" panel notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onEdit={(entry, text) => onPatch({ edit_note: { id: entry.id, text, previous_text: entry.text } })} onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} />
@@ -444,16 +459,7 @@ export function LeadDetailPanel({ lead, saving, onPatch, onCall, onEdit, onClose
         background: colors.background,
       }}
     >
-      <SlidePanelHeader
-        title={contactName}
-        subtitle={`${label(lead.intake_type)} · ${dateLabel(lead.created_at)}`}
-        avatar={{ firstName: contactFirstName, lastName: contactLastName, size: isMobile ? 36 : 48 }}
-        titleSize={isMobile ? typography.sizeLg : typography.size2xl}
-        compact={isMobile}
-        onClose={onClose}
-        titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
-        actions={isMobile ? undefined : (statusControls || undefined)}
-      />
+      {renderHeader(onClose)}
 
       {isMobile && <div role="group" aria-label="Lead panel section" style={{ display: 'flex', gap: spacing.sm, padding: spacing.sm, flexShrink: 0 }}>
         <ControlButton kind="tab" selected={mobileSection === 'details'} aria-pressed={mobileSection === 'details'} onClick={() => setMobileSection('details')}>Details</ControlButton>

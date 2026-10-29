@@ -107,9 +107,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
         {variant === 'user' ? <SignedInUser compact /> : <Bell size={19} />}
         {variant === 'nav' && <span>Notifications</span>}
         {unreadCount > 0 && (
-          variant === 'user'
-            ? <span aria-label={`${unreadCount} unread notifications`} style={{ marginLeft: 'auto', width: 8, height: 8, flexShrink: 0, borderRadius: '50%', background: colors.crimson }} />
-            : <span style={{ marginLeft: 'auto', borderRadius: radius.full, background: colors.crimson, color: '#fff', padding: '2px 6px', fontSize: 10 }}>{unreadCount}</span>
+          <span aria-label={`${unreadCount} unread notifications`} style={{ marginLeft: 'auto', minWidth: 26, height: 26, padding: '0 6px', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: typography.sizeSm, fontWeight: typography.weightBold, fontVariantNumeric: 'tabular-nums' }}>{unreadCount}</span>
         )}
       </ControlButton>
       <Modal isOpen={open} onClose={close} size="notifications" ariaLabel="Notifications">

@@ -2148,10 +2148,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           {detailError && <MessageBox>{detailError}</MessageBox>}
           {detailLoading && <ProfilePanelSkeleton />}
 
-          {selectedLead && !detailLoading && (correctionPrototype && isEditLeadOpen ? (
-            <LeadInlineEditor key={selectedLead.id} lead={selectedLead} onClose={() => setIsEditLeadOpen(false)} onSaved={async () => { await openLead(selectedLead.id); invalidateLeadListCache(); await fetchLeads({ force: true }) }} />
-          ) : (
+          {selectedLead && !detailLoading && (
             <LeadDetailPanel
+              renderEditor={correctionPrototype && isEditLeadOpen ? renderHeader => <LeadInlineEditor key={selectedLead.id} lead={selectedLead} renderHeader={renderHeader} onClose={() => setIsEditLeadOpen(false)} onSaved={async () => { await openLead(selectedLead.id); invalidateLeadListCache(); await fetchLeads({ force: true }) }} /> : undefined}
               staticDetails={correctionPrototype}
               lead={selectedLead}
               saving={detailSaving}
@@ -2167,7 +2166,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
                 return await saveDetail(patch)
               }}
             />
-          ))}
+          )}
         </div>
         {selectedLead && !detailLoading && !smsViewOpen && !(correctionPrototype && isEditLeadOpen) && (
           <div style={{ ...leadFooterStyle, padding: isMobileLayout ? `${spacing.sm} ${spacing.md}` : leadFooterStyle.padding, justifyContent: isMobileLayout ? 'space-between' : 'flex-end', gap: isMobileLayout ? spacing.sm : spacing.md, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>

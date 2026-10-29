@@ -185,6 +185,9 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
           </div>
         </div>
       )}
+      <div style={{ padding: '12px 8px 0' }}>
+        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
+      </div>
       <nav style={{ flex: 1, padding: '12px 8px' }}>
         {NAV_GROUPS.map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
@@ -224,7 +227,6 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ))}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
         <Link
           href="/dashboard/settings"
           onClick={onNavigate}

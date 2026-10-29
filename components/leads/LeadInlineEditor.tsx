@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button, DenseSectionPanel, Input, Modal, ModalBody, ModalFooter, ModalHeader, SectionTitle, Select, SlidePanelHeader } from '@/components/ui'
 import { isLessonLead } from '@/lib/lead-lesson-details'
 import { leadStudentsPatch, readLeadStudents, syncStudentContact } from '@/lib/lead-students'
@@ -12,10 +12,11 @@ type Contact = { id: string; full_name: string; email: string | null; phone: str
 type Inquiry = { id: string; intake_type: string; contact_id: string; contact?: Contact | null; payload: Record<string, unknown>; program_label: string | null; status: string; updated_at: string }
 
 /** Inquiry-scoped editor using the authenticated lead API. */
-export function LeadInlineEditor({ lead, onClose, onSaved }: {
+export function LeadInlineEditor({ lead, onClose, onSaved, renderHeader }: {
   lead: Inquiry
   onClose: () => void
   onSaved: () => Promise<void>
+  renderHeader?: (onRequestClose: () => void) => ReactNode
 }) {
   const [type, setType] = useState(lead.intake_type)
   const [contact, setContact] = useState({ name: lead.contact?.full_name || '', email: lead.contact?.email || '', phone: lead.contact?.phone || '' })
@@ -50,7 +51,7 @@ export function LeadInlineEditor({ lead, onClose, onSaved }: {
     finally { setSaving(false) }
   }
   return <>
-    <SlidePanelHeader title={lead.contact?.full_name || 'Lead'} onClose={() => !saving && (dirty ? setDiscard(true) : onClose())} />
+    {renderHeader ? renderHeader(() => { if (!saving) { if (dirty) setDiscard(true); else onClose() } }) : <SlidePanelHeader title={lead.contact?.full_name || 'Lead'} onClose={() => !saving && (dirty ? setDiscard(true) : onClose())} />}
     <div style={{ padding: spacing.lg, overflowY: 'auto', minHeight: 0, display: 'grid', gap: spacing.lg }}>
       {error && <p role="alert">{error}</p>}
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: spacing.lg }}>
