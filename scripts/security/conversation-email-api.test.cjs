@@ -88,6 +88,7 @@ test('stored API reads saved bodies without provider access and scopes every que
   }
   assert.equal(h.writes.length, 1)
   assert.ok(h.writes[0].rows.every(job => job.tenant_id === 'tenant' && job.connection_id === 'box'))
+  assert.ok(h.writes[0].rows.every(job => Array.isArray(job.addresses)), 'Bulk queue rows must not turn missing addresses into SQL NULL')
   assert.equal(h.writes[0].config.ignoreDuplicates, true)
 })
 
