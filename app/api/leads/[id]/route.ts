@@ -4,10 +4,13 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
 import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
-import { getLeadNotesHistory } from '@/lib/lead-notes'
+import { getLeadNotesHistory, isLeadNoteAuthor } from '@/lib/lead-notes'
 import { LEAD_STATUSES } from '@/lib/lead-status'
 import { readStatusAutomation } from '@/lib/lead-status-automation'
 import { applySavedNoteStatus } from '@/lib/lead-status-automation-server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { getStaffAvatarUrl } from '@/lib/staff-avatars'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -178,7 +181,7 @@ async function getJobApplicationDetail(tenantId: string, id: string) {
     notes_history: getLeadNotesHistory([], {
       id: application.id, created_at: application.created_at,
       payload: { ...application.payload, message: application.message || application.payload?.message },
-    }),
+    }).map(note => ({ ...note, editable: false })),
   }
 }
 
@@ -288,6 +291,24 @@ export async function GET(
     if (notesError) throw notesError
 
     const notes_history = getLeadNotesHistory(noteEvents || [], lead)
+    // Resolve persisted identity, not a stale/abbreviated display-name snapshot.
+    const personIds = [...new Set((noteEvents || []).flatMap(event => {
+      const actor = event.payload?.actor as { personId?: unknown } | undefined
+      return typeof actor?.personId === 'string' ? [actor.personId] : []
+    }))]
+    const authors = personIds.length ? await supabaseAdmin.from('people').select('id,first_name,last_name')
+      .eq('tenant_id', tenantId).in('id', personIds) : null
+    const notesWithAuthors = notes_history.map(note => {
+      const event = noteEvents?.find(event => event.id === note.id)
+      const actor = event?.payload?.actor as { personId?: string } | undefined
+      const person = authors?.data?.find(person => person.id === actor?.personId)
+      const name = person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() : note.actor_name
+      const canManage = !tenantAccess.context || tenantAccess.context.roleKey === 'owner' || tenantAccess.context.permissions.has(PERMISSIONS.leadsManage)
+      return { ...note, editable: canManage && isLeadNoteAuthor(event?.payload?.actor, {
+        personId: tenantAccess.context?.personId || tenantAccess.identity.personId,
+        membershipId: tenantAccess.context?.membershipId,
+      }), actor_name: name || note.actor_name, actor_avatar_url: getStaffAvatarUrl(tenantId, name || note.actor_name) || null }
+    })
 
     console.info('[leads][detail]', {
       requestId: requestLog.requestId,
@@ -304,7 +325,7 @@ export async function GET(
       follow_up_note: getFollowUpFromPayload(lead.payload, 'follow_up_note'),
       contact: unwrapContact(lead.crm_contacts),
       events: events || [],
-      notes_history,
+      notes_history: notesWithAuthors,
     })
   } catch (error) {
     console.error('[leads][detail] Error fetching lead detail', {
@@ -329,6 +350,15 @@ export async function PATCH(
     const tenantId = tenantAccess.tenantId
     const { id } = await params
     const body = await request.json()
+    if ('edit_note' in body && (Object.keys(body).some(key => key !== 'edit_note') || !body.edit_note ||
+      typeof body.edit_note.id !== 'string' || typeof body.edit_note.text !== 'string' ||
+      !body.edit_note.text.trim() || body.edit_note.text.length > 12000 || typeof body.edit_note.previous_text !== 'string')) {
+      return NextResponse.json({ error: 'Choose a note and enter 1–12000 characters.' }, { status: 400 })
+    }
+    if ('edit_note' in body && tenantAccess.context && tenantAccess.context.roleKey !== 'owner' &&
+      !tenantAccess.context.permissions.has(PERMISSIONS.leadsManage)) {
+      return NextResponse.json({ error: 'You do not have permission to edit lead notes.' }, { status: 403 })
+    }
     const actorPayload = {
       instructorId: tenantAccess.identity.instructorId,
       personId: tenantAccess.identity.personId,
@@ -337,6 +367,7 @@ export async function PATCH(
 
     const existingJobApplication = await getJobApplicationDetail(tenantId, id)
     if (existingJobApplication) {
+      if ('edit_note' in body) return NextResponse.json({ error: 'Application messages cannot be edited here.' }, { status: 400 })
       const jobUpdates: Record<string, unknown> = {}
       const contactUpdates: Record<string, unknown> = {}
 
@@ -491,6 +522,36 @@ export async function PATCH(
     }
 
     if (existingLeadError) throw existingLeadError
+
+    if (body.edit_note) {
+      const edit = body.edit_note as { id: string; text: string; previous_text: string }
+      const editedAt = new Date().toISOString()
+      if (edit.id === `intake-message-${id}`) {
+        return NextResponse.json({ error: 'Only the original author can edit a note. Inquiry messages are read-only.' }, { status: 403 })
+      } else {
+        const original = await crmSupabaseAdmin.from('lead_events').select('id,payload')
+          .eq('tenant_id', tenantId).eq('lead_intake_id', id).eq('id', edit.id).eq('event_type', 'note_added').maybeSingle()
+        if (original.error) throw original.error
+        if (!original.data) return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
+        if (!isLeadNoteAuthor(original.data.payload?.actor, {
+          personId: tenantAccess.context?.personId || tenantAccess.identity.personId,
+          membershipId: tenantAccess.context?.membershipId,
+        })) return NextResponse.json({ error: 'You can only edit notes you authored.' }, { status: 403 })
+        if (original.data.payload?.text !== edit.previous_text) {
+          return NextResponse.json({ error: 'The note changed. Refresh before editing again.' }, { status: 409 })
+        }
+        const result = await crmSupabaseAdmin.from('lead_events').update({ payload: {
+          ...original.data.payload, text: edit.text.trim(), edited_at: editedAt, edited_by: actorPayload,
+          revisions: [...(Array.isArray(original.data.payload?.revisions) ? original.data.payload.revisions : []),
+            { text: original.data.payload.text, edited_at: editedAt, edited_by: actorPayload }],
+        } }).eq('tenant_id', tenantId).eq('lead_intake_id', id).eq('id', edit.id).eq('event_type', 'note_added')
+          .eq('payload', JSON.stringify(original.data.payload)).select('id').maybeSingle()
+        if (result.error) throw result.error
+        if (!result.data) return NextResponse.json({ error: 'The note changed. Refresh before editing again.' }, { status: 409 })
+      }
+      // Editing does not replay note-driven status automation or send mentions.
+      return GET(request, { params: Promise.resolve({ id }) })
+    }
 
     const automation = readStatusAutomation(existingLead.payload)
     const pipelineLead = isLessonLead(existingLead.intake_type) || existingLead.intake_type === 'service_inquiry'
