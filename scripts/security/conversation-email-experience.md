@@ -27,3 +27,9 @@ The installed Next.js package does not contain the requested `node_modules/next/
 ## Release continuation — October 29, 2026, 19:16 UTC
 
 A fresh read-only Supabase backup-list check still returned `backups: []`, `physical_backup_data: {}`, and `pitr_enabled: false`. External backups remain unknown. Production activation is blocked on a verified recovery artifact; no migration, scheduler pause, feature flag change, or deployment was performed. Do not treat the local checkpoint as a deployed release or deploy it before its required migrations.
+
+### Correction after checking local Docker and private artifacts
+
+Actual external database archives do exist under `/Users/brunowong/odeon-private/backups/`. Their inventories were successfully read with PostgreSQL 17 `pg_restore --list` through Docker, without restoring or exposing records. The main archive was created October 5, 2026 at 15:39 UTC; the CRM archives were created October 5 at 15:26 and 18:48 UTC. Existing reports document local restore/transfer rehearsals that day, not a full managed-platform recovery.
+
+These archives predate the current Gmail connection schema: none contains `public.gmail_connections`; the main archive also predates the consolidated lead tables. They establish that backups were previously taken, but are not a current pre-migration recovery point. A fresh backup is still needed for this release. The running `pulse-email-store-test` container holds small synthetic test databases, not the current production database. No existing container, volume, or backup was modified or removed.
