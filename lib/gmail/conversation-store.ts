@@ -64,7 +64,7 @@ export async function queueStoredEmailImport(tenant: string, connection: string,
   const key = `import:${range.start}:${range.end}:${audience}`
   const jobs = [
     { tenant_id: tenant, connection_id: connection, kind: 'import', job_key: key, range_start: new Date(range.start).toISOString(), range_end: new Date(range.end).toISOString(), addresses },
-    { tenant_id: tenant, connection_id: connection, kind: 'history', job_key: 'history' },
+    { tenant_id: tenant, connection_id: connection, kind: 'history', job_key: 'history', addresses: [] },
   ]
   const queued = await db.from('conversation_email_jobs').upsert(jobs, { onConflict: 'tenant_id,connection_id,job_key', ignoreDuplicates: true })
   if (queued.error) throw new Error('Email storage is not ready. Your draft has not changed.')
