@@ -51,3 +51,9 @@ Enabled `CONVERSATION_EMAIL_STORE=1` for production and deployed. The first real
 Observed the initial import resume from 35 to 50 saved messages following a retryable `provider_delayed` state. This proves background work and durable progress, not complete October history. Mailbox freshness was recorded, cron remains active every five minutes, and legacy claim permission is restored. Root returned 200 and the unauthenticated email API returned 401. Signed-in production UI performance and Gmail completeness have not been verified. Live lead-fix files match `cc53969` exactly.
 
 The backup and all earlier Docker artifacts remain intact. No user email was sent. The first import remains in progress; do not describe historical coverage as complete until its job completes and the intended mailbox range is checked.
+
+### Initial October import completed
+
+Follow-up production queries found the October 1–November 1 exclusive import job `complete`, with 79 stored messages across 45 provider threads (19 inbound, 60 outbound). All 79 messages match current lead routing addresses; no invalid timestamp/participant/direction rows were found. The latest stored message is October 27 at 19:28:48 UTC. These are application import results, not an independent comparison against every message visible in authenticated Gmail.
+
+The incremental history job is pending between normal runs, with no reported error or active lease. Mailbox freshness was approximately 150 seconds old at the final check. Three recent dispatches returned HTTP 200 without `conversationFailed`; cron remains active. Production still points to READY deployment `dpl_DL2Sf4wkkhwievpoTKZxg7ibYgTH`, SHA `08672de22c59a8ab1e0eb993bb553b48636eed57`. Root returned 200 and unauthenticated email API 401. Signed-in list latency and real mailbox completeness still require an authenticated app check; no browser session was impersonated or synthesized.
