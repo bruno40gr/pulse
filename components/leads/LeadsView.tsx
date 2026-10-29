@@ -24,6 +24,7 @@ import { DEFAULT_LESSON_BASE_VALUE, SERVICE_TYPE_OPTIONS, getLeadOpportunityValu
 import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
+import { compareNewestLead } from '@/lib/lead-table-order'
 import { getLeadSignal } from '@/lib/lead-signal'
 import Papa from 'papaparse'
 
@@ -626,24 +627,23 @@ export default function LeadsView() {
     const direction = sortDirection === 'asc' ? 1 : -1
 
     return [...leads].sort((left, right) => {
+      if (sortKey === 'created') return compareNewestLead(left, right) * (sortDirection === 'desc' ? 1 : -1)
       if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
       if (sortKey === 'name') comparison = compareText(left.contact?.full_name || '', right.contact?.full_name || '')
       if (sortKey === 'program') comparison = compareText(left.program_label || left.service_label || '', right.program_label || right.service_label || '')
-      if (sortKey === 'created') comparison = compareNumbers(new Date(left.created_at).getTime(), new Date(right.created_at).getTime())
       if (sortKey === 'lastActivity') comparison = compareNumbers(new Date(left.last_activity_at).getTime(), new Date(right.last_activity_at).getTime())
       if (sortKey === 'followUp') {
         const leftFollowUp = getLeadFollowUpAt(left)
         const rightFollowUp = getLeadFollowUpAt(right)
-        if (!leftFollowUp && !rightFollowUp) return 0
+        if (!leftFollowUp && !rightFollowUp) return compareNewestLead(left, right)
         if (!leftFollowUp) return 1
         if (!rightFollowUp) return -1
         const leftTime = leftFollowUp ? new Date(leftFollowUp).getTime() : Number.POSITIVE_INFINITY
         const rightTime = rightFollowUp ? new Date(rightFollowUp).getTime() : Number.POSITIVE_INFINITY
         comparison = compareNumbers(leftTime, rightTime)
       }
-      if (comparison === 0) comparison = compareNumbers(new Date(right.created_at).getTime(), new Date(left.created_at).getTime())
-      return comparison * direction
+      return comparison === 0 ? compareNewestLead(left, right) : comparison * direction
     })
   }, [activeTab, leads, sortDirection, sortKey])
 

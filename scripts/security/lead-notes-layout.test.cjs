@@ -41,7 +41,8 @@ test('email thread readers and lead activity use one shared disclosure implement
 test('lead notes own scrolling while follow-up and activity stay in a bounded rail', () => {
   const panel = source('components/leads/LeadDetailPanel.tsx')
   assert.match(panel, /aria-label="Lead notes and follow-up" style=\{notesRailStyle\}/)
-  assert.match(panel, /contentStyle=\{\{ flex: 1, minHeight: 0, overflowY: 'auto'/)
+  assert.match(panel, /<NotesSection key=\{lead.id\} title="Notes" panel/)
+  assert.match(source('components/ui/NotesSection.tsx'), /flex: 1, minHeight: 0, overflowY: 'auto'/)
   assert.match(panel, /const notesRailStyle:.*overflow: 'hidden'/)
   assert.match(panel, /const followUpSectionStyle:.*flexShrink: 0/)
   assert.match(panel, /<LeadActivitySection key=\{lead.id\}/)
