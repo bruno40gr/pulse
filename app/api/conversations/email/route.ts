@@ -13,6 +13,7 @@ import { isConversationEmailPreview } from '@/lib/conversations-preview'
 import { GmailReadError } from '@/lib/gmail/google'
 import { emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
 import { conversationEmailQuery } from '@/lib/conversation-email-query'
+import { readStoredEmail, storedMailbox, InvalidStoredEmailCursor } from '@/lib/gmail/conversation-store'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -50,6 +51,10 @@ export async function GET(request: Request) {
     let range: ReturnType<typeof emailDateRange>
     try { range = emailDateRange(params.get('from'), params.get('to')) }
     catch { return NextResponse.json({ error: 'Choose a valid email date range.' }, { status: 400, headers }) }
+    if (process.env.CONVERSATION_EMAIL_STORE === '1') {
+      const mailbox = await storedMailbox(access.tenantId, mailboxId, access.context.membershipId)
+      return NextResponse.json(await readStoredEmail(access.tenantId, mailbox, summary ? people : [person!], range, summary, params.get('cursor')), { headers })
+    }
     let search: ReturnType<typeof conversationEmailQuery>
     try { search = conversationEmailQuery((summary ? people : [person!]).map(person => person.email).filter(validEmail), params.get('cursor')) }
     catch { return NextResponse.json({ error: 'Invalid email cursor.' }, { status: 400, headers }) }
@@ -106,6 +111,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ threads, nextCursor: search.nextCursor(page.nextPageToken || null) }, { headers })
   } catch (error) {
+    if (error instanceof InvalidStoredEmailCursor) return NextResponse.json({ error: 'Invalid email cursor.' }, { status: 400, headers })
     const code = error instanceof GmailReadError ? `history_${stage}_${error.status}_${error.reason}` : `history_${stage}`
     // Only fixed stage/status identifiers are exposed. No provider errors,
     // mailbox addresses, message content or tokens are logged or returned.

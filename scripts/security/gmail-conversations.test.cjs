@@ -17,6 +17,54 @@ function load(file, dependencies = {}, globals = {}) {
   return loaded.exports
 }
 const google = load('lib/gmail/google.ts')
+test('token failures classify only invalid_grant as reconnect without leaking provider text', async () => {
+  for (const [status, error, reconnect] of [[400, 'invalid_grant', true], [429, 'rate_limit_exceeded', false], [503, 'server_error', false], [401, 'invalid_client', false]]) {
+    const provider = load('lib/gmail/google.ts', {}, { process: { env: {} }, fetch: async () => ({ ok: false, status, json: async () => ({ error, error_description: 'sensitive-provider-detail' }) }) })
+    await assert.rejects(provider.googleToken({ grant_type: 'refresh_token', refresh_token: 'private' }), failure => {
+      assert.ok(failure instanceof provider.GoogleTokenError)
+      assert.equal(failure.reconnect, reconnect)
+      assert.ok(!failure.message.includes('sensitive-provider-detail'))
+      return true
+    })
+  }
+})
+test('expired provider deadline makes no network calls or retry sleeps', async () => {
+  const provider = load('lib/gmail/google.ts', {}, { fetch: async () => assert.fail('Deadline must prevent fetch'), setTimeout: () => assert.fail('Deadline must prevent sleep') })
+  await assert.rejects(provider.gmailGet('token', 'profile', Date.now() - 1), error => error instanceof provider.GmailReadError)
+})
+test('slow provider and OAuth requests abort at the shared deadline without retrying', async () => {
+  for (const operation of ['read', 'token']) {
+    let calls = 0
+    const provider = load('lib/gmail/google.ts', {}, {
+      process: { env: {} }, setTimeout: () => assert.fail('No retry sleep after deadline'),
+      fetch: async (_, options) => {
+        calls++
+        return new Promise((resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        })
+      },
+    })
+    // AbortSignal.timeout timers are unref'ed; keep the isolated runner alive.
+    const keepAlive = setTimeout(() => {}, 1000)
+    try {
+      const deadline = Date.now() + 30
+      await assert.rejects(operation === 'read' ? provider.gmailGet('token', 'profile', deadline) : provider.googleToken({ grant_type: 'refresh_token' }, deadline))
+      assert.equal(calls, 1)
+    } finally { clearTimeout(keepAlive) }
+  }
+})
+test('retry timeout shrinks to the remaining deadline rather than restarting the budget', async () => {
+  let now = 100000, calls = 0
+  const timeouts = []
+  class Clock extends Date { static now() { return now } }
+  const provider = load('lib/gmail/google.ts', {}, {
+    Date: Clock, AbortSignal: { timeout(ms) { timeouts.push(ms); return {} } },
+    setTimeout(callback, ms) { now += ms; callback() },
+    fetch: async () => { calls++; if (calls === 1) { now += 2000; throw Error('temporary') }; return { ok: true, json: async () => ({ historyId: 'ok' }) } },
+  })
+  assert.equal((await provider.gmailGet('token', 'profile', 110000)).historyId, 'ok')
+  assert.deepEqual(timeouts, [10000, 7000])
+})
 const rules = load('lib/gmail/rules.ts')
 const helper = load('lib/gmail/conversations.ts', { '@/lib/supabase/crm-admin': {}, './security': {}, './google': {}, './rules': rules, '@/lib/organisation-email': { organisationEmailSettings: async () => null } })
 test('MIME rejects header injection, invalid recipients and empty content', () => {
@@ -45,6 +93,7 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
   const live = load('lib/conversations-live.ts')
   const api = load('app/api/conversations/email/route.ts', {
     '@/lib/gmail/google': google,
+    '@/lib/gmail/conversation-store': { InvalidStoredEmailCursor: class extends Error {}, readStoredEmail: async () => { throw new Error('Store disabled in legacy regression tests') }, storedMailbox: async () => { throw new Error('Store disabled in legacy regression tests') } },
     '@/lib/organisation-email': { organisationEmailSettings: async () => null, organisationSender: async () => ({ id: 'mailbox-one', email: 'office@example.com', sender: { email: 'office@example.com', name: 'Office' }, token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] }) },
     '@/lib/headliner-email-templates': load('lib/headliner-email-templates.ts'),
     'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },

@@ -4,7 +4,7 @@ import { decryptToken } from './security'
 import { googleToken, gmailGet } from './google'
 import { EMAIL_CAPTURE_STATUSES, emailAddresses, emailBody, emailDecision, emailNote, matchEmailLeads, type EmailLead, type GmailPart } from './rules'
 
-type Connection = { id: string; tenant_id: string; email: string; refresh_token_ciphertext: string; connected_by: string; capture_from: string; last_synced_at: string | null; sync_until: string; page_token: string | null }
+type Connection = { id: string; tenant_id: string; email: string; refresh_token_ciphertext: string; connected_by: string; capture_from: string; last_synced_at: string | null; sync_until: string; page_token: string | null; sync_lease_token: string }
 type GmailMessage = { id: string; internalDate: string; labelIds?: string[]; payload: GmailPart & { headers?: { name: string; value: string }[] } }
 
 export async function recordOutreach(tenantId: string, messageId: string, leadId: string, actor: string) {
@@ -18,17 +18,23 @@ export async function recordOutreach(tenantId: string, messageId: string, leadId
 }
 
 export async function syncMailbox(tenantId: string, connectionId: string, budgetMs = 240000) {
+  const deadline = Date.now() + budgetMs
+  const providerDeadline = deadline - 3000
+  const checkDeadline = () => {
+    if (Date.now() >= providerDeadline) throw new Error('Batch time limit reached; retry from the retained cursor.')
+  }
   const { data: claimed, error } = await crmSupabaseAdmin.rpc('gmail_claim_sync', { p_id: connectionId, p_tenant: tenantId })
   if (error) throw new Error('Mailbox sync unavailable. Apply the Gmail CRM migration.')
   const connection = (claimed as Connection[] | null)?.[0]
   if (!connection) return { busy: true, recorded: 0, review: 0 }
   let recorded = 0; let review = 0
-  const deadline = Date.now() + budgetMs
   try {
-    const token = await googleToken({ grant_type: 'refresh_token', refresh_token: decryptToken(connection.refresh_token_ciphertext) })
+    checkDeadline()
+    const token = await googleToken({ grant_type: 'refresh_token', refresh_token: decryptToken(connection.refresh_token_ciphertext) }, providerDeadline)
     // Fetch the complete candidate set; a truncated result must never appear unique.
     const leads: EmailLead[] = []
     for (let offset = 0; ; offset += 1000) {
+      checkDeadline()
       if (offset >= 10000) throw new Error('Lead matching exceeds this deployment batch limit.')
       const { data: leadRows, error: leadError } = await crmSupabaseAdmin.from('lead_intakes')
         .select('id,contact_id,status,created_at,payload,crm_contacts(email)')
@@ -42,10 +48,11 @@ export async function syncMailbox(tenantId: string, connectionId: string, budget
     const until = Date.parse(connection.sync_until)
     const query = new URLSearchParams({ labelIds: 'SENT', maxResults: '50', q: `after:${Math.floor(start / 1000)} before:${Math.ceil(until / 1000)}` })
     if (connection.page_token) query.set('pageToken', connection.page_token)
-    const page = await gmailGet<{ messages?: { id: string }[]; nextPageToken?: string }>(token.access_token, `messages?${query}`)
+    checkDeadline()
+    const page = await gmailGet<{ messages?: { id: string }[]; nextPageToken?: string }>(token.access_token, `messages?${query}`, providerDeadline)
     for (const reference of page.messages || []) {
-      if (Date.now() > deadline) throw new Error('Batch time limit reached; retry from the retained cursor.')
-      const message = await gmailGet<GmailMessage>(token.access_token, `messages/${encodeURIComponent(reference.id)}?format=full`)
+      checkDeadline()
+      const message = await gmailGet<GmailMessage>(token.access_token, `messages/${encodeURIComponent(reference.id)}?format=full`, providerDeadline)
       if (!message.labelIds?.includes('SENT')) continue
       const sentAt = new Date(Number(message.internalDate)).toISOString()
       if (Date.parse(sentAt) < Date.parse(connection.capture_from)) continue
@@ -75,14 +82,14 @@ export async function syncMailbox(tenantId: string, connectionId: string, budget
       if (receipt.candidate_lead_ids.length === 1) { await recordOutreach(tenantId, receipt.id, receipt.candidate_lead_ids[0], connection.connected_by); recorded++ }
       else review++
     }
-    const { error: updateError } = await crmSupabaseAdmin.from('gmail_connections').update({
-      page_token: page.nextPageToken || null, sync_until: page.nextPageToken ? connection.sync_until : null,
-      ...(page.nextPageToken ? {} : { last_synced_at: connection.sync_until }), lease_until: null, last_error: null,
-    }).eq('id', connection.id).eq('tenant_id', tenantId)
-    if (updateError) throw updateError
+    checkDeadline()
+    const { data: finished, error: updateError } = await crmSupabaseAdmin.rpc('gmail_finish_sync', {
+      p_id: connection.id, p_tenant: tenantId, p_lease: connection.sync_lease_token, p_success: true, p_page: page.nextPageToken || null,
+    })
+    if (updateError || finished !== true) throw new Error('Mailbox lease expired; retry from the retained cursor.')
     return { recorded, review, more: Boolean(page.nextPageToken) }
   } catch {
-    await crmSupabaseAdmin.from('gmail_connections').update({ lease_until: null, last_error: 'Sync failed. Retry; if it persists, reconnect this Google mailbox.' }).eq('id', connection.id).eq('tenant_id', tenantId)
+    await crmSupabaseAdmin.rpc('gmail_finish_sync', { p_id: connection.id, p_tenant: tenantId, p_lease: connection.sync_lease_token, p_success: false })
     throw new Error('Sync failed. Retry or reconnect the Google mailbox. No credentials were exposed.')
   }
 }
