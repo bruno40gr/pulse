@@ -382,7 +382,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
       aria-label="Change lead status"
       value={stageSelection}
       fullWidth={isMobile}
-      disabled={saving}
+      disabled={saving || Boolean(renderEditor)}
       style={{
         ...(isMobile ? { minHeight: '36px', width: '100%' } : statusStageSelectStyle),
         ...(lead.status === 'new' ? newStatusSelectStyle : {}),
@@ -403,12 +403,12 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
     <div style={{ ...statusClusterRowStyle, justifyContent: isMobile ? 'flex-start' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
       <div style={{ ...statusClusterStyle, background: statusTone.background, borderColor: statusTone.border, minWidth: 0, maxWidth: '100%' }}>
         <span style={{ ...statusLabelStyle, color: statusTone.text, whiteSpace: isMobile ? 'normal' : 'nowrap' }}>{statusLabel(lead.status, lead.payload)}</span>
-        {!staticDetails && !isMobile && <>
+        {!isMobile && <>
           <span style={{ ...statusDividerStyle, background: statusTone.border }} aria-hidden="true" />
           {statusStageSelect}
         </>}
       </div>
-      {!staticDetails && isMobile && statusStageSelect}
+      {isMobile && statusStageSelect}
     </div>
   )
 
@@ -499,13 +499,13 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         {lostOpen && (
           <div style={{ ...lostSectionStyle, padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0` }}>
             <div style={lostStyle}>
-              <Select label="Lost reason" value={lostReason} onChange={(event) => setLostReason(event.target.value)}>
+              <Select label="Lost reason" aria-label="Lost reason" value={lostReason} onChange={(event) => setLostReason(event.target.value)}>
                 <option value="">Select a reason</option>
                 {LOST_REASONS.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
               </Select>
               <div style={actionRowStyle}>
                 <Button type="button" variant="secondary" size="sm" onClick={() => setLostOpen(false)}>Cancel</Button>
-                <Button type="button" variant="destructive" size="sm" disabled={saving || !lostReason} onClick={() => void onPatch({ status: 'lost', payload: { lost_reason: lostReason } })}>Confirm lost</Button>
+                <Button type="button" variant="destructive" size="sm" disabled={saving || !lostReason} onClick={async () => { if (await onPatch({ status: 'lost', payload: { lost_reason: lostReason } })) { setLostOpen(false); setLostReason('') } }}>Confirm lost</Button>
               </div>
             </div>
           </div>

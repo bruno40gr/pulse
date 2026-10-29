@@ -8,7 +8,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://127.0.0.1:3177'
     for (const width of [1440, 900, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
       page.setDefaultTimeout(8000)
-      const errors = [], writes = []
+      const errors = [], writes = [], statusPatches = []
       page.on('pageerror', error => errors.push(error.message))
       await page.clock.install({ time: new Date('2026-10-29T12:00:00Z') })
       const row = (id, name, created_at, source_system, payload = {}) => ({ id, status: 'new', intake_type: 'lesson_inquiry', program_label: 'Piano', source_form: source_system, source_system,
@@ -18,6 +18,12 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://127.0.0.1:3177'
         row('edge', 'M Expiring manual', '2026-10-28T12:01:00Z', 'pulse-manual')]
       await page.route('**/api/**', route => {
         const request = route.request(), url = new URL(request.url())
+        if (request.method() === 'PATCH' && url.pathname === '/api/leads/new') {
+          const patch = request.postDataJSON()
+          statusPatches.push(patch)
+          Object.assign(fixtures[1], patch, { payload: { ...fixtures[1].payload, ...patch.payload } })
+          return route.fulfill({ json: { ...fixtures[1], notes_history: [], events: [] } })
+        }
         if (request.method() !== 'GET') { writes.push(url.pathname); return route.abort() }
         if (url.pathname === '/api/leads') {
           const leads = url.searchParams.get('intake_type') === 'lesson_inquiry' ? fixtures : []
@@ -48,6 +54,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://127.0.0.1:3177'
       const header = page.getByRole('heading', { name: 'Z New website', exact: true }).locator('xpath=../../..')
       const before = await header.innerText()
       const beforeBox = await header.boundingBox()
+      await page.getByRole('combobox', { name: 'Change lead status', exact: true }).waitFor()
       await page.getByRole('button', { name: 'Edit lead', exact: true }).click()
       await page.getByRole('button', { name: 'Save changes', exact: true }).waitFor()
       const editingHeader = page.getByRole('heading', { name: 'Z New website', exact: true }).locator('xpath=../../..')
@@ -61,9 +68,19 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://127.0.0.1:3177'
       await page.getByRole('button', { name: 'Cancel', exact: true }).click()
       await page.getByRole('button', { name: 'Discard changes', exact: true }).click()
       await page.getByRole('button', { name: 'Edit lead', exact: true }).waitFor()
+      const statusSelect = page.getByRole('combobox', { name: 'Change lead status', exact: true })
+      await statusSelect.selectOption('contacted')
+      await page.waitForFunction(() => document.querySelector('.lead-detail-panel')?.textContent.includes('Contacted'))
+      await statusSelect.selectOption('lost')
+      await page.getByRole('button', { name: 'Confirm lost', exact: true }).waitFor()
+      assert.equal(statusPatches.length, 1, 'Lost requires confirmation before saving')
+      await page.getByLabel('Lost reason', { exact: true }).selectOption('not_interested')
+      await page.getByRole('button', { name: 'Confirm lost', exact: true }).click()
+      await page.getByRole('button', { name: 'Confirm lost', exact: true }).waitFor({ state: 'hidden' })
+      assert.deepEqual(statusPatches, [{ status: 'contacted' }, { status: 'lost', payload: { lost_reason: 'not_interested' } }])
       assert.deepEqual(writes, [])
       assert.deepEqual(errors, [])
-      console.log(`PASS ${width}px: lead ordering/highlights, unchanged edit header, discard guard, family grouping, explicit sorting; no writes`)
+      console.log(`PASS ${width}px: ordering/highlights, unchanged edit header, discard guard, manual status saves and Lost confirmation; synthetic writes only`)
       await page.close()
     }
   } finally { await browser.close() }
