@@ -289,6 +289,20 @@ export async function GET(request: Request) {
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
+    if (url.searchParams.get('count_only') === '1') {
+      const result = await withTimeout(
+        crmSupabaseAdmin.from('lead_intakes')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
+          .neq('source_form', WINBACK_SOURCE_FORM)
+          .eq('status', 'new'),
+        LEADS_QUERY_TIMEOUT_MS,
+        'new lead count query',
+      )
+      if (result.error) throw result.error
+      return NextResponse.json({ count: result.count ?? 0 }, { headers: { 'Cache-Control': 'no-store' } })
+    }
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
     const intakeType = url.searchParams.get('intake_type') || 'lesson_inquiry'

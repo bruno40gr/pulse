@@ -17,6 +17,7 @@ import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-prefere
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
+import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
@@ -134,6 +135,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
   const pathname = usePathname()
   const [conversationCount, setConversationCount] = useState(0)
+  const [leadCount, setLeadCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    let revision = 0
+    const loadCount = async () => {
+      const requestRevision = ++revision
+      const tenantId = getActiveTenantId()
+      try {
+        const response = await fetch(`/api/leads?tenant=${encodeURIComponent(tenantId)}&count_only=1`, { cache: 'no-store' })
+        const data = await response.json()
+        if (!cancelled && response.ok && requestRevision === revision && tenantId === getActiveTenantId()) {
+          setLeadCount(Number.isSafeInteger(data.count) && data.count >= 0 ? data.count : 0)
+        }
+      } catch {}
+    }
+    void loadCount()
+    const interval = window.setInterval(loadCount, 5000)
+    window.addEventListener(LEAD_COUNT_EVENT, loadCount)
+    window.addEventListener('focus', loadCount)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      window.removeEventListener(LEAD_COUNT_EVENT, loadCount)
+      window.removeEventListener('focus', loadCount)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -214,6 +242,11 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>{label}</span>
+                    {href === '/dashboard/leads' && leadCount > 0 && (
+                      <span aria-label={`${leadCount} new leads`} title={`${leadCount} new leads`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+                        {leadCount}
+                      </span>
+                    )}
                     {href === '/dashboard/inbox' && conversationCount > 0 && (
                       <span aria-label={`${conversationCount} unread messages`} title={`${conversationCount} unread messages`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
                         {conversationCount}

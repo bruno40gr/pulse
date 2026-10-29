@@ -1,4 +1,5 @@
 'use client'
+import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
@@ -771,6 +772,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   }, [activeTab, statusFilter])
 
   const invalidateLeadListCache = () => {
+    window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
     leadListCacheGenerationRef.current += 1
     leadListCacheRef.current.clear()
     prefetchedTabsRef.current = false
