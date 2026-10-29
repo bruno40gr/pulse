@@ -30,7 +30,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/rsvps', label: 'Event RSVPs' },
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/contacts', label: 'Contacts' },
-      { href: '/dashboard/inbox', label: 'Conversations' },
+      { href: '/dashboard/inbox', label: 'Communications' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Staff' },
       { href: '/dashboard/community', label: 'Community posts' },

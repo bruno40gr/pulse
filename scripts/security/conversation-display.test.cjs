@@ -37,9 +37,10 @@ test('channel filtering scopes history, attention, counts, search and sorting wi
 })
 test('list channel controls share contact header placement and opening respects the filter', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  const list = source.slice(source.indexOf('<SurfacePanel padding="0" style={{ overflow:'), source.indexOf('<ResponsiveDataTable rows={visibleContacts}'))
+  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('<ResponsiveDataTable rows={visibleContacts}'))
   assert.match(list, /<header/)
-  assert.match(list, /justifyContent: 'space-between'/)
+  assert.match(list, /justifyContent: 'flex-end'/)
+  assert.doesNotMatch(list, /<SectionTitle|<SurfacePanel/)
   assert.match(list, /aria-label="Filter conversation channel"/)
   assert.match(list, /<ControlButton key=\{channel\} kind="toggle"/)
   assert.match(list, /aria-pressed=\{channelFilter === channel\}/)

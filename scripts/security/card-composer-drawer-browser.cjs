@@ -39,7 +39,7 @@ const assert = require('node:assert/strict')
         }
         assert.ok(Math.abs((await composer.boundingBox()).width - (channel === 'SMS' ? cardWidth : width <= 760 ? width : cardWidth)) < 1)
         assert.equal(page.context().pages().length, 1)
-        assert.equal(await composer.getByRole('heading', { name: 'Conversations', exact: true }).count(), 0)
+        assert.equal(await composer.getByRole('heading', { name: 'Communications', exact: true }).count(), 0)
         const editor = composer.getByRole('textbox', { name: channel === 'SMS' ? 'SMS message' : 'Email body', exact: true })
         await editor.fill(`Keep ${channel} draft`)
         assert.equal(await composer.getByRole('button', { name: 'Open lead for Alex Example' }).count(), 0)

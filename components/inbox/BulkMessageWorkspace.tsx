@@ -28,7 +28,7 @@ export default function BulkMessageWorkspace() {
   }, [id])
   const close = () => router.push('/dashboard/inbox')
   return <PageContainer style={{ padding: mobile ? spacing.md : spacing['3xl'] }}>
-    <PageHeader title={selection?.channel === 'email' ? 'Write an email' : 'Write a text message'} onBack={close} backLabel="Back to Conversations" />
+    <PageHeader title={selection?.channel === 'email' ? 'Write an email' : 'Write a text message'} onBack={close} backLabel="Back to Communications" />
     {error ? <><Notice variant="error">{error}</Notice><Button onClick={() => router.push('/dashboard/contacts')}>Back to Contacts</Button></> : selection ? <section aria-label="Bulk message composer" style={{ minWidth: 0 }}>
       <SurfacePanel padding="0" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: 'max(440px, calc(100dvh - 160px))', overflow: 'hidden' }}>
         <ContactBulkComposer key={id} {...selection} onClose={close} />
