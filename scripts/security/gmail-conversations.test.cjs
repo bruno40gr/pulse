@@ -10,7 +10,7 @@ function load(file, dependencies = {}, globals = {}) {
   const loaded = { exports: {} }
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, Buffer, Date, URL, URLSearchParams, AbortSignal, ...globals, require(id) {
-    if (id === 'node:crypto') return require(id)
+    if (id === 'node:crypto' || id === 'node:buffer') return require(id)
     if (!(id in dependencies)) throw new Error(`Unexpected dependency ${id}`)
     return dependencies[id]
   } })
@@ -55,6 +55,7 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
       return builder
     } } },
     '@/lib/conversation-email-range': load('lib/conversation-email-range.ts'),
+    '@/lib/conversation-email-query': load('lib/conversation-email-query.ts'),
     '@/lib/conversations-directory': { conversationDirectory: async () => [person, ...additionalPeople] },
     '@/lib/gmail/conversations': { ...helper, conversationMailbox: async (...args) => { calls.push(['mailbox', ...args]); return { id: 'mailbox-one', email: 'office@example.com', token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] } }, gmailGet: async (_, url) => { calls.push(['get', url]); if (failRead) { const failure = failRead(url); if (failure) throw failure }; return url.startsWith('threads?') ? { threads: threads.map(thread => ({ id: thread.id })), nextPageToken: 'page-two' } : threads.find(thread => url.includes(thread.id)) } },
     '@/lib/gmail/rules': rules,
@@ -201,10 +202,10 @@ test('history API keeps diagnostics separate from plain-language errors and neve
 
 test('new drafts do not load history and selected-range summaries auto-paginate with cancellation', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  const summary = source.slice(source.indexOf('    setEmailSummaries([])'), source.indexOf('    if (!previewHistory)'))
+  const summary = source.slice(source.indexOf('    // Load the complete selected range'), source.indexOf('    if (!previewHistory)'))
   assert.ok(!summary.includes('do {'))
   assert.ok(!summary.includes('while (cursor)'))
-  assert.match(summary, /location.view === 'compose'/)
+  assert.match(summary, /location.view !== 'contacts'/)
   assert.match(summary, /document.visibilityState === 'hidden'/)
   assert.match(summary, /controller.abort\(\)/)
   assert.match(summary, /loadConversationEmailPages<LiveThread>/)

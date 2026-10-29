@@ -61,7 +61,7 @@ const initialLocation: ConversationLocation = { view: 'contacts', contactId: '',
 async function requestJson(url: string, options?: RequestInit) {
   const response = await fetch(url, { cache: 'no-store', ...options })
   const data = await response.json()
-  if (!response.ok) throw new Error(data.error || 'Request failed. Please try again.')
+  if (!response.ok) throw Object.assign(new Error(data.error || 'Request failed. Please try again.'), { retryable: data.retryable === true })
   return data
 }
 
@@ -255,9 +255,8 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     try { setReadEmailIds(new Set(JSON.parse(sessionStorage.getItem(`pulse:email-read:${tenantId}:${mailboxId}`) || '[]'))) } catch { /* Optional session storage. */ }
   }, [tenantId, mailboxId])
   useEffect(() => {
-    setEmailSummaries([])
     // Load the complete selected range, never unbounded mailbox history.
-    if (!tenantId || !mailboxId || location.view === 'compose' || location.view === 'sms-compose') return
+    if (!tenantId || !mailboxId || location.view !== 'contacts') return
     let cancelled = false
     let running = false
     const controller = new AbortController()
@@ -277,15 +276,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           setEmailSummaries(current => [...current.filter(thread => !page.some(next => next.id === thread.id)), ...page])
         }, () => cancelled)
         if (!cancelled) {
-          setEmailSummaries(summaries)
+          setEmailSummaries([...new Map(summaries.map(thread => [thread.id, thread])).values()])
           setSummaryError('')
         }
-      } catch { if (!cancelled) setSummaryError('Email attention status could not be refreshed. SMS status is still available.') }
+      } catch (error) { if (!cancelled) setSummaryError(error instanceof Error ? error.message : 'Email history could not be loaded.') }
       finally { running = false; if (!cancelled) setSummaryLoading(false) }
     }
     refreshEmailSummaries.current = refresh
     void refresh()
-    const interval = window.setInterval(() => { void refresh() }, 60000)
+    const interval = window.setInterval(() => { void refresh() }, 300000)
     return () => { cancelled = true; controller.abort(); window.clearInterval(interval); refreshEmailSummaries.current = null }
   }, [tenantId, mailboxId, location.view, dateFrom, dateTo])
   useEffect(() => {
@@ -307,7 +306,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
         return requestJson(`/api/conversations/email?${params}`)
       }, page => {
         history.push(...page)
-        setThreads(current => [...current.filter(thread => thread.channel !== 'email' || thread.contactId !== personId || (emailDrafts[thread.id] && !history.some(next => next.id === thread.id))), ...history])
+        setThreads(current => [...current.filter(thread => thread.channel !== 'email' || thread.contactId !== personId || (emailDrafts[thread.id] && !history.some(next => next.id === thread.id))), ...new Map(history.map(thread => [thread.id, thread])).values()])
       }, () => request !== emailRequest.current)
       if (request !== emailRequest.current) return
       setLoadedEmailPeople(current => [...new Set([...current, personId])])

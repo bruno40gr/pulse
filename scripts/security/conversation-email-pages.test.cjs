@@ -30,3 +30,16 @@ test('provider failures retain delivered pages and surface an error rather than 
   }, page => messages.push(...page), () => false), /Provider busy/)
   assert.deepEqual(messages, ['first email'])
 })
+
+test('rate limits retry the failed page with exponential backoff without losing earlier emails', async () => {
+  const cursors = [], waits = [], messages = []
+  let failures = 0
+  await loadConversationEmailPages(async cursor => {
+    cursors.push(cursor)
+    if (cursor && failures++ < 2) throw Object.assign(new Error('Gmail busy'), { retryable: true })
+    return { threads: [cursor ? 'inbound' : 'outbound'], nextCursor: cursor ? null : 'second' }
+  }, page => messages.push(...page), () => false, async milliseconds => { waits.push(milliseconds) })
+  assert.deepEqual(cursors, [null, 'second', 'second', 'second'])
+  assert.deepEqual(waits, [500, 2000, 4000])
+  assert.deepEqual(messages, ['outbound', 'inbound'])
+})

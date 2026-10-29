@@ -8,6 +8,7 @@ const assert = require('node:assert/strict')
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
       await page.clock.setFixedTime(new Date('2026-10-28T12:00:00Z'))
       const errors = [], writes = [], summaryCursors = [], ranges = []
+      let limited = false
       page.on('pageerror', error => errors.push(error.message))
       const people = ['Older History', 'Recent Email', 'Unrelated Contact'].map((name, i) => ({ id: `person:${i}`, name, email: `${i}@example.invalid`, phone: '', student: '', stage: '', profileType: i === 2 ? 'contact' : 'lead', profileId: String(i), smsContactId: String(i) }))
       const email = i => ({ id: `email:box:thread:${i}`, contactId: people[i].id, name: people[i].name, email: people[i].email, phone: '', initials: 'E', student: '', stage: '', interest: '', nextAction: '', note: '', channel: 'email', subject: `Lessons ${i}`, mailboxId: 'box', providerThreadId: `thread-${i}`, messages: [{ id: `message-${i}`, channel: 'email', direction: 'inbound', unread: false, body: 'Existing email restored to reader', timestamp: '2026-10-26T12:00:00Z', time: 'October 26' }] })
@@ -23,6 +24,7 @@ const assert = require('node:assert/strict')
           if (url.searchParams.get('from') === '2026-09-01') return json({ threads: [{ ...email(0), messages: [{ ...email(0).messages[0], body: 'September lead email', timestamp: '2026-09-26T12:00:00Z', time: 'September 26' }] }], nextCursor: null })
           if (url.searchParams.has('summary')) {
             const cursor = url.searchParams.get('cursor') || 'first'; summaryCursors.push(cursor)
+            if (cursor === 'older-2' && !limited) { limited = true; return route.fulfill({ status: 503, json: { error: 'Email history is temporarily busy. Please try again shortly.', retryable: true } }) }
             return json({ threads: cursor === 'older-4' ? [email(0), email(1), email(2), { ...email(0), id: 'old-thread', messages: [{ ...email(0).messages[0], body: 'Old history must be hidden', timestamp: '2026-09-12T12:00:00Z' }] }] : [], nextCursor: cursor === 'first' ? 'older-1' : cursor === 'older-1' ? 'older-2' : cursor === 'older-2' ? 'older-3' : cursor === 'older-3' ? 'older-4' : null })
           }
           if (!url.searchParams.has('cursor')) return json({ threads: [], nextCursor: 'contact-page-2' })
@@ -36,7 +38,7 @@ const assert = require('node:assert/strict')
       assert.equal(await page.getByRole('button', { name: 'Reset to current month', exact: true }).count(), 0)
       const older = page.getByRole('button', { name: 'Open conversation with Older History', exact: true })
       await older.waitFor()
-      assert.deepEqual(summaryCursors.slice(0, 5), ['first', 'older-1', 'older-2', 'older-3', 'older-4'])
+      assert.deepEqual(summaryCursors.slice(0, 6), ['first', 'older-1', 'older-2', 'older-2', 'older-3', 'older-4'])
       assert.equal(await page.getByRole('button', { name: 'Load more emails in date range', exact: true }).count(), 0)
       assert.equal(await page.getByText('Emails sent to or received from lead contacts within the selected date range.', { exact: true }).count(), 0)
       assert.equal(await page.getByRole('button', { name: 'Open conversation with Unrelated Contact', exact: true }).count(), 0)
