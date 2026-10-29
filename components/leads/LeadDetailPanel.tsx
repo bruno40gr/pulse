@@ -430,14 +430,33 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
   )
   if (renderEditor) return renderEditor(renderHeader)
 
+  // Follow-up is an independent workflow, including when identity details are read-only.
+  const followUpEditor = <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle} actions={<div style={actionRowStyle}>
+    {lead.follow_up_at && <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button>}
+    <Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button>
+  </div>}>
+    <div style={stackStyle}>
+      <div style={twoColumnStyle}>
+        <Input label="Date" aria-label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} />
+        <Select label="Quick pick" aria-label="Quick pick" value="" onChange={(event) => {
+          const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value)
+          if (chosen) {
+            const date = new Date()
+            date.setDate(date.getDate() + chosen.days)
+            const value = dateInputValue(date)
+            setFollowUpDate(value)
+            onDraftChange({ ...draft, followUpDate: value })
+          }
+        }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select>
+      </div>
+      <Textarea label="Reminder note" aria-label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} />
+    </div>
+  </DenseSectionPanel>
+
   const notesRail = (
     <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
               <NotesSection key={lead.id} title="Notes" panel notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onEdit={(entry, text) => onPatch({ edit_note: { id: entry.id, text, previous_text: entry.text } })} onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} />
-              {staticDetails ? <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}><Field label="Date" value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : ''} /><Field label="Reminder note" value={lead.follow_up_note || ''} /></DenseSectionPanel> : isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>
-                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
-              </Disclosure> : <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle}>
-                <div style={stackStyle}><div style={twoColumnStyle}><Input label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} /><Select label="Quick pick" value="" onChange={(event) => { const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value); if (chosen) { const date = new Date(); date.setDate(date.getDate() + chosen.days); const value = dateInputValue(date); setFollowUpDate(value); onDraftChange({ ...draft, followUpDate: value }) } }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></div><Textarea label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing["4xl"] }} /><div style={actionRowStyle}><Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? "Saving…" : "Update follow-up"}</Button></div></div>
-              </DenseSectionPanel>}
+              {isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>{followUpEditor}</Disclosure> : followUpEditor}
               <LeadActivitySection key={lead.id} entries={activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)} />
             </div>
   )
