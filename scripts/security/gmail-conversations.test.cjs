@@ -199,7 +199,7 @@ test('history API keeps diagnostics separate from plain-language errors and neve
   assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
 })
 
-test('new drafts do not load history and background summaries are bounded, cancellable and hidden-tab aware', () => {
+test('new drafts do not load history and selected-range summaries auto-paginate with cancellation', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
   const summary = source.slice(source.indexOf('    setEmailSummaries([])'), source.indexOf('    if (!previewHistory)'))
   assert.ok(!summary.includes('do {'))
@@ -207,9 +207,9 @@ test('new drafts do not load history and background summaries are bounded, cance
   assert.match(summary, /location.view === 'compose'/)
   assert.match(summary, /document.visibilityState === 'hidden'/)
   assert.match(summary, /controller.abort\(\)/)
-  assert.match(summary, /else if \(!scannedFirstPage\) \{/)
-  assert.match(summary, /page < 3 && olderCursor && !cancelled/)
-  assert.match(summary, /if \(scannedFirstPage && olderCursor\) olderCursor = await loadPage\(olderCursor\)/)
+  assert.match(summary, /loadConversationEmailPages<LiveThread>/)
+  assert.match(summary, /from: dateFrom, to: dateTo/)
+  assert.ok(!source.includes('Load more emails in date range'))
   assert.match(source, /location.view !== 'contact' \|\| location.channel !== 'email'/)
   assert.ok(!source.includes('{sendError || emailError}'))
   assert.match(source, />Retry history<\/Button>/)

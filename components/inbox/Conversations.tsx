@@ -40,6 +40,7 @@ import { compareConversations, conversationAttention, CONVERSATIONS_HOME_EVENT, 
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import type { ConversationChannel } from '@/lib/conversation-links'
 import { currentEmailMonth, emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
+import { loadConversationEmailPages } from '@/lib/conversation-email-pages'
 
 const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
 const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
@@ -94,7 +95,6 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const [signatureError, setSignatureError] = useState('')
   const [emailSummaries, setEmailSummaries] = useState<LiveThread[]>([])
   const [summaryLoading, setSummaryLoading] = useState(false)
-  const [summaryHasMore, setSummaryHasMore] = useState(false)
   const refreshEmailSummaries = useRef<(() => Promise<void>) | null>(null)
   const [summaryError, setSummaryError] = useState('')
   const [readEmailIds, setReadEmailIds] = useState<Set<string>>(() => new Set())
@@ -256,13 +256,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [tenantId, mailboxId])
   useEffect(() => {
     setEmailSummaries([])
-    // Background history must not compete with composing/sending, or scan the
-    // entire mailbox on every minute tick (and multiply that work across tabs).
+    // Load the complete selected range, never unbounded mailbox history.
     if (!tenantId || !mailboxId || location.view === 'compose' || location.view === 'sms-compose') return
     let cancelled = false
     let running = false
-    let olderCursor: string | null = null
-    let scannedFirstPage = false
     const controller = new AbortController()
     const refresh = async () => {
       if (running || cancelled || document.visibilityState === 'hidden') return
@@ -270,29 +267,18 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       setSummaryLoading(true)
       try {
         const summaries: LiveThread[] = []
-        const loadPage = async (cursor: string | null) => {
+        await loadConversationEmailPages<LiveThread>(async cursor => {
           const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, summary: '1', from: dateFrom, to: dateTo })
           if (cursor) params.set('cursor', cursor)
           const data = await requestJson(`/api/conversations/email?${params}`, { signal: controller.signal })
-          summaries.push(...data.threads)
-          if (!cancelled) setEmailSummaries(current => [...current.filter(thread => !data.threads.some((next: LiveThread) => next.id === thread.id)), ...data.threads])
-          return data.nextCursor as string | null
-        }
-        const next = await loadPage(null)
-        if (cancelled) return
-        // Seed a bounded three-page window immediately, rather than hiding
-        // older contacts for minutes when the newest page is operational mail.
-        // Later refreshes advance one older page and retain accumulated history.
-        if (scannedFirstPage && olderCursor) olderCursor = await loadPage(olderCursor)
-        else if (!scannedFirstPage) {
-          olderCursor = next
-          for (let page = 1; page < 3 && olderCursor && !cancelled; page++) olderCursor = await loadPage(olderCursor)
-        }
-        scannedFirstPage = true
+          return data
+        }, page => {
+          summaries.push(...page)
+          setEmailSummaries(current => [...current.filter(thread => !page.some(next => next.id === thread.id)), ...page])
+        }, () => cancelled)
         if (!cancelled) {
-          setEmailSummaries(current => [...current.filter(thread => !summaries.some(next => next.id === thread.id)), ...summaries])
+          setEmailSummaries(summaries)
           setSummaryError('')
-          setSummaryHasMore(Boolean(olderCursor))
         }
       } catch { if (!cancelled) setSummaryError('Email attention status could not be refreshed. SMS status is still available.') }
       finally { running = false; if (!cancelled) setSummaryLoading(false) }
@@ -309,17 +295,21 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     setLoadedEmailPeople(sampleThreads.map(thread => thread.contactId))
   }, [previewHistory, people])
   const emailRequest = useRef(0)
-  const loadEmails = useCallback(async (personId: string, cursor?: string) => {
+  const loadEmails = useCallback(async (personId: string) => {
     if (!mailboxId || !personId || !tenantId || !people.some(person => person.id === personId && person.email.trim() && isLeadEmailContact(person))) return
     const request = ++emailRequest.current
     setEmailLoading(true); setEmailError('')
     try {
-      const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, person: personId, from: dateFrom, to: dateTo })
-      if (cursor) params.set('cursor', cursor)
-      const data = await requestJson(`/api/conversations/email?${params}`)
+      const history: LiveThread[] = []
+      await loadConversationEmailPages<LiveThread>(async cursor => {
+        const params = new URLSearchParams({ tenant: tenantId, mailbox: mailboxId, person: personId, from: dateFrom, to: dateTo })
+        if (cursor) params.set('cursor', cursor)
+        return requestJson(`/api/conversations/email?${params}`)
+      }, page => {
+        history.push(...page)
+        setThreads(current => [...current.filter(thread => thread.channel !== 'email' || thread.contactId !== personId || (emailDrafts[thread.id] && !history.some(next => next.id === thread.id))), ...history])
+      }, () => request !== emailRequest.current)
       if (request !== emailRequest.current) return
-      setThreads(current => [...current.filter(thread => thread.channel !== 'email' || thread.contactId !== personId || ((cursor || emailDrafts[thread.id]) && !data.threads.some((next: LiveThread) => next.id === thread.id))),
-        ...data.threads as LiveThread[]])
       setLoadedEmailPeople(current => [...new Set([...current, personId])])
     } catch (error) { if (request === emailRequest.current) setEmailError(error instanceof Error ? error.message : 'Could not load email.') }
     finally { if (request === emailRequest.current) setEmailLoading(false) }
@@ -581,16 +571,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       <ResponsiveDataTable rows={visibleContacts} getRowKey={person => person.id} ariaLabel="Conversations" minDesktopWidth={360} alignToSelectionInset stickyHeaderOffset={0}
         getRowStyle={person => conversationAttention(person.threads).unread ? { background: '#F0F8FA' } : undefined}
         sort={{ key: sort, direction: sortDirection }} onSortChange={next => { setSort(next.key); setSortDirection(next.direction) }}
-        onRowClick={person => selectContact(person.id)} emptyContent="No conversations match your filters."
+        onRowClick={person => selectContact(person.id)} emptyContent={summaryLoading ? <ProfilePanelSkeleton /> : "No conversations match your filters."}
         columns={[
           { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => { const attention = conversationAttention(person.threads); return <div><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{attention.unattended && <span role="img" aria-label={attention.unread ? 'Unread and unattended message' : 'Unattended message'} title={`Awaiting your reply · ${attention.channels.join(' and ')}${attention.unread ? ' · Unread' : ''}`} style={{ color: colors.tealDark, display: 'inline-flex', flexShrink: 0 }}>{attention.channels.includes('sms') && <ArrowDownLeft size={20} aria-hidden="true" />}{attention.channels.includes('email') && <Mail size={20} aria-hidden="true" />}</span>}<PersonName as="button" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textAlign: 'left' }}>{person.name}</PersonName></div><div style={{ ...meta, marginTop: spacing.xs }}>{attention.unattended && <span style={{ color: colors.tealDark }}>{attention.unread ? 'Unread · Unattended' : 'Unattended'} · </span>}{channelFilter !== 'email' && `${person.newSms} new SMS`}{channelFilter !== 'sms' && (loadedEmailPeople.includes(person.id) || emailSummaries.some(thread => thread.contactId === person.id)) ? `${channelFilter === 'all' ? ' · ' : ''}${person.newEmails} unread emails` : ''}</div></div> } },
           { id: 'time', header: 'Last contacted', width: 'minmax(180px, 1fr)', sortable: true, sortKey: 'time', defaultSortDirection: 'desc', render: person => channelFilter === 'email' && !person.threads.length && !loadedEmailPeople.includes(person.id) ? 'Open to load email history' : formatContactTiming(lastContactTimestamp(person.threads)) },
         ]} />
       </SurfacePanel>
-      {channelFilter === 'email' && <p role="status" style={meta}>Emails sent to or received from lead contacts within the selected date range.{summaryLoading ? ' Loading email conversations…' : ''}</p>}
       {summaryError && <p role="status" style={meta}>{summaryError}</p>}
       {emailError && <Notice variant="warning">{emailError}</Notice>}
-      {(summaryHasMore || summaryError) && <Button type="button" variant="secondary" size="sm" disabled={summaryLoading} onClick={() => { void refreshEmailSummaries.current?.() }}>{summaryLoading ? 'Loading email conversations…' : summaryError ? 'Retry email history' : 'Load more emails in date range'}</Button>}
+      {summaryError && <Button type="button" variant="secondary" size="sm" disabled={summaryLoading} onClick={() => { void refreshEmailSummaries.current?.() }}>Retry email history</Button>}
     </div> : location.view === 'sms-compose' ? composingSms && newSms ? <section aria-label="New SMS composer" style={{ minWidth: 0 }}>
       <SurfacePanel padding="0" style={{ ...pane, height: 'max(440px, calc(100dvh - 160px))', overflow: 'hidden' }}>
         <div style={{ ...row, justifyContent: 'flex-end', padding: `${spacing.sm} ${spacing.lg}`, borderBottom: `1px solid ${colors.border}` }}>
