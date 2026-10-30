@@ -1,4 +1,6 @@
 'use client'
+import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
+import { FieldGrid } from '@/components/ui/FieldGrid'
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -333,7 +335,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
 
   const hierarchyReview = reviewWinbackHierarchy(lead)
   const studentsSection = staticDetails ? <>
-    <DenseSectionPanel title={<SectionTitle>Contact</SectionTitle>}>
+    <DenseSectionPanel title={<SectionTitle variant="card">Contact</SectionTitle>}>
       <div style={twoColumnStyle}>
         <Field label="Lead type" value={label(lead.intake_type)} />
         <Field label="Contact name" value={lead.contact?.full_name || ''} />
@@ -341,7 +343,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         <Field label="Phone" value={formatPhoneNumber(lead.contact?.phone) || ''} />
       </div>
     </DenseSectionPanel>
-    <DenseSectionPanel title={<SectionTitle>Students</SectionTitle>}>
+    <DenseSectionPanel title={<SectionTitle variant="card">Students</SectionTitle>}>
       <div style={stackStyle}>{readLeadStudents(lead.payload, lead.program_label).map((student, index) => <div key={index} style={{ ...stackStyle, borderTop: index ? `1px solid ${colors.border}` : undefined, paddingTop: index ? spacing.md : undefined }}>
         <div style={twoColumnStyle}>
           <Field label="Student name" value={student.name} />
@@ -360,7 +362,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
       </div>)}</div>
     </DenseSectionPanel>
   </> : <>
-    {hierarchyReview && <DenseSectionPanel title={<SectionTitle>Disenrolled contact review</SectionTitle>}>
+    {hierarchyReview && <DenseSectionPanel title={<SectionTitle variant="card">Disenrolled contact review</SectionTitle>}>
       <p role="status" style={{ fontSize: typography.sizeSm }}>{hierarchyReview.warning}</p>
       <Field label="Imported contact label (unverified role)" value={hierarchyReview.importedContactLabel} />
       <Field label="Recorded parent / contact" value={hierarchyReview.recordedParentName} />
@@ -431,12 +433,12 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
   if (renderEditor) return renderEditor(renderHeader)
 
   // Follow-up is an independent workflow, including when identity details are read-only.
-  const followUpEditor = <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle} actions={<div style={actionRowStyle}>
+  const followUpEditor = <DenseSectionPanel title={<SectionTitle variant="card">Follow-up</SectionTitle>} style={followUpSectionStyle} actions={<div style={actionRowStyle}>
     {lead.follow_up_at && <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button>}
     <Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button>
   </div>}>
     <div style={stackStyle}>
-      <div style={twoColumnStyle}>
+      <FieldGrid>
         <Input label="Date" aria-label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} />
         <Select label="Quick pick" aria-label="Quick pick" value="" onChange={(event) => {
           const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value)
@@ -448,7 +450,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             onDraftChange({ ...draft, followUpDate: value })
           }
         }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select>
-      </div>
+      </FieldGrid>
       <Textarea label="Reminder note" aria-label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} />
     </div>
   </DenseSectionPanel>
@@ -456,7 +458,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
   const notesRail = (
     <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
               <NotesSection key={lead.id} title="Notes" panel notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onEdit={(entry, text) => onPatch({ edit_note: { id: entry.id, text, previous_text: entry.text } })} onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} />
-              {isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>{followUpEditor}</Disclosure> : followUpEditor}
+              {isMobile ? <Disclosure summary={<SectionTitle variant="card" style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>{followUpEditor}</Disclosure> : followUpEditor}
               <LeadActivitySection key={lead.id} entries={activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)} />
             </div>
   )
@@ -529,7 +531,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             </div>
           </div>
         )}
-        <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+        <SlidePanelActionBar isMobile={isMobile}>
           <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} ><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
           <Button variant="secondary" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={() => {
             if (contextualCompose) contextualCompose('sms')
@@ -541,15 +543,15 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} ><Copy size={15} /></Button>}
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
-        </div>
+        </SlidePanelActionBar>
       </>
 
       {isMobile && mobileSection === 'notes' ? notesRail : isMobile ? (
           <div style={{
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
-            padding: "0 16px 24px",
+            gap: spacing.lg,
+            padding: spacing.lg,
             width: "100%",
             maxWidth: "100%",
             boxSizing: "border-box",
@@ -559,7 +561,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
               <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
             </div>
             {winback && (
-              <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>
+              <DenseSectionPanel title={<SectionTitle variant="card">Disenrolled</SectionTitle>} style={lessonSectionStyle}>
                 <div style={stackStyle}>
                   {staticDetails ? <Field label="Disenrolled status" value={label(winbackStatus)} /> : <Select label="Disenrolled status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                     {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
@@ -572,11 +574,11 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
               </DenseSectionPanel>
             )}
             {isLesson && studentsSection}
-            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle>Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
+            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle variant="card">Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
               <div style={oneColumnStyle}><Field label="Contact name" value={lead.contact?.full_name || ''} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
             </DenseSectionPanel>}
             {isService && <DenseSectionPanel
-              title={<SectionTitle>Service details</SectionTitle>}
+              title={<SectionTitle variant="card">Service details</SectionTitle>}
               actions={!serviceEditing ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setServiceEditing(true)}>Edit</Button> : undefined}
               style={lessonSectionStyle}
             >
@@ -627,7 +629,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
                 <div style={oneColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}/${getOpportunityValueUnit(lead.payload)}`} /></div>
               )}
             </DenseSectionPanel>}
-            <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
+            <DenseSectionPanel title={<SectionTitle variant="card">Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
               <div style={oneColumnStyle}>
                 <Field label="Source" value={formatLeadSource(lead.payload.source)} />
                 <Field label="Campaign" value={lead.utm_campaign || ""} />
@@ -648,7 +650,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
                 <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
               </div>
               {winback && (
-                <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>
+                <DenseSectionPanel title={<SectionTitle variant="card">Disenrolled</SectionTitle>} style={lessonSectionStyle}>
                   <div style={stackStyle}>
                     {staticDetails ? <Field label="Disenrolled status" value={label(winbackStatus)} /> : <Select label="Disenrolled status" value={winbackStatus} onChange={(event) => void onPatch({ payload: { winback: { ...winback, status: event.target.value } } })} disabled={saving}>
                       {WINBACK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
@@ -661,14 +663,14 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
                 </DenseSectionPanel>
               )}
               {isLesson && studentsSection}
-            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle>Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
+            {isLesson && [lesson.experience, lesson.days, lesson.times, lessonRequest.preferredDate, lessonRequest.timeWindow].some(Boolean) && <DenseSectionPanel title={<SectionTitle variant="card">Legacy inquiry preferences (not assigned to students)</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Contact name" value={lead.contact?.full_name || ''} /><Field label="Experience" value={lesson.experience} /><Field label="Available days" value={lesson.days} /><Field label="Preferred times" value={lesson.times} /><Field label="Preferred date" value={lessonRequest.preferredDate} /><Field label="Time window" value={lessonRequest.timeWindow} /></div>
               </DenseSectionPanel>}
-              {isService && <DenseSectionPanel title={<SectionTitle>Service details</SectionTitle>} style={lessonSectionStyle}>
+              {isService && <DenseSectionPanel title={<SectionTitle variant="card">Service details</SectionTitle>} style={lessonSectionStyle}>
                 <div style={twoColumnStyle}><Field label="Service types" value={getServiceTypes(lead).join(', ')} /><Field label="Opportunity value" value={serviceValue == null ? '' : `$${serviceValue.toLocaleString()}`} /></div>
               </DenseSectionPanel>}
 
-              <DenseSectionPanel title={<SectionTitle>Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
+              <DenseSectionPanel title={<SectionTitle variant="card">Source & Attribution</SectionTitle>} style={sourceSectionStyle}>
                 <div style={twoColumnStyle}>
                   <Field label="Source" value={formatLeadSource(lead.payload.source)} />
                   <Field label="Campaign" value={lead.utm_campaign || ""} />
@@ -690,15 +692,14 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
 }
 
 
-const notesRailStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', padding: spacing.xs }
-const columnsStyle: CSSProperties = { display: 'grid', gridTemplateRows: 'minmax(0, 1fr)', overflow: 'hidden', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
-const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
+const notesRailStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }
+const columnsStyle: CSSProperties = { display: 'grid', gridTemplateRows: 'minmax(0, 1fr)', overflow: 'hidden', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: spacing.lg }
+const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }
 const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }
 const oneColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: spacing.md }
 const editNameButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', padding: 0, border: 'none', borderRadius: radius.md, background: 'transparent', color: colors.textSecondary, cursor: 'pointer' }
 const lostSectionStyle: CSSProperties = { padding: `${spacing.md} ${spacing.lg} 0`, flexShrink: 0 }
-const contactActionsSectionStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', padding: `${spacing.md} ${spacing.lg}`, flexShrink: 0 }
 const emailControlStyle: CSSProperties = { gap: spacing.xs, color: colors.textSecondary, fontWeight: typography.weightMedium, flexWrap: 'wrap' }
 const emailControlMdStyle: CSSProperties = { minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`, padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase, maxWidth: '100%', minWidth: 0, overflow: 'hidden' }
 const mobileActionControlStyle: CSSProperties = { width: '100%', maxWidth: '100%', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }

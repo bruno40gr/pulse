@@ -23,6 +23,8 @@ import { matchesLeadInquirySearch } from '@/lib/lead-inquiry-search'
 import { leadStudentDetailRows, leadStudentsPatch, readLeadStudents, syncStudentContact } from '@/lib/lead-students'
 import type { LeadStudent } from '@/lib/lead-students'
 import { validBirthday } from '@/lib/lead-birthday'
+import { leadContactErrors } from '@/lib/lead-contact-validation'
+import { FieldGrid } from '@/components/ui/FieldGrid'
 import WinbackImportPanel from './WinbackImportPanel'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
@@ -625,6 +627,17 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
   const [manualLeadForm, setManualLeadForm] = useState<ManualLeadFormState>(() => createInitialManualLeadForm('lesson_inquiry'))
   const [manualLeadError, setManualLeadError] = useState('')
+  const [manualLeadSubmitted, setManualLeadSubmitted] = useState(false)
+  const manualLeadErrorRef = useRef<HTMLDivElement>(null)
+  const manualLeadFieldErrors = leadContactErrors(manualLeadForm, manualLeadSubmitted)
+  const manualLeadProblems = [
+    ...Object.values(manualLeadFieldErrors).filter(Boolean),
+    ...(manualLeadSubmitted && isLessonLead(manualLeadForm.intakeType) && manualLeadForm.students.some(student => student.date_of_birth && !validBirthday(student.date_of_birth)) ? ['Enter a valid birthday, not a future date.'] : []),
+  ]
+  const focusManualLeadError = () => requestAnimationFrame(() => {
+    manualLeadErrorRef.current?.focus({ preventScroll: true })
+    manualLeadErrorRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  })
   const [manualLeadSaving, setManualLeadSaving] = useState(false)
   const [manualLeadQueued, setManualLeadQueued] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -976,12 +989,15 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   const openAddLead = () => {
     setManualLeadError('')
+    setManualLeadSubmitted(false)
+    setManualLeadQueued(false)
     setManualLeadForm(createInitialManualLeadForm(activeTab))
     setIsAddLeadOpen(true)
   }
 
   const closeAddLead = () => {
     if (manualLeadSaving) return
+    setManualLeadSubmitted(false)
     setIsAddLeadOpen(false)
     setManualLeadError('')
     setManualLeadQueued(false)
@@ -1002,6 +1018,14 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   }
 
   const handleCreateLead = async () => {
+    if (manualLeadSaving || manualLeadQueued) return
+    setManualLeadSubmitted(true)
+    setManualLeadError('')
+    const errors = leadContactErrors(manualLeadForm, true)
+    if (errors.fullName || errors.email || (isLessonLead(manualLeadForm.intakeType) && manualLeadForm.students.some(student => student.date_of_birth && !validBirthday(student.date_of_birth)))) {
+      focusManualLeadError()
+      return
+    }
     setManualLeadSaving(true)
     setManualLeadError('')
 
@@ -1051,6 +1075,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       if (response.queued) {
         setManualLeadError(`Inquiry safely queued${response.receipt_id ? ` (receipt ${response.receipt_id})` : ''}. It is not yet visible in Leads. Close this panel; do not resubmit.`)
         setManualLeadQueued(true)
+        focusManualLeadError()
         return
       }
 
@@ -1066,6 +1091,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       }
     } catch (error: unknown) {
       setManualLeadError(getErrorMessage(error, 'Could not create lead'))
+      focusManualLeadError()
     } finally {
       setManualLeadSaving(false)
     }
@@ -1994,9 +2020,11 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           onClose={closeAddLead}
         />
         <div style={manualLeadPanelBodyStyle}>
-          {manualLeadError && <MessageBox>{manualLeadError}</MessageBox>}
+          {(manualLeadError || manualLeadProblems.length > 0) && <div ref={manualLeadErrorRef} tabIndex={-1} role="alert" aria-label="Could not create lead">
+            <MessageBox>{manualLeadError || <><strong>Check the following before saving:</strong><ul>{manualLeadProblems.map(problem => <li key={problem}>{problem}</li>)}</ul></>}</MessageBox>
+          </div>}
 
-          <div style={manualLeadFormGridStyle}>
+          <FieldGrid>
             <Select
               label="Lead type"
               value={manualLeadForm.intakeType}
@@ -2011,7 +2039,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               value={manualLeadForm.fullName}
               onChange={(event) => updateManualLeadField('fullName', event.target.value)}
               placeholder="Jane Smith"
-              error={!manualLeadForm.fullName.trim() ? 'Required' : undefined}
+              required
+              hint="Required"
+              error={manualLeadFieldErrors.fullName}
             />
             <Input
               label="Email"
@@ -2019,6 +2049,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               value={manualLeadForm.email}
               onChange={(event) => updateManualLeadField('email', event.target.value)}
               placeholder="name@example.com"
+              required
+              hint="Required; phone is optional"
+              error={manualLeadFieldErrors.email}
             />
             <Input
               label="Phone"
@@ -2026,12 +2059,12 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               value={manualLeadForm.phone}
               onChange={(event) => updateManualLeadField('phone', formatPhoneNumber(event.target.value))}
               placeholder="(555) 123-4567"
-              error={!manualLeadForm.email.trim() && !manualLeadForm.phone.trim() ? 'Email or phone is required' : undefined}
+              hint="Optional"
             />
             {isLessonLead(manualLeadForm.intakeType) ? (
               <>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <LeadStudentsEditor students={manualLeadForm.students} onChange={students => updateManualLeadField('students', students)} disabled={manualLeadSaving} contact={{ name: manualLeadForm.fullName, email: manualLeadForm.email, phone: manualLeadForm.phone }} />
+                  <LeadStudentsEditor students={manualLeadForm.students} onChange={students => updateManualLeadField('students', students)} disabled={manualLeadSaving || manualLeadQueued} validationSubmitted={manualLeadSubmitted} variant="add" contact={{ name: manualLeadForm.fullName, email: manualLeadForm.email, phone: manualLeadForm.phone }} />
                 </div>
               </>
             ) : (
@@ -2057,7 +2090,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             )}
             <details style={{ gridColumn: '1 / -1', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md }}>
               <summary style={{ cursor: 'pointer', fontSize: typography.sizeSm }}>Attribution &amp; sourcing</summary>
-              <div style={{ ...manualLeadFormGridStyle, marginTop: spacing.md }}>
+              <div style={{ marginTop: spacing.md }}><FieldGrid>
                 <Select
                   label="Source"
                   value={manualLeadForm.source}
@@ -2092,9 +2125,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
                   onChange={(event) => updateManualLeadField('promotionOffer', event.target.value)}
                   placeholder="$5 first class or 40% off first month"
                 />
-              </div>
+              </FieldGrid></div>
             </details>
-          </div>
+          </FieldGrid>
 
           <Textarea
             label="Notes"
@@ -2104,6 +2137,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             rows={6}
           />
 
+          {manualLeadProblems.length > 0 && <MessageBox>{manualLeadProblems.join(' ')}</MessageBox>}
           <div style={manualLeadFooterStyle}>
             <Button type="button" variant="secondary" onClick={closeAddLead} disabled={manualLeadSaving}>
               Cancel
@@ -2111,7 +2145,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             <Button
               type="button"
               onClick={() => void handleCreateLead()}
-              disabled={manualLeadSaving || manualLeadQueued || manualLeadForm.students.some(student => student.date_of_birth && !validBirthday(student.date_of_birth)) || !manualLeadForm.fullName.trim() || (!manualLeadForm.email.trim() && !manualLeadForm.phone.trim())}
+              disabled={manualLeadSaving || manualLeadQueued}
             >
               {manualLeadSaving ? 'Saving…' : 'Create lead'}
             </Button>

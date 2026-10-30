@@ -17,16 +17,32 @@
 3. Shared UI primitives and contact styling copied only after confirming their release baseline exactly matched the old committed baseline. These are review candidates, not approved production deployment changes.
 4. Release sidebar layout, lead count, hidden-tab polling, Gmail sync/store logic, and newer lead/editor behavior retained.
 
-## Pending reconciliation — do not overwrite with snapshot files
+## Production-overlap reconciliation — October 30 follow-up
+
+- Ported Add lead name + valid mandatory email, optional phone, and Save-only validation to the release form. Initial fields remain neutral; failed submission shows inline and top/bottom errors, focuses and scrolls to the summary, and blocks the network request. New forms reset submission state. Queued receipts still block resubmission.
+- Manual `pulse-manual` intake applies the same email rule before database access. Public website phone-only intake and durable capture responses remain supported and tested.
+- Kept the release `LeadStudent` contract, explicit self/contact confirmation, student-owned channels, birthday handling, preferences, availability sharing and payload adapters. Added shared FieldGrid layouts and borderless Add-lead student fieldsets without replacing the editor.
+- Ported card-title variants without changing heading semantics, shared communication action bar, container-responsive follow-up fields and consistent desktop peer-card gutters. Preserved release inline editor/header continuity and independent follow-up actions.
+- Reviewed snapshot conversation and Gmail deltas: release already includes channel toggles and converted-lead capture. Its channel filter additionally retains on-demand email-history entry points. No changes made to `Conversations.tsx`, `conversation-display.ts`, or Gmail rules/sync; leases, deadlines, range loading and store logic retained.
+- Extended offline tests for validation/API boundaries and release-adapted layout contracts. Gmail settings VM harness now stubs CSS-module class names so it can render the real shared controls; existing assertions retained.
+
+### Validation at this checkpoint
+
+- Academy: 203 passing tests (`/tmp/odeon-integration-academy.log`).
+- Lead/intake/layout focused pass: 45 passing tests (`/tmp/odeon-integration-lead-port.log`).
+- Broader release regression pass: 362 passing tests across 37 files, including the focused tests, Gmail/settings/sync, conversation/email store/ranges, lead/student/editor/follow-up/notes/lifecycle/order/count and visibility-aware polling (`/tmp/odeon-integration-release.log`). Counts overlap; do not add the focused count again.
+- TypeScript: `tsc --noEmit --incremental false` passed (`/tmp/odeon-integration-types.log`).
+- Targeted ESLint: zero errors, 35 existing unused-code warnings in lead views (`/tmp/odeon-integration-lint.log`). `git diff --check` passed.
+- The installed Next package has no `node_modules/next/dist/docs/` directory. Inspected its README and existing route/component conventions; no framework API changes introduced.
+- No authenticated browser verification, production deployment provenance check, or production build completed in this pass. Integration worktree has no copied environment files or Vercel linkage. Offline tests are not evidence of deployed behavior.
+
+## Remaining gates — do not overwrite with snapshot files
 
 - `components/leads/LeadStudentsEditor.tsx`: release has a richer shared Add/Edit editor with `LeadStudent` contracts, contact/self confirmation, own channels, relationship, birthday and preferences. Snapshot uses a different request-draft contract. Preserve release model and merge UX deliberately; do not substitute one for the other.
-- Lead detail/list: retain release lifecycle tabs, inline editing/header continuity, status controls, follow-up editing and ordering. Port shared card titles, action bar, gutters, field grids and deferred validation as separate reviewed changes.
-- Add-lead email-required validation and scroll-to-summary behavior remain only in the backup/original workspace pending a port to the release form. They are not implemented by this checkpoint.
-- `components/inbox/Conversations.tsx` and conversation-display changes: compare channel-toggle work against release email-store/loading/date-range changes before porting.
-- Gmail rules/sync/tests: local converted-lead capture appears partly represented in release; retain release leases, deadlines and store behavior and compare semantic deltas rather than copying old files.
+- Validate narrow/wide authenticated lead/contact layout, error-summary focus/scroll, Notes alignment and conversation channel controls in a browser. Do not infer visual parity from static layout assertions.
 - Old local commit `400081f` was not cherry-picked: release contains later lead ordering and note-author fixes; replaying it produces conflicts and risks regression.
 - Snapshot's full UI regression suite assumes the older lead structure and must be adapted, not copied wholesale or weakened to ignore release behavior.
 
 ## Next gate
 
-Finish production-overlap ports in this isolated worktree; run academy, shared UI, lead/editor/follow-up/notes, polling/count and Gmail/email-store regressions. Browser-check authenticated narrow/wide surfaces against the verified production deployment before choosing a deployment or main-reconciliation plan. Keep Odeon future work distinguishable from production fixes in commit history.
+Browser-check authenticated narrow/wide surfaces against the verified production deployment before choosing a deployment or main-reconciliation plan. Run a configured production build as part of that gate. Keep Odeon future work distinguishable from production fixes in commit history. No push, deployment, database operation or main/release-worktree update authorized by this checkpoint.

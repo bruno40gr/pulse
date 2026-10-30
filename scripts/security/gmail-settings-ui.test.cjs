@@ -21,6 +21,8 @@ function load(file, workspace, runtime) {
       return { ...React, useState: initial => React.useState(stateIndex++ === 0 ? workspace : initial) }
     }
     if (['react', 'react/jsx-runtime', 'lucide-react'].includes(id)) return require(id)
+    // Shared form controls import CSS modules; render their real markup offline.
+    if (id.endsWith('.module.css')) return new Proxy({}, { get: (_target, name) => String(name) })
     if (id === '@/lib/tokens') return load('lib/tokens.ts')
     if (id === '@/lib/email-signature-fields') return load('lib/email-signature-fields.ts')
     if (id === '@/lib/conversation-signature') return load('lib/conversation-signature.ts')

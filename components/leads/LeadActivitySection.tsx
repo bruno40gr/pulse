@@ -9,7 +9,7 @@ import { colors, spacing } from '@/lib/tokens'
 export function LeadActivitySection({ entries }: { entries: ReactNode[] }) {
   const [allOpen, setAllOpen] = useState(false)
   return <>
-    <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Activity</SectionTitle>} style={{ flexShrink: 0, padding: spacing.lg, background: colors.surfaceMuted }}>
+    <Disclosure summary={<SectionTitle variant="card" style={{ marginBottom: 0 }}>Activity</SectionTitle>} style={{ flexShrink: 0, padding: spacing.lg, background: colors.surfaceMuted }}>
       <div style={{ display: 'grid', gap: spacing.sm, marginTop: spacing.sm }}>
         {entries.length ? entries.slice(0, 2) : 'No system activity yet.'}
         {entries.length > 2 && <Button size="sm" variant="secondary" onClick={() => setAllOpen(true)}>View all activity</Button>}

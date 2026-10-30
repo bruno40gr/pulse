@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { Button, DenseSectionPanel, Input, Modal, ModalBody, ModalFooter, ModalHeader, SectionTitle, Select } from '@/components/ui'
+import { Button, DenseSectionPanel, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, SectionTitle, Select } from '@/components/ui'
 import { LESSON_PROGRAM_GROUPS } from '@/lib/lead-lesson-details'
 import { canUseContactAsStudent, emptyStudentPreferences, studentFromContact, syncStudentAvailability, type InquiryStudentContact, type LeadStudent } from '@/lib/lead-students'
 import { birthdayAge, validBirthday } from '@/lib/lead-birthday'
@@ -28,13 +28,15 @@ function StudentProgram({ value, index, onChange }: { value: string; index: numb
   </>
 }
 
-export function LeadStudentsEditor({ students, onChange, disabled = false, onSave, dirty = false, contact }: {
+export function LeadStudentsEditor({ students, onChange, disabled = false, onSave, dirty = false, contact, variant = 'edit', validationSubmitted = true }: {
   students: LeadStudent[]
   onChange: (students: LeadStudent[]) => void
   disabled?: boolean
   onSave?: () => void
   dirty?: boolean
   contact?: InquiryStudentContact
+  variant?: 'add' | 'edit'
+  validationSubmitted?: boolean
 }) {
   const [confirmStudent, setConfirmStudent] = useState<number | null>(null)
   const applyContact = (index: number) => {
@@ -44,12 +46,12 @@ export function LeadStudentsEditor({ students, onChange, disabled = false, onSav
   }
   const isContact = (student: LeadStudent) => Boolean(contact && student.same_as_contact && (['name', 'email', 'phone'] as const).every(key => student[key].trim() === contact[key].trim()))
   const update = (index: number, patch: Partial<LeadStudent>) => onChange(syncStudentAvailability(students.map((student, i) => i === index ? { ...student, ...patch } : student)))
-  return <><DenseSectionPanel title={<SectionTitle>Students</SectionTitle>} actions={<div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+  return <><DenseSectionPanel title={<SectionTitle variant="card">Students</SectionTitle>} actions={<div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
     <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => onChange(syncStudentAvailability([...students, { name: '', age: '', instrument_interest: '', date_of_birth: '', relationship_to_contact: '', email: '', phone: '', preferences: emptyStudentPreferences(), same_availability: true }]))}>Add student</Button>
     {onSave && <Button type="button" size="sm" disabled={disabled || !dirty || students.some(student => student.date_of_birth && !validBirthday(student.date_of_birth))} onClick={onSave}>{disabled ? 'Saving…' : 'Save students'}</Button>}
   </div>}>
     <div style={{ display: 'grid', gap: spacing.md }}>
-      {students.map((student, index) => <fieldset key={index} disabled={disabled} style={{ border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, margin: 0, minWidth: 0 }}>
+      {students.map((student, index) => <fieldset key={index} disabled={disabled} style={{ border: variant === 'add' ? 0 : `1px solid ${colors.border}`, borderRadius: radius.md, padding: variant === 'add' ? 0 : spacing.md, margin: 0, minWidth: 0 }}>
         <legend style={{ fontSize: typography.sizeSm }}>Student {index + 1}</legend>
         {contact && index === 0 && <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md, fontSize: typography.sizeSm }}>
           <input type="checkbox" aria-label="Classes are for myself" checked={Boolean(student.same_as_contact)} onChange={event => {
@@ -60,20 +62,20 @@ export function LeadStudentsEditor({ students, onChange, disabled = false, onSav
           }} />
           Classes are for myself
         </label>}
-        <div role="group" aria-label={`Student ${index + 1} personal details`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: spacing.sm }}>
+        <div role="group" aria-label={`Student ${index + 1} personal details`}><FieldGrid>
           {(!isContact(student)) && <>
           <Input label="Student name" aria-label={`Student ${index + 1} name`} value={student.name} onChange={e => update(index, { name: e.target.value })} />
           <Input label="Email" type="email" aria-label={`Student ${index + 1} own email`} value={student.email} onChange={e => update(index, { email: e.target.value })} />
           <Input label="Phone" type="tel" aria-label={`Student ${index + 1} own phone`} value={student.phone} onChange={e => update(index, { phone: e.target.value })} />
           </>}
-          {!student.same_as_contact && <Input label="Birthday" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} aria-label={`Student ${index + 1} birthday`} value={student.date_of_birth} onChange={e => update(index, { date_of_birth: e.target.value })} error={student.date_of_birth && !validBirthday(student.date_of_birth) ? 'Enter a valid birthday, not a future date.' : undefined} hint={birthdayAge(student.date_of_birth) !== null ? `Age ${birthdayAge(student.date_of_birth)} (calculated)` : student.age ? `Previously reported age: ${student.age}. Birthday not recorded.` : undefined} />}
+          {!student.same_as_contact && <Input label="Birthday" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} aria-label={`Student ${index + 1} birthday`} value={student.date_of_birth} onChange={e => update(index, { date_of_birth: e.target.value })} error={validationSubmitted && student.date_of_birth && !validBirthday(student.date_of_birth) ? 'Enter a valid birthday, not a future date.' : undefined} hint={birthdayAge(student.date_of_birth) !== null ? `Age ${birthdayAge(student.date_of_birth)} (calculated)` : student.age ? `Previously reported age: ${student.age}. Birthday not recorded.` : undefined} />}
           {(!isContact(student)) && <Select label="Relationship" aria-label={`Student ${index + 1} relationship`} value={student.relationship_to_contact} onChange={e => update(index, { relationship_to_contact: e.target.value })}>
             <option value="">Not confirmed</option>
             {student.relationship_to_contact && !['parent', 'guardian', 'self', 'other'].includes(student.relationship_to_contact) && <option value={student.relationship_to_contact}>{student.relationship_to_contact}</option>}
             <option value="parent">Parent</option><option value="guardian">Guardian</option><option value="self">Self</option><option value="other">Other</option>
           </Select>}
-        </div>
-        <div role="group" aria-label={`Student ${index + 1} lesson preferences`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: spacing.sm, marginTop: spacing.md }}>
+        </FieldGrid></div>
+        <div role="group" aria-label={`Student ${index + 1} lesson preferences`} style={{ marginTop: spacing.md }}><FieldGrid columns={1}>
           <StudentProgram value={student.instrument_interest} index={index} onChange={value => update(index, { instrument_interest: value })} />
           <Select label="Experience" aria-label={`Student ${index + 1} experience`} value={student.preferences?.experience || ''} onChange={event => update(index, { preferences: { ...emptyStudentPreferences(), ...student.preferences, experience: event.target.value } })}>
             <option value="">Not provided</option>
@@ -87,7 +89,7 @@ export function LeadStudentsEditor({ students, onChange, disabled = false, onSav
             <StudentMultiSelect label="Available days" ariaLabel={`Student ${index + 1} available days`} value={student.preferences?.preferredDays || ''} options={WEEKDAYS.map(day => ({ value: day, label: day }))} onChange={value => update(index, { preferences: { ...emptyStudentPreferences(), ...student.preferences, preferredDays: value } })} />
             <StudentMultiSelect label="Preferred times" ariaLabel={`Student ${index + 1} preferred times`} value={student.preferences?.preferredTimes || ''} options={['morning', 'afternoon', 'evening'].map(time => ({ value: time, label: time[0].toUpperCase() + time.slice(1) }))} onChange={value => update(index, { preferences: { ...emptyStudentPreferences(), ...student.preferences, preferredTimes: value } })} />
           </>}
-        </div>
+        </FieldGrid></div>
       </fieldset>)}
     </div>
   </DenseSectionPanel>

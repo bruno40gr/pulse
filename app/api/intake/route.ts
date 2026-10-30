@@ -4,6 +4,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmCallbackCaptureEnabled } from '@/lib/crm-callback-mode'
 import { normalizeLeadSourceValue, type LeadSource } from '@/lib/lead-sources'
+import { leadContactErrors } from '@/lib/lead-contact-validation'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 
@@ -136,6 +137,10 @@ export async function POST(request: Request) {
     if (!intakeType) return jsonWithCors(request, { error: 'intake_type is required' }, { status: 400 })
     if (!sourceForm) return jsonWithCors(request, { error: 'source_form is required' }, { status: 400 })
     if (!fullName) return jsonWithCors(request, { error: 'full_name is required' }, { status: 400 })
+    if (sourceSystem === 'pulse-manual') {
+      const errors = leadContactErrors({ fullName, email: email || '', phone: phone || '' }, true)
+      if (errors.email) return jsonWithCors(request, { error: errors.email }, { status: 400 })
+    }
     if (!email && !phone) return jsonWithCors(request, { error: 'email or phone is required' }, { status: 400 })
 
     const birthdayProblem = leadBirthdayProblem(payload)
