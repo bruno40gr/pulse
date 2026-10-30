@@ -36,6 +36,17 @@
 - The installed Next package has no `node_modules/next/dist/docs/` directory. Inspected its README and existing route/component conventions; no framework API changes introduced.
 - No authenticated browser verification, production deployment provenance check, or production build completed in this pass. Integration worktree has no copied environment files or Vercel linkage. Offline tests are not evidence of deployed behavior.
 
+### Build and isolated browser follow-up
+
+- Full `npm run build` completed successfully on the reconciled source (exit 0; `/tmp/odeon-integration-build.log`, `/tmp/odeon-integration-build.exit`). Supabase URLs were pinned to unreachable loopback port 9, with synthetic keys/session configuration and telemetry disabled. No real environment file was copied. This proves compilation, build type checking and prerender completion with synthetic configuration, not production configuration readiness. The production-only Gmail environment check does not execute without `VERCEL_ENV=production`.
+- Created a separate disposable lab at `/private/tmp/odeon-integration-ui-lab-20261030`, symlinked to integration components/libraries, with lead and communications routes. No authentication middleware, real credentials or live API responses are used. Browser traffic is intercepted with synthetic fixtures. This is explicitly not authenticated dashboard verification.
+- Existing `lead-live-fixes-browser.cjs` passed at 1440/900/390px: ordering/highlights, family grouping, original edit-header continuity, draft/discard guard, status saves and Lost confirmation.
+- Existing `communications-layout-browser.cjs` passed at 1440/900/390px: skeleton rows, heading continuity, channel toggles and no horizontal overflow.
+- Existing `lead-follow-up-browser.cjs` passed at 1440/900/390px: quick picks, schedule/update/clear, reload persistence and failed-save draft preservation.
+- Added `lead-add-validation-browser.cjs`, restricted to local origins with external requests blocked and all API calls intercepted. Passed at 1440/900/390px: neutral focus/blur, Save-only required/email/birthday errors, summary focus, zero invalid writes, corrected errors clearing, optional phone, borderless Add student fieldsets, at most two fields per row (one in narrow containers), no drawer overflow, queued receipt blocking duplicate submission and fresh-form reset.
+- Browser logs: `/tmp/odeon-integration-browser-{release,communications,follow-up,add}.log`. Add-lead screenshots: `/tmp/odeon-integration-add-lead-{1440,900,390}.png`. Twelve width/journey combinations passed. Targeted lint and diff checks passed for the new regression.
+- Read-only Vercel API lookup of the production alias using existing local CLI authorization returned HTTP 403. No served deployment commit could be established. No token or environment values were logged. No Vercel linkage, deployment, push or production/database write was performed.
+
 ## Remaining gates — do not overwrite with snapshot files
 
 - `components/leads/LeadStudentsEditor.tsx`: release has a richer shared Add/Edit editor with `LeadStudent` contracts, contact/self confirmation, own channels, relationship, birthday and preferences. Snapshot uses a different request-draft contract. Preserve release model and merge UX deliberately; do not substitute one for the other.
@@ -45,4 +56,4 @@
 
 ## Next gate
 
-Browser-check authenticated narrow/wide surfaces against the verified production deployment before choosing a deployment or main-reconciliation plan. Run a configured production build as part of that gate. Keep Odeon future work distinguishable from production fixes in commit history. No push, deployment, database operation or main/release-worktree update authorized by this checkpoint.
+Browser-check authenticated narrow/wide surfaces against the verified production deployment before choosing a deployment or main-reconciliation plan. Local synthetic-config build and intercepted browser checks are complete; actual production environment verification, served commit provenance, authenticated dashboard/contact integration and visual parity remain open. Keep Odeon future work distinguishable from production fixes in commit history. No push, deployment, database operation or main/release-worktree update authorized by this checkpoint.
