@@ -18,6 +18,7 @@ import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
 import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
+import { startVisiblePolling } from '@/lib/visible-polling'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
@@ -140,26 +141,23 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
   useEffect(() => {
     let cancelled = false
     let revision = 0
-    const loadCount = async () => {
+    const poller = startVisiblePolling(async signal => {
       const requestRevision = ++revision
       const tenantId = getActiveTenantId()
       try {
-        const response = await fetch(`/api/leads?tenant=${encodeURIComponent(tenantId)}&count_only=1`, { cache: 'no-store' })
+        const response = await fetch(`/api/leads?tenant=${encodeURIComponent(tenantId)}&count_only=1`, { cache: 'no-store', signal })
         const data = await response.json()
-        if (!cancelled && response.ok && requestRevision === revision && tenantId === getActiveTenantId()) {
+        if (!cancelled && !signal.aborted && response.ok && requestRevision === revision && tenantId === getActiveTenantId()) {
           setLeadCount(Number.isSafeInteger(data.count) && data.count >= 0 ? data.count : 0)
         }
       } catch {}
-    }
-    void loadCount()
-    const interval = window.setInterval(loadCount, 5000)
-    window.addEventListener(LEAD_COUNT_EVENT, loadCount)
-    window.addEventListener('focus', loadCount)
+    })
+    const handleCountChange = () => { revision += 1; poller.refresh() }
+    window.addEventListener(LEAD_COUNT_EVENT, handleCountChange)
     return () => {
       cancelled = true
-      window.clearInterval(interval)
-      window.removeEventListener(LEAD_COUNT_EVENT, loadCount)
-      window.removeEventListener('focus', loadCount)
+      poller.stop()
+      window.removeEventListener(LEAD_COUNT_EVENT, handleCountChange)
     }
   }, [])
 
@@ -167,19 +165,16 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
     let cancelled = false
     let countRevision = 0
     const pendingReads = new Set<string>()
-    const loadCount = async () => {
+    const poller = startVisiblePolling(async signal => {
       if (pendingReads.size > 0) return
       const revision = ++countRevision
+      const tenantId = getActiveTenantId()
       try {
-        const tenantId = getActiveTenantId()
-        const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store' })
+        const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store', signal })
         const data = await response.json()
-        if (!cancelled && response.ok && revision === countRevision && pendingReads.size === 0) setConversationCount(typeof data.count === 'number' ? data.count : 0)
+        if (!cancelled && !signal.aborted && response.ok && revision === countRevision && pendingReads.size === 0 && tenantId === getActiveTenantId()) setConversationCount(typeof data.count === 'number' ? data.count : 0)
       } catch {}
-    }
-
-    void loadCount()
-    const interval = window.setInterval(loadCount, 5000)
+    })
     const handleCountChange = (event: Event) => {
       countRevision += 1
       if (event instanceof CustomEvent && typeof event.detail?.threadKey === 'string') {
@@ -190,16 +185,16 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ? event.detail.delta
         : null
       if (delta === null) {
-        void loadCount()
+        poller.refresh()
         return
       }
       setConversationCount((current) => Math.max(0, current + delta))
-      if (pendingReads.size === 0) void loadCount()
+      if (pendingReads.size === 0) poller.refresh()
     }
     window.addEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     return () => {
       cancelled = true
-      window.clearInterval(interval)
+      poller.stop()
       window.removeEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     }
   }, [])
