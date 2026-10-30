@@ -8,6 +8,7 @@ interface SurfacePanelProps {
   style?: CSSProperties
   padding?: string
   tone?: 'default' | 'muted' | 'warm'
+  appearance?: 'raised' | 'flat'
 }
 
 const toneStyles: Record<NonNullable<SurfacePanelProps['tone']>, CSSProperties> = {
@@ -25,14 +26,15 @@ const toneStyles: Record<NonNullable<SurfacePanelProps['tone']>, CSSProperties> 
   },
 }
 
-export function SurfacePanel({ children, style, padding = spacing.xl, tone = 'default' }: SurfacePanelProps) {
+export function SurfacePanel({ children, style, padding = spacing.xl, tone = 'default', appearance = 'raised' }: SurfacePanelProps) {
   return (
     <div
       style={{
-        borderRadius: radius.xl,
-        boxShadow: shadows.sm,
+        borderRadius: appearance === 'flat' ? radius.lg : radius.xl,
+        boxShadow: appearance === 'flat' ? 'none' : shadows.sm,
         padding,
         ...toneStyles[tone],
+        ...(appearance === 'flat' && tone === 'muted' ? { border: 'none' } : {}),
         ...style,
       }}
     >

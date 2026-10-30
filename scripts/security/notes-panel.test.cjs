@@ -22,6 +22,7 @@ function setup(props = {}) {
     'react/jsx-runtime': require('react/jsx-runtime'),
     './TaskCompletionButton': { TaskCompletionButton: stub('TaskCompletionButton') },
     './DenseSectionPanel': { DenseSectionPanel: stub('DenseSectionPanel') },
+    './SectionTitle': { SectionTitle: stub('SectionTitle') },
     'lucide-react': { Shield: stub('Shield') },
     '@/components/ui': { Button: stub('Button'), Textarea: stub('Textarea') },
     '@/components/notes/MentionTextarea': { default: stub('MentionTextarea') },

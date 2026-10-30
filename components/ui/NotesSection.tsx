@@ -1,6 +1,7 @@
 'use client'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { DenseSectionPanel } from './DenseSectionPanel'
+import { SectionTitle } from './SectionTitle'
 
 import { useEffect, useRef, useState } from 'react'
 import { Shield } from 'lucide-react'
@@ -127,15 +128,9 @@ export function NotesSection({
         <div style={{ marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-              <h2 style={{
-              fontSize: typography.sizeLg,
-              fontWeight: 600,
-              color: colors.text,
-              margin: 0,
-              fontFamily: typography.fontSans,
-              }}>
+              <SectionTitle as="h3" variant="card">
                 {title}
-              </h2>
+              </SectionTitle>
               {signifierLabel && (
               <span style={{
                 display: 'inline-flex',

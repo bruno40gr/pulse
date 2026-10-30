@@ -8,3 +8,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - Reuse existing UI components and design tokens. Place card-level action buttons in the card header's top-right actions slot (for example, `DenseSectionPanel.actions`), not below scrolling content.
 - Keep conversation channel toggles in the conversation surface header's top-right corner using `ControlButton` with `kind="toggle"` and `aria-pressed`, consistently across list and contact views.
+- Follow `docs/ui-layout-rules.md` for flat panels, form density, heading hierarchy and repeatable entity cards. Reuse `FieldGrid`, `DenseSectionPanel`, `SurfacePanel`, `Input`, `Select` and `Textarea`; do not introduce parallel card/field components.
