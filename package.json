@@ -14,7 +14,11 @@
     "verify:scanner-safe-auth": "node scripts/verify-scanner-safe-auth-links.mjs",
     "verify:staff-emails": "node scripts/verify-staff-email-readiness.mjs",
     "verify:funding-invoices": "node scripts/verify-funding-invoice-workflow.mjs",
-    "verify:funding-onboarding": "node scripts/verify-funding-invoice-workflow.mjs"
+    "verify:funding-onboarding": "node scripts/verify-funding-invoice-workflow.mjs",
+    "test:academy": "node --test scripts/academy/domain.test.cjs scripts/academy/import-preview.test.cjs scripts/academy/enrollment-terms.test.cjs scripts/academy/rehearsal.test.cjs scripts/academy/booking-request.test.cjs scripts/academy/booking-rehearsal.test.cjs scripts/academy/staff-enrollment.test.cjs scripts/security/tenant-selection.test.cjs",
+    "rehearse:academy": "node scripts/academy/rehearse.cjs",
+    "rehearse:academy-schema": "node scripts/academy/schema-inventory-rehearsal.cjs",
+    "rehearse:academy-roles": "node scripts/academy/role-identity-rehearsal.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

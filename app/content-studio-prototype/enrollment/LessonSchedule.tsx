@@ -1,5 +1,7 @@
 'use client'
 
+import { SectionTitle } from '@/components/ui/SectionTitle'
+
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -34,7 +36,6 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   onSelectLesson?: (id: string) => void
 }) {
   const [week, setWeek] = useState(() => weekStart(lesson.start || sampleWeek))
-  const [excludedTeachers, setExcludedTeachers] = useState<string[]>([])
   const [choice, setChoice] = useState<{ date: string; time: string; editing?: boolean } | null>(null)
   useEffect(() => {
     if (!choice?.editing) return
@@ -53,13 +54,12 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   const family = [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
   const teachers = scheduleTeachers.filter(teacher => teacher.instruments.some(instrument => instrument === lesson.instrument))
   const name = (id?: string) => { const person = students.find(item => item.id === id) || (student?.id === id ? student : null); return person ? `${person.firstName} ${person.lastName}` : 'Student' }
-  const familyDates = [...new Set([...family.map(event => event.date), ...lessons.flatMap(item => dates.filter(date => lessonOccursOn(item, date)))])].filter(date => dates.includes(date)).sort()
-  const familyIds = new Set([...students.map(person => person.id), ...(student ? [student.id] : []), ...family.map(event => event.studentId)])
-  const choices = choice ? availableScheduleTeachers(lesson, choice.date, choice.time, student, lessons).filter(teacher => choice.editing || !excludedTeachers.includes(teacher.name)) : []
+  const choices = choice ? availableScheduleTeachers(lesson, choice.date, choice.time, student, lessons) : []
 
-  return <div className={styles.schedule}><div className={styles.calendarColumn}>
-    <section className={styles.teacherPreference} aria-label="Teacher preference"><h3>Teacher preference</h3><div className={styles.teacherFilters} role="group" aria-label="Teachers">{teachers.map(teacher => <label key={teacher.name}><input type="checkbox" checked={!excludedTeachers.includes(teacher.name)} onChange={event => { setExcludedTeachers(current => event.target.checked ? current.filter(name => name !== teacher.name) : [...current, teacher.name]); setChoice(null) }} />{teacher.name}</label>)}</div></section>
-    <div className={styles.weekToolbar}>
+  if (lesson.service !== 'Private') return <p className={styles.scheduleNotice}>Choose a {lesson.service === 'Group' ? 'scheduled group session' : 'semi-private partner and shared time'}. This scheduling preview currently supports private lessons only.</p>
+
+  return <div className={styles.schedule}>
+    <div className={styles.calendarColumn}><div className={styles.weekToolbar}>
       <Button type="button" variant="ghost" aria-label="Previous week" onClick={() => { setWeek(shiftDate(week, -7)); setChoice(null) }}><ChevronLeft size={17} /></Button>
       <strong>{formatScheduleDate(dates[0])}–{formatScheduleDate(dates[4], { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
       <Button type="button" variant="ghost" aria-label="Next week" onClick={() => { setWeek(shiftDate(week, 7)); setChoice(null) }}><ChevronRight size={17} /></Button>
@@ -77,7 +77,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
           const open: CalendarBlock[] = scheduleTimes.flatMap(time => {
             // A booked lesson replaces its start option rather than adding another block.
             if (planned.some(item => item.id === lesson.id && overlap(time, Number(lesson.duration), item.time, Number(item.duration)))) return []
-            const available = availableScheduleTeachers(lesson, date, time, student, lessons).filter(teacher => !excludedTeachers.includes(teacher.name))
+            const available = availableScheduleTeachers(lesson, date, time, student, lessons)
             return available.length ? [{ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available }] : []
           })
           const layout = placeBlocks([...booked, ...open])
@@ -112,11 +112,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
     </div>
     <p className={styles.calendarTimezone}>America/Los_Angeles</p>
     </div>
-    {familyIds.size > 1 && familyDates.length > 0 && <section className={styles.familySchedule} aria-label="Family lessons this week"><h3>Family lessons this week</h3>
-      {familyDates.map(date => <div key={date}><h4>{formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
-        {[...family.filter(event => event.date === date).map(event => ({ id: event.id, time: event.time, text: `${event.studentName} · ${event.instrument} with ${event.teacher}` })), ...lessons.filter(item => lessonOccursOn(item, date)).map(item => ({ id: item.id, time: item.time, text: `${name(item.studentId || student?.id)} · ${item.instrument} with ${item.teacher}` }))].sort((a, b) => a.time.localeCompare(b.time)).map(event => <p key={event.id}><strong>{formatScheduleTime(event.time)}</strong><span>{event.text}</span></p>)}
-      </div>)}
-    </section>}
+    <section aria-label="Teacher availability"><SectionTitle as="h3" variant="card">Teacher availability</SectionTitle><p className={styles.teacherNote}>Teachers for {lesson.instrument}: {teachers.map(teacher => teacher.name).join(', ') || 'No sample availability'}. Select a time to see available teachers.</p></section>
   </div>
 }
 

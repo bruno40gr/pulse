@@ -2,13 +2,20 @@
 export type EnrollmentPerson = {
   id: string; firstName: string; lastName: string; email: string; phone: string; activeTeacher: boolean
 }
+export const enrollmentServices = ['Private', 'Semi-private', 'Group'] as const
+export const enrollmentInstruments = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet'] as const
+export const enrollmentGroupPrograms = ['Tiny Keys', 'Little Rockers', 'Band Program'] as const
 export type LessonChoice = {
+  service: typeof enrollmentServices[number]
   addedLesson?: boolean
   studentId?: string
   id: string; instrument: string; teacher: string; day: string; time: string
   start: string; duration: string; frequency: string
 }
 export type StaffEnrollment = {
+  contact: EnrollmentPerson | null
+  contactIsStudent: boolean
+  studentRelationships: Record<string, string>
   otherPayer?: { name: string; email: string; phone: string } | null
   additionalStudents: (EnrollmentPerson | null)[]
   student: EnrollmentPerson | null
@@ -16,6 +23,7 @@ export type StaffEnrollment = {
   payer: 'student' | 'manager' | 'other'
   lessons: LessonChoice[]
   payment: 'later' | 'demo_card'
+  consent: { termsAccepted: boolean; serviceSms: boolean }
 }
 export const enrollmentPeople: readonly EnrollmentPerson[] = [
   { id: 'demo-avery', firstName: 'Avery', lastName: 'Lane', email: 'avery@example.test', phone: '', activeTeacher: true },
@@ -24,7 +32,7 @@ export const enrollmentPeople: readonly EnrollmentPerson[] = [
 ]
 export const enrollmentTeachers = ['Jordan Vale', 'Robin Ellis'] as const
 export function newLesson(id: string): LessonChoice {
-  return { id, instrument: 'Piano', teacher: '', day: 'Tuesday', time: '', start: '', duration: '30', frequency: 'Monthly subscription' }
+  return { id, service: 'Private', instrument: 'Piano', teacher: '', day: 'Tuesday', time: '', start: '', duration: '30', frequency: 'Monthly subscription' }
 }
 export function ensureStudentLessons(draft: StaffEnrollment): LessonChoice[] {
   const lessons = draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId ?? draft.student?.id }))
@@ -34,10 +42,11 @@ export function ensureStudentLessons(draft: StaffEnrollment): LessonChoice[] {
   return lessons
 }
 export function newStaffEnrollment(): StaffEnrollment {
-  return { student: null, additionalStudents: [], manager: null, payer: 'student', lessons: [newLesson('lesson-1')], payment: 'later' }
+  return { contact: null, contactIsStudent: true, studentRelationships: {}, student: null, additionalStudents: [], manager: null, payer: 'student', lessons: [], payment: 'demo_card', consent: { termsAccepted: false, serviceSms: false } }
 }
 export function enrollmentStudents(draft: StaffEnrollment): EnrollmentPerson[] {
-  return [draft.student, ...draft.additionalStudents].filter((person): person is EnrollmentPerson => Boolean(person))
+  const contactLearner = draft.contact && draft.lessons.some(lesson => lesson.studentId === draft.contact?.id) ? draft.contact : null
+  return [...new Map([draft.student, ...draft.additionalStudents, contactLearner].filter((person): person is EnrollmentPerson => Boolean(person)).map(person => [person.id, person])).values()]
 }
 export function lessonStudent(draft: StaffEnrollment, lesson: LessonChoice) {
   return enrollmentStudents(draft).find(person => person.id === (lesson.studentId ?? draft.student?.id)) || null
@@ -58,6 +67,8 @@ export function personDetailsError(person: EnrollmentPerson | null): string | nu
 }
 export function enrollmentStepError(draft: StaffEnrollment, step: number): string | null {
   if (step === 0) {
+    if (personDetailsError(draft.contact)) return 'Enter the contact’s first and last name and check their email.'
+    if (!draft.contact?.email.trim() && !draft.contact?.phone.trim()) return 'Enter an email or phone number for the contact.'
     if (!draft.student?.firstName.trim() || !draft.student.lastName.trim()) return 'Choose a student or enter their first and last name.'
     if (personDetailsError(draft.student)) return personDetailsError(draft.student)
     if (draft.additionalStudents.some(person => !person || personDetailsError(person))) return 'Enter each student’s first and last name and check their email.'
@@ -65,7 +76,7 @@ export function enrollmentStepError(draft: StaffEnrollment, step: number): strin
     if (new Set(students.map(person => person.id)).size !== students.length) return 'Choose each student once.'
     if (draft.manager && (!draft.manager.firstName.trim() || !draft.manager.lastName.trim())) return 'Enter the parent or guardian’s first and last name.'
     if (draft.manager && personDetailsError(draft.manager)) return personDetailsError(draft.manager)
-    if (students.some(person => person.id === draft.manager?.id)) return 'Choose another person as the parent or guardian.'
+    if ([draft.student, ...draft.additionalStudents].some(person => person && person.id === draft.manager?.id)) return 'Choose another person as the contact, or select classes for this person.'
     if (draft.payer === 'manager' && !draft.manager) return 'Choose a parent or guardian to pay.'
   }
   if (step === 1 || step === 2) {
@@ -73,21 +84,26 @@ export function enrollmentStepError(draft: StaffEnrollment, step: number): strin
     if (draft.lessons.some(lesson => !lessonStudent(draft, lesson))) return 'Choose a student for each lesson.'
     if (enrollmentStudents(draft).some(person => !draft.lessons.some(lesson => lessonStudent(draft, lesson)?.id === person.id))) return 'Add a lesson for each student.'
     if (draft.lessons.some(lesson => !lesson.instrument.trim() || !['30', '60'].includes(lesson.duration) || !['Monthly subscription', 'À-la-carte'].includes(lesson.frequency))) return 'Choose an instrument, cadence and length for each lesson.'
+    if (draft.lessons.some(lesson => !enrollmentServices.includes(lesson.service) || !(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).some(program => program === lesson.instrument))) return 'Choose a service and program for each lesson.'
+    if (step === 2 && draft.lessons.some(lesson => lesson.service !== 'Private')) return 'Group sessions and semi-private matching are not available in this scheduling preview.'
     if (step === 2 && draft.lessons.some(lesson => !enrollmentTeachers.some(teacher => teacher === lesson.teacher) || !lesson.time || !lesson.start)) return 'Choose a teacher, start date and time for each lesson.'
   }
   if (step === 4 && draft.payer === 'other') {
     if (!draft.otherPayer?.name.trim()) return 'Enter the payer’s name.'
     if (draft.otherPayer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.otherPayer.email.trim())) return 'Enter a valid payer email address.'
   }
+  if (step === 3) {
+    if (!draft.consent.termsAccepted) return 'Accept the terms and conditions to continue.'
+  }
   return null
 }
 export function saveLocalEnrollment(draft: StaffEnrollment): StaffEnrollment {
-  for (const step of [0, 1, 2, 4]) {
+  for (const step of [0, 1, 2, 3, 4]) {
     const error = enrollmentStepError(draft, step)
     if (error) throw new Error(error)
   }
   return {
-    ...draft, otherPayer: draft.otherPayer && { ...draft.otherPayer }, student: draft.student && { ...draft.student }, manager: draft.manager && { ...draft.manager },
+    ...draft, contact: draft.contact && { ...draft.contact }, studentRelationships: { ...draft.studentRelationships }, consent: { ...draft.consent }, otherPayer: draft.otherPayer && { ...draft.otherPayer }, student: draft.student && { ...draft.student }, manager: draft.manager && { ...draft.manager },
     additionalStudents: draft.additionalStudents.map(person => person && { ...person }),
     lessons: draft.lessons.map(lesson => ({ ...lesson })),
   }

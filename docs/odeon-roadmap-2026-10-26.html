@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Odeon — Operating Platform Roadmap · October 26, 2026</title>
+<style>
+  :root { color-scheme: light; --ink:#17232d; --muted:#52616b; --accent:#145e67; --line:#d6dfe1; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#edf1f2; color:var(--ink); font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
+  main { max-width:850px; margin:30px auto; }
+  .page { background:white; padding:48px 56px; margin:0 0 24px; }
+  .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.12em; font-size:.75em; font-weight:750; }
+  h1 { font-size:2.9em; line-height:1.08; letter-spacing:-.045em; margin:30px 0 20px; }
+  h2 { font-size:1.8em; line-height:1.15; letter-spacing:-.025em; margin:12px 0 22px; }
+  h3 { font-size:1.04em; margin:20px 0 7px; color:var(--accent); }
+  p { margin:8px 0 13px; }
+  ul,ol { padding-left:22px; margin:7px 0 15px; }
+  li { margin:5px 0; }
+  strong { font-weight:720; }
+  .lede { font-size:1.22em; line-height:1.45; }
+  .callout { border-left:4px solid var(--accent); padding:12px 16px; background:#f0f6f6; margin:18px 0; }
+  .small { font-size:.83em; color:var(--muted); }
+  .row { border-top:1px solid var(--line); padding:10px 0; }
+  .row p { margin:3px 0; }
+  .flow { font-weight:650; line-height:1.8; color:var(--accent); }
+  .notes { border-top:1px solid var(--line); margin-top:22px; padding-top:9px; color:var(--muted); font-size:.8em; }
+  .rule { border-bottom:1px solid #dce2e4; height:27px; }
+  a { color:var(--accent); text-decoration:none; }
+  nav a { display:block; padding:5px 0; }
+  code { font-size:.9em; overflow-wrap:anywhere; }
+  footer { border-top:1px solid var(--line); margin-top:24px; padding-top:8px; font-size:.72em; color:var(--muted); }
+  @page { size:Letter; margin:0; }
+  @media print {
+    body { background:white; font-size:10.5pt; line-height:1.4; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    main { margin:0; max-width:none; }
+    .page { width:8.5in; height:11in; padding:.58in .68in .5in; margin:0; break-after:page; position:relative; }
+    .page:last-child { break-after:auto; }
+    h1 { font-size:37pt; } h2 { font-size:23pt; margin-bottom:18px; }
+    h3 { margin-top:16px; } p { margin-bottom:10px; } li { margin:4px 0; }
+    footer { position:absolute; bottom:.35in; left:.68in; right:.68in; }
+    .callout { margin:14px 0; padding:10px 13px; }
+    .row { padding:8px 0; }
+    .notes { margin-top:16px; }
+  }
+  @media screen and (max-width:600px) {
+    main { margin:0; } .page { padding:28px 22px; margin-bottom:12px; }
+    h1 { font-size:2.35em; } h2 { font-size:1.65em; }
+  }
+</style>
+</head>
+<body><main>
+<section class="page" id="overview">
+  <div class="eyebrow">Odeon / Headliner Music Academy</div>
+  <h1>From relationships<br>to school operations.</h1>
+  <p class="lede">A rebaselined roadmap for people, families, enrollment, classes, scheduling, curriculum, and financial responsibility.</p>
+  <p><strong>October 26, 2026 · Revised operational direction</strong><br>Updated after the ownership, shadow-academy, and cutover discussion.</p>
+  <div class="callout"><strong>Priority:</strong> Own the operations → earn staff trust → introduce intelligence → delegate execution. Build a dependable, delightful replacement for everyday work before actionable Highlights or autonomous agents.</div>
+  <h3>The destination</h3>
+  <p class="flow">Inquiry → confirmed people and relationships → enrollment → class and sessions → attendance and progress → financial records.</p>
+  <p>The person stays the same. Inquiries preserve their history. Enrollments have their own lifecycle. Family relationships do not silently determine access or debt.</p>
+  <h3>Read this as a proposal, not a completion report</h3>
+  <p>“Current” means evidence in the reviewed code or dated repository documentation. “Proposed” means recommended design, not an implemented capability. Production and staging were not queried for this review.</p>
+  <nav aria-label="Document contents">
+    <a href="#current">02 · Where we are and what the detours gave us</a>
+    <a href="#model">03 · The target domain model</a>
+    <a href="#conversion">04 · Leads, won outcomes, and recurring students</a>
+    <a href="#families">05 · Families, blended households, and siblings</a>
+    <a href="#access">06 · A simple “People & access” experience</a>
+    <a href="#money">07 · Multiple payers and staff who are students</a>
+    <a href="#roadmap">08 · Dependency-ordered delivery roadmap</a>
+    <a href="#gates">09 · Blockers, acceptance tests, and first pilot</a>
+    <a href="#shadow">10 · Shadow academy and data boundaries</a>
+    <a href="#handoff">11 · Live handoffs and financial cutover</a>
+    <a href="#decisions">12 · Decisions, references, and review notes</a>
+  </nav>
+  <footer>ODEON · Roadmap review · October 26, 2026 <span style="float:right">01 / 12</span></footer>
+</section>
+
+<section class="page" id="current">
+  <div class="eyebrow">02 / Current position</div><h2>The detours built useful foundations.</h2>
+  <p>Odeon has grown beyond communications into relationship and school operations. We should reuse that work rather than restart the original roadmap.</p>
+  <div class="row"><strong>Relationships and communications — substantial implementation</strong><p>Lead intake and follow-up, contacts/imports, staff accounts, permissions, messaging, notes, and notifications. These provide reusable identity, collaboration, and communication patterns.</p></div>
+  <div class="row"><strong>Funded-student operations — implemented foundation, incomplete accounting</strong><p>Funding organizations, versioned rules, student cases, account contacts, and invoice workflow exist. Independent responsibility balances and an amount-bearing payment ledger remain unfinished.</p></div>
+  <div class="row"><strong>People and enrollments — existing records, incomplete behavior</strong><p>The application uses people, students, accounts, instructors, and enrollments. But Contacts display often selects the first enrollment, and edit/import paths assume a single enrollment per student.</p></div>
+  <div class="row"><strong>Classes, scheduling, and curriculum — next domain build</strong><p>Lesson day/time fields and imported attendance are migration inputs, not a managed scheduler. Offerings, occurrences, formal level/module structures, and progress assessment need deliberate implementation.</p></div>
+  <h3>What changed since the older plans?</h3>
+  <ul>
+    <li>The October 6 CRM cutover is documented as complete. It consolidated storage, <strong>not person identities</strong>; do not repeat the migration.</li>
+    <li>The original product phase statuses and September account-rollout notes are historical evidence, not a current release checklist.</li>
+    <li>Local main/CRM URL entries now point to known staging. Hosted isolation, schema coverage, stored provider connections, and outbound safety remain unverified.</li>
+    <li>Basic conflict and capacity enforcement belongs in the first operational scheduler—not a later automation phase.</li>
+  </ul>
+  <div class="callout"><strong>Ready for focused domain design:</strong> yes.<br><strong>Ready for real-data shadow beta or live cutover:</strong> not certified. Existing staging refresh covers selected CRM/people data, not complete enrollment, scheduling or finance. Highlights remain non-authoritative.</div>
+  <div class="notes">Review note: Which current operational pain should the first slice remove?<div class="rule"></div><div class="rule"></div></div>
+  <footer>ODEON · Current-state claims are repository-based, not live-environment certification. <span style="float:right">02 / 12</span></footer>
+</section>
+
+<section class="page" id="model">
+  <div class="eyebrow">03 / Proposed domain model</div><h2>Keep the important things separate.</h2>
+  <p><strong>What we teach ≠ what we sell ≠ a class being run ≠ an enrollment ≠ one meeting.</strong> These boundaries let private lessons, group classes, bands, and camps share foundations without becoming one overloaded record.</p>
+  <div class="row"><strong>People and profiles</strong><p>One person can have student and instructor profiles plus an authenticated membership. Customer accounts and family relationships are separate from login identity.</p></div>
+  <div class="row"><strong>Service template → offering</strong><p>The service defines what is offered and its defaults. An offering is a particular cohort or private teaching series, with dates, capacity, and default instructor. A private series can have capacity one.</p></div>
+  <div class="row"><strong>Enrollment</strong><p>One student’s participation in an offering: effective dates, status/history, and agreed commercial terms. A student may have several concurrent enrollments.</p></div>
+  <div class="row"><strong>Schedule rule → session occurrence</strong><p>A rule describes recurrence in local time and timezone. Occurrences are actual dated meetings with instructor, room, and change history. A substitute changes the meeting, not the permanent enrollment.</p></div>
+  <div class="row"><strong>Session roster and attendance</strong><p>Expected participants and outcomes for that meeting. Preserve historical rosters when students later transfer or withdraw.</p></div>
+  <div class="row"><strong>Curriculum → levels, modules, milestones → assessments</strong><p>A versioned teaching framework, assigned to an offering or enrollment. Student progress records who assessed what, when, and with what evidence.</p></div>
+  <h3>Rules worth fixing early</h3>
+  <ul>
+    <li><strong>Level is contextual:</strong> a student can be advanced in voice and a beginner in piano. Placement is not proof of achieved milestones.</li>
+    <li><strong>History is durable:</strong> curriculum edits and schedule changes must not rewrite past delivery.</li>
+    <li><strong>Use stable IDs:</strong> names and free-form custom fields should not own core relationships.</li>
+    <li><strong>Enforce tenant integrity:</strong> linked students, instructors, rooms, and offerings must belong to the authorized tenant.</li>
+    <li><strong>Funding is distinct:</strong> educational programs are not funding programs. Scheduling does not own enrollment or the financial ledger.</li>
+  </ul>
+  <div class="notes">Working assumption: “class modules” means curriculum units. Confirm before schema design.<div class="rule"></div></div>
+  <footer>ODEON · Conceptual boundaries; exact tables and fields require an implementation brief. <span style="float:right">03 / 12</span></footer>
+</section>
+
+<section class="page" id="conversion">
+  <div class="eyebrow">04 / Lead-to-student lifecycle</div><h2>Promote the relationship.<br>Do not replace the person.</h2>
+  <p>A <strong>person</strong> is an identity. An <strong>inquiry</strong> is an opportunity. An <strong>enrollment</strong> is participation in a service. “Convert to student” should link or create these records, not destroy or mutate the inquiry into something else.</p>
+  <h3>Current implementation</h3>
+  <p>The reviewed lead update path changes the status to <code>won</code> and clears follow-up fields. It does not perform the complete person/student/enrollment conversion. Lead family members are descriptive payload entries, not established relationships.</p>
+  <h3>Proposed staff workflow</h3>
+  <ol>
+    <li><strong>Receive:</strong> distinguish the submitting adult from prospective learners. “Jordan asks about Alex and Sam” does not mean Jordan is the student.</li>
+    <li><strong>Qualify:</strong> confirm learners, service interests, existing identities, contact routing, and trial versus recurring intent. Shared email/phone suggests matches; it must not automatically merge people.</li>
+    <li><strong>Record outcome:</strong> keep trial booked/completed separate from confirmed recurring enrollment. Agree precisely what Headliner calls “won.”</li>
+    <li><strong>Set up enrollment:</strong> review existing/new people, student profiles, guardian links, service/offering, dates, and terms. Retain inquiry attribution.</li>
+    <li><strong>Activate:</strong> the enrollment becomes active according to its own dates and state. A future-start enrollment is not current attendance.</li>
+  </ol>
+  <div class="callout"><strong>Recommended definition:</strong> a recurring enrollment is confirmed when accepted terms and a start date are recorded. Track any pending prerequisites explicitly. Trial bookings remain separately measurable. This definition needs owner confirmation.</div>
+  <h3>Cases the conversion must support</h3>
+  <ul>
+    <li>Existing student adds a service: new enrollment, same person/student.</li>
+    <li>Former student returns: new enrollment, preserved history.</li>
+    <li>Only one sibling enrolls: learner/service-level outcomes; no blanket conversion.</li>
+    <li>A won enrollment later cancels: preserve the sale and record cancellation separately.</li>
+  </ul>
+  <p><strong>Implementation guard:</strong> reviewed, transactional, tenant-authorized, and idempotent conversion. Retries must not duplicate people or enrollments. Record actor, source links, and corrections.</p>
+  <footer>ODEON · Open decision: exact “won” semantics and multi-learner inquiry outcomes. <span style="float:right">04 / 12</span></footer>
+</section>
+
+<section class="page" id="families">
+  <div class="eyebrow">05 / Families and households</div><h2>A family is not one rigid container.</h2>
+  <p>Model real relationships without assuming one student, one household, one parent, and one payer. The experience can look simple even when the underlying links are precise.</p>
+  <h3>Four separate concepts</h3>
+  <div class="row"><strong>1. People</strong><p>Adults and children have individual identities. Parent, student, instructor, contact, and payer are overlapping roles—not exclusive person types.</p></div>
+  <div class="row"><strong>2. Family / household groups</strong><p>Useful organization and navigation. A person can belong to more than one household. Group membership alone must not confer access to everyone or everything in that group.</p></div>
+  <div class="row"><strong>3. Direct adult–student relationships</strong><p>Parent, guardian, step-parent, or other contact, with specific operational grants. Relationship labels do not independently establish access, pickup authorization, or financial responsibility.</p></div>
+  <div class="row"><strong>4. Customer / billing accounts</strong><p>A financial relationship with Headliner. Existing accounts should be extended deliberately. They are not synonymous with households, people, or authenticated logins.</p></div>
+  <h3>Blended-family example · fictional</h3>
+  <p>Alex is connected to two households. Alex’s mother and father receive schedule updates. A step-parent is authorized for pickup but has no billing access. Alex’s half-sibling Sam also takes lessons.</p>
+  <p>There is <strong>one Alex student record</strong>, multiple household memberships, direct adult–student links, scoped grants, and explicit financial arrangements. Sharing Alex does not expose Sam’s records or another household’s messages and bills.</p>
+  <h3>Siblings share relationships—not student records</h3>
+  <p>Each sibling has independent enrollments, attendance, progress, and funding cases. They may share guardians and billing accounts. Sibling-discount eligibility needs an explicit policy; surname or email matching is not sufficient.</p>
+  <div class="callout"><strong>Build the minimum useful structure first:</strong> reviewed people links, per-student relationships, household grouping, and scoped account contacts. Do not block scheduling on a universal historical contact-cleanup project.</div>
+  <div class="notes">Review note: Which blended-family situations must the first release handle?<div class="rule"></div><div class="rule"></div></div>
+  <footer>ODEON · Proposed structure; relationship and access verification processes still need definition. <span style="float:right">05 / 12</span></footer>
+</section>
+
+<section class="page" id="access">
+  <div class="eyebrow">06 / Family & account UX</div><h2>People first. Plain-language access.</h2>
+  <p>Borrow the SaaS “people and access” pattern, not its administrative complexity. Parents and staff should use the same conceptual screen, with different authorized actions.</p>
+  <p><strong>One account area:</strong> Students · People & access · Billing. Adjacent sections do not imply shared permissions.</p>
+  <div class="callout">
+    <strong>People & access · fictional example</strong>
+    <p><strong>Jordan — Parent · You</strong><br>Alex and Sam · Receives updates · Manages lessons · Manages billing</p>
+    <p><strong>Taylor — Parent</strong><br>Alex only · Receives updates · Manages lessons</p>
+    <p><strong>Morgan — Grandparent</strong><br>Alex and Sam · Authorized pickup · No login required</p>
+    <strong>+ Add someone</strong>
+  </div>
+  <h3>A three-step invitation</h3>
+  <ol>
+    <li><strong>Who?</strong> Select an existing linked person or enter contact details.</li>
+    <li><strong>Which students?</strong> Alex, Sam, or both. No automatic all-siblings scope.</li>
+    <li><strong>How can they help?</strong> Choose simple presets, with customization only when necessary.</li>
+  </ol>
+  <p><strong>Starter presets:</strong> Manage lessons · Stay informed · Help with pickup · Manage billing. The last applies to specified financial records and the person’s own payment methods—not every family bill or card.</p>
+  <h3>Delegation guardrails</h3>
+  <ul>
+    <li>Staff establish initial authorized account managers. Parents may delegate only approved capabilities within their scope.</li>
+    <li>An invitation exposes no student data before verified acceptance. Pickup-only contacts need not receive portal accounts.</li>
+    <li>Removing an established account manager, changing another guardian’s access, or expanding across households requires staff review.</li>
+    <li>Record grant/revocation history and send appropriate notifications. Revocation must affect subsequent server authorization.</li>
+  </ul>
+  <p><strong>Keep v1 small:</strong> no custom-role builder, no permission spreadsheet, no all-powerful “family owner.” Sensitive cases can say: “Contact Headliner to change this access.”</p>
+  <footer>ODEON · Parent self-service follows relationship verification and server-side scoped access. <span style="float:right">06 / 12</span></footer>
+</section>
+
+<section class="page" id="money">
+  <div class="eyebrow">07 / Financial responsibility and overlapping roles</div><h2>Who can act is not who must pay.</h2>
+  <p><strong>Relationship, information access, payment responsibility, and actual payment are separate dimensions.</strong> Keep billing near People & access, but do not collapse these concepts.</p>
+  <h3>Proposed financial chain</h3>
+  <p class="flow">Effective-dated agreement → charge / invoice allocations → payment events → applied balances.</p>
+  <p>For example, an agreement can assign 60% to one payer and 40% to another. Charges snapshot the applicable allocation. A later agreement changes future responsibility—not historical invoices.</p>
+  <ul>
+    <li>Different adults can pay for different services or siblings.</li>
+    <li>A grandparent can pay without broad student-record access.</li>
+    <li>A funder can cover an authorized amount with an explicitly agreed family balance.</li>
+    <li>Failed funder settlement must not silently become family debt.</li>
+    <li>“Partially paid” is derived from balances, not a substitute for allocation records.</li>
+  </ul>
+  <p><strong>Current limit:</strong> funding coverage fields and invoice status history exist; they do not constitute independent split balances or a payment ledger. Preserve compatibility fields until their readers and writers are migrated.</p>
+  <h3>Payment methods</h3>
+  <p>Each payer manages their own methods. Adding a card does not grant family access; joining a family does not reveal another person’s card. Use an approved hosted/tokenized provider flow rather than storing raw card data in Odeon.</p>
+  <h3>Staff who also take lessons</h3>
+  <p><strong>One person, multiple roles:</strong> existing person + instructor profile + staff membership + student profile + enrollments. No second person or staff identity is needed.</p>
+  <ul>
+    <li>Ending employment does not erase student history or automatically end lessons.</li>
+    <li>Ending lessons does not deactivate employment.</li>
+    <li>Staff discounts belong in commercial terms; lesson payments are not silently netted against payroll.</li>
+    <li>A student/account context cannot expand staff privileges. A future “My learning” view can coexist with the staff workspace.</li>
+  </ul>
+  <div class="callout"><strong>Sequence:</strong> design these boundaries now. Implement full allocations and payment collection when financial workflows require them—not as a prerequisite to the first timetable.</div>
+  <footer>ODEON · Payment implementation and policy require their own reviewed scope and acceptance. <span style="float:right">07 / 12</span></footer>
+</section>
+
+<section class="page" id="roadmap">
+  <div class="eyebrow">08 / Delivery sequence</div><h2>Advance on evidence, not dates.</h2>
+  <p>Milestones are renumbered in this revision around operational ownership. Each needs a focused brief, synthetic acceptance and an explicit switch gate—not a promised date.</p>
+  <div class="row"><strong>M0 · Replacement and shadow-academy blueprint</strong><p>Confirm actual workflows, domain ownership, source IDs, refresh feasibility, environment safety, policies and the first cohort.</p><p><strong>Gate:</strong> approve a scoped model and safe rehearsal plan; repository review alone is not completion.</p></div>
+  <div class="row"><strong>M1 · People, families, services and enrollments</strong><p>Canonical identity links, scoped relationships, managed services, reviewed lead conversion, effective terms, multi-enrollment and compatible imports.</p><p><strong>Gate:</strong> blended-family and staff/student cases work; imports and retries preserve independent enrollments.</p></div>
+  <div class="row"><strong>M2 · Classes and core scheduling</strong><p>Offerings, rosters, rooms, availability, recurrence, occurrences, holidays and effective edits. Enforce booking conflicts and capacity.</p><p><strong>Gate:</strong> a representative week works, including concurrent bookings and timezone boundaries.</p></div>
+  <div class="row"><strong>M3 · Daily operations</strong><p>Attendance, substitutions, cancellation/rescheduling, makeups and session notes with durable historical records.</p><p><strong>Gate:</strong> ordinary days and exceptions work without a spreadsheet workaround or duplicate entitlement.</p></div>
+  <div class="row"><strong>M4 · Financial operations in test mode</strong><p>Charges, invoice lines, allocations, payment events, credits/refunds, funded matching and reconciliation. Design financial rules earlier where needed.</p><p><strong>Gate:</strong> estimates and simulated outcomes reconcile; live payment activation remains blocked.</p></div>
+  <div class="row"><strong>Shadow beta → controlled cutover</strong><p>Rehearse completed workflows as we build. Later use approved real-data baselines with no live collections; deliberately exercise billing boundaries and rare cases.</p><p><strong>Gate:</strong> staff acceptance, reconciled opening state, tested recovery, payment readiness and explicit activation approval.</p></div>
+  <p><strong>Parallel:</strong> curriculum and teacher experience once their data dependencies exist. Parent self-service follows verified scoped access. AI-ready business capabilities are useful architecture; actionable Highlights and agent execution wait for trusted operational ownership.</p>
+  <footer>ODEON · Dependency order is firm; milestone scope can be reduced to deliver the first slice sooner. <span style="float:right">08 / 12</span></footer>
+</section>
+
+<section class="page" id="gates">
+  <div class="eyebrow">09 / Blockers and acceptance</div><h2>The first pilot should prove the model.</h2>
+  <h3>Resolve before the relevant release</h3>
+  <ul>
+    <li><strong>Schema truth:</strong> old migrations describe staff/student-account structures that current code does not assume exist. Establish an applied baseline; do not replay historical SQL blindly.</li>
+    <li><strong>Enrollment safety:</strong> remove first-enrollment display assumptions and student-only <code>.single()</code> updates/imports. Reconcile <code>instructor_id</code> versus <code>instructor_person_id</code>.</li>
+    <li><strong>Environment:</strong> local URLs match staging, but hosted schema, stored connections, jobs, restore/recovery and outbound denial remain unverified.</li>
+    <li><strong>Coexistence:</strong> decide whether Opus or Odeon owns each enrollment, schedule, attendance, and billing field during transition. Prevent stale imports from overwriting Odeon-owned changes.</li>
+    <li><strong>Authorization:</strong> add scheduling/curriculum capabilities and teacher scope. Verify actor/tenant on the server and linked-record tenant integrity in the database.</li>
+    <li><strong>Policy:</strong> define recurrence horizon, holidays, availability, cancellation/makeup eligibility, level meaning, and sensitive family-access review.</li>
+  </ul>
+  <h3>Recommended first end-to-end slice</h3>
+  <div class="callout"><strong>Enroll an existing student in a managed offering, schedule its meetings, and take attendance.</strong><br>Use one private series, one small group, a student in both, a blended family, and a staff member who also studies. All acceptance fixtures should be synthetic.</div>
+  <h3>Acceptance checklist</h3>
+  <ul>
+    <li>Conversion retry creates no duplicate person, student, or enrollment.</li>
+    <li>A roster import preserves the other enrollment and does not reset canonical identity.</li>
+    <li>A substitute changes one occurrence; future defaults remain intact.</li>
+    <li>A reschedule retains history; a withdrawal preserves historical attendance.</li>
+    <li>Timezone/DST and holiday behavior are explicit and tested.</li>
+    <li>Concurrent bookings cannot exceed capacity or double-book constrained resources.</li>
+    <li>Access invitation, acceptance, revocation, and cross-household denial are tested before parent release.</li>
+  </ul>
+  <p><strong>UX acceptance:</strong> observe finding a person/session, making a change, understanding its consequences and correcting a mistake. Record task friction and staff preference—not just functional success.</p>
+  <p><strong>Not prerequisites:</strong> actionable Highlights, MCP, autonomous agents, a rebrand, SaaS sales, or complete historical identity cleanup. Existing production CRM/messaging remains live; shadow must not interfere.</p>
+  <footer>ODEON · Pilot approval is based on demonstrated behavior, not this document’s existence. <span style="float:right">09 / 12</span></footer>
+</section>
+
+<section class="page" id="shadow">
+  <div class="eyebrow">10 / Shadow academy</div><h2>A parallel Headliner.<br>Not a competing live system.</h2>
+  <p>Opus remains authoritative for the live operational domains not yet switched. Existing Odeon-owned lead, staff-access and funding workflows retain their ownership. We do not move those back to Opus.</p>
+  <div class="row"><strong>Verified baseline</strong><p>A versioned, reconciled copy of actual operations. Show source coverage and extraction time separately from import time. “Verified” does not mean live or complete beyond that coverage.</p></div>
+  <div class="row"><strong>Shadow scenario</strong><p>Hypothetical changes against a named baseline. Estimates, invoices and payment outcomes are simulated. Scenario edits do not modify Opus or become live instructions automatically.</p></div>
+  <div class="row"><strong>Approved live change</strong><p>A separate reviewed request to implement a specific real change. Initially staff apply it in the authoritative system and verify the result. This capability needs its own release gate.</p></div>
+  <h3>Refresh without destroying the rehearsal</h3>
+  <p>Import into a candidate baseline; validate IDs, checked writes, relationships, counts, dates and totals. Publish only after reconciliation. Show source drift and explicitly rebase scenarios rather than overwrite their changes.</p>
+  <p>Existing staging tools replace selected tables and omit enrollments and finance. They are not a persistent beta refresh. Independent salted snapshot IDs also do not provide stable cross-refresh identity.</p>
+  <div class="callout"><strong>No endless upload treadmill:</strong> M0 must establish a feasible temporary refresh process. A dated baseline or smaller cohort is preferable to claiming stale data is live. Verify integration support before committing to automation.</div>
+  <h3>Real data, no real-world effects</h3>
+  <ul>
+    <li>Synthetic acceptance first. Real-data beta needs approved access, handling, retention and an isolated boundary.</li>
+    <li>No production payment credentials or customer payment tokens. Test methods only.</li>
+    <li>Block customer sends, external calendar writes, production callbacks and live scheduled effects at the integration boundary.</li>
+    <li>Missing local secrets is insufficient: provider rows and mailbox connections can enable sends.</li>
+    <li>Always show “Shadow Academy — no live transactions.” Test attempted actions fail closed.</li>
+  </ul>
+  <footer>ODEON · Shadow is a data and execution boundary, not just a visual label. <span style="float:right">10 / 12</span></footer>
+</section>
+
+<section class="page" id="handoff">
+  <div class="eyebrow">11 / Live handoffs and cutover</div><h2>Approve a real change explicitly.</h2>
+  <p>A shadow duration change may alter an estimated bill. Opus will not automatically know. Until a supported bridge is verified, real changes require a staff-mediated handoff.</p>
+  <p class="flow">Draft → Approved → Pending application → Applied → Verified</p>
+  <p>Also allow rejection, cancellation, supersession and reconciliation. Applied does not mean correctly billed or paid.</p>
+  <h3>Each handoff must include</h3>
+  <ul>
+    <li>Student and external subscription/session identifiers; current and proposed terms.</li>
+    <li>Effective date, estimated impact, proration/discount/credit assumptions.</li>
+    <li>Approver, assigned implementer, source version and expected completion.</li>
+    <li>Actual external result and reconciliation evidence. Drift or material edits invalidate approval.</li>
+  </ul>
+  <p>A reimport matches the existing request; it does not trigger it again. A correction after execution is different from cancelling a pending request. Do not assume a subscription edit immediately charges a card.</p>
+  <h3>Payment activation is the final gate—not the first test</h3>
+  <ol>
+    <li><strong>Rehearse:</strong> bill calculations, partial payments, failures, refunds, credits and funding allocations in test/simulation.</li>
+    <li><strong>Reconcile:</strong> active enrollments, future sessions, receivables, prepaid value, financial credits and makeup balances at a defined timestamp.</li>
+    <li><strong>Assign:</strong> responsibility for old balances, in-flight handoffs and refunds/corrections on historical transactions.</li>
+    <li><strong>Verify:</strong> supported payment-method transfer or customer reauthorization, provider onboarding and recovery. No raw card migration assumptions.</li>
+    <li><strong>Switch:</strong> stop conflicting writers and collections for the switched scope; final delta, backup, approval and controlled activation.</li>
+    <li><strong>Observe:</strong> reconcile early live outcomes and keep historical reference. After new financial activity, do not blindly flip back to a stale copy.</li>
+  </ol>
+  <div class="callout"><strong>Beta exit:</strong> staff can run the agreed day-to-day scope, critical defects are resolved, financial opening state reconciles, and recovery is demonstrated. A few weeks of use alone is not acceptance.</div>
+  <div class="notes">Review note: Which real changes, if any, should use a handoff before full cutover?<div class="rule"></div></div>
+  <footer>ODEON · No automatic Opus write integration or live payment activation is authorized. <span style="float:right">11 / 12</span></footer>
+</section>
+
+<section class="page" id="decisions">
+  <div class="eyebrow">12 / Decisions and next action</div><h2>M0 is underway—not signed off.</h2>
+  <h3>Decisions to confirm</h3>
+  <ol>
+    <li>What exactly makes a lead “won”? How are trials and sibling-specific outcomes reported?</li>
+    <li>Which service and class should the first operational slice support?</li>
+    <li>Confirm Opus ownership until switch; which external processes or Odeon-owned fields are exceptions?</li>
+    <li>Which family access can parents delegate, and which changes require staff review?</li>
+    <li>Does “module” mean a teaching unit? Are levels discipline-specific, cohort placement, achieved milestones, or a combination?</li>
+    <li>Which cancellation/makeup and split-payer arrangements are required first?</li>
+  </ol>
+  <h3>Immediate next action</h3>
+  <p>The M0 brief and repository assessment are prepared. Next: owner/operator workflow walkthrough, first cohort selection, approved source-export inventory and hosted safety verification. Then approve a focused M1 schema and compatibility plan—not one migration for the entire platform.</p>
+  <h3>Document governance and evidence</h3>
+  <p class="small">Operational ownership and shadow-first direction reflect the agreed discussion; detailed models/gates remain proposals. This revision renumbers milestones and defers actionable Highlights/agents. It does not certify deployment safety or override account/commercial gates.</p>
+  <p class="small">Primary repository references (all under <code>/Users/brunowong/pulse/</code>):<br>
+    <code>docs/odeon-m0-shadow-academy.md</code> · detailed ownership, beta and cutover brief<br>
+    <code>docs/odeon-m0-readiness.md</code> · evidence, limitations and open checks<br>
+    <code>odeon.md</code> · platform and domain order<br>
+    <code>odeon-md/PRODUCT.md</code> · historical requirements and curriculum intent<br>
+    <code>docs/foundation-roadmap.md</code> · external-data/commercial gates<br>
+    <code>docs/crm-consolidation-inventory.md</code> and <code>docs/crm-next-actions.md</code> · cutover evidence<br>
+    <code>docs/charterflow-domain-alignment.md</code> · allocation/payment boundaries<br>
+    <code>app/api/contacts/route.ts</code>, <code>app/api/contacts/[id]/route.ts</code>, and <code>app/api/leads/[id]/route.ts</code> · current behavior<br>
+    <code>scripts/migration-024-account-people-of-contact.sql</code> · account contacts.</p>
+  <p class="small">The assessment included local code/document review, a passing TypeScript check and diff check. No production/staging database certification was performed. Fictional examples illustrate proposed behavior, not existing permissions.</p>
+  <div class="notes"><strong>My decisions / questions / priority changes</strong><div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div>
+  <footer>ODEON · End of review copy · October 26, 2026 <span style="float:right">12 / 12</span></footer>
+</section>
+</main></body></html>

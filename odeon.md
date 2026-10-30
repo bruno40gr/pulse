@@ -5,6 +5,8 @@
 **Status:** Active development
 **Rebaselined:** September 26, 2026
 
+**Domain roadmap update (October 26, 2026):** Operational ownership, a safely isolated shadow academy, and controlled financial cutover now take priority over actionable Highlights or agent execution. See `/Users/brunowong/pulse/docs/odeon-m0-shadow-academy.md` for the current M0 brief and revised milestone sequence, `/Users/brunowong/pulse/docs/odeon-m0-readiness.md` for repository-based evidence and open verification gates, and `/Users/brunowong/pulse/docs/odeon-roadmap-2026-10-26.pdf` for the reading copy. M0 is not complete. Existing account policies and external-customer security/commercial gates remain in force; no live changes are authorized by these documents.
+
 > This document is the current high-level source of truth for the platform direction and the account foundation now being built. The original roadmap remains in `odeon-md/PRODUCT.md` as useful history and long-range product planning, but its phase statuses no longer describe the repository accurately.
 
 ---
