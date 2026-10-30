@@ -429,7 +429,7 @@ test('third-party payer validates and is copied without altering the family or p
   assert.equal(domain.lessonPrice(saved.lessons[0], saved.student).total, 2500)
 })
 
-test('payment offers an additional payer and retains their details when switching payers', () => {
+test('another payer requires opt-in and hides but retains details when switching payers', () => {
   const hooks = hookRunner()
   hooks.react.useRef = () => ({ current: null })
   let initialized = false
@@ -444,6 +444,8 @@ test('payment offers an additional payer and retains their details when switchin
     elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
     tree = hooks.render(Component, {})
   }
+  assert.ok(!elements(tree).some(node => node.props?.className === 'payerEditor'))
+  assert.equal(elements(tree).find(node => node.type === 'select').props.value, 'student')
   elements(tree).find(node => node.props?.children?.some?.(child => child === 'Add another payer')).props.onClick()
   tree = hooks.render(Component, {})
   const name = elements(tree).find(node => node.type === 'label' && node.props.children[0] === 'Name or organization')
@@ -453,9 +455,11 @@ test('payment offers an additional payer and retains their details when switchin
   assert.equal(payer.props.value, 'other')
   payer.props.onChange({ target: { value: 'student' } })
   tree = hooks.render(Component, {})
-  assert.ok(elements(tree).some(node => node.type === 'input' && node.props.value === 'Grandpa'))
+  assert.ok(!elements(tree).some(node => node.props?.className === 'payerEditor'))
+  assert.ok(!elements(tree).some(node => node.type === 'input' && node.props.value === 'Grandpa'))
   elements(tree).find(node => node.type === 'select').props.onChange({ target: { value: 'other' } })
   tree = hooks.render(Component, {})
+  assert.ok(elements(tree).some(node => node.type === 'input' && node.props.value === 'Grandpa'))
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   tree = hooks.render(Component, {})
   assert.ok(elements(tree).some(node => node.type === 'dd' && node.props.children === 'Grandpa'))
@@ -788,10 +792,11 @@ test('service choices switch program lists and clear a previously chosen slot', 
   tree = hooks.render(Component, {})
   const selectFor = label => elements(elements(tree).find(node => node.type === 'label' && node.props.children[0] === label)).find(node => node.type === 'select')
   assert.equal(elements(selectFor('Service')).filter(node => node.type === 'option').length, 3)
-  assert.equal(elements(selectFor('Program')).filter(node => node.type === 'option').length, 12)
+  assert.equal(elements(selectFor('Program')).filter(node => node.type === 'option' && node.props.value !== '').length, domain.enrollmentInstruments.length)
+  assert.ok(elements(selectFor('Program')).some(node => node.type === 'option' && node.props.value === '' && node.props.children === 'Choose a program'))
   selectFor('Service').props.onChange({ target: { value: 'Group' } })
   tree = hooks.render(Component, {})
-  assert.deepEqual(elements(selectFor('Program')).filter(node => node.type === 'option').map(node => node.props.children), ['Tiny Keys', 'Little Rockers', 'Band Program'])
+  assert.deepEqual(elements(selectFor('Program')).filter(node => node.type === 'option' && node.props.value !== '').map(node => node.props.children), [...domain.enrollmentGroupPrograms])
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   tree = hooks.render(Component, {})
   const calendar = elements(tree).find(node => node.props?.lesson && node.props?.lessons)

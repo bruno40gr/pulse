@@ -1,4 +1,5 @@
 /** Local enrollment design data. No identity verification, scheduling or billing. */
+export const enrollmentSteps = ['Family', 'Lessons', 'Times', 'Terms & communication', 'Pricing & payment'] as const
 export type EnrollmentPerson = {
   id: string; firstName: string; lastName: string; email: string; phone: string; activeTeacher: boolean
 }

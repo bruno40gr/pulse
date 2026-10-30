@@ -8,7 +8,12 @@ import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
 import { FieldGrid } from '@/components/ui/FieldGrid'
 import { SurfacePanel } from '@/components/ui/SurfacePanel'
 import { Button } from '@/components/ui/Button'
-import { colors, typography } from '@/lib/tokens'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Notice } from '@/components/ui/Notice'
+import { Disclosure } from '@/components/ui/Disclosure'
+import { enrollmentSteps as steps } from '@/lib/academy-staff-enrollment'
+import type { EnrollmentDraftRecord } from '@/lib/academy-enrollment-drafts'
+import { colors, spacing, typography } from '@/lib/tokens'
 import {
   enrollmentServices, enrollmentInstruments, enrollmentGroupPrograms, enrollmentPeople, enrollmentStepError, enrollmentStudents, ensureStudentLessons, lessonStudent, lessonPrice, newLesson, personDetailsError,
   newStaffEnrollment, saveLocalEnrollment, searchEnrollmentPeople,
@@ -19,7 +24,6 @@ import LessonSchedule from './LessonSchedule'
 import { availableScheduleTeachers, formatScheduleDate, formatScheduleTime } from '@/lib/academy-enrollment-schedule'
 import { enrollmentBillingPreview } from '@/lib/academy-enrollment-pricing'
 
-const steps = ['Family', 'Lessons', 'Times', 'Terms & communication', 'Pricing & payment']
 const fullName = (person: EnrollmentPerson | null) => person ? `${person.firstName} ${person.lastName}` : ''
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`
 
@@ -48,6 +52,9 @@ export function PersonPicker({ title, value, people, onChange, onAdd, studentLoo
     {value && !creating && !finding ? <div className={styles.person}><SurfacePanel appearance="flat" tone="muted" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, width: '100%' }}><div><strong>{fullName(value)}</strong>{value.email && <p>{value.email}</p>}{value.phone && <p>{value.phone}</p>}</div><div className={styles.personActions}><Button type="button" variant="ghost" onClick={() => setCreating(true)}>Edit</Button></div></SurfacePanel></div>
       : !finding ? <div onBlur={event => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        // Collapsing fields during pointer-down moves the footer before its click.
+        // Keep the editor stable while an action button receives focus.
+        if (typeof HTMLElement !== 'undefined' && event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('button')) return
         if (value && !personDetailsError(value)) { onAdd(value); setCreating(false) }
       }}>
         <FieldGrid>
@@ -64,14 +71,30 @@ export function PersonPicker({ title, value, people, onChange, onAdd, studentLoo
   </section>
 }
 
-export default function StaffEnrollment() {
-  const [draft, setDraft] = useState(newStaffEnrollment)
+export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose }: {
+  initialRecord?: EnrollmentDraftRecord
+  onSaveAndClose?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
+  onClose?: () => void
+} = {}) {
+  const [draft, setDraft] = useState(() => initialRecord ? structuredClone(initialRecord.draft) : newStaffEnrollment())
   const [people, setPeople] = useState<readonly EnrollmentPerson[]>(enrollmentPeople)
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(() => {
+    if (!initialRecord) return 0
+    // Saved choices are proposals, not reservations. Recheck before resuming
+    // beyond scheduling, and return to the earliest now-invalid prerequisite.
+    for (let index = 0; index < initialRecord.step; index++) {
+      if (enrollmentStepError(initialRecord.draft, index)) return index
+      if (index === 2 && initialRecord.draft.lessons.some(lesson => !availableScheduleTeachers(lesson, lesson.start, lesson.time, lessonStudent(initialRecord.draft, lesson), initialRecord.draft.lessons.map(item => ({ ...item, studentId: item.studentId || initialRecord.draft.student?.id }))).some(teacher => teacher.name === lesson.teacher))) return 2
+    }
+    return initialRecord.step
+  })
   const [activeLessonId, setActiveLessonId] = useState('lesson-1')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState<EnrollmentDraft | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const [reviewedSteps, setReviewedSteps] = useState<number[]>(initialRecord?.reviewedSteps || [])
+  const [baseline, setBaseline] = useState(() => JSON.stringify(initialRecord?.draft || newStaffEnrollment()))
+  const dirty = JSON.stringify(draft) !== baseline
   const students = enrollmentStudents(draft)
   const lessonStudents = [...new Map([...students, ...(draft.contact ? [draft.contact] : [])].map(person => [person.id, person])).values()]
   const billing = enrollmentBillingPreview(draft)
@@ -93,14 +116,24 @@ export default function StaffEnrollment() {
       setError('Choose an available time for each lesson.'); return
     }
     if (step === 0) {
-      patch({ lessons: ensureStudentLessons(draft) })
+      const next = { ...draft, lessons: ensureStudentLessons(draft) }
+      setDraft(next)
+      // Automatically generated lesson rows are navigation, not a staff edit.
+      if (!dirty) setBaseline(JSON.stringify(next))
       if (draft.contact) addPerson(draft.contact)
       if (draft.student) addPerson(draft.student)
       if (draft.manager) addPerson(draft.manager)
       draft.additionalStudents.forEach(person => { if (person) addPerson(person) })
     }
     if (step === 1 && draft.lessons[0]) setActiveLessonId(draft.lessons[0].id)
+    const reviewed = [...new Set([...reviewedSteps, step])]
+    setReviewedSteps(reviewed)
     if (step < 4) { move(step + 1); return }
+    if (onSaveAndClose) {
+      try { onSaveAndClose(saveLocalEnrollment(draft), step, reviewed) }
+      catch (cause) { setError(cause instanceof Error ? cause.message : 'Please check the enrollment details.') }
+      return
+    }
     try { setSaved(saveLocalEnrollment(draft)); setError('') }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Please check the enrollment details.') }
   }
@@ -109,9 +142,12 @@ export default function StaffEnrollment() {
   }
 
   return <main className={styles.workspace} style={{ background: colors.background, color: colors.text, fontFamily: typography.fontSans }}>
-    <header className={styles.header}><span className={styles.brand}>odeon</span><span className={styles.demo}>Local preview · changes stay on this page</span></header>
+    {!onSaveAndClose && <header className={styles.header}><span className={styles.brand}>odeon</span><span className={styles.demo}>Local preview · changes stay on this page</span></header>}
     <div className={styles.container}>
-      <h1 ref={heading} tabIndex={-1}>{saved ? 'Enrollment saved' : 'Enroll a student'}</h1>
+      {onSaveAndClose ? <PageHeader title="Enroll a student" subtitle="Draft only · proposed times are not reserved." right={<Button type="button" variant="secondary" onClick={() => { if (!dirty && onClose) onClose(); else onSaveAndClose(draft, step, reviewedSteps) }}>{dirty ? 'Save & close' : 'Close'}</Button>} /> : <h1 ref={heading} tabIndex={-1}>{saved ? 'Enrollment saved' : 'Enroll a student'}</h1>}
+      {initialRecord?.preferences?.some(item => item.interest || item.availability?.preferredDays || item.availability?.preferredTimes) && <Notice title="From the inquiry">
+        {initialRecord.preferences.map(item => <p key={item.studentId}>{item.name}: {[item.interest, item.availability?.preferredDays, item.availability?.preferredTimes, item.availability?.preferredDate, item.availability?.timeWindow].filter(Boolean).join(' · ') || 'No preferences recorded'}</p>)}
+      </Notice>}
       {saved ? <section className={styles.saved}>
         <Check size={26} aria-hidden="true" /><h2>{fullName(saved.student)}</h2><p>Saved on this page</p>
         <dl><dt>Payer</dt><dd>{saved.payer === 'other' ? saved.otherPayer?.name : fullName(saved.payer === 'manager' ? saved.manager : saved.student)}</dd><dt>Payment</dt><dd>{saved.payment === 'demo_card' ? 'Test card selected' : 'To be added'}</dd><dt>Status</dt><dd>Draft</dd></dl>
@@ -142,7 +178,7 @@ export default function StaffEnrollment() {
               {step === 1 ? <FieldGrid>
                 {lesson.addedLesson && <label>Student<select value={lesson.studentId || ''} onChange={event => updateLesson(lesson.id, { studentId: event.target.value, teacher: '', start: '', time: '' })}><option value="">Choose a student</option>{lessonStudents.map(person => <option key={person.id} value={person.id}>{fullName(person)}</option>)}</select></label>}
                 <label>Service<select value={lesson.service} onChange={event => { const service = event.target.value as LessonChoice['service']; updateLesson(lesson.id, { service, instrument: service === 'Group' ? 'Tiny Keys' : 'Piano', teacher: '', time: '', start: '' }) }}>{enrollmentServices.map(value => <option key={value}>{value}</option>)}</select></label>
-                <label>Program<select value={lesson.instrument} onChange={event => updateLesson(lesson.id, { instrument: event.target.value, teacher: '', time: '', start: '' })}>{(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).map(value => <option key={value}>{value}</option>)}</select></label>
+                <label>Program<select value={lesson.instrument} onChange={event => updateLesson(lesson.id, { instrument: event.target.value, teacher: '', time: '', start: '' })}><option value="">Choose a program</option>{(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).map(value => <option key={value}>{value}</option>)}</select></label>
                 <label>Length<select value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}><option value="30">30 minutes</option><option value="60">60 minutes</option></select></label>
                 <label>Cadence<select value={lesson.frequency} onChange={event => updateLesson(lesson.id, { frequency: event.target.value })}><option value="Monthly subscription">Weekly</option><option value="À-la-carte">One lesson</option></select></label>
               </FieldGrid> : <p>{lesson.service} · {lesson.instrument} · {lesson.frequency === 'Monthly subscription' ? 'Weekly' : 'One lesson'} · {lesson.duration} minutes</p>}
@@ -160,21 +196,20 @@ export default function StaffEnrollment() {
                   </div>
                 </SurfacePanel></div>)}
               </section>
-              <p className={styles.billingIntro}>Monthly billing on the 1st, based on scheduled lessons.</p>
               <div className={styles.priceSummary}>
                 {[{ title: 'Due today', period: billing.current }, { title: formatScheduleDate(billing.nextDate, { month: 'long', day: 'numeric', year: 'numeric' }), period: billing.next }].map(({ title, period }) => <section key={title} className={styles.pricePeriod}>
                   <div className={styles.priceHeading}><SectionTitle as="h3" variant="card">{title}</SectionTitle><strong>{money(period.total)}</strong></div>
-                  {period.lines.length > 0 ? <details><summary>Lesson breakdown</summary>{period.lines.map(({ lesson, dates, price, total }) => <div key={lesson.id} className={styles.priceLine}>
+                  {period.lines.length > 0 && <Disclosure summary="Lesson breakdown" style={{ ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.sm }}>{period.lines.map(({ lesson, dates, price, total }) => <div key={lesson.id} className={styles.priceLine} style={typography.bodySmall}>
                     <div><strong>{fullName(lessonStudent(draft, lesson))}</strong><span>{lesson.instrument} · {lesson.duration} min · {dates.length} {dates.length === 1 ? 'lesson' : 'lessons'}</span><span>{dates.map(date => formatScheduleDate(date)).join(', ')}</span><span>{dates.length} × {money(price.total)}{price.discount > 0 ? ' (teacher discount applied)' : ''}</span></div><strong>{money(total)}</strong>
-                  </div>)}</details> : <p>No scheduled charges.</p>}
+                  </div>)}</Disclosure>}
                 </section>)}
               </div>
               <div className={styles.payerRow}><label>Who will pay?<select value={draft.payer} onChange={event => patch({ payer: event.target.value as EnrollmentDraft['payer'] })}><option value="student">{fullName(draft.student)}</option>{draft.manager && <option value="manager">{fullName(draft.manager)}</option>}{draft.otherPayer && <option value="other">{draft.otherPayer.name || 'Another payer'}</option>}</select></label>{!draft.otherPayer && <Button type="button" variant="secondary" onClick={() => patch({ otherPayer: { name: '', email: '', phone: '' }, payer: 'other' })}><Plus size={15} aria-hidden="true" />Add another payer</Button>}</div>
-              {draft.otherPayer && <section className={styles.payerEditor}><div className={styles.sectionHeading}><SectionTitle as="h3" variant="card">Another payer</SectionTitle><Button type="button" variant="ghost" onClick={() => patch({ otherPayer: null, payer: draft.payer === 'other' ? 'student' : draft.payer })}>Remove payer</Button></div><FieldGrid><label>Name or organization<input value={draft.otherPayer.name} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, name: event.target.value } })} /></label><label>Email<input type="email" value={draft.otherPayer.email} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, email: event.target.value } })} /></label><label>Phone<input type="tel" value={draft.otherPayer.phone} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, phone: event.target.value } })} /></label></FieldGrid></section>}
+              {draft.payer === 'other' && draft.otherPayer && <section className={styles.payerEditor}><div className={styles.sectionHeading}><SectionTitle as="h3" variant="card">Another payer</SectionTitle><Button type="button" variant="ghost" onClick={() => patch({ otherPayer: null, payer: draft.manager ? 'manager' : 'student' })}>Remove payer</Button></div><FieldGrid><label>Name or organization<input value={draft.otherPayer.name} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, name: event.target.value } })} /></label><label>Email<input type="email" value={draft.otherPayer.email} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, email: event.target.value } })} /></label><label>Phone<input type="tel" value={draft.otherPayer.phone} onChange={event => patch({ otherPayer: { ...draft.otherPayer!, phone: event.target.value } })} /></label></FieldGrid></section>}
               <section className={styles.cardEntry} aria-label="Credit card">
                 <SectionTitle as="h3" variant="card">Credit card</SectionTitle>
                 <label className={`${styles.consentChoice} ${styles.deferPayment}`}><input type="checkbox" checked={draft.payment === 'later'} onChange={event => patch({ payment: event.target.checked ? 'later' : 'demo_card' })} />Add payment later</label>
-                {draft.payment === 'demo_card' ? <div className={styles.fields} aria-label="Credit card preview"><label>Cardholder name<input readOnly value={fullName(draft.payer === 'manager' ? draft.manager : draft.payer === 'student' ? draft.student : null) || draft.otherPayer?.name || ''} /></label><label>Card number<input readOnly value="4242 4242 4242 4242" /></label><label>Expiration<input readOnly value="12 / 30" /></label><label>Security code<input readOnly value="123" /></label></div> : <p className={styles.paymentDeferred}>Payment will be added later.</p>}
+                {draft.payment === 'demo_card' && <div className={styles.fields} aria-label="Credit card preview"><label>Cardholder name<input readOnly value={fullName(draft.payer === 'manager' ? draft.manager : draft.payer === 'student' ? draft.student : null) || draft.otherPayer?.name || ''} /></label><label>Card number<input readOnly value="4242 4242 4242 4242" /></label><label>Expiration<input readOnly value="12 / 30" /></label><label>Security code<input readOnly value="123" /></label></div>}
               </section>
             </>}
             {step === 3 && <>
