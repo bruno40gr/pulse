@@ -12,11 +12,14 @@ export function sanitizePrototypeHtml(html: string, trustedImageUrls: string[] =
     const imageSource = node.getAttribute('src') || ''
     if (node.tagName === 'IMG' && imageSource !== PROTOTYPE_LOGO && !(trustedImageUrls.includes(imageSource) && /^https:\/\/[^\s]+$/i.test(imageSource))) return
     const clean = allowed.has(node.tagName) ? document.createElement(node.tagName.toLowerCase()) : document.createDocumentFragment()
+    // Preserve only the fixed signature spacing, never arbitrary incoming CSS.
+    if (clean instanceof HTMLParagraphElement && node.getAttribute('style') === 'margin:0 0 8px') clean.setAttribute('style', 'margin:0 0 8px')
     if (clean instanceof HTMLImageElement) {
       clean.src = imageSource
       clean.alt = node.getAttribute('alt') || 'Company logo'
       clean.width = 176
       clean.height = 45
+      if (node.getAttribute('style') === 'display:block') clean.setAttribute('style', 'display:block')
     }
     if (clean instanceof HTMLAnchorElement) {
       const href = node.getAttribute('href')?.trim() || ''
