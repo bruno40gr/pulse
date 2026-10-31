@@ -12,14 +12,18 @@ const root = path.resolve(__dirname, '../..')
 const source = fs.readFileSync(path.join(root, 'app/dashboard/settings/page.tsx'), 'utf8')
 const owner = { canManageRoles: true, canManageIntegrations: true, canManageBrand: true, canAccessDesignSystem: false, canUpdateCredentials: false, email: 'owner@example.com' }
 
-function render(tab, context = owner) {
+function render(tab, context = owner, runtime = {}) {
   const loaded = { exports: {} }
   let stateIndex = 0
   const states = [tab, context, false]
   const wrapper = ({ children }) => React.createElement('div', null, children)
   const panel = name => function MockPanel() { return React.createElement('section', { 'data-panel': name }, name) }
   const dependencies = {
-    react: { ...React, useState: initial => React.useState(stateIndex < states.length ? states[stateIndex++] : initial) },
+    react: { ...React, useState: initial => {
+      const index = stateIndex++
+      const [value, setValue] = React.useState(index < states.length ? states[index] : initial)
+      return [value, next => { if (index === 0) runtime.onTab?.(next); setValue(next) }]
+    }, ...(runtime.effects ? { useEffect: effect => runtime.effects.push(effect) } : {}) },
     'react/jsx-runtime': require('react/jsx-runtime'),
     'next/link': { default: wrapper },
     '@/lib/tenant': { getActiveTenantId: () => 'synthetic-tenant', getTenantBrand: () => ({}) },
@@ -34,7 +38,7 @@ function render(tab, context = owner) {
     dependencies[`@/components/settings/${name}`] = { default: panel(name) }
   }
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
-  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, require: id => {
+  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, URLSearchParams, window: { location: { search: runtime.search || '' } }, fetch: async () => ({ ok: true, json: async () => context }), require: id => {
     if (!(id in dependencies)) throw new Error(`Unexpected dependency: ${id}`)
     return dependencies[id]
   } })
@@ -73,6 +77,24 @@ test('Moving email panels preserves integration and brand permission gates', () 
   assert.ok(!html.includes('>Integrations<'))
 })
 
-test('Account deep links are honored before the role-management default', () => {
-  assert.match(source, /if \(requestedTab === 'account'\) setTab\('account'\)/)
+test('Settings defaults to Account after access loads and preserves only authorised deep links', async () => {
+  for (const [search, context, expected] of [
+    ['', owner, 'account'],
+    ['?tab=account', owner, 'account'],
+    ['?tab=roles', owner, 'roles'],
+    ['?tab=permissions', owner, 'permissions'],
+    ['?tab=integrations', owner, 'integrations'],
+    ['?tab=brand', owner, 'brand'],
+    ['?tab=unknown', owner, 'account'],
+    ['?tab=roles', { ...owner, canManageRoles: false }, 'account'],
+    ['?tab=permissions', { ...owner, canManageRoles: false }, 'account'],
+    ['?tab=integrations', { ...owner, canManageIntegrations: false }, 'account'],
+    ['?tab=brand', { ...owner, canManageBrand: false }, 'account'],
+  ]) {
+    const effects = [], tabs = []
+    render('account', context, { search, effects, onTab: tab => tabs.push(tab) })
+    effects[0]()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(tabs, [expected], search || 'no requested tab')
+  }
 })
