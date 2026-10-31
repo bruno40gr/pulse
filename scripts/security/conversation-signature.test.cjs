@@ -23,6 +23,16 @@ function setup({ permissions = ['communications.read', 'tenant_settings.manage']
 const request = body => new Request(`http://synthetic.invalid/api/conversations/signature?tenant=${HEAD}`, body === undefined ? {} : { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const valid = { company: 'Public Company', name: '', phone: '+12025550100', logoUrl: 'https://example.com/black.png' }
 
+test('personal signature separates the role and logo with an editor-safe blank line', () => {
+  const { harness } = setup()
+  const { conversationSignatureHtml } = harness.load('lib/conversation-signature.ts')
+  const settings = { personal: true, name: 'Alex', title: 'Teacher', logoUrl: valid.logoUrl, phone: '' }
+  assert.match(conversationSignatureHtml(settings, ''), /Teacher<\/p><br><img/)
+  assert.match(conversationSignatureHtml({ ...settings, title: '' }, ''), /<\/strong><\/p><br><img/)
+  assert.match(conversationSignatureHtml({ ...settings, name: '', title: '' }, ''), /^<img/)
+  assert.equal(conversationSignatureHtml({ ...settings, logoUrl: '' }, ''), '<p><strong>Alex</strong><br>Teacher</p>')
+})
+
 test('signature reads personal fields and the shared Brand logo, not internal workspace name or credentials', async () => {
   const { route } = setup()
   const response = await route.GET(request())

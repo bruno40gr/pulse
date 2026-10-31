@@ -51,7 +51,8 @@ export default function SettingsPage() {
         else if (requestedTab === 'permissions' && data.canManageRoles) setTab('permissions')
         else if (requestedTab === 'integrations' && data.canManageIntegrations) setTab('integrations')
         else if (requestedTab === 'brand' && data.canManageBrand) setTab('brand')
-        else if (data.canManageRoles) setTab('roles')
+        else if (requestedTab === 'roles' && data.canManageRoles) setTab('roles')
+        else setTab('account')
       })
       .catch(() => setAccountContext({
         canManageRoles: false,
