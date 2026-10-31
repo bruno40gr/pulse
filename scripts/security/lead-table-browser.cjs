@@ -15,6 +15,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       await page.route('**/api/**', route => {
         const request = route.request(), url = new URL(request.url())
         if (request.method() !== 'GET') { writes.push(url.pathname); return route.abort() }
+        if (url.pathname === '/api/account/me') return route.fulfill({ json: { tenantId: url.searchParams.get('tenant'), membershipId: 'table-review' } })
         if (url.pathname === '/api/leads') {
           const tab = url.searchParams.get('intake_type')
           const rows = tab === 'enrolled' ? fixtures.filter(row => row.status === 'won') : tab === 'lost' ? [lead('ghosted', 'ghosted_us'), lead('lost', 'lost')] : tab === 'lesson_inquiry' ? fixtures.filter(row => row.status !== 'won') : []
@@ -27,6 +28,34 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       const table = page.getByRole('table', { name: 'Leads', exact: true })
       await table.getByText('Student Alpha', { exact: false }).waitFor()
       const groups = table.getByRole('rowgroup')
+      const picker = page.locator('details').filter({ hasText: 'Columns & spacing' })
+      await picker.locator('summary').click()
+      await picker.getByText('Saved for your account in this browser.', { exact: true }).waitFor()
+      assert.equal(await table.getByRole('columnheader', { name: 'Source / form', exact: true }).count(), 0)
+      assert.equal((await groups.first().getByRole('row').first().boundingBox()).height, 44)
+      await picker.press('Escape')
+      await page.screenshot({ path: `/tmp/pulse-lead-comfortable-${width}.png`, fullPage: true })
+      await picker.locator('summary').click()
+      await picker.getByRole('checkbox', { name: 'Source / form', exact: true }).check()
+      await picker.getByRole('checkbox', { name: 'Email', exact: true }).uncheck()
+      await picker.getByRole('checkbox', { name: 'Campaign', exact: true }).check()
+      assert.equal(await table.getByRole('columnheader', { name: 'Email', exact: true }).count(), 0)
+      assert.equal(await table.getByRole('columnheader', { name: 'Campaign', exact: true }).count(), 1)
+      const widthWithMetadata = await groups.first().getByRole('row').first().evaluate(el => el.scrollWidth)
+      await picker.getByRole('checkbox', { name: 'Campaign', exact: true }).uncheck()
+      if (width < 1440) assert.ok(await groups.first().getByRole('row').first().evaluate(el => el.scrollWidth) < widthWithMetadata)
+      await picker.getByRole('combobox', { name: 'Row spacing' }).selectOption('compact')
+      await page.reload()
+      await table.getByText('Student Alpha', { exact: false }).waitFor()
+      assert.equal(await table.getByRole('columnheader', { name: 'Email', exact: true }).count(), 0)
+      assert.equal(await table.getByRole('columnheader', { name: 'Source / form', exact: true }).count(), 1)
+      await picker.locator('summary').click()
+      await picker.getByRole('button', { name: 'Reset to defaults' }).click()
+      assert.equal(await table.getByRole('columnheader', { name: 'Email', exact: true }).count(), 1)
+      assert.equal(await table.getByRole('columnheader', { name: 'Source / form', exact: true }).count(), 0)
+      assert.equal((await groups.first().getByRole('row').first().boundingBox()).height, 44)
+      await picker.getByRole('combobox', { name: 'Row spacing' }).selectOption('compact')
+      await picker.press('Escape')
       assert.equal(await groups.count(), 3)
       assert.match(await groups.nth(0).innerText(), /Contact family/)
       assert.match(await groups.nth(1).innerText(), /Contact today/)
@@ -88,7 +117,18 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       await page.getByRole('button', { name: /^Disenrolled/ }).click()
       assert.deepEqual(errors, [])
       assert.deepEqual(writes, [])
-      console.log(`PASS ${width}px: family boundaries/indent, density, blank cells, muted phones, urgency, action order, manual sort, no writes`)
+      console.log(`PASS ${width}px: column visibility, persistence/reset, responsive width, comfortable/compact, family rows, signal, sorting, no writes`)
+      await page.addInitScript(() => {
+        Storage.prototype.getItem = () => { throw new Error('Storage blocked') }
+        Storage.prototype.setItem = () => { throw new Error('Storage blocked') }
+      })
+      await page.reload()
+      await table.getByText('Student Alpha', { exact: false }).waitFor()
+      await picker.locator('summary').click()
+      await picker.getByRole('checkbox', { name: 'Email', exact: true }).uncheck()
+      assert.equal(await table.getByRole('columnheader', { name: 'Email', exact: true }).count(), 0)
+      assert.deepEqual(errors, [])
+      console.log(`PASS ${width}px: unavailable storage does not prevent customization`)
       await page.close()
     }
   } finally { await browser.close() }

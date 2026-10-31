@@ -35,6 +35,7 @@ import { compareNewestLead, isNewLead, NEW_LEAD_ROW_BACKGROUND, NEW_LEAD_WINDOW_
 import { getLeadSignal } from '@/lib/lead-signal'
 import { compareLeadAction, leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
+import { LeadTableControls, useLeadTablePreferences } from './LeadTableControls'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback' | 'enrolled' | 'lost'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -560,6 +561,7 @@ function getStartOfLocalDay(value: Date) {
 }
 
 export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
+  const { preferences: tablePreferences, updatePreferences: updateTablePreferences, persistent: tablePreferencesPersistent } = useLeadTablePreferences()
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [rowNow, setRowNow] = useState(() => Date.now())
   useEffect(() => {
@@ -1437,7 +1439,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     {
       id: 'name',
       header: 'Name',
-      width: 'minmax(120px, 1fr)',
+      width: 'minmax(180px, 1.2fr)',
       sortable: true,
       sortKey: 'name',
       render: (lead) => <div title={lead.contact?.full_name || 'Unknown'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName weight="semibold">{lead.contact?.full_name || 'Unknown'}</PersonName></div>,
@@ -1491,11 +1493,37 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     },
     {
       id: 'source',
-      header: 'Source',
+      header: 'Source / form',
       width: 'minmax(110px, 0.7fr)',
       render: (lead) => <div style={secondaryCellStyle}>{lead.source_form ? formatLabel(lead.source_form) : ''}</div>,
     },
+    {
+      id: 'created', header: 'Created', width: 'minmax(140px, 0.8fr)', sortable: true, sortKey: 'created', defaultSortDirection: 'desc',
+      render: lead => <div style={secondaryCellStyle}>{formatDateTime(lead.created_at)}</div>,
+    },
+    {
+      id: 'campaign', header: 'Campaign', width: 'minmax(160px, 1fr)',
+      render: lead => <div title={lead.utm_campaign || ''} style={secondaryCellStyle}>{lead.utm_campaign || ''}</div>,
+    },
+    {
+      id: 'marketingSource', header: 'Marketing source', width: 'minmax(150px, 0.9fr)',
+      render: lead => <div style={secondaryCellStyle}>{lead.utm_source || ''}</div>,
+    },
+    {
+      id: 'medium', header: 'Marketing medium', width: 'minmax(150px, 0.9fr)',
+      render: lead => <div style={secondaryCellStyle}>{lead.utm_medium || ''}</div>,
+    },
+    {
+      id: 'referrer', header: 'Referrer', width: 'minmax(180px, 1fr)',
+      render: lead => <div title={lead.referrer || ''} style={secondaryCellStyle}>{lead.referrer || ''}</div>,
+    },
+    {
+      id: 'priority', header: 'Priority', width: 'minmax(100px, 0.6fr)',
+      render: lead => <div style={secondaryCellStyle}>{lead.priority ? formatLabel(lead.priority) : ''}</div>,
+    },
   ] satisfies DataTableColumn<LeadRecord, LeadSortKey>[]), [activeTab])
+  const visibleLeadColumns = leadColumns.filter(column => tablePreferences.columns.some(id => id === column.id))
+  const leadTableMinWidth = 48 + 32 + visibleLeadColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
   const prospectAge = (() => {
     const payload = selectedLead?.payload
     const candidates = [
@@ -1929,6 +1957,12 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               </Button>
             </div>
           )}
+          <LeadTableControls
+            columns={leadColumns.map(column => ({ id: column.id, label: column.id === 'signal' ? 'Signal' : String(column.header) }))}
+            preferences={tablePreferences}
+            onChange={updateTablePreferences}
+            persistent={tablePreferencesPersistent}
+          />
         </div>
 
         {error && <MessageBox>{error}</MessageBox>}
@@ -1936,10 +1970,11 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
         <ResponsiveDataTable
           groupedRows
+          density={tablePreferences.density}
           rows={sortedLeads}
-          columns={leadColumns}
+          columns={visibleLeadColumns}
           getDetailRows={lead => !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
-            .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: leadColumns.map(column => {
+            .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: visibleLeadColumns.map(column => {
               if (column.id === 'name') return <div key={column.id} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName weight="normal">{student.name || 'Student name not recorded'}</PersonName></div>
               if (column.id === 'phone') return <div key={column.id} style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
               if (column.id === 'email') return <div key={column.id} style={secondaryCellStyle}>{student.email || ''}</div>
@@ -1969,7 +2004,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               description={inquirySearch.trim() ? 'Try another contact or student name, or load more inquiries.' : activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
             />
           )}
-          minDesktopWidth={1300}
+          minDesktopWidth={leadTableMinWidth}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead, index) => ({
             background: selectedIds.has(lead.id)
