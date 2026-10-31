@@ -11,8 +11,13 @@ function load(file, dependencies = {}, globals = {}) {
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, Buffer, Date, URL, URLSearchParams, AbortSignal, ...globals, require(id) {
     if (id === 'node:crypto' || id === 'node:buffer') return require(id)
-    if (!(id in dependencies)) throw new Error(`Unexpected dependency ${id}`)
-    return dependencies[id]
+    if (id in dependencies) return dependencies[id]
+    // Newly added shared modules (for example @/lib/communication-time) resolve from
+    // source instead of failing the dependency guard.
+    if (id.startsWith('@/lib/') && fs.existsSync(path.join(root, `${id.replace('@/', '')}.ts`))) {
+      return load(`${id.replace('@/', '')}.ts`, dependencies, globals)
+    }
+    throw new Error(`Unexpected dependency ${id}`)
   } })
   return loaded.exports
 }

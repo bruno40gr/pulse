@@ -17,8 +17,13 @@ function load(file, dependencies = {}) {
   }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, require: id => {
     if (id === 'lucide-react') return require('lucide-react')
-    assert.ok(id in dependencies, `Prototype requested unexpected dependency: ${id}`)
-    return dependencies[id]
+    if (id in dependencies) return dependencies[id]
+    // Newly added shared modules (for example @/lib/communication-time) resolve from
+    // source instead of failing the prototype dependency guard.
+    if (id.startsWith('@/lib/') && fs.existsSync(path.join(root, `${id.replace('@/', '')}.ts`))) {
+      return load(`${id.replace('@/', '')}.ts`, dependencies)
+    }
+    assert.ok(false, `Prototype requested unexpected dependency: ${id}`)
   }, window: { setTimeout: callback => callback() } })
   return loaded.exports
 }

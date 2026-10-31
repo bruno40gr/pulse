@@ -25,6 +25,9 @@ function load(file, workspace, runtime) {
     if (id === '@/lib/email-signature-fields') return load('lib/email-signature-fields.ts')
     if (id === '@/lib/conversation-signature') return load('lib/conversation-signature.ts')
     if (id === './ControlButton') return { ControlButton: props => React.createElement('button', { 'aria-label': props['aria-label'], onClick: props.onClick }, props.children) }
+    // Shared UI components now import their sibling Button (toolbar sizing), so load
+    // the real component instead of blocking it.
+    if (id === './Button') return load('components/ui/Button.tsx')
     if (id === '@/components/ui') return { ...Object.fromEntries(['Button', 'Input', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]])), Modal: ({ isOpen, children }) => isOpen ? React.createElement('div', { role: 'dialog' }, children) : null, ModalBody: ({ children }) => React.createElement('div', null, children), ModalFooter: ({ children }) => React.createElement('div', null, children), ModalHeader: ({ title }) => React.createElement('h2', null, title) }
     if (id.startsWith('@/components/ui/')) return load(`${id.replace('@/', '')}.tsx`)
     throw new Error(`Blocked dependency ${id}`)

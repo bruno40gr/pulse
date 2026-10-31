@@ -21,7 +21,7 @@ test('sample email history is stable, per-person, and explicitly simulated', () 
     return loadedModule.exports
   }
   const live = load('lib/conversations-live.ts')
-  const { createConversationEmailPreview } = load('lib/conversations-email-preview.ts', { '@/lib/conversations-live': live })
+  const { createConversationEmailPreview } = load('lib/conversations-email-preview.ts', { '@/lib/conversations-live': live, '@/lib/communication-time': load('lib/communication-time.ts') })
   const person = { id: 'one', name: 'Alex Example', email: 'alex@example.com', phone: '', student: '', stage: '' }
   const people = [person, { ...person, id: 'two', email: 'second@example.com' }, { ...person, id: 'no-email', email: '' }]
   const threads = createConversationEmailPreview(people)
