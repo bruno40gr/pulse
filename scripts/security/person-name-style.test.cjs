@@ -39,6 +39,18 @@ test('clickable contact names match static person names without changing blue te
   assert.equal(ControlButton({ kind: 'link', children: 'Website' }).props.style.color, colors.link)
 })
 
+test('family name weights vary without changing the shared name size or color', () => {
+  const { PersonName } = load('components/ui/PersonName.tsx')
+  const parent = PersonName({ children: 'Parent', weight: 'semibold' })
+  const child = PersonName({ children: 'Student', weight: 'normal' })
+  assert.equal(parent.props.style.fontWeight, 600)
+  assert.equal(child.props.style.fontWeight, 400)
+  assert.equal(parent.props.style.fontSize, child.props.style.fontSize)
+  assert.equal(parent.props.style.color, child.props.style.color)
+  assert.equal(PersonName({ children: 'Other tables' }).props.style.fontWeight, 700)
+  assert.equal(parent.props.weight, undefined)
+})
+
 test('all people table entry points use the same PersonName component, not link-styled names', () => {
   const files = [
     'app/dashboard/contacts/page.tsx', 'app/dashboard/staff/page.tsx',

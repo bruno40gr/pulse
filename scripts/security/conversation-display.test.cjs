@@ -11,6 +11,66 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/conve
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { module: loaded, exports: loaded.exports, Date })
 const { compareConversations, conversationAttention, newestEmail, lastContactTimestamp } = loaded.exports
+test('channel filtering scopes history, attention, counts, search and sorting without mutation', () => {
+  const people = [
+    { name: 'Mixed', newSms: 1, newEmails: 0, threads: [
+      { channel: 'sms', messages: [{ direction: 'inbound', unread: true, body: 'SMS only', timestamp: '2026-10-28T12:00:00Z' }] },
+      { channel: 'email', messages: [{ direction: 'outbound', body: 'Email only', timestamp: '2026-10-25T12:00:00Z' }] },
+    ] },
+    { name: 'Email', newSms: 0, newEmails: 1, threads: [{ channel: 'email', messages: [{ direction: 'inbound', unread: true, timestamp: '2026-10-27T12:00:00Z' }] }] },
+    { name: 'Empty', newSms: 0, newEmails: 0, threads: [{ channel: 'sms', messages: [] }] },
+  ]
+  const before = JSON.stringify(people)
+  const email = loaded.exports.filterConversationChannels(people, 'email')
+  assert.equal(email.length, 2)
+  assert.equal(email[0].newSms, 0)
+  assert.equal(conversationAttention(email[0].threads).unattended, false)
+  assert.equal(lastContactTimestamp(email[0].threads).slice(0, 10), '2026-10-25')
+  assert.equal(email[0].threads.flatMap(thread => thread.messages).some(message => message.body === 'SMS only'), false)
+  assert.equal(email.slice().sort((a, b) => compareConversations(a, b, 'time', 'desc'))[0].name, 'Email')
+  const sms = loaded.exports.filterConversationChannels(people, 'sms')
+  assert.equal(sms.length, 1)
+  assert.equal(sms[0].newEmails, 0)
+  assert.equal(conversationAttention(sms[0].threads).unread, true)
+  assert.equal(loaded.exports.filterConversationChannels(people, 'all'), people)
+  assert.equal(JSON.stringify(people), before)
+})
+test('list channel controls share contact header placement and opening respects the filter', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
+  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('<ResponsiveDataTable rows={visibleContacts}'))
+  assert.match(list, /<header/)
+  assert.match(list, /justifyContent: 'flex-end'/)
+  assert.doesNotMatch(list, /<SectionTitle|<SurfacePanel/)
+  assert.match(list, /aria-label="Filter conversation channel"/)
+  assert.match(list, /<ControlButton key=\{channel\} kind="toggle"/)
+  assert.match(list, /aria-pressed=\{channelFilter === channel\}/)
+  assert.match(source, /filterConversationChannels\(contacts, channelFilter\)\.filter/)
+  assert.match(source, /if \(channelFilter !== 'all'\) \{ next.channel = channelFilter/)
+})
+test('Email retains reachable contacts before summaries or older history have loaded', () => {
+  const people = [
+    { name: 'Older email', email: 'older@example.com', newSms: 1, newEmails: 0, threads: [{ channel: 'sms', messages: [{ direction: 'inbound', timestamp: '2026-10-28T12:00:00Z' }] }] },
+    { name: 'No email', email: '', newSms: 0, newEmails: 0, threads: [] },
+  ]
+  const before = JSON.stringify(people)
+  const filtered = loaded.exports.filterConversationChannels(people, 'email')
+  assert.equal(filtered.length, 1)
+  assert.equal(filtered[0].name, 'Older email')
+  assert.equal(filtered[0].threads.length, 0)
+  assert.equal(filtered[0].newSms, 0)
+  assert.equal(conversationAttention(filtered[0].threads).unattended, false)
+  assert.equal(lastContactTimestamp(filtered[0].threads), '')
+  assert.equal(JSON.stringify(people), before)
+})
+test('unattended icons distinguish email from SMS and retain both for mixed channels', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
+  assert.match(source, /attention.channels.includes\('sms'\) && <ArrowDownLeft/)
+  assert.match(source, /attention.channels.includes\('email'\) && <Mail/)
+  const pending = channel => ({ channel, messages: [{ direction: 'inbound', unread: false }] })
+  assert.equal(conversationAttention([pending('email')]).channels.join(','), 'email')
+  assert.equal(conversationAttention([pending('sms')]).channels.join(','), 'sms')
+  assert.equal(conversationAttention([pending('sms'), pending('email')]).channels.join(','), 'sms,email')
+})
 test('unread and unattended are separate; reading keeps arrow, replying clears it', () => {
   const sms = { channel: 'sms', messages: [{ direction: 'inbound', unread: true }] }
   assert.equal(conversationAttention([sms]).unattended, true)
@@ -96,18 +156,15 @@ test('history workspaces retain 30/70 while SMS composing gives the writing area
   assert.match(composer, /minmax\(0, 1fr\) minmax\(280px, 1fr\)/)
 })
 
-test('contact timing groups elapsed time by local calendar day', () => {
-  const timing = { exports: {} }
-  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/contact-timing.ts'), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS },
-  }).outputText, { module: timing, exports: timing.exports, Date })
-  const format = timing.exports.formatContactTiming
-  const now = new Date(2026, 9, 19, 18)
+test('contact timing groups elapsed time by Pacific calendar day', () => {
+  const { createHarness } = require('./synthetic-harness.cjs')
+  const format = createHarness().load('lib/contact-timing.ts').formatContactTiming
+  const now = new Date('2026-10-19T18:00:00-07:00')
   assert.equal(format(undefined, now), 'Not contacted yet')
   assert.equal(format('invalid', now), '—')
-  assert.equal(format(new Date(2026, 9, 19, 17, 50).getTime(), now), 'A moment ago')
-  assert.equal(format(new Date(2026, 9, 19, 16).getTime(), now), '2 hours ago')
-  assert.equal(format(new Date(2026, 9, 19, 2).getTime(), now), 'Today')
-  assert.equal(format(new Date(2026, 9, 18, 23).getTime(), now), 'Yesterday')
-  assert.equal(format(new Date(2026, 9, 17, 23).getTime(), now), 'Oct 17, 2026')
+  assert.equal(format(Date.parse('2026-10-19T17:50:00-07:00'), now), 'A moment ago')
+  assert.equal(format(Date.parse('2026-10-19T16:00:00-07:00'), now), '2 hours ago')
+  assert.equal(format(Date.parse('2026-10-19T02:00:00-07:00'), now), 'Today')
+  assert.equal(format(Date.parse('2026-10-18T23:00:00-07:00'), now), 'Yesterday')
+  assert.equal(format(Date.parse('2026-10-17T23:00:00-07:00'), now), 'Oct 17, 2026')
 })

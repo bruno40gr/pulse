@@ -1,0 +1,1 @@
+export const LEAD_COUNT_EVENT = 'pulse:lead-count-changed'

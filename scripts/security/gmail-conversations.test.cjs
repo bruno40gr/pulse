@@ -10,13 +10,61 @@ function load(file, dependencies = {}, globals = {}) {
   const loaded = { exports: {} }
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, Buffer, Date, URL, URLSearchParams, AbortSignal, ...globals, require(id) {
-    if (id === 'node:crypto') return require(id)
+    if (id === 'node:crypto' || id === 'node:buffer') return require(id)
     if (!(id in dependencies)) throw new Error(`Unexpected dependency ${id}`)
     return dependencies[id]
   } })
   return loaded.exports
 }
 const google = load('lib/gmail/google.ts')
+test('token failures classify only invalid_grant as reconnect without leaking provider text', async () => {
+  for (const [status, error, reconnect] of [[400, 'invalid_grant', true], [429, 'rate_limit_exceeded', false], [503, 'server_error', false], [401, 'invalid_client', false]]) {
+    const provider = load('lib/gmail/google.ts', {}, { process: { env: {} }, fetch: async () => ({ ok: false, status, json: async () => ({ error, error_description: 'sensitive-provider-detail' }) }) })
+    await assert.rejects(provider.googleToken({ grant_type: 'refresh_token', refresh_token: 'private' }), failure => {
+      assert.ok(failure instanceof provider.GoogleTokenError)
+      assert.equal(failure.reconnect, reconnect)
+      assert.ok(!failure.message.includes('sensitive-provider-detail'))
+      return true
+    })
+  }
+})
+test('expired provider deadline makes no network calls or retry sleeps', async () => {
+  const provider = load('lib/gmail/google.ts', {}, { fetch: async () => assert.fail('Deadline must prevent fetch'), setTimeout: () => assert.fail('Deadline must prevent sleep') })
+  await assert.rejects(provider.gmailGet('token', 'profile', Date.now() - 1), error => error instanceof provider.GmailReadError)
+})
+test('slow provider and OAuth requests abort at the shared deadline without retrying', async () => {
+  for (const operation of ['read', 'token']) {
+    let calls = 0
+    const provider = load('lib/gmail/google.ts', {}, {
+      process: { env: {} }, setTimeout: () => assert.fail('No retry sleep after deadline'),
+      fetch: async (_, options) => {
+        calls++
+        return new Promise((resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        })
+      },
+    })
+    // AbortSignal.timeout timers are unref'ed; keep the isolated runner alive.
+    const keepAlive = setTimeout(() => {}, 1000)
+    try {
+      const deadline = Date.now() + 30
+      await assert.rejects(operation === 'read' ? provider.gmailGet('token', 'profile', deadline) : provider.googleToken({ grant_type: 'refresh_token' }, deadline))
+      assert.equal(calls, 1)
+    } finally { clearTimeout(keepAlive) }
+  }
+})
+test('retry timeout shrinks to the remaining deadline rather than restarting the budget', async () => {
+  let now = 100000, calls = 0
+  const timeouts = []
+  class Clock extends Date { static now() { return now } }
+  const provider = load('lib/gmail/google.ts', {}, {
+    Date: Clock, AbortSignal: { timeout(ms) { timeouts.push(ms); return {} } },
+    setTimeout(callback, ms) { now += ms; callback() },
+    fetch: async () => { calls++; if (calls === 1) { now += 2000; throw Error('temporary') }; return { ok: true, json: async () => ({ historyId: 'ok' }) } },
+  })
+  assert.equal((await provider.gmailGet('token', 'profile', 110000)).historyId, 'ok')
+  assert.deepEqual(timeouts, [10000, 7000])
+})
 const rules = load('lib/gmail/rules.ts')
 const helper = load('lib/gmail/conversations.ts', { '@/lib/supabase/crm-admin': {}, './security': {}, './google': {}, './rules': rules, '@/lib/organisation-email': { organisationEmailSettings: async () => null } })
 test('MIME rejects header injection, invalid recipients and empty content', () => {
@@ -41,10 +89,11 @@ test('provider body is full plain text, never untrusted HTML, and contact match 
 
 function routeHarness({ denied = false, sendScope = true, failSend = false, mailboxes = [], threads = [], failRead = null, additionalPeople = [] } = {}) {
   const calls = []; const queries = []
-  const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'contact', profileId: 'one', smsContactId: 'one' }
+  const person = { id: 'person:one', name: 'Parent', email: 'parent@example.com', phone: '', student: '', stage: '', profileType: 'lead', profileId: 'one', smsContactId: 'one' }
   const live = load('lib/conversations-live.ts')
   const api = load('app/api/conversations/email/route.ts', {
     '@/lib/gmail/google': google,
+    '@/lib/gmail/conversation-store': { InvalidStoredEmailCursor: class extends Error {}, readStoredEmail: async () => { throw new Error('Store disabled in legacy regression tests') }, storedMailbox: async () => { throw new Error('Store disabled in legacy regression tests') } },
     '@/lib/organisation-email': { organisationEmailSettings: async () => null, organisationSender: async () => ({ id: 'mailbox-one', email: 'office@example.com', sender: { email: 'office@example.com', name: 'Office' }, token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] }) },
     '@/lib/headliner-email-templates': load('lib/headliner-email-templates.ts'),
     'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },
@@ -54,6 +103,8 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
       const builder = { select() { return builder }, eq(key, value) { queries.push([table, key, value]); return builder }, order() { return Promise.resolve({ data: mailboxes, error: null }) } }
       return builder
     } } },
+    '@/lib/conversation-email-range': load('lib/conversation-email-range.ts'),
+    '@/lib/conversation-email-query': load('lib/conversation-email-query.ts'),
     '@/lib/conversations-directory': { conversationDirectory: async () => [person, ...additionalPeople] },
     '@/lib/gmail/conversations': { ...helper, conversationMailbox: async (...args) => { calls.push(['mailbox', ...args]); return { id: 'mailbox-one', email: 'office@example.com', token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] } }, gmailGet: async (_, url) => { calls.push(['get', url]); if (failRead) { const failure = failRead(url); if (failure) throw failure }; return url.startsWith('threads?') ? { threads: threads.map(thread => ({ id: thread.id })), nextPageToken: 'page-two' } : threads.find(thread => url.includes(thread.id)) } },
     '@/lib/gmail/rules': rules,
@@ -131,7 +182,7 @@ test('history retains pagination, ignores unrelated threads and does not expose 
   assert.ok(h.calls.some(call => call[0] === 'get' && call[1].includes('pageToken=page-one')))
 })
 
-test('invalid Gmail dates use the Date header or an honest unknown date without losing history', async () => {
+test('invalid Gmail dates use the Date header and unknown dates stay outside a bounded range', async () => {
   const messages = ['bad-date', '', '999999999999999999999999'].map((internalDate, index) => ({
     id: `message-${index}`, internalDate, payload: { headers: [
       { name: 'From', value: 'parent@example.com' },
@@ -142,12 +193,9 @@ test('invalid Gmail dates use the Date header or an honest unknown date without 
   const result = await h.api.GET(new Request('https://app.headlinerma.com/api/conversations/email?mailbox=mailbox-one&person=person:one'))
   assert.equal(result.status, 200)
   const actual = result.body.threads[0].messages
-  assert.equal(actual.length, 3)
+  assert.equal(actual.length, 1)
   assert.equal(actual.find(message => message.id === 'message-0').timestamp, '2026-10-21T05:00:00.000Z')
-  for (const id of ['message-1', 'message-2']) {
-    assert.equal(actual.find(message => message.id === id).timestamp, '')
-    assert.equal(actual.find(message => message.id === id).time, 'Date unavailable')
-  }
+  assert.ok(actual.every(message => message.timestamp))
 })
 
 test('a deleted thread does not break the remaining history on either production hostname', async () => {
@@ -201,15 +249,17 @@ test('history API keeps diagnostics separate from plain-language errors and neve
   assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
 })
 
-test('new drafts do not load history and background summaries are bounded, cancellable and hidden-tab aware', () => {
+test('new drafts do not load history and selected-range summaries auto-paginate with cancellation', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  const summary = source.slice(source.indexOf('    setEmailSummaries([])'), source.indexOf('    if (!previewHistory)'))
+  const summary = source.slice(source.indexOf('    // Load the complete selected range'), source.indexOf('    if (!previewHistory)'))
   assert.ok(!summary.includes('do {'))
   assert.ok(!summary.includes('while (cursor)'))
-  assert.match(summary, /location.view === 'compose'/)
+  assert.match(summary, /location.view !== 'contacts'/)
   assert.match(summary, /document.visibilityState === 'hidden'/)
   assert.match(summary, /controller.abort\(\)/)
-  assert.match(summary, /else if \(!scannedFirstPage\) olderCursor = next/)
+  assert.match(summary, /loadConversationEmailPages<LiveThread>/)
+  assert.match(summary, /from: dateFrom, to: dateTo/)
+  assert.ok(!source.includes('Load more emails in date range'))
   assert.match(source, /location.view !== 'contact' \|\| location.channel !== 'email'/)
   assert.ok(!source.includes('{sendError || emailError}'))
   assert.match(source, />Retry history<\/Button>/)
@@ -290,7 +340,7 @@ test('mixed Opus threads retain genuine replies and never attribute inbound mail
 })
 
 test('each person sees their own messages rather than unrelated authors copied on a shared thread', async () => {
-  const staff = { id: 'staff', name: 'David', email: 'staff@example.com' }
+  const staff = { id: 'staff', name: 'David', email: 'staff@example.com', profileType: 'lead' }
   const h = routeHarness({ additionalPeople: [staff], threads: [{ id: 'shared', messages: [
     emailMessage('parent', { From: 'parent@example.com', To: 'office@example.com', Cc: staff.email }),
     emailMessage('staff-direct', { From: staff.email, To: 'office@example.com', Cc: 'parent@example.com' }),
@@ -300,6 +350,26 @@ test('each person sees their own messages rather than unrelated authors copied o
   assert.equal(result.body.threads.find(thread => thread.contactId === 'person:one').messages[0].id, 'parent')
   assert.equal(result.body.threads.find(thread => thread.contactId === 'staff').messages[0].id, 'staff-direct')
   assert.ok(result.body.threads.every(thread => thread.messages.length === 1))
+})
+
+test('email reads exclude non-leads and old messages even inside matching threads', async () => {
+  const h = routeHarness({ additionalPeople: [{ id: 'contact', profileType: 'contact', email: 'current@example.com' }], threads: [
+    { id: 'mixed', messages: [emailMessage('old', { From: 'parent@example.com', To: 'office@example.com' }), emailMessage('current', { From: 'parent@example.com', To: 'office@example.com' })].map((message, index) => ({ ...message, internalDate: String(Date.parse(index ? '2026-10-20T12:00:00Z' : '2026-09-20T12:00:00Z')) })) },
+    { id: 'unrelated', messages: [emailMessage('non-lead', { From: 'current@example.com', To: 'office@example.com' })] },
+  ] })
+  for (const scope of ['summary=1', 'person=person:one']) {
+    const response = await h.api.GET(new Request(`https://example.com/api/conversations/email?mailbox=mailbox-one&${scope}&from=2026-10-01&to=2026-10-31`))
+    assert.equal(response.status, 200)
+    assert.equal(response.body.threads.length, 1)
+    assert.deepEqual(Array.from(response.body.threads[0].messages, message => message.id), ['current'])
+  }
+  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=contact'))).status, 404)
+  const older = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=person:one&from=2026-09-01&to=2026-09-30'))
+  assert.deepEqual(Array.from(older.body.threads[0].messages, message => message.id), ['old'])
+  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1&from=invalid'))).status, 400)
+  const query = new URLSearchParams(h.calls.find(call => call[0] === 'get' && call[1].startsWith('threads?'))[1].split('?')[1]).get('q')
+  assert.match(query, /after:\d+ before:\d+/)
+  assert.equal(h.calls.filter(call => call[0] === 'send').length, 0)
 })
 
 test('genuine outbound messages remain outbound and do not acquire unread flags', async () => {

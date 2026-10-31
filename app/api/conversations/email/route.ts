@@ -11,6 +11,10 @@ import { personThread, type LiveThread } from '@/lib/conversations-live'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { isConversationEmailPreview } from '@/lib/conversations-preview'
 import { GmailReadError } from '@/lib/gmail/google'
+import { emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
+import { conversationEmailQuery } from '@/lib/conversation-email-query'
+import { readStoredEmail, storedMailbox, InvalidStoredEmailCursor } from '@/lib/gmail/conversation-store'
+import { formatCommunicationTimestamp } from '@/lib/communication-time'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -42,14 +46,24 @@ export async function GET(request: Request) {
     }
     const summary = params.get('summary') === '1'
     stage = 'directory'
-    const people = await directory(access)
+    const people = (await directory(access)).filter(isLeadEmailContact)
     const person = people.find(person => person.id === params.get('person'))
     if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
+    let range: ReturnType<typeof emailDateRange>
+    try { range = emailDateRange(params.get('from'), params.get('to')) }
+    catch { return NextResponse.json({ error: 'Choose a valid email date range.' }, { status: 400, headers }) }
+    if (process.env.CONVERSATION_EMAIL_STORE === '1') {
+      const mailbox = await storedMailbox(access.tenantId, mailboxId, access.context.membershipId)
+      return NextResponse.json(await readStoredEmail(access.tenantId, mailbox, summary ? people : [person!], range, summary, params.get('cursor')), { headers })
+    }
+    let search: ReturnType<typeof conversationEmailQuery>
+    try { search = conversationEmailQuery((summary ? people : [person!]).map(person => person.email).filter(validEmail), params.get('cursor')) }
+    catch { return NextResponse.json({ error: 'Invalid email cursor.' }, { status: 400, headers }) }
+    if (search.empty) return NextResponse.json({ threads: [], nextCursor: null }, { headers })
     stage = 'mailbox'
     const mailbox = await conversationMailbox(access.tenantId, mailboxId, access.context.membershipId)
-    const query = new URLSearchParams({ maxResults: '20', q: summary ? '-in:trash -in:spam' : `from:(${person!.email}) OR to:(${person!.email}) OR cc:(${person!.email})` })
-    const cursor = params.get('cursor')
-    if (cursor) query.set('pageToken', cursor)
+    const query = new URLSearchParams({ maxResults: '10', q: `-in:trash -in:spam after:${range.start / 1000 - 1} before:${range.end / 1000} ${search.audience}` })
+    if (search.page) query.set('pageToken', search.page)
     stage = 'list'
     const page = await gmailGet<{ threads?: { id: string }[]; nextPageToken?: string }>(mailbox.token, `threads?${query}`)
     const threads: LiveThread[] = []
@@ -57,8 +71,8 @@ export async function GET(request: Request) {
     const references = page.threads || []
     const histories: GmailConversationThread[] = []
     stage = 'threads'
-    for (let offset = 0; offset < references.length; offset += 5) {
-      const batch = await Promise.all(references.slice(offset, offset + 5).map(async reference => {
+    for (let offset = 0; offset < references.length; offset += 2) {
+      const batch = await Promise.all(references.slice(offset, offset + 2).map(async reference => {
         try {
           return await gmailGet<GmailConversationThread>(mailbox.token, `threads/${encodeURIComponent(reference.id)}?format=${summary ? 'metadata' : 'full'}`)
         } catch (error) {
@@ -83,18 +97,22 @@ export async function GET(request: Request) {
             return ({
             id: message.id, channel: 'email' as const,
             direction: gmailMessageDirection(message, mailbox.email),
-            body: summary ? '' : gmailConversationBody(message.payload), time: date ? date.toLocaleString('en-US') : 'Date unavailable',
+            body: summary ? '' : gmailConversationBody(message.payload), time: date ? formatCommunicationTimestamp(date.toISOString()) : 'Date unavailable',
             timestamp: date?.toISOString() || '', subject: gmailHeader(message, 'Subject'),
             unread: gmailMessageDirection(message, mailbox.email) === 'inbound' && (message.labelIds?.includes('UNREAD') || false),
             emailFrom: emailAddresses(gmailHeader(message, 'From')).join(', '),
             emailTo: emailAddresses(gmailHeader(message, 'To')), emailCc: emailAddresses(gmailHeader(message, 'Cc')),
-          }) })
+          }) }).filter(message => {
+            const timestamp = Date.parse(message.timestamp)
+            return timestamp >= range.start && timestamp < range.end
+          })
         if (messages.length) threads.push({ ...personThread(person), id: `email:${mailbox.id}:${thread.id}:${person.id}`, channel: 'email',
           providerThreadId: thread.id, mailboxId: mailbox.id, subject: messages[0].subject, messages, unread: messages.some(message => message.unread) })
       }
     }
-    return NextResponse.json({ threads, nextCursor: page.nextPageToken || null }, { headers })
+    return NextResponse.json({ threads, nextCursor: search.nextCursor(page.nextPageToken || null) }, { headers })
   } catch (error) {
+    if (error instanceof InvalidStoredEmailCursor) return NextResponse.json({ error: 'Invalid email cursor.' }, { status: 400, headers })
     const code = error instanceof GmailReadError ? `history_${stage}_${error.status}_${error.reason}` : `history_${stage}`
     // Only fixed stage/status identifiers are exposed. No provider errors,
     // mailbox addresses, message content or tokens are logged or returned.
@@ -102,7 +120,7 @@ export async function GET(request: Request) {
     const message = error instanceof GmailReadError && error.retryable
       ? 'Email history is temporarily busy. Please try again shortly.'
       : 'Email history is unavailable right now. Your draft has not been changed.'
-    return NextResponse.json({ error: message, code }, { status: 503, headers })
+    return NextResponse.json({ error: message, code, retryable: error instanceof GmailReadError && error.retryable }, { status: 503, headers })
   }
 }
 

@@ -3,12 +3,29 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness, HEAD } = require('./synthetic-harness.cjs')
 
-function setup(viewer = 'author') {
+test('manual and website rows retain the previous blue highlight only during their first 24 hours', () => {
+  const { isNewLead, NEW_LEAD_WINDOW_MS, NEW_LEAD_ROW_BACKGROUND } = createHarness().load('lib/lead-table-order.ts')
+  const now = Date.parse('2026-10-29T12:00:00Z')
+  assert.equal(NEW_LEAD_ROW_BACKGROUND, '#EAF2FF')
+  for (const source_system of ['pulse-manual', 'headliner-website']) {
+    for (const [age, expected] of [[0, true], [NEW_LEAD_WINDOW_MS - 1, true], [NEW_LEAD_WINDOW_MS, false], [NEW_LEAD_WINDOW_MS + 1, false], [-1, false]]) {
+      assert.equal(isNewLead({ source_system, created_at: new Date(now - age).toISOString() }, now), expected)
+    }
+  }
+  assert.equal(isNewLead({ created_at: 'invalid' }, now), false)
+})
+
+function setup(viewer = 'author', options = {}) {
   const h = createHarness()
   const payload = { text: 'Original', actor: { personId: 'author', displayName: 'Old name' }, custom: 'retained' }
   h.setScenario({
-    actor: { personId: viewer, instructorId: null, displayName: 'Synthetic Staff', access: { kind: 'demo', tenantId: HEAD } },
+    actor: options.authenticated ? undefined : { personId: viewer, instructorId: null, displayName: 'Synthetic Staff', access: { kind: 'demo', tenantId: HEAD } },
+    authUser: options.authenticated ? { id: 'auth' } : undefined,
     fixtures: {
+      tenant_memberships: [{ id: 'membership', tenant_id: HEAD, person_id: viewer, auth_user_id: 'auth', role_id: 'role', status: 'active' }],
+      roles: [{ id: 'role', tenant_id: HEAD, key: options.role || 'assistant' }],
+      role_permissions: [{ role_id: 'role', permission_id: 'manage' }],
+      permissions: [{ id: 'manage', key: 'leads.manage' }],
       tenants: [{ id: HEAD, is_demo: true }],
       people: [{ id: 'author', tenant_id: HEAD, first_name: 'Lorena', last_name: 'Rudha' }],
       lead_intakes: [{ id: 'lead', tenant_id: HEAD, contact_id: 'contact', intake_type: 'lesson_inquiry', status: 'new', payload: { message: 'Initial' }, created_at: '2026-10-01T00:00:00Z' }],
@@ -16,12 +33,33 @@ function setup(viewer = 'author') {
     },
     // The synthetic builder compares object references; emulate JSONB equality
     // only for this fenced update, while asserting the actual serialized filter.
-    queryResult: q => q.operation === 'update' && q.table === 'lead_events' ? { data: { id: 'note' }, error: null } : undefined,
+    queryResult: q => q.operation === 'update' && q.table === 'lead_events' ? { data: options.concurrentConflict ? null : { id: 'note' }, error: null } : undefined,
   })
   const route = h.load('app/api/leads/[id]/route.ts')
   const patch = edit_note => route.PATCH(new Request('https://synthetic.invalid/api/leads/lead', { method: 'PATCH', body: JSON.stringify({ edit_note }) }), { params: Promise.resolve({ id: 'lead' }) })
   return { h, route, patch, payload }
 }
+
+for (const role of ['assistant', 'owner']) {
+  for (const viewer of ['author', 'someone-else']) {
+    test(`authenticated ${role} ${viewer === 'author' ? 'can edit their own note' : 'cannot override note authorship'}`, async () => {
+      const { h, route, patch } = setup(viewer, { authenticated: true, role })
+      const response = await route.GET(new Request('https://synthetic.invalid/api/leads/lead'), { params: Promise.resolve({ id: 'lead' }) })
+      assert.equal(response.status, 200)
+      assert.equal((await response.json()).notes_history.find(note => note.id === 'note').editable, viewer === 'author')
+      assert.equal((await patch({ id: 'note', text: 'Changed', previous_text: 'Original' })).status, viewer === 'author' ? 200 : 403)
+      assert.equal(h.getWrites().length, viewer === 'author' ? 1 : 0)
+    })
+  }
+}
+
+test('a concurrent JSONB payload change rejects the save after its original text check', async () => {
+  const { h, patch, payload } = setup('author', { authenticated: true, concurrentConflict: true })
+  assert.equal((await patch({ id: 'note', text: 'Changed', previous_text: 'Original' })).status, 409)
+  const writes = h.getWrites()
+  assert.equal(writes.length, 1, 'Only the fenced update is attempted; no automation or mentions')
+  assert.ok(writes[0].filters.some(filter => filter[1] === 'payload' && filter[2] === JSON.stringify(payload)))
+})
 
 test('manual and website leads use the same newest-first default, with no sticky manual pin', () => {
   const { compareNewestLead } = createHarness().load('lib/lead-table-order.ts')

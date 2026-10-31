@@ -17,6 +17,8 @@ import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-prefere
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
+import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
+import { startVisiblePolling } from '@/lib/visible-polling'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
@@ -29,7 +31,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/rsvps', label: 'Event RSVPs' },
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/contacts', label: 'Contacts' },
-      { href: '/dashboard/inbox', label: 'Conversations' },
+      { href: '/dashboard/inbox', label: 'Communications' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Staff' },
       { href: '/dashboard/community', label: 'Community posts' },
@@ -134,24 +136,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
   const pathname = usePathname()
   const [conversationCount, setConversationCount] = useState(0)
+  const [leadCount, setLeadCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    let revision = 0
+    const poller = startVisiblePolling(async signal => {
+      const requestRevision = ++revision
+      const tenantId = getActiveTenantId()
+      try {
+        const response = await fetch(`/api/leads?tenant=${encodeURIComponent(tenantId)}&count_only=1`, { cache: 'no-store', signal })
+        const data = await response.json()
+        if (!cancelled && !signal.aborted && response.ok && requestRevision === revision && tenantId === getActiveTenantId()) {
+          setLeadCount(Number.isSafeInteger(data.count) && data.count >= 0 ? data.count : 0)
+        }
+      } catch {}
+    })
+    const handleCountChange = () => { revision += 1; poller.refresh() }
+    window.addEventListener(LEAD_COUNT_EVENT, handleCountChange)
+    return () => {
+      cancelled = true
+      poller.stop()
+      window.removeEventListener(LEAD_COUNT_EVENT, handleCountChange)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     let countRevision = 0
     const pendingReads = new Set<string>()
-    const loadCount = async () => {
+    const poller = startVisiblePolling(async signal => {
       if (pendingReads.size > 0) return
       const revision = ++countRevision
+      const tenantId = getActiveTenantId()
       try {
-        const tenantId = getActiveTenantId()
-        const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store' })
+        const response = await fetch(`/api/inbox?tenant=${tenantId}&count_only=1`, { cache: 'no-store', signal })
         const data = await response.json()
-        if (!cancelled && response.ok && revision === countRevision && pendingReads.size === 0) setConversationCount(typeof data.count === 'number' ? data.count : 0)
+        if (!cancelled && !signal.aborted && response.ok && revision === countRevision && pendingReads.size === 0 && tenantId === getActiveTenantId()) setConversationCount(typeof data.count === 'number' ? data.count : 0)
       } catch {}
-    }
-
-    void loadCount()
-    const interval = window.setInterval(loadCount, 5000)
+    })
     const handleCountChange = (event: Event) => {
       countRevision += 1
       if (event instanceof CustomEvent && typeof event.detail?.threadKey === 'string') {
@@ -162,16 +185,16 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ? event.detail.delta
         : null
       if (delta === null) {
-        void loadCount()
+        poller.refresh()
         return
       }
       setConversationCount((current) => Math.max(0, current + delta))
-      if (pendingReads.size === 0) void loadCount()
+      if (pendingReads.size === 0) poller.refresh()
     }
     window.addEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     return () => {
       cancelled = true
-      window.clearInterval(interval)
+      poller.stop()
       window.removeEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     }
   }, [])
@@ -185,6 +208,9 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
           </div>
         </div>
       )}
+      <div style={{ padding: '12px 8px 0' }}>
+        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
+      </div>
       <nav style={{ flex: 1, padding: '12px 8px' }}>
         {NAV_GROUPS.map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
@@ -211,6 +237,11 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>{label}</span>
+                    {href === '/dashboard/leads' && leadCount > 0 && (
+                      <span aria-label={`${leadCount} new leads`} title={`${leadCount} new leads`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+                        {leadCount}
+                      </span>
+                    )}
                     {href === '/dashboard/inbox' && conversationCount > 0 && (
                       <span aria-label={`${conversationCount} unread messages`} title={`${conversationCount} unread messages`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
                         {conversationCount}
@@ -224,7 +255,6 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         ))}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
         <Link
           href="/dashboard/settings"
           onClick={onNavigate}

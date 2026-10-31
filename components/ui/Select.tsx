@@ -2,15 +2,17 @@
 
 import type { SelectHTMLAttributes } from 'react'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { buttonSizeStyles, buttonVariantStyles } from './Button'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   hint?: string
   fullWidth?: boolean
   wrapperStyle?: React.CSSProperties
+  controlSize?: 'default' | 'toolbar'
 }
 
-export function Select({ label, hint, style, children, fullWidth = true, wrapperStyle, ...props }: SelectProps) {
+export function Select({ label, hint, style, children, fullWidth = true, wrapperStyle, controlSize = 'default', ...props }: SelectProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', ...wrapperStyle }}>
       {label && (
@@ -34,6 +36,7 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
           boxSizing: 'border-box' as const,
           cursor: 'pointer',
           appearance: 'auto',
+          ...(controlSize === 'toolbar' ? { ...buttonVariantStyles.secondary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontWeight: typography.weightMedium } : {}),
           ...style,
         }}
         {...props}

@@ -46,9 +46,14 @@ function createHarness() {
           if (operation === 'insert' || operation === 'upsert') {
             data = (Array.isArray(payload) ? payload : [payload]).map((row, i) => ({ id: `synthetic-${table}-${i}`, ...row }))
           } else {
-            for (const [method, key, value] of filters) {
+            for (const [method, key, value, operand] of filters) {
               if (method === 'eq') data = data.filter(row => row[key] === value)
               if (method === 'in') data = data.filter(row => value.includes(row[key]))
+              if (method === 'neq') data = data.filter(row => row[key] !== value)
+              if (method === 'not' && value === 'in') {
+                const excluded = String(operand || '').replace(/^\(|\)$/g, '').split(',')
+                data = data.filter(row => !excluded.includes(row[key]))
+              }
             }
           }
           if (limit !== undefined) data = data.slice(0, limit)

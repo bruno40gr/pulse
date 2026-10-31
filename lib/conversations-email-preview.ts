@@ -1,4 +1,5 @@
 import { personThread, type ConversationPerson, type LiveThread } from '@/lib/conversations-live'
+import { formatCommunicationTimestamp } from '@/lib/communication-time'
 
 /** Staging-only sample history. Never persisted or submitted to Gmail. */
 export function createConversationEmailPreview(people: ConversationPerson[]): LiveThread[] {
@@ -13,7 +14,7 @@ export function createConversationEmailPreview(people: ConversationPerson[]): Li
       ...personThread(person), id: `preview-email:${person.id}`, channel: 'email', subject, unread: true,
       messages: messages.map((message, index) => ({
         ...message, id: `preview-email:${person.id}:${index}`, channel: 'email', subject, simulated: true,
-        time: new Date(message.timestamp).toLocaleString('en-US'),
+        time: formatCommunicationTimestamp(message.timestamp),
         emailTo: [message.direction === 'inbound' ? 'preview@example.com' : person.email], emailCc: [],
       })),
     }

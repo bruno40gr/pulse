@@ -63,11 +63,11 @@ export default function WinbackImportPanel({ onClose, onImported }: WinbackImpor
         body: JSON.stringify({ rows }),
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not import the Win-back list.')
+      if (!response.ok) throw new Error(data.error || 'Could not import the Disenrolled list.')
       setResult(data)
       await onImported()
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Could not import the Win-back list.')
+      setError(importError instanceof Error ? importError.message : 'Could not import the Disenrolled list.')
     } finally {
       setImporting(false)
     }
@@ -75,10 +75,10 @@ export default function WinbackImportPanel({ onClose, onImported }: WinbackImpor
 
   return (
     <>
-      <SlidePanelHeader title="Import Win-back students" subtitle="Former students are created as Lost — Disenrolled." onClose={onClose} />
+      <SlidePanelHeader title="Import Disenrolled students" subtitle="Former students are created as Lost — Disenrolled." onClose={onClose} />
       <div style={{ padding: spacing['2xl'], display: 'flex', flexDirection: 'column', gap: spacing.lg, overflowY: 'auto' }}>
         <div style={{ padding: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: radius.lg, background: colors.surfaceMuted, fontSize: typography.sizeSm, lineHeight: 1.5, color: colors.textSecondary }}>
-          This importer reads student and disenrollment fields. When the CSV also includes contact columns such as <strong>Email 1</strong> and <strong>Phone 1</strong>, it updates the existing Win-back contacts with the corrected names and outreach details, and clears imported name-uncertainty notes for matched students. Group entries are excluded.
+          This importer reads student and disenrollment fields. When the CSV also includes contact columns such as <strong>Email 1</strong> and <strong>Phone 1</strong>, it updates the existing Disenrolled contacts with the corrected names and outreach details, and clears imported name-uncertainty notes for matched students. Group entries are excluded.
         </div>
 
         <input ref={inputRef} type="file" accept=".csv,text/csv" onChange={(event) => void handleFile(event.target.files?.[0])} style={{ display: 'none' }} />

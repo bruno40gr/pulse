@@ -1,0 +1,30 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Offline query tests. */
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { createHarness } = require('./synthetic-harness.cjs')
+const { conversationEmailQuery } = createHarness().load('lib/conversation-email-query.ts')
+
+test('provider search always targets lead senders and recipients, never the whole mailbox', () => {
+  const query = conversationEmailQuery(['parent@example.com', 'PARENT@example.com'], null)
+  assert.equal(query.audience, '{from:"parent@example.com" to:"parent@example.com" cc:"parent@example.com"}')
+  assert.equal(query.empty, false)
+  assert.equal(query.nextCursor('provider-next'), 'provider-next')
+  assert.equal(query.nextCursor(null), null)
+  assert.equal(conversationEmailQuery([], null).empty, true)
+})
+
+test('large lead audiences traverse every bounded group and provider page', () => {
+  const emails = Array.from({ length: 63 }, (_, i) => `lead${String(i).padStart(2, '0')}@example.com`)
+  const first = conversationEmailQuery(emails, null)
+  assert.equal((first.audience.match(/from:/g) || []).length, 25)
+  const secondPage = conversationEmailQuery(emails, first.nextCursor('next-page'))
+  assert.equal(secondPage.page, 'next-page')
+  assert.equal(secondPage.audience, first.audience)
+  const secondGroup = conversationEmailQuery(emails, secondPage.nextCursor(null))
+  assert.equal(secondGroup.page, null)
+  assert.notEqual(secondGroup.audience, first.audience)
+  const last = conversationEmailQuery(emails, secondGroup.nextCursor(null))
+  assert.equal((last.audience.match(/from:/g) || []).length, 13)
+  assert.equal(last.nextCursor(null), null)
+  assert.throws(() => conversationEmailQuery(emails, 'lead-range:invalid'))
+})
