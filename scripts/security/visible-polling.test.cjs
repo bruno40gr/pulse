@@ -78,3 +78,22 @@ test('sidebar retains event-driven badges and does not install five-second timer
   assert.match(source, /window.addEventListener\(CONVERSATION_COUNT_EVENT, handleCountChange\)/)
   assert.match(source, /setConversationCount\(\(current\) => Math.max\(0, current \+ delta\)\)/)
 })
+
+test('notifications reuse visible single-flight polling for timer and action refreshes', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../components/notifications/NotificationBell.tsx'), 'utf8')
+  assert.match(source, /startVisiblePolling\(load\)/)
+  assert.match(source, /\{ signal, cache: 'no-store' \}/)
+  assert.match(source, /signal.aborted/)
+  assert.match(source, /poller.stop\(\)/)
+  assert.doesNotMatch(source, /setInterval|await load\(\)|void load\(\)/)
+  assert.equal((source.match(/pollerRef.current\?\.refresh\(\)/g) || []).length, 3)
+})
+
+test('Leads only loads the requested tab, retaining cache and manual refresh behavior', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../components/leads/LeadsView.tsx'), 'utf8')
+  assert.doesNotMatch(source, /prefetchedTabsRef|prefetchParams|prefetchCacheGeneration/)
+  assert.match(source, /if \(cacheIsFresh && !options.force\) return/)
+  assert.match(source, /params.set\('intake_type', requestedTab\)/)
+  assert.match(source, /params.set\('include_counts', '1'\)/)
+  assert.match(source, /leadListCacheRef.current.clear\(\)/)
+})

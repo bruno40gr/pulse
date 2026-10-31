@@ -10,6 +10,7 @@ import { Modal, ModalHeader } from '@/components/ui/Modal'
 import { notificationSummary } from '@/lib/notification-summary'
 import { Button } from '@/components/ui/Button'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { startVisiblePolling } from '@/lib/visible-polling'
 
 type NotificationItem = {
   id: string
@@ -29,22 +30,24 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
   const rootRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pollerRef = useRef<ReturnType<typeof startVisiblePolling> | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: AbortSignal) => {
     const tenantId = getActiveTenantId()
     try {
-      const response = await fetch(`/api/notifications?tenant=${tenantId}&limit=30`)
+      const response = await fetch(`/api/notifications?tenant=${encodeURIComponent(tenantId)}&limit=30`, { signal, cache: 'no-store' })
       if (!response.ok) return
       const data = await response.json()
+      if (signal.aborted || tenantId !== getActiveTenantId()) return
       setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
       setUnreadCount(typeof data.unread_count === 'number' ? data.unread_count : 0)
     } catch {}
   }, [])
 
   useEffect(() => {
-    void load()
-    const interval = window.setInterval(() => void load(), 60_000)
-    return () => window.clearInterval(interval)
+    const poller = startVisiblePolling(load)
+    pollerRef.current = poller
+    return () => { poller.stop(); pollerRef.current = null }
   }, [load])
 
   const close = useCallback(() => setOpen(false), [])
@@ -61,7 +64,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
       })
       if (!response.ok) throw new Error('Unable to dismiss notification. Please retry.')
       setNotifications(current => id ? current.filter(item => item.id !== id) : [])
-      await load()
+      pollerRef.current?.refresh()
     } catch {
       setError('Unable to dismiss notification. Please retry.')
     } finally {
@@ -80,7 +83,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
       })
       if (!response.ok) throw new Error('Unable to mark notification seen.')
       setNotifications(current => current.map(value => value.id === item.id ? { ...value, read_at: value.read_at || new Date().toISOString() } : value))
-      await load()
+      pollerRef.current?.refresh()
     } catch {
       setError('Unable to mark notification seen. Please retry.')
       return
@@ -98,7 +101,7 @@ export default function NotificationBell({ inverse = false, variant = 'icon', on
     <div ref={rootRef} style={{ position: 'relative' }}>
       <ControlButton kind={variant === 'icon' ? 'icon' : 'navigation'} selected={open} inverse={inverse}
         type="button"
-        onClick={() => { setOpen(current => !current); void load() }}
+        onClick={() => { setOpen(current => !current); pollerRef.current?.refresh() }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}

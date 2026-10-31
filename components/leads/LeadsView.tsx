@@ -601,7 +601,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
   const leadListRequestRef = useRef(0)
   const leadListCacheGenerationRef = useRef(0)
-  const prefetchedTabsRef = useRef(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
   const selectedLeadIdRef = useRef<string | null>(null)
@@ -738,32 +737,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
       setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
 
-      if (!prefetchedTabsRef.current) {
-        prefetchedTabsRef.current = true
-        const prefetchCacheGeneration = leadListCacheGenerationRef.current
-        window.setTimeout(() => {
-          LEAD_TABS.forEach((tab) => {
-            const prefetchKey = getLeadListCacheKey(tab.key, 'all')
-            if (tab.key === requestedTab || leadListCacheRef.current.has(prefetchKey)) return
-
-            const prefetchParams = new URLSearchParams({
-              intake_type: tab.key,
-              include_activity: '0',
-            })
-            void fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${prefetchParams.toString()}`)
-              .then((prefetchedLeads) => {
-                if (prefetchCacheGeneration !== leadListCacheGenerationRef.current) return
-                leadListCacheRef.current.set(prefetchKey, {
-                  leads: Array.isArray(prefetchedLeads) ? prefetchedLeads : [],
-                  fetchedAt: Date.now(),
-                  nextOffset: prefetchedLeads.length,
-                  hasMore: prefetchedLeads.length === 100,
-                })
-              })
-              .catch(() => {})
-          })
-        }, 0)
-      }
     } catch (error: unknown) {
       if (requestId !== leadListRequestRef.current) return
       setError(getErrorMessage(error, 'Could not load leads'))
@@ -777,7 +750,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
     leadListCacheGenerationRef.current += 1
     leadListCacheRef.current.clear()
-    prefetchedTabsRef.current = false
   }
 
   const loadMoreLeads = async () => {

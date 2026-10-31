@@ -7,7 +7,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
   try {
     for (const width of [1440, 900, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
-      const errors = [], writes = []
+      const errors = [], writes = [], leadRequests = []
       page.on('pageerror', error => errors.push(error.message))
       await page.clock.setFixedTime(new Date('2026-10-28T12:00:00'))
       const lead = (id, status, payload = {}, phone = '+1 (916) 230-0511') => ({ id, status, payload, intake_type: 'lesson_inquiry', program_label: 'Piano', source_form: 'manual-other', contact_id: id, contact: { id, full_name: `Contact ${id}`, phone, email: `${id}@example.invalid` }, created_at: '2026-10-27T10:00:00Z', updated_at: '2026-10-27T10:00:00Z', last_activity_at: '2026-10-27T10:00:00Z' })
@@ -17,6 +17,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
         if (request.method() !== 'GET') { writes.push(url.pathname); return route.abort() }
         if (url.pathname === '/api/account/me') return route.fulfill({ json: { tenantId: url.searchParams.get('tenant'), membershipId: 'table-review' } })
         if (url.pathname === '/api/leads') {
+          leadRequests.push(url.searchParams.get('intake_type'))
           const tab = url.searchParams.get('intake_type')
           const rows = tab === 'enrolled' ? fixtures.filter(row => row.status === 'won') : tab === 'lost' ? [lead('ghosted', 'ghosted_us'), lead('lost', 'lost')] : tab === 'lesson_inquiry' ? fixtures.filter(row => row.status !== 'won') : []
           return route.fulfill({ json: url.searchParams.get('include_counts') === '1' ? { leads: rows, counts: { lesson_inquiry: 3, enrolled: 1, lost: 2 } } : rows })
@@ -28,6 +29,9 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       const table = page.getByRole('table', { name: 'Leads', exact: true })
       await table.getByText('Student Alpha', { exact: false }).waitFor()
       const groups = table.getByRole('rowgroup')
+      await page.waitForTimeout(100)
+      assert.ok(leadRequests.length > 0)
+      assert.ok(leadRequests.every(tab => tab === 'lesson_inquiry'), 'No unopened tabs are prefetched')
       const trigger = page.getByRole('button', { name: 'Columns & spacing', exact: true })
       const picker = page.getByRole('group', { name: 'Table display options' })
       const peers = [page.getByRole('button', { name: 'Action first', exact: true }), page.getByRole('button', { name: 'Export CSV', exact: true }), page.getByRole('combobox', { name: 'Filter leads by status' }), trigger]
@@ -121,6 +125,13 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       assert.equal(await page.getByRole('button', { name: /Teacher applications/ }).count(), 0)
       await page.getByRole('button', { name: /^Enrolled/ }).click()
       await table.getByText('Contact terminal', { exact: true }).waitFor()
+      const loadedEnrolled = leadRequests.filter(tab => tab === 'enrolled').length
+      assert.equal(loadedEnrolled, 1)
+      await page.getByRole('button', { name: /^Lesson requests/ }).click()
+      await table.getByText('Student Alpha', { exact: false }).waitFor()
+      await page.getByRole('button', { name: /^Enrolled/ }).click()
+      await table.getByText('Contact terminal', { exact: true }).waitFor()
+      assert.equal(leadRequests.filter(tab => tab === 'enrolled').length, loadedEnrolled, 'Revisited tabs reuse the fresh cache')
       assert.equal(await groups.count(), 1)
       assert.equal(await groups.first().evaluate(el => getComputedStyle(el).opacity), '1')
       await page.getByRole('button', { name: /^Lost/ }).click()
