@@ -1,13 +1,13 @@
 'use client'
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
-import { ButtonHTMLAttributes, CSSProperties } from 'react'
+import { ComponentPropsWithRef, CSSProperties } from 'react'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'teal'
-export type ButtonSize = 'sm' | 'md' | 'lg'
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'toolbar'
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ComponentPropsWithRef<'button'> {
   variant?: ButtonVariant
   size?: ButtonSize
 }
@@ -21,6 +21,7 @@ export const buttonVariantStyles: Record<ButtonVariant, CSSProperties> = {
 }
 
 export const buttonSizeStyles: Record<ButtonSize, CSSProperties> = {
+  toolbar: { padding: `${spacing.sm} ${spacing.md}`, fontSize: typography.sizeBase, minHeight: 42, boxSizing: 'border-box', lineHeight: 1.4 },
   sm: { padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeSm },
   md: { padding: `${spacing.sm} ${spacing.lg}`, fontSize: typography.sizeBase },
   lg: { padding: `${spacing.md} ${spacing['2xl']}`, fontSize: typography.sizeMd },

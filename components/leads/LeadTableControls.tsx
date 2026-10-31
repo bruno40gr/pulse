@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
-import { colors, radius, spacing } from '@/lib/tokens'
+import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 import { defaultLeadTablePreferences, leadTablePreferenceKey, normalizeLeadTablePreferences, type LeadTablePreferences } from '@/lib/lead-table-preferences'
 
@@ -37,25 +38,37 @@ export function useLeadTablePreferences() {
       try { window.localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* Session-only fallback. */ }
     }
   }
-  return { preferences, updatePreferences, persistent: storageKey !== null }
+  return { preferences, updatePreferences }
 }
 
-export function LeadTableControls({ columns, preferences, onChange, persistent }: {
+export function LeadTableControls({ columns, preferences, onChange }: {
   columns: { id: string; label: string }[]
   preferences: LeadTablePreferences
   onChange: (next: LeadTablePreferences) => void
-  persistent: boolean
 }) {
-  const details = useRef<HTMLDetailsElement>(null)
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const panelId = useId()
+  useEffect(() => {
+    if (!open) return
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [open])
   return (
-    <details ref={details} style={{ marginLeft: 'auto', position: 'relative' }} onKeyDown={event => {
-      if (event.key === 'Escape' && details.current) {
-        details.current.open = false
-        details.current.querySelector('summary')?.focus()
+    <div ref={root} style={{ marginLeft: 'auto', position: 'relative' }} onBlur={event => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+    }} onKeyDown={event => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        trigger.current?.focus()
       }
     }}>
-      <summary style={{ cursor: 'pointer', padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.border}`, borderRadius: radius.sm }}>Columns & spacing</summary>
-      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: spacing.xs, zIndex: 10, width: 'min(300px, calc(100vw - 48px))', maxHeight: '65vh', overflowY: 'auto', padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.sm }}>
+      <Button ref={trigger} type="button" variant="secondary" size="toolbar" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>Columns & spacing <ChevronDown size={16} aria-hidden="true" /></Button>
+      {open && <div id={panelId} role="group" aria-label="Table display options" style={{ position: 'absolute', right: 0, top: '100%', marginTop: spacing.xs, zIndex: 10, width: 'min(300px, calc(100vw - 48px))', maxHeight: '65vh', overflowY: 'auto', padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.sm, fontFamily: typography.fontSans, fontSize: typography.sizeBase }}>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Visible columns</legend>
           {columns.map(column => <label key={column.id} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 36 }}>
@@ -63,13 +76,12 @@ export function LeadTableControls({ columns, preferences, onChange, persistent }
             {column.label}{column.id === 'name' ? ' (required)' : ''}
           </label>)}
         </fieldset>
-        <Select label="Row spacing" aria-label="Row spacing" value={preferences.density} onChange={event => onChange({ ...preferences, density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}>
+        <label htmlFor={`${panelId}-spacing`} style={typography.label}>Row spacing</label>
+        <Select id={`${panelId}-spacing`} value={preferences.density} onChange={event => onChange({ ...preferences, density: event.target.value === 'compact' ? 'compact' : 'comfortable' })}>
           <option value="comfortable">Comfortable</option>
           <option value="compact">Compact</option>
         </Select>
-        <p style={{ color: colors.textSecondary }}> {persistent ? 'Saved for your account in this browser.' : 'Preferences apply to this visit until your account is verified.'}</p>
-        <Button type="button" variant="secondary" size="sm" onClick={() => onChange(defaultLeadTablePreferences())}>Reset to defaults</Button>
-      </div>
-    </details>
+      </div>}
+    </div>
   )
 }

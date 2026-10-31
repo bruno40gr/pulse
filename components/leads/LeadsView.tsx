@@ -561,7 +561,7 @@ function getStartOfLocalDay(value: Date) {
 }
 
 export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
-  const { preferences: tablePreferences, updatePreferences: updateTablePreferences, persistent: tablePreferencesPersistent } = useLeadTablePreferences()
+  const { preferences: tablePreferences, updatePreferences: updateTablePreferences } = useLeadTablePreferences()
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [rowNow, setRowNow] = useState(() => Date.now())
   useEffect(() => {
@@ -1932,15 +1932,15 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
         <div style={filterBarStyle}>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
-          <ControlButton kind="toggle" aria-pressed={sortKey === 'action'} selected={sortKey === 'action'} title="Prioritize due follow-ups and active inquiries among loaded leads" onClick={() => { setSortKey('action'); setSortDirection('asc') }}>Action first</ControlButton>
-          <Button type="button" variant="secondary" size="sm" onClick={exportLeads} disabled={exporting}>
+          <Button variant="secondary" size="toolbar" aria-pressed={sortKey === 'action'} title="Prioritize due follow-ups and active inquiries among loaded leads" onClick={() => { setSortKey('action'); setSortDirection('asc') }}>Action first{sortKey === 'action' ? ' ✓' : ''}</Button>
+          <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
           <Select
             aria-label="Filter leads by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={selectStyle}
+            controlSize="toolbar"
             fullWidth={false}
             wrapperStyle={filterSelectWrapStyle}
           >
@@ -1961,7 +1961,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             columns={leadColumns.map(column => ({ id: column.id, label: column.id === 'signal' ? 'Signal' : String(column.header) }))}
             preferences={tablePreferences}
             onChange={updateTablePreferences}
-            persistent={tablePreferencesPersistent}
           />
         </div>
 
@@ -2363,6 +2362,7 @@ function MessageBox({ children }: { children: React.ReactNode }) {
 
 const filterBarStyle: React.CSSProperties = {
   display: 'flex',
+  alignItems: 'center',
   gap: spacing.sm,
   flexWrap: 'wrap',
   marginBottom: spacing.lg,

@@ -10,6 +10,7 @@ import { SectionLabel } from '@/components/ui/SectionLabel'
 import { Pill } from '@/components/ui/Pill'
 import { FieldRow } from '@/components/ui/FieldRow'
 import { ModalShowcase } from '@/components/design-system/ModalShowcase'
+import { LeadToolbarShowcase } from '@/components/design-system/LeadToolbarShowcase'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export default function DesignPage() {
@@ -20,6 +21,7 @@ export default function DesignPage() {
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/back-navigation" style={{ color: colors.link }}>Open Back navigation lab →</a></p>
 
       <ModalShowcase />
+      <LeadToolbarShowcase />
 
       {/* COLORS */}
       <section style={{ marginBottom: '48px' }}>
