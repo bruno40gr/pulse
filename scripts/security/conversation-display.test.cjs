@@ -156,18 +156,15 @@ test('history workspaces retain 30/70 while SMS composing gives the writing area
   assert.match(composer, /minmax\(0, 1fr\) minmax\(280px, 1fr\)/)
 })
 
-test('contact timing groups elapsed time by local calendar day', () => {
-  const timing = { exports: {} }
-  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/contact-timing.ts'), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS },
-  }).outputText, { module: timing, exports: timing.exports, Date })
-  const format = timing.exports.formatContactTiming
-  const now = new Date(2026, 9, 19, 18)
+test('contact timing groups elapsed time by Pacific calendar day', () => {
+  const { createHarness } = require('./synthetic-harness.cjs')
+  const format = createHarness().load('lib/contact-timing.ts').formatContactTiming
+  const now = new Date('2026-10-19T18:00:00-07:00')
   assert.equal(format(undefined, now), 'Not contacted yet')
   assert.equal(format('invalid', now), '—')
-  assert.equal(format(new Date(2026, 9, 19, 17, 50).getTime(), now), 'A moment ago')
-  assert.equal(format(new Date(2026, 9, 19, 16).getTime(), now), '2 hours ago')
-  assert.equal(format(new Date(2026, 9, 19, 2).getTime(), now), 'Today')
-  assert.equal(format(new Date(2026, 9, 18, 23).getTime(), now), 'Yesterday')
-  assert.equal(format(new Date(2026, 9, 17, 23).getTime(), now), 'Oct 17, 2026')
+  assert.equal(format(Date.parse('2026-10-19T17:50:00-07:00'), now), 'A moment ago')
+  assert.equal(format(Date.parse('2026-10-19T16:00:00-07:00'), now), '2 hours ago')
+  assert.equal(format(Date.parse('2026-10-19T02:00:00-07:00'), now), 'Today')
+  assert.equal(format(Date.parse('2026-10-18T23:00:00-07:00'), now), 'Yesterday')
+  assert.equal(format(Date.parse('2026-10-17T23:00:00-07:00'), now), 'Oct 17, 2026')
 })

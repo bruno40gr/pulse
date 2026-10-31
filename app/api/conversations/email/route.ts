@@ -14,6 +14,7 @@ import { GmailReadError } from '@/lib/gmail/google'
 import { emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-range'
 import { conversationEmailQuery } from '@/lib/conversation-email-query'
 import { readStoredEmail, storedMailbox, InvalidStoredEmailCursor } from '@/lib/gmail/conversation-store'
+import { formatCommunicationTimestamp } from '@/lib/communication-time'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
             return ({
             id: message.id, channel: 'email' as const,
             direction: gmailMessageDirection(message, mailbox.email),
-            body: summary ? '' : gmailConversationBody(message.payload), time: date ? date.toLocaleString('en-US') : 'Date unavailable',
+            body: summary ? '' : gmailConversationBody(message.payload), time: date ? formatCommunicationTimestamp(date.toISOString()) : 'Date unavailable',
             timestamp: date?.toISOString() || '', subject: gmailHeader(message, 'Subject'),
             unread: gmailMessageDirection(message, mailbox.email) === 'inbound' && (message.labelIds?.includes('UNREAD') || false),
             emailFrom: emailAddresses(gmailHeader(message, 'From')).join(', '),

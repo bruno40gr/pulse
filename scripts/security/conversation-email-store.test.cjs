@@ -11,6 +11,7 @@ function load(file, dependencies, globals = {}) {
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, Buffer, Date, URLSearchParams, Set, Map, Math, require(id) {
     if (id.startsWith('node:')) return require(id)
+    if (id === '@/lib/communication-time') return load('lib/communication-time.ts', {})
     assert.ok(id in dependencies, `Unexpected dependency ${id}`)
     return dependencies[id]
   }, ...globals })

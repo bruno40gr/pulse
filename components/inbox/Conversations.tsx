@@ -45,6 +45,7 @@ import { loadConversationEmailPages } from '@/lib/conversation-email-pages'
 import { mergeEmailPages } from '@/lib/conversation-email-merge'
 import { startStoredEmailRefresh } from '@/lib/conversation-email-refresh'
 import { conversationEmailStatus } from '@/lib/conversation-email-status'
+import { formatCommunicationTimestamp } from '@/lib/communication-time'
 
 const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
 const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
@@ -186,7 +187,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       return { ...personThread(person), id: `sms:${thread.thread_key}`, phone: thread.other_phone, unread: thread.has_unread,
         messages: thread.messages.slice().sort((a, b) => a.created_at.localeCompare(b.created_at)).map(message => ({
           id: message.id, channel: 'sms', direction: message.direction, body: message.body || '', timestamp: message.created_at,
-          time: `${new Date(message.created_at).toLocaleString()}${message.direction === 'outbound' ? ` · ${message.status}` : ''}`,
+          time: `${formatCommunicationTimestamp(message.created_at)}${message.direction === 'outbound' ? ` · ${message.status}` : ''}`,
           unread: message.direction === 'inbound' && message.status !== 'read',
         })) }
     })
@@ -658,7 +659,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
               {!!draft?.contextThreadId && <p style={meta}>Previous conversation: {contextThread?.subject}</p>}
               {contextMessages.length > 0 && <div aria-label="Previous email context">
               {contextMessages.map((message, index) => {
-                const header = <div style={{ ...row, justifyContent: 'space-between' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}><EmailDirection direction={message.direction} /><strong>{message.emailFrom || (message.direction === 'inbound' ? contact.name : senderName)}</strong></span><span style={meta}>{message.time}</span></div>
+                const header = <div style={{ ...row, justifyContent: 'space-between' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}><EmailDirection direction={message.direction} /><strong>{message.emailFrom || (message.direction === 'inbound' ? contact.name : senderName)}</strong></span><span style={meta}>{message.timestamp ? formatCommunicationTimestamp(message.timestamp) : message.time}</span></div>
                 const content = <>{message.simulated && <span style={meta}>Sample email</span>}<p style={{ ...meta, overflowWrap: 'anywhere' }}>From: {message.emailFrom || (message.direction === 'inbound' ? contact.email : senderEmail)}<br />To: {message.emailTo?.join(', ') || (message.direction === 'inbound' ? senderEmail : contact.email)}{!!message.emailCc?.length && <><br />Cc: {message.emailCc.join(', ')}</>}</p><EmailBody message={message} /></>
                 return index < contextMessages.length - 1 ? <Disclosure key={message.id} summary={header} style={{ padding: `${spacing.xl} 0`, borderBottom: `1px solid ${colors.border}`, marginBottom: spacing.xl }}>{content}</Disclosure> : <article key={message.id} style={{ padding: `${spacing.xl} 0` }}>{header}{content}</article>
               })}

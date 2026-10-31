@@ -3,6 +3,7 @@ import { crmSupabaseAdmin as db } from '@/lib/supabase/crm-admin'
 import { organisationEmailSettings } from '@/lib/organisation-email'
 import { personThread, type ConversationPerson, type LiveThread } from '@/lib/conversations-live'
 import { gmailMessageMatches, validEmail, type GmailConversationMessage } from './conversations'
+import { formatCommunicationTimestamp } from '@/lib/communication-time'
 
 export type StoredEmail = {
   provider_message_id: string; provider_thread_id: string; sent_at: string
@@ -49,7 +50,7 @@ export function storedEmailThreads(rows: StoredEmail[], people: ConversationPers
       if (!gmailMessageMatches(message, address, mailbox.email)) continue
       const id = `email:${mailbox.id}:${row.provider_thread_id}:${person.id}`
       const thread = threads.get(id) || { ...personThread(person), id, channel: 'email' as const, mailboxId: mailbox.id, providerThreadId: row.provider_thread_id, subject: row.subject, messages: [] }
-      if (!thread.messages.some(item => item.id === row.provider_message_id)) thread.messages.push({ id: row.provider_message_id, channel: 'email', direction: row.direction, timestamp: row.sent_at, time: new Date(row.sent_at).toLocaleString('en-US'), subject: row.subject, body: summary ? '' : row.body, unread: row.unread, emailFrom: row.sender, emailTo: row.recipients, emailCc: row.copied_recipients })
+      if (!thread.messages.some(item => item.id === row.provider_message_id)) thread.messages.push({ id: row.provider_message_id, channel: 'email', direction: row.direction, timestamp: row.sent_at, time: formatCommunicationTimestamp(row.sent_at), subject: row.subject, body: summary ? '' : row.body, unread: row.unread, emailFrom: row.sender, emailTo: row.recipients, emailCc: row.copied_recipients })
       thread.messages.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''))
       thread.unread = thread.messages.some(item => item.unread)
       threads.set(id, thread)
