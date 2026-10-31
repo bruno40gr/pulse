@@ -1495,8 +1495,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(110px, 0.7fr)',
       render: (lead) => <div style={secondaryCellStyle}>{lead.source_form ? formatLabel(lead.source_form) : ''}</div>,
     },
-  // Retain the signal implementation for a future opt-in, but hide its column now.
-  ] satisfies DataTableColumn<LeadRecord, LeadSortKey>[]).filter(column => column.id !== 'signal'), [activeTab])
+  ] satisfies DataTableColumn<LeadRecord, LeadSortKey>[]), [activeTab])
   const prospectAge = (() => {
     const payload = selectedLead?.payload
     const candidates = [

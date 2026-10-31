@@ -1,11 +1,23 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Existing Node synthetic harness. */
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const { createHarness } = require('./synthetic-harness.cjs')
 const { getLeadSignal, businessDaysSince } = createHarness().load('lib/lead-signal.ts')
 const now = new Date(2026, 9, 16, 12) // Friday; local dates avoid timezone-sensitive tests.
 const date = day => new Date(2026, 9, day, 10).toISOString()
 const lead = (patch = {}) => ({ status: 'contacted', created_at: date(1), updated_at: date(15), ...patch })
+
+test('release table retains the left signal column and existing family rows', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../components/leads/LeadsView.tsx'), 'utf8')
+  const columns = source.slice(source.indexOf('const leadColumns ='), source.indexOf('const prospectAge ='))
+  assert.ok(columns.indexOf("id: 'signal'") < columns.indexOf("id: 'status'"))
+  assert.match(columns, /const signal = getLeadSignal\(lead\)/)
+  assert.match(columns, /title=\{signal.label\} aria-label=\{signal.label\}/)
+  assert.doesNotMatch(columns, /filter\(column => column.id !== 'signal'\)/)
+  assert.match(source, /getDetailRows=\{lead =>/)
+})
 
 test('Contacted and New leads do not freeze after one day', () => {
   for (const status of ['contacted', 'new']) assert.equal(getLeadSignal(lead({ status }), now).emoji, '🔥🔥')
