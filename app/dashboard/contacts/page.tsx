@@ -13,9 +13,11 @@ import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from 
 import { SlidersHorizontal, X, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import FamilyListTable from '@/components/contacts/FamilyListTable'
+import { groupContactFamilies } from '@/lib/family-list'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, ResponsiveDataTable, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -24,6 +26,7 @@ import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 interface Contact {
   id: string
+  account_id?: string | null
   first_name: string
   last_name: string
   phone: string | null
@@ -147,7 +150,10 @@ export default function ContactsPage() {
   const standardFiltered = contacts.filter(c => {
     for (const [key, val] of Object.entries(appliedFilters)) {
       if (!val) continue
-      if (key === 'client_status' && c.client_status !== val) return false
+      if (key === 'client_status') {
+        if (c.client_status !== val) return false
+        continue
+      }
       if (c.custom_fields?.[key] !== val) return false
     }
     return true
@@ -175,7 +181,8 @@ export default function ContactsPage() {
     if (comparison !== 0) return comparison * direction
     return `${text(left.last_name)} ${text(left.first_name)}`.localeCompare(`${text(right.last_name)} ${text(right.first_name)}`, undefined, { sensitivity: 'base' })
   })
-  const visibleContacts = sortedDisplayed.slice(0, visibleCount)
+  const visibleFamilies = groupContactFamilies(sortedDisplayed).slice(0, visibleCount)
+  const visibleContactCount = visibleFamilies.reduce((count, group) => count + group.members.length, 0)
   const filterSummary = filterExplanation
     ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
     : ''
@@ -803,9 +810,9 @@ export default function ContactsPage() {
               ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
               : `Viewing ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
           </p>
-          {visibleContacts.length > 0 && visibleContacts.length < displayed.length && (
+          {visibleContactCount > 0 && visibleContactCount < displayed.length && (
             <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
-              Showing {visibleContacts.length} of {displayed.length}
+              Showing {visibleContactCount} of {displayed.length}
             </p>
           )}
           {
@@ -823,15 +830,37 @@ export default function ContactsPage() {
 
       {/* Contact table */}
       {!aiLoading && (
-        <ResponsiveDataTable
-          rows={visibleContacts}
+        <FamilyListTable
+          groups={visibleFamilies.map(group => ({
+            id: group.id,
+            parent: group.holder ? undefined : group.members[0],
+            name: group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
+            subtitle: group.holder ? 'Account holder' : '',
+            contact: <div style={{ overflowWrap: 'anywhere' }}>
+              <div>{formatPhoneNumber(group.members[0].account_holder_phone) || 'No phone'}</div>
+              <div style={{ color: colors.textSecondary }}>{group.members[0].account_holder_email || 'No email'}</div>
+            </div>,
+            members: group.holder ? group.members.map(contact => ({ id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim() })) : [],
+          }))}
+          nameColumn="name"
           columns={contactColumns}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={setContactSort}
+          onToggleMembers={(members, checked) => {
+            setSelectedIds(current => {
+              const next = new Set(current)
+              for (const member of members) {
+                if (checked) next.add(member.id)
+                else next.delete(member.id)
+              }
+              return next
+            })
+            setLastSelectedIndex(-1)
+          }}
           selection={{
             selectedKeys: selectedIds,
-            onToggle: (contact, index, event) => handleCheckboxToggle(contact, index, (event.nativeEvent as MouseEvent).shiftKey),
+            onToggle: (contact, _index, event) => handleCheckboxToggle(contact, sortedDisplayed.findIndex(row => row.id === contact.id), (event.nativeEvent as MouseEvent).shiftKey),
             onToggleAll: toggleSelectAll,
             allSelected: displayed.length > 0 && displayed.every((contact) => selectedIds.has(contact.id)),
             someSelected: selectedIds.size > 0 && !displayed.every((contact) => selectedIds.has(contact.id)),
@@ -842,7 +871,7 @@ export default function ContactsPage() {
           skeletonRows={8}
           emptyContent="No contacts found."
           minDesktopWidth={1100}
-          onRowClick={(contact, index, event) => handleRowClick(contact, index, event)}
+          onRowClick={(contact, _index, event) => handleRowClick(contact, sortedDisplayed.findIndex(row => row.id === contact.id), event)}
           getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
           ariaLabel="Contacts"
         />
