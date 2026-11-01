@@ -90,6 +90,10 @@ tar -xzf /path/to/worktrees/<name>/working-files.tar.gz -C /tmp/restore-wt
   dirty-file comparison. The earlier archive remains the recovery source; full
   archived-content equivalence has not yet been verified. Do not treat ancestry
   alone as proof that uncommitted files were preserved.
+- Follow-up changed-path comparison completed: all 64 archived status paths were
+  checked against promotion `e40a4ea`; 60 match exactly, one deletion is preserved,
+  and three differ only by additive instructions/lint comments. See
+  `docs/contacts-release-validation.md` for the scope and remaining limitations.
 - Removing that worktree broke the isolated preview's source/dependency links.
   `/private/tmp/pulse-p2-release-lab` now points to `/Users/brunowong/pulse`,
   including its four dashboard wrapper imports. Original wrappers were saved in

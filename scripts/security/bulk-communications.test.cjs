@@ -193,3 +193,69 @@ test('owner-managed signatures are escaped and remain specific to the chosen ali
   assert.equal(result[0].signatureHtml, '<p>Teacher &lt;script&gt;<br>Music Academy</p>')
   assert.equal(result[1].signatureHtml, '<p>Academy<br>Public phone</p>')
 })
+
+function smsHarness({ changed = false, directoryError = false, providerStatus = 'queued' } = {}) {
+  const deliveries = [], writes = []
+  const resolved = { selectedCount: 2, recipients: [{ destination: '+12025550101', name: 'Account manager', contactIds: ['one', 'two'] }], excluded: [] }
+  const database = { from(table) {
+    const query = {
+      select() { return query }, eq() { return query }, in() { return query },
+      single: async () => ({ data: table === 'campaigns' ? { id: 'campaign', message: 'Schedule update' } : { account_sid: 'synthetic', auth_token: 'synthetic', phone_number: '+12025550102' }, error: null }),
+      insert(row) { writes.push({ table, row }); return query },
+      update(row) { writes.push({ table, row }); return query },
+      then(resolve) { return Promise.resolve({ data: table === 'people' ? [{ id: 'one' }, { id: 'two' }] : [], error: null }).then(resolve) },
+    }
+    return query
+  } }
+  const api = load('app/api/campaigns/[id]/send/route.ts', {
+    'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },
+    '@/lib/communication-recipient-directory': {
+      validContactSelection: ids => Array.isArray(ids) && ids.length > 0,
+      communicationRecipients: async () => { if (directoryError) throw new Error('Recipients could not be verified'); return resolved },
+      recipientVersion: () => changed ? 'changed' : 'reviewed',
+    },
+    '@/lib/supabase/admin': { supabaseAdmin: database },
+    '@/lib/supabase/crm-admin': { crmSupabaseAdmin: database },
+    '@/lib/account-audit': { writeAccountAuditEvent: async () => true },
+    '@/lib/communication-authorization': { authorizeCommunicationSend: async () => ({ ok: true, tenantId: 'school', demo: false, context: { roleKey: 'owner', membershipId: 'owner' } }) },
+    '@/lib/communication-recipients': policy,
+    '@/lib/phone': { toE164PhoneNumber: value => value },
+    twilio: { default: () => ({ messages: { create: async input => { deliveries.push(input); return { sid: 'SMsynthetic', status: providerStatus } } } }) },
+  }, { process: { env: {} }, console: { error() {} }, setTimeout: callback => callback() })
+  return { deliveries, writes, send: patch => api.POST(new Request('https://synthetic.invalid/api/campaigns/campaign/send', {
+    method: 'POST', body: JSON.stringify({ recipientIds: ['one', 'two'], recipientVersion: 'reviewed', ...patch }),
+  }), { params: Promise.resolve({ id: 'campaign' }) }) }
+}
+
+test('SMS changed preview rejects before transport or persistence', async () => {
+  const h = smsHarness({ changed: true })
+  assert.equal((await h.send()).status, 409)
+  assert.equal(h.deliveries.length, 0)
+  assert.equal(h.writes.length, 0)
+})
+
+test('SMS unverifiable recipients reject before transport or persistence', async () => {
+  const h = smsHarness({ directoryError: true })
+  assert.equal((await h.send()).status, 500)
+  assert.equal(h.deliveries.length, 0)
+  assert.equal(h.writes.length, 0)
+})
+
+test('SMS delivery uses the reviewed destination once for siblings', async () => {
+  const h = smsHarness()
+  const response = await h.send()
+  assert.equal(response.status, 200)
+  assert.equal(response.body.sent, 1)
+  assert.equal(h.deliveries.length, 1)
+  assert.equal(h.deliveries[0].to, '+12025550101')
+  assert.equal(h.deliveries[0].body, 'Schedule update')
+  assert.equal(h.writes.filter(write => write.table === 'messages').length, 1)
+})
+
+test('SMS provider failure is not reported as delivery', async () => {
+  const h = smsHarness({ providerStatus: 'undelivered' })
+  const response = await h.send()
+  assert.equal(response.status, 502)
+  assert.equal(response.body.sent, 0)
+  assert.equal(response.body.failed, 1)
+})
