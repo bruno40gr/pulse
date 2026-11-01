@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO(contacts): joined Supabase rows are
+   untyped here and the account relation is inferred as both object and array; typing these
+   callbacks properly needs a verified row contract, tracked separately from this UI work. */
 import { PERMISSIONS } from '@/lib/permissions'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
@@ -173,6 +176,29 @@ export async function GET(request: Request) {
       person.custom_fields?.verification_fixture !== 'account-claim'
     )
 
+    // Optional explicit holder/person relationships. Never reconcile identities by
+    // name, email or phone. Older installations may not expose this relation.
+    const holderPeopleByAccount = new Map<string, Set<string>>()
+    const accountIds = [...new Set(visiblePeople.flatMap((person: any) =>
+      (person.students || []).flatMap((student: any) => student.account_id ? [student.account_id as string] : [])
+    ))]
+    for (let offset = 0; offset < accountIds.length; offset += 100) {
+      const { data: holders, error: holderError } = await supabaseAdmin.from('account_holders')
+        .select('tenant_id, account_id, person_id')
+        .eq('tenant_id', tenantId).in('account_id', accountIds.slice(offset, offset + 100))
+      if (holderError) {
+        holderPeopleByAccount.clear()
+        console.warn('Explicit account-holder identities unavailable; retaining account summaries.')
+        break
+      }
+      for (const holder of holders || []) {
+        if (holder.tenant_id !== tenantId || !holder.person_id) continue
+        const ids = holderPeopleByAccount.get(holder.account_id) || new Set<string>()
+        ids.add(holder.person_id)
+        holderPeopleByAccount.set(holder.account_id, ids)
+      }
+    }
+
     // Collect instructor person ids to resolve names + instructor records
     const instructorPersonIds = new Set<string>()
     for (const person of visiblePeople) {
@@ -245,6 +271,10 @@ export async function GET(request: Request) {
 
       return enrichDemoContact({
         id: person.id,
+        student_id: nonStudentBooking ? null : (student.id ?? null),
+        is_student: !nonStudentBooking && Boolean(student.id),
+        account_holder_person_id: holderPeopleByAccount.get(student.account_id)?.size === 1
+          ? [...holderPeopleByAccount.get(student.account_id)!][0] : null,
         tenant_id: person.tenant_id,
         first_name: person.first_name,
         last_name: person.last_name,

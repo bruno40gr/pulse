@@ -17,6 +17,8 @@ function load(file) {
     if (['react', 'react/jsx-runtime'].includes(id)) return require(id)
     if (id === '@/lib/tokens') return load('lib/tokens.ts')
     if (id === '@/components/ui/Input') return load('components/ui/Input.tsx')
+    // Shared form controls import their stylesheet; give the harness real class names.
+    if (id.endsWith('.module.css')) return new Proxy({}, { get: (_target, key) => String(key) })
     throw new Error(`Unexpected dependency ${id}`)
   } })
   return loaded.exports

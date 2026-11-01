@@ -5,12 +5,13 @@ import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
-import { PersonName } from '@/components/ui/PersonName'
+import { TablePersonName } from '@/components/ui/TablePersonName'
+import { RichDataTable } from '@/components/ui/RichDataTable'
 import { LeadEmailSync } from './LeadEmailSync'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isLessonLead, leadBelongsToTab, LESSON_PROGRAM_OPTIONS, readLessonRequestFields, lessonRequestPayload, type LessonRequestFields } from '@/lib/lead-lesson-details'
 import { Copy } from 'lucide-react'
-import { Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, ResponsiveDataTable, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
+import { Button, CompactMetaCard, DenseSectionPanel, DetailField, EmptyState, FieldLabel, Input, NotesSection, PageHeader, SectionTitle, Select, SlidePanel, SlidePanelHeader, StatusBadge, Tabs, Textarea, type DataTableColumn } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -35,7 +36,7 @@ import { compareNewestLead, isNewLead, NEW_LEAD_ROW_BACKGROUND, NEW_LEAD_WINDOW_
 import { getLeadSignal } from '@/lib/lead-signal'
 import { compareLeadAction, leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
-import { LeadTableControls, useLeadTablePreferences } from './LeadTableControls'
+import { LEAD_TABLE_SCHEMA } from '@/lib/lead-table-preferences'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback' | 'enrolled' | 'lost'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
@@ -561,7 +562,6 @@ function getStartOfLocalDay(value: Date) {
 }
 
 export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
-  const { preferences: tablePreferences, updatePreferences: updateTablePreferences } = useLeadTablePreferences()
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [rowNow, setRowNow] = useState(() => Date.now())
   useEffect(() => {
@@ -1380,7 +1380,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const followUpAt = getLeadFollowUpAt(selectedLead)
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
 
-  const leadColumns = useMemo<DataTableColumn<LeadRecord, LeadSortKey>[]>(() => ([
+  const leadColumns: DataTableColumn<LeadRecord, LeadSortKey>[] = [
     {
       id: 'signal',
       header: '',
@@ -1414,7 +1414,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(180px, 1.2fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <div title={lead.contact?.full_name || 'Unknown'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName weight="semibold">{lead.contact?.full_name || 'Unknown'}</PersonName></div>,
+      render: (lead) => <TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>,
     },
     {
       id: 'phone',
@@ -1493,9 +1493,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       id: 'priority', header: 'Priority', width: 'minmax(100px, 0.6fr)',
       render: lead => <div style={secondaryCellStyle}>{lead.priority ? formatLabel(lead.priority) : ''}</div>,
     },
-  ] satisfies DataTableColumn<LeadRecord, LeadSortKey>[]), [activeTab])
-  const visibleLeadColumns = leadColumns.filter(column => tablePreferences.columns.some(id => id === column.id))
-  const leadTableMinWidth = 48 + 32 + visibleLeadColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
+  ]
   const prospectAge = (() => {
     const payload = selectedLead?.payload
     const candidates = [
@@ -1902,7 +1900,10 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           />
         </div>
 
-        <div style={filterBarStyle}>
+        <RichDataTable
+          preferenceSchema={LEAD_TABLE_SCHEMA}
+          columnLabels={{ signal: 'Signal' }}
+          toolbar={<>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
           <Button variant="secondary" size="toolbar" aria-pressed={sortKey === 'action'} title="Prioritize due follow-ups and active inquiries among loaded leads" onClick={() => { setSortKey('action'); setSortDirection('asc') }}>Action first{sortKey === 'action' ? ' ✓' : ''}</Button>
           <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
@@ -1929,24 +1930,17 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               </Button>
             </div>
           )}
-          <LeadTableControls
-            columns={leadColumns.map(column => ({ id: column.id, label: column.id === 'signal' ? 'Signal' : String(column.header) }))}
-            preferences={tablePreferences}
-            onChange={updateTablePreferences}
-          />
-        </div>
-
-        {error && <MessageBox>{error}</MessageBox>}
+          </>}
+          beforeTable={<>        {error && <MessageBox>{error}</MessageBox>}
 
         {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
-        <ResponsiveDataTable
+          </>}
           groupedRows
-          density={tablePreferences.density}
           rows={sortedLeads}
-          columns={visibleLeadColumns}
+          columns={leadColumns}
           getDetailRows={lead => !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
-            .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: visibleLeadColumns.map(column => {
-              if (column.id === 'name') return <div key={column.id} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PersonName weight="normal">{student.name || 'Student name not recorded'}</PersonName></div>
+            .map((student, index) => ({ key: `${lead.id}-student-${index}`, cells: leadColumns.map(column => {
+              if (column.id === 'name') return <TablePersonName key={column.id} detail>{student.name || 'Student name not recorded'}</TablePersonName>
               if (column.id === 'phone') return <div key={column.id} style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
               if (column.id === 'email') return <div key={column.id} style={secondaryCellStyle}>{student.email || ''}</div>
               if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
@@ -1975,7 +1969,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               description={inquirySearch.trim() ? 'Try another contact or student name, or load more inquiries.' : activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
             />
           )}
-          minDesktopWidth={leadTableMinWidth}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead, index) => ({
             background: selectedIds.has(lead.id)
@@ -2332,13 +2325,7 @@ function MessageBox({ children }: { children: React.ReactNode }) {
   )
 }
 
-const filterBarStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: spacing.sm,
-  flexWrap: 'wrap',
-  marginBottom: spacing.lg,
-}
+
 
 const signalCellStyle: React.CSSProperties = {
   display: 'flex',

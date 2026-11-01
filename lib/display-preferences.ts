@@ -11,11 +11,16 @@ export function clampDisplayFontSize(value: number) {
 export function applyDisplayFontSize(value: number) {
   const fontSize = clampDisplayFontSize(value)
   document.documentElement.style.fontSize = `${fontSize}px`
-  window.localStorage.setItem(DISPLAY_FONT_SIZE_KEY, String(fontSize))
+  try { window.localStorage.setItem(DISPLAY_FONT_SIZE_KEY, String(fontSize)) } catch { /* Keep display usable without storage. */ }
   return fontSize
 }
 
 export function readDisplayFontSize() {
   if (typeof window === 'undefined') return DEFAULT_DISPLAY_FONT_SIZE
-  return clampDisplayFontSize(Number(window.localStorage.getItem(DISPLAY_FONT_SIZE_KEY)))
+  try {
+    const stored = window.localStorage.getItem(DISPLAY_FONT_SIZE_KEY)
+    return stored === null || stored.trim() === '' ? DEFAULT_DISPLAY_FONT_SIZE : clampDisplayFontSize(Number(stored))
+  } catch {
+    return DEFAULT_DISPLAY_FONT_SIZE
+  }
 }

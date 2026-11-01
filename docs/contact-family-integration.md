@@ -1,5 +1,159 @@
 # Contacts family integration — release review
 
+## October 31 prototype messaging iteration — current handoff
+
+Supersedes the status and validation sections below. This is fictional shell-data
+prototyping, not production account management or delivery verification.
+
+- Review: `http://127.0.0.1:3218/dashboard/contacts`. The isolated lab explicitly
+  enables `ContactPrototypeContext`; normal application pages default to false.
+- Both child and verified holder names open the current ContactSlidePanel, not a
+  summary-only account wrapper. Child names retain normal weight, shared name
+  controls and parent-only table selection. No chevrons or “Via” labels.
+- ContactSlidePanel now uses the latest original-worktree presentation: shared
+  action bar, flat section cards, current header and accessible FieldGrid/forms.
+  Original `/Users/brunowong/pulse` in-progress work was read, not overwritten.
+- Sophie Kim and minor Ethan Kim open their own profiles; SMS displays Sam Kim
+  and `(202) 555-0102`. Adult Ethan uses `(202) 555-0105`; Sam uses his own number.
+  The lab's “Ethan Kim review scenario” dropdown switches minor/adult shell data.
+- PrototypeContactSms reuses ComposePanel's existing injectable transport. Sends
+  are in-memory simulations with explicit confirmation; no campaign/send endpoint
+  is invoked. About-person and recipient remain separate. Calls/email are disabled
+  in this prototype; the lab API rejects unsupported writes.
+- Leads review now uses the same dashboard shell as Contacts, including Settings.
+  The actual Settings page is available in the lab. Missing/blank font preferences
+  now use 16px rather than being coerced to 14px; blocked storage is handled.
+- Fresh validation: TypeScript passed; 48 targeted Node tests passed; targeted
+  lint has zero errors and two existing unused-style warnings. Production build
+  passed with synthetic primary and CRM Supabase configuration (packaging only).
+- Kim messaging, Contacts family-page and Leads browser suites passed at
+  1440/900/390px. Checks cover simulated send/back/close, missing-holder disabled
+  SMS, minor personal-number protection, shared Settings sizing (18px root gives
+  16.875px names on both tables), metadata controls and filtered selection.
+- Fresh profile/composer screenshots inspected at desktop/mobile:
+  `/tmp/pulse-kim-contact-panel-{1440,900,390}.png` and
+  `/tmp/pulse-kim-sms-{1440,900,390}.png`.
+
+Scheduling/billing content retains the latest panel's existing placeholders;
+no functioning modules or production relationships are claimed. No messages were
+delivered, no commit/deployment performed, and visual approval remains outstanding.
+
+## October 31 shared rich-table correction — current status
+
+This section supersedes the historical implementation and validation claims below.
+Those checks predate the current changes and are not current release evidence.
+
+- Leads and Contacts now instantiate `components/ui/RichDataTable.tsx`. Contacts'
+  `FamilyListTable` is a domain grouping/selection adapter, not a separate table UI.
+- The shared component owns toolbar layout, metadata/column display options,
+  comfortable/compact density, visible-column width and detail-cell projection.
+  `TablePersonName` owns parent/detail typography and parent name controls.
+- The existing Leads picker was moved into shared `TableDisplayControls`; preferences
+  use one schema-driven normalizer. Leads retains its released membership-scoped
+  storage key/default columns. Contacts uses its own table scope and column schema.
+- There are no group expansion controls, child checkboxes or “Via” labels.
+  Parent selection applies only to real, currently filtered family records.
+- `DataGridTable.tsx` has no diff from the committed baseline.
+- Fresh checks: 16 targeted Node tests passed; Leads and Contacts browser checks
+  passed at 1440/900/390px with intercepted fictional API responses and no writes.
+  Contacts coverage includes column/density persistence, parent-only selection,
+  filtered hidden-sibling protection and opening the holder's account panel.
+  Screenshots: `/tmp/pulse-contacts-family-page-{1440,900,390}.png` and
+  `/tmp/pulse-lead-comfortable-{1440,900,390}.png`.
+- AccountFamilyPanel is still a family summary/member-profile handoff, not verified
+  full account management. Standalone holder schema mapping, member scheduling/
+  billing handoffs and close/back behavior remain release gates. The removed
+  role-specific browser runner has not yet been replaced with that full coverage.
+- No deployment, commit or visual approval is claimed.
+- Final TypeScript and diff checks passed. Targeted ESLint reported zero errors
+  and 33 unused-symbol warnings in LeadsView. The fresh production build compiled
+  and passed type validation but failed collecting `/api/access/demo` page data
+  with `supabaseUrl is required`, despite supplying synthetic build variables.
+  A successful full build is not claimed for this revision.
+
+## October 31 recovery: role-aware Leads table alignment
+
+This update supersedes the earlier tree-style appearance and the statement below
+that the drawer/shared-table files are unchanged. Not deployed or visually approved.
+
+### Recovered contracts and evidence
+
+- `/Users/brunowong/pulse/odeon.md`, Account Model and permissions: Auth user,
+  tenant membership, business person and staff role are distinct. Holder/student
+  roles never grant tenant access. Existing server authorization remains in place.
+- `/Users/brunowong/pulse/scripts/migration-001-student-accounts.sql`: student/account
+  relationships and staff/person roles use explicit foreign keys, not names.
+- `/Users/brunowong/pulse/scripts/migration-024-account-people-of-contact.sql`:
+  customer account contacts and funding-case contacts are tenant-scoped, separate
+  from login memberships and from student status.
+- `/Users/brunowong/pulse/docs/odeon-m1-role-identity.md` and
+  `/Users/brunowong/pulse/docs/odeon-m1-staging-schema-findings.md`: one person can
+  teach and learn; instructor/staff/student IDs are not interchangeable. Staging
+  evidence is not production evidence, and proposed constraints are not installed facts.
+- `/Users/brunowong/pulse-odeon-integration/app/content-studio-prototype/students/StudentWorkspace.tsx`:
+  combined holder/student rows use explicit IDs. Preview identity is not a production
+  mapping. No fictional messaging-grant model is substituted for released routing.
+- Released `components/leads/LeadsView.tsx` and `components/ui/DataGridTable.tsx`:
+  the visual baseline is grouped rows, 44px comfortable row minimum, shared group
+  padding, aligned names, semibold parent/normal student, and alternating group backgrounds.
+
+### Implementation
+
+- Contacts now uses the same `ResponsiveDataTable.getDetailRows` grouped rendering
+  as Leads. Optional detail selection/click callbacks support real Contacts rows;
+  omitted callbacks leave Leads display-only children unchanged. No copied row CSS.
+- Removed avatars, tree indentation, arrow markers and repeated holder subtitles.
+  Status/name/phone/email align with the Leads column conventions. Disclosure stays
+  after the parent name, without displacing either name's column edge.
+- Added explicit `student_id`/`is_student` to list and detail read models. Nonstudent
+  holders do not receive an invented Active badge. Staff/student roles can coexist.
+- An optional batched, tenant-filtered `account_holders` lookup exposes an explicit
+  single holder/person mapping. Missing columns/relation, multiple holders or conflicting
+  mappings retain an account summary. No name/address matching or schema migration.
+  This lookup is compatibility code with synthetic coverage, not proof of production
+  column availability. A holder/student is combined only when that person is present
+  in the filtered family. Hidden/filtered identities are never silently selected.
+- Minor rows show “Via [holder]”, not personal destination details or repeated adult
+  phone numbers presented as the child's number. Holder contact details appear on
+  the account row. Saved holder-routing preferences apply to adults too.
+- The profile's SMS branch now follows role/routing policy, not phone-string inequality.
+  Equal minor/holder numbers still go through the existing server-resolved holder
+  composer; missing holder numbers disable SMS. Holder-routed direct Conversations
+  email remains disabled. No provider, consent, bulk-recipient or delivery policy changed.
+- Existing filtered family selection, Shift anchor reset, real profile callbacks,
+  whole-family pagination, polling and on-demand Leads loading remain intact.
+
+### Recovery checks
+
+- `scripts/security/contact-role-presentation.test.cjs`: tenant isolation, explicit
+  holder/student identity, non-inference, staff/student roles, minor destinations,
+  saved adult routing, optional-schema fallback and denied-request no-query checks.
+- `scripts/security/contact-role-page-browser.cjs`: actual Contacts page at
+  1440/900/390px with intercepted fictional data; real status badges, aligned names,
+  44px row geometry, family selection/collapse, missing-holder disabled SMS and
+  equal-number holder-composer handoff. Mutation/provider requests are blocked;
+  the recipient-preview POST is intercepted and its selected person IDs asserted.
+- Existing family/page and Leads browser runners remain required. Functional and
+  computed-style checks do not constitute approval against the unavailable screenshot.
+- Review URL: `http://127.0.0.1:3218/dashboard/contacts`. Fictional local data only.
+  Screenshots: `/tmp/pulse-recovered-contact-roles-{1440,900,390}.png`.
+
+### Remaining boundaries
+
+Recovery validation completed: 125 targeted tests passed; TypeScript passed;
+targeted UI/helper/test ESLint has zero errors (two pre-existing unused-style
+warnings in ContactSlidePanel). Synthetic-config production build passed. Family
+component, actual Contacts selection/filter page, role-specific Contacts page and
+unchanged Leads browser checks passed at 1440/900/390px. Screenshots were inspected
+at desktop and narrow widths; the original screenshot is still unavailable.
+
+No production queries, migrations, messages, push or deployment. Actual installed
+holder/person FKs, multi-account membership and multi-enrollment projections remain
+unverified; the legacy Contacts API still flattens the first student/enrollment.
+This slice does not invent a replacement for those contracts or claim full M1 readiness.
+Production rollout requires verified relationship mappings and visual review. The
+original worktree's in-progress preview/drawer work was not overwritten.
+
 Selectively integrated on top of release baseline `9a58519` in
 `/private/tmp/pulse-lead-signal-release`. Not deployed.
 

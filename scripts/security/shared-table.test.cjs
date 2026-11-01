@@ -1,0 +1,42 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Existing Node synthetic harness. */
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const { createHarness } = require('./synthetic-harness.cjs')
+const harness = createHarness()
+const { normalizeTablePreferences, tablePreferenceKey } = harness.load('lib/table-preferences.ts')
+const { LEAD_TABLE_SCHEMA } = harness.load('lib/lead-table-preferences.ts')
+const { CONTACT_TABLE_SCHEMA } = harness.load('lib/contact-table-preferences.ts')
+const plain = value => JSON.parse(JSON.stringify(value))
+const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
+
+test('each table uses the same preference rules with its own metadata schema', () => {
+  for (const schema of [LEAD_TABLE_SCHEMA, CONTACT_TABLE_SCHEMA]) {
+    assert.deepEqual(plain(normalizeTablePreferences(null, schema).columns), plain(schema.defaultColumns))
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: ['email', 'email', 'unknown'], density: 'compact' }, schema)), { columns: ['name', 'email'], density: 'compact' })
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: [] }, schema)), { columns: ['name'], density: 'comfortable' })
+  }
+})
+test('storage remains membership/tenant/table scoped and preserves released Leads key', () => {
+  const key = tablePreferenceKey(LEAD_TABLE_SCHEMA, 'tenant', 'member')
+  assert.equal(key, 'pulse_lead_table_v1:tenant:member')
+  assert.notEqual(key, tablePreferenceKey(CONTACT_TABLE_SCHEMA, 'tenant', 'member'))
+  assert.notEqual(key, tablePreferenceKey(LEAD_TABLE_SCHEMA, 'tenant', 'other'))
+  assert.notEqual(key, tablePreferenceKey(LEAD_TABLE_SCHEMA, 'other', 'member'))
+})
+test('both surfaces consume the rich table and shared parent/detail name rules', () => {
+  const leads = source('components/leads/LeadsView.tsx')
+  const contacts = source('components/contacts/FamilyListTable.tsx')
+  for (const page of [leads, contacts]) {
+    assert.match(page, /<RichDataTable/)
+    assert.match(page, /<TablePersonName/)
+    assert.match(page, /<TablePersonName[^>]* detail(?:=|>| )/)
+    assert.doesNotMatch(page, /<ResponsiveDataTable|LeadTableControls|visibleLeadColumns/)
+  }
+  const shared = source('components/ui/RichDataTable.tsx')
+  assert.match(shared, /<TableDisplayControls/)
+  assert.match(shared, /density=\{preferences.density\}/)
+  assert.match(shared, /visibleIndexes.map\(position => detail.cells\[position\]\)/)
+  assert.doesNotMatch(contacts, /Chevron|collapsed|type="checkbox"/)
+})

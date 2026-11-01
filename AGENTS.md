@@ -4,9 +4,20 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Branch and worktree rules
+
+- Follow `docs/branch-and-worktree-rules.md`. One worktree per active line, no
+  micro branches, merge and delete together, and `main` stays pushed.
+- Never delete a branch or worktree before the backup + recovery drill in that
+  document has passed. Never run `git gc --prune=now`.
+- `integration/odeon-release-20261030` and its backup branch hold the Odeon vision
+  work and are never deleted, renamed or rewritten.
+
 ## UI conventions
 
 - Table toolbar controls follow `docs/ui-toolbar-rules.md`; use the shared toolbar Button/Select sizing and keep the example in `/dashboard/design` current.
+
+- Follow `docs/ui-layout-rules.md` for flat panels, form density, heading hierarchy and repeatable entity cards. Reuse `FieldGrid`, `DenseSectionPanel`, `SurfacePanel`, `Input`, `Select` and `Textarea`; do not introduce parallel card/field components.
 
 - Reuse existing UI components and design tokens. Place card-level action buttons in the card header's top-right actions slot (for example, `DenseSectionPanel.actions`), not below scrolling content.
 - Keep conversation channel toggles in the conversation surface header's top-right corner using `ControlButton` with `kind="toggle"` and `aria-pressed`, consistently across list and contact views.

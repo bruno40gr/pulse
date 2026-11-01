@@ -21,6 +21,7 @@ interface SlidePanelHeaderProps {
   badge?: React.ReactNode
   titleSize?: string
   compact?: boolean
+  headingLevel?: 'h1' | 'h2'
 }
 
 export function SlidePanelHeader({
@@ -36,6 +37,7 @@ export function SlidePanelHeader({
   badge,
   titleSize,
   compact,
+  headingLevel: Heading = 'h2',
 }: SlidePanelHeaderProps) {
   const titleId = useContext(DialogTitleContext)
   const detectedMobile = useIsMobile()
@@ -43,14 +45,14 @@ export function SlidePanelHeader({
 
   return (
     <div style={{
-      padding: isMobile ? '10px 16px 12px' : '20px 32px',
+      padding: isMobile ? '4px 16px' : '8px 24px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
       flexShrink: 0,
-      minHeight: '72px',
+      minHeight: isMobile ? '56px' : '64px',
       width: '100%',
       maxWidth: '100%',
       boxSizing: 'border-box',
@@ -68,7 +70,7 @@ export function SlidePanelHeader({
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-            <h2 id={titleId} style={{
+            <Heading id={titleId} style={{
               fontSize: titleSize || typography.h2.fontSize,
               fontWeight: typography.weightSemibold,
               margin: 0,
@@ -79,7 +81,7 @@ export function SlidePanelHeader({
               wordBreak: 'break-word',
             }}>
               {title}
-            </h2>
+            </Heading>
             {titleBadge}
           </div>
           {subtitle && (
@@ -107,7 +109,7 @@ export function SlidePanelHeader({
           )}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0, paddingTop: '2px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
         {toast && (
           <span style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
             {toast}

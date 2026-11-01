@@ -4,12 +4,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { SectionLabel } from '@/components/ui/SectionLabel'
-import { LeadTableControls } from '@/components/leads/LeadTableControls'
-import { defaultLeadTablePreferences, type LeadTablePreferences } from '@/lib/lead-table-preferences'
+import { TableDisplayControls } from '@/components/ui/TableDisplayControls'
+import type { TablePreferences } from '@/lib/table-preferences'
+import { defaultLeadTablePreferences, LEAD_TABLE_SCHEMA } from '@/lib/lead-table-preferences'
 import { spacing } from '@/lib/tokens'
 
 export function LeadToolbarShowcase() {
-  const [preferences, setPreferences] = useState<LeadTablePreferences>(defaultLeadTablePreferences)
+  const [preferences, setPreferences] = useState<TablePreferences>(defaultLeadTablePreferences)
   const [actionFirst, setActionFirst] = useState(false)
   const [status, setStatus] = useState('all')
   return <section style={{ marginBottom: spacing['2xl'] }}>
@@ -22,7 +23,7 @@ export function LeadToolbarShowcase() {
         <option value="all">Status: All</option>
         <option value="new">Status: New</option>
       </Select>
-      <LeadTableControls columns={[{ id: 'name', label: 'Name' }, { id: 'email', label: 'Email' }, { id: 'source', label: 'Source / form' }]} preferences={preferences} onChange={setPreferences} />
+      <TableDisplayControls schema={LEAD_TABLE_SCHEMA} columns={[{ id: 'name', label: 'Name' }, { id: 'email', label: 'Email' }, { id: 'source', label: 'Source / form' }]} preferences={preferences} onChange={setPreferences} />
     </div>
   </section>
 }

@@ -1,13 +1,15 @@
 /** Presentation only. Never infer a family from a name, email or phone number. */
 export function groupContactFamilies<T extends {
-  id: string; account_id?: string | null; account_holder_name?: string | null
+  id: string; tenant_id?: string; student_id?: string | null; is_student?: boolean; account_id?: string | null; account_holder_name?: string | null
   custom_fields?: Record<string, unknown>; staff_id?: string | null
 }>(contacts: T[]): { id: string; holder: string | null; members: T[] }[] {
   const groups = new Map<string, { id: string; holder: string | null; members: T[] }>()
   for (const contact of contacts) {
-    const linked = contact.account_id && !contact.staff_id
-      && !['booking', 'instructor'].includes(String(contact.custom_fields?.contact_kind || ''))
-    const id = linked ? `account:${contact.account_id}` : `contact:${contact.id}`
+    const studentRole = contact.is_student === true || Boolean(contact.student_id)
+    const linked = contact.account_id && (!contact.staff_id || studentRole)
+      && (!['booking', 'instructor'].includes(String(contact.custom_fields?.contact_kind || '')) || studentRole)
+    const scope = contact.tenant_id ? `tenant:${contact.tenant_id}:` : ''
+    const id = `${scope}${linked ? `account:${contact.account_id}` : `contact:${contact.id}`}`
     const group = groups.get(id) || { id, holder: linked ? contact.account_holder_name?.trim() || 'Account holder' : null, members: [] }
     group.members.push(contact)
     groups.set(id, group)

@@ -14,8 +14,10 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       const fixtures = [lead('terminal', 'won'), lead('family', 'contacted', { student_name: 'Student Alpha', siblings: [{ name: 'Student Beta', instrument_interest: 'Voice' }], follow_up_at: '2026-10-27T12:00:00' }), lead('today', 'booked', { same_as_contact: true, student_name: 'Contact today', follow_up_at: '2026-10-28T12:00:00' }), lead('single', 'new', { same_as_contact: true, student_name: 'Contact single' }, '(916) 798-8323')]
       await page.route('**/api/**', route => {
         const request = route.request(), url = new URL(request.url())
+        if (request.method() === 'POST' && url.pathname === '/api/inbox/reconcile') return route.fulfill({ json: { skipped: true } })
         if (request.method() !== 'GET') { writes.push(url.pathname); return route.abort() }
         if (url.pathname === '/api/account/me') return route.fulfill({ json: { tenantId: url.searchParams.get('tenant'), membershipId: 'table-review' } })
+        if (url.pathname === '/api/leads' && url.searchParams.get('count_only') === '1') return route.fulfill({ json: { count: 4 } })
         if (url.pathname === '/api/leads') {
           leadRequests.push(url.searchParams.get('intake_type'))
           const tab = url.searchParams.get('intake_type')

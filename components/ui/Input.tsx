@@ -1,5 +1,6 @@
 'use client'
-import { InputHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes } from 'react'
+import styles from './FormControl.module.css'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -8,15 +9,22 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string
 }
 
-export function Input({ label, hint, error, style, ...props }: InputProps) {
+export function Input({ label, hint, error, style, id, className, 'aria-describedby': describedBy, ...props }: InputProps) {
+  const generatedId = useId()
+  const controlId = id || generatedId
+  const messageId = `${controlId}-message`
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
       {label && (
-        <label style={{ ...typography.label, color: colors.text }}>
+        <label htmlFor={controlId} style={{ ...typography.label, color: colors.text }}>
           {label}
         </label>
       )}
       <input
+        id={controlId}
+        className={[styles.control, className].filter(Boolean).join(' ')}
+        aria-describedby={[describedBy, hint || error ? messageId : undefined].filter(Boolean).join(' ') || undefined}
+        aria-invalid={error ? true : undefined}
         style={{
           border: `1px solid ${error ? colors.error : colors.border}`,
           borderRadius: radius.md,
@@ -25,7 +33,7 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
           fontFamily: typography.fontSans,
           color: colors.text,
           background: colors.surface,
-          outline: 'none',
+          minHeight: 42,
           width: '100%',
           minWidth: 0,
           maxWidth: '100%',
@@ -34,8 +42,8 @@ export function Input({ label, hint, error, style, ...props }: InputProps) {
         }}
         {...props}
       />
-      {hint && !error && <span style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
-      {error && <span style={{ ...typography.helper, color: colors.error }}>{error}</span>}
+      {hint && !error && <span id={messageId} style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
+      {error && <span id={messageId} style={{ ...typography.helper, color: colors.error }}>{error}</span>}
     </div>
   )
 }

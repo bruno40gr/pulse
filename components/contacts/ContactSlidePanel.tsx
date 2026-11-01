@@ -1,15 +1,18 @@
 'use client'
+import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
+import PrototypeContactSms from './PrototypeContactSms'
+import { usesAccountHolder } from '@/lib/contact-presentation'
 import { useState, useEffect, useContext } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
+import { Button, Badge, Avatar, Input, FieldGrid, SectionTitle, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
@@ -19,6 +22,7 @@ import { InvoiceStatusModal } from '@/components/funding/InvoiceStatusModal'
 import type { FundingCase, FundingInvoice, FundingInvoiceStatus } from '@/components/funding/types'
 
 interface AccountHolder {
+  person_id?: string
   name: string | null
   phone: string | null
   email: string | null
@@ -54,6 +58,8 @@ interface InstructorStudent {
 }
 
 interface Contact {
+  is_student?: boolean
+  account_holder_person_id?: string | null
   id: string
   first_name: string
   last_name: string
@@ -126,6 +132,7 @@ interface ContactSlidePanelProps {
   tenantFields: TenantField[]
   onClose: () => void
   onUpdated: (updated: Contact) => void
+  prototype?: boolean
   onCompose?: (contactIds: string[]) => void
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
@@ -137,18 +144,6 @@ interface ContactSlidePanelProps {
 
 type ContactPanelTab = 'profile' | 'scheduling' | 'billing' | 'funding'
 
-const inputStyle: React.CSSProperties = {
-  border: `1px solid ${colors.border}`,
-  borderRadius: radius.sm,
-  padding: `${spacing.xs} ${spacing.sm}`,
-  fontSize: typography.sizeBase,
-  fontFamily: typography.fontSans,
-  color: colors.text,
-  background: colors.surface,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-}
 
 const dividerStyle: React.CSSProperties = {
   height: '1px',
@@ -156,7 +151,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const contextualCompose = useContext(ConversationComposeContext)
@@ -460,8 +455,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       : [])
 
   const primaryAccountHolder = accountHolders.find(holder => holder.is_primary) || accountHolders[0]
-  const contactPhone = computedIsMinor ? (primaryAccountHolder?.phone || contact.account_holder_phone) : contact.phone
-  const contactEmail = computedIsMinor ? (primaryAccountHolder?.email || contact.account_holder_email) : contact.email
+  const holderRouting = computedIsMinor === true || usesAccountHolder(contact)
+  const contactPhone = holderRouting ? (primaryAccountHolder?.phone || contact.account_holder_phone) : contact.phone
+  const contactEmail = holderRouting ? (primaryAccountHolder?.email || contact.account_holder_email) : contact.email
 
   const showAccountHolders = computedIsMinor
     ? accountHolders.length > 0
@@ -528,39 +524,24 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 24px', minWidth: 0 }}>
-            <div>
-              <FieldLabel>First name</FieldLabel>
-              <input type="text" value={editFirstName as string} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" style={inputStyle} />
-            </div>
-            <div>
-              <FieldLabel>Last name</FieldLabel>
-              <input type="text" value={editLastName as string} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" style={inputStyle} />
-            </div>
-            <div>
-              <FieldLabel>Phone</FieldLabel>
-              <input type="text" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', formatPhoneNumber(e.target.value))} placeholder="Phone number" style={inputStyle} />
-            </div>
-            <div>
-              <FieldLabel>Email</FieldLabel>
-              <input type="email" value={(edits.email as string) ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" style={inputStyle} />
-            </div>
-            <div>
-              <FieldLabel>Date of birth</FieldLabel>
-              <input type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} style={{ ...inputStyle, width: isMobile ? '100%' : '160px' }} />
-            </div>
-          </div>
+          <SectionTitle as="h3">Contact details</SectionTitle>
+          <FieldGrid>
+            <Input label="First name" type="text" value={editFirstName as string} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" />
+            <Input label="Last name" type="text" value={editLastName as string} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" />
+            <Input label="Phone" type="tel" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', formatPhoneNumber(e.target.value))} placeholder="Phone number" />
+            <Input label="Email" type="email" value={(edits.email as string) ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" />
+            <Input label="Date of birth" type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} />
+          </FieldGrid>
 
           <div style={dividerStyle} />
-
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 24px', minWidth: 0 }}>
+          <SectionTitle as="h3">Additional details</SectionTitle>
+          <FieldGrid>
             {visibleTenantFields.map(f => {
               const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
               if (f.field_options?.length) {
                 return (
                   <div key={f.field_key}>
-                    <FieldLabel>{getContactCardFieldLabel(f)}</FieldLabel>
-                    <Select value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)}>
+                    <Select label={getContactCardFieldLabel(f)} value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)}>
                       <option value="">—</option>
                       {f.field_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </Select>
@@ -569,12 +550,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
               }
               return (
                 <div key={f.field_key}>
-                <FieldLabel>{getContactCardFieldLabel(f)}</FieldLabel>
-                  <input type="text" value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} placeholder={f.field_label} style={inputStyle} />
+                <Input label={getContactCardFieldLabel(f)} type="text" value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} placeholder={f.field_label} />
                 </div>
               )
             })}
-          </div>
+          </FieldGrid>
         </div>
 
         {/* Footer — Cancel/Done (matches normal-mode button size) */}
@@ -599,8 +579,13 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Normal view ──
   if (smsOpen) return <SlidePanel isOpen onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
-    <CardSmsComposer backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
-      onBack={() => setSmsOpen(false)} onClose={onClose} />
+    {prototype ? <PrototypeContactSms subject={contact} phone={contactPhone || null}
+      holders={holderRouting ? accountHolders.flatMap(holder => holder.person_id && holder.name ? [{ person_id: holder.person_id, name: holder.name, phone: holder.phone, is_primary: holder.is_primary }] : []) : []}
+      recipientId={holderRouting ? contact.account_holder_person_id || '' : contact.id}
+      recipientName={holderRouting ? primaryAccountHolder?.name || contact.account_holder_name || 'Account holder' : `${contact.first_name} ${contact.last_name}`}
+      onBack={() => setSmsOpen(false)} onClose={onClose} /> : <CardSmsComposer backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
+      onBack={() => setSmsOpen(false)} onClose={onClose} />}
+
   </SlidePanel>
 
   return (
@@ -617,7 +602,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         compact={isMobile}
         badge={
           <>
-            <StatusBadge status={contact.opted_out ? 'spam' : contact.client_status} label={contact.opted_out ? 'Opted out' : statusLabel} size="md" />
+            {contact.is_student !== false && <StatusBadge status={contact.opted_out ? 'spam' : contact.client_status} label={contact.opted_out ? 'Opted out' : statusLabel} size="md" />}
             {isInstructor && <Badge variant="info">Instructor</Badge>}
             {isInstructor && !isInstructorActive && <Badge variant="inactive">Sunset</Badge>}
             {computedIsMinor && <Badge variant="minor">Minor</Badge>}
@@ -711,33 +696,23 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         ) : undefined}
       />
 
-      {!isInstructor && <div style={{
-        display: 'flex',
-        alignItems: isMobile ? 'stretch' : 'center',
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: spacing.sm,
-        flexWrap: 'wrap',
-        padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`,
-        flexShrink: 0,
-        borderBottom: `1px solid ${colors.borderLight}`,
-        background: colors.surface,
-      }}>
+      {!isInstructor && <SlidePanelActionBar isMobile={isMobile}>
         <Button
           type="button"
           size="md"
-          disabled={!contactPhone || calling}
+          disabled={prototype || !contactPhone || calling}
           onClick={() => void handleCall(contactPhone)}
 
         >
           <Phone size={16} />
           {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
         </Button>
-        {contactPhone && contactPhone !== contact.phone ? <Button type="button" variant="secondary" size="md"
-          disabled={!onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
+        {prototype ? <Button variant="secondary" disabled={!contactPhone} onClick={() => setSmsOpen(true)}>Send SMS</Button> : holderRouting ? <Button type="button" variant="secondary" size="md"
+          disabled={!contactPhone || !onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
           <Button variant="secondary" disabled={!contactPhone} onClick={() => contextualCompose ? contextualCompose('sms') : setSmsOpen(true)}>Send SMS</Button>}
         <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="email"
-          disabled={!contactEmail || contactEmail !== contact.email}
-          unavailableReason={contactEmail && contactEmail !== contact.email ? 'Account-holder routing is not yet supported in Conversations.' : undefined} />
+          disabled={prototype || !contactEmail || holderRouting}
+          unavailableReason={holderRouting ? 'Account-holder routing is not yet supported in Conversations.' : undefined} />
         <CompactMetaCard fullWidth={isMobile} style={emailControlStyle}>
           <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contactEmail || 'Not provided'}</span>
           {contactEmail && (
@@ -747,7 +722,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           )}
           {copiedEmail && <span role="status" style={{ color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }}>Copied</span>}
         </CompactMetaCard>
-      </div>}
+      </SlidePanelActionBar>}
 
       <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
           <Tabs
@@ -812,7 +787,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {showAccountHolders ? (
             <DenseSectionPanel
               title="Account managers"
-              style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+              style={{ marginBottom: spacing.lg }}
               contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
@@ -827,7 +802,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
                       padding: '12px 14px',
                       background: colors.surface,
                       borderRadius: radius.lg,
-                      border: `1px solid ${colors.borderLight}`,
+                      border: `1px solid ${colors.border}`,
                     }}
                   >
                     <div
@@ -889,8 +864,8 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {/* AI Insights */}
           {!isInstructor && <DenseSectionPanel
-            title={<div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: typography.sizeSm, fontWeight: 400, color: colors.textMuted }}><Sparkles size={15} /> AI highlights</div>}
-            style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+            title={<SectionTitle as="h3" variant="card"><Sparkles size={15} aria-hidden="true" /> AI highlights</SectionTitle>}
+            style={{ marginBottom: spacing.lg }}
           >
           {actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
@@ -944,7 +919,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
           {isInstructor && (
             <DenseSectionPanel
               title={`Active students (${activeStudents.length})`}
-              style={{ borderRadius: radius.lg, boxShadow: shadows.sm, marginBottom: spacing.lg, border: `1px solid ${colors.borderLight}` }}
+              style={{ marginBottom: spacing.lg }}
               contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
             >
               {activeStudents.length === 0 ? (
@@ -954,7 +929,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
               ) : activeStudents.map(student => (
                 <div
                   key={student.enrollment_id}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: '10px 12px', border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, background: colors.surface }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: '10px 12px', border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <ControlButton kind="link"
@@ -980,7 +955,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
-            <DenseSectionPanel title="Details" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, border: `1px solid ${colors.borderLight}` }}>
+            <DenseSectionPanel title="Details">
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 32px', minWidth: 0 }}>
                 {contact.date_of_birth && (
                   <div>
@@ -1060,7 +1035,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
         <div style={{ overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '0 16px 16px' : '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <DenseSectionPanel tone="default" style={{ borderRadius: radius.lg, boxShadow: shadows.sm, height: 'fit-content', border: `1px solid ${colors.borderLight}` }}>
+          <DenseSectionPanel tone="default" style={{ height: 'fit-content' }}>
             <Tabs
               items={[
                 { key: 'notes', label: 'Notes' },
@@ -1190,7 +1165,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 function ContactModuleEmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 320, padding: spacing.xl, background: colors.background }}>
-      <div style={{ width: '100%', maxWidth: 520, border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, background: colors.surface, boxShadow: shadows.sm }}>
+      <div style={{ width: '100%', maxWidth: 520, border: `1px solid ${colors.border}`, borderRadius: radius.xl, background: colors.surface, boxShadow: 'none' }}>
         <EmptyState
           icon={<span style={{ display: 'inline-flex', color: colors.teal }}>{icon}</span>}
           title={title}

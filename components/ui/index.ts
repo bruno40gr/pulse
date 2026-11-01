@@ -41,3 +41,5 @@ export {
   type ResponsiveDataTableProps,
 } from './DataGridTable'
 export { Tabs } from './Tabs'
+
+export { FieldGrid } from './FieldGrid'

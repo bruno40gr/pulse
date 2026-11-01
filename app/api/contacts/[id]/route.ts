@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- TODO(contacts): joined Supabase rows are
+   untyped here and the account relation is inferred as both object and array; typing these
+   callbacks properly needs a verified row contract, tracked separately from this UI work. */
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
@@ -108,7 +111,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ? `
         *,
         students (
-          client_status, last_attended, message_routing, is_minor, account_id,
+          id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
           student_accounts (
             relationship,
@@ -128,7 +131,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       : `
         *,
         students (
-          client_status, last_attended, message_routing, is_minor, account_id,
+          id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
           enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
         )
@@ -213,6 +216,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     return NextResponse.json(enrichDemoContact({
       id: person.id,
+      student_id: nonStudentBooking ? null : (student.id ?? null),
+      is_student: !nonStudentBooking && Boolean(student.id),
       tenant_id: person.tenant_id,
       first_name: person.first_name,
       last_name: person.last_name,
@@ -350,7 +355,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .select(`
         *,
         students (
-          client_status, last_attended, message_routing, is_minor, account_id,
+          id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
           enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
         )
@@ -410,6 +415,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     return NextResponse.json(enrichDemoContact({
       id: person.id,
+      student_id: nonStudentBooking ? null : (student.id ?? null),
+      is_student: !nonStudentBooking && Boolean(student.id),
       tenant_id: person.tenant_id,
       first_name: person.first_name,
       last_name: person.last_name,

@@ -5,10 +5,10 @@ import { ChevronDown } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
-import { defaultLeadTablePreferences, leadTablePreferenceKey, normalizeLeadTablePreferences, type LeadTablePreferences } from '@/lib/lead-table-preferences'
+import { normalizeTablePreferences, tablePreferenceKey, type TablePreferences, type TablePreferenceSchema } from '@/lib/table-preferences'
 
-export function useLeadTablePreferences() {
-  const [preferences, setPreferences] = useState(defaultLeadTablePreferences)
+export function useTablePreferences(schema: TablePreferenceSchema) {
+  const [preferences, setPreferences] = useState(() => normalizeTablePreferences(null, schema))
   const [storageKey, setStorageKey] = useState<string | null>(null)
   const changed = useRef(false)
   useEffect(() => {
@@ -20,18 +20,19 @@ export function useLeadTablePreferences() {
         if (!response.ok) return
         const data = await response.json()
         if (controller.signal.aborted || typeof data.membershipId !== 'string' || data.tenantId !== tenant) return
-        const key = leadTablePreferenceKey(tenant, data.membershipId)
+        const key = tablePreferenceKey(schema, tenant, data.membershipId)
         try {
           const stored = window.localStorage.getItem(key)
-          if (stored && !changed.current) setPreferences(normalizeLeadTablePreferences(JSON.parse(stored)))
+          if (stored && !changed.current) setPreferences(normalizeTablePreferences(JSON.parse(stored), schema))
         } catch { /* Keep defaults if storage is unavailable or malformed. */ }
         setStorageKey(key)
       }).catch(() => { /* Preferences still work for this visit without verified identity. */ })
       .finally(() => window.clearTimeout(timeout))
     return () => { controller.abort(); window.clearTimeout(timeout) }
-  }, [])
+  }, [schema])
 
-  function updatePreferences(next: LeadTablePreferences) {
+  function updatePreferences(next: TablePreferences) {
+    next = normalizeTablePreferences(next, schema)
     changed.current = true
     setPreferences(next)
     if (storageKey) {
@@ -41,10 +42,11 @@ export function useLeadTablePreferences() {
   return { preferences, updatePreferences }
 }
 
-export function LeadTableControls({ columns, preferences, onChange }: {
+export function TableDisplayControls({ columns, schema, preferences, onChange }: {
   columns: { id: string; label: string }[]
-  preferences: LeadTablePreferences
-  onChange: (next: LeadTablePreferences) => void
+  schema: TablePreferenceSchema
+  preferences: TablePreferences
+  onChange: (next: TablePreferences) => void
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -72,8 +74,8 @@ export function LeadTableControls({ columns, preferences, onChange }: {
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Visible columns</legend>
           {columns.map(column => <label key={column.id} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 36 }}>
-            <input type="checkbox" checked={preferences.columns.includes(column.id as LeadTablePreferences['columns'][number])} disabled={column.id === 'name'} onChange={event => onChange(normalizeLeadTablePreferences({ ...preferences, columns: event.target.checked ? [...preferences.columns, column.id] : preferences.columns.filter(id => id !== column.id) }))} />
-            {column.label}{column.id === 'name' ? ' (required)' : ''}
+            <input type="checkbox" checked={preferences.columns.includes(column.id)} disabled={schema.requiredColumns.includes(column.id)} onChange={event => onChange(normalizeTablePreferences({ ...preferences, columns: event.target.checked ? [...preferences.columns, column.id] : preferences.columns.filter(id => id !== column.id) }, schema))} />
+            {column.label}{schema.requiredColumns.includes(column.id) ? ' (required)' : ''}
           </label>)}
         </fieldset>
         <label htmlFor={`${panelId}-spacing`} style={typography.label}>Row spacing</label>

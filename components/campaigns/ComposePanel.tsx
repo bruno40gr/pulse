@@ -17,6 +17,11 @@ const KUMON = '00000000-0000-0000-0000-000000000003'
 
 interface ComposePanelProps {
   recipientCount: number
+  recipientDestination?: string
+  recipientNameControl?: React.ReactNode
+  recipientContent?: React.ReactNode
+  sendLabel?: string
+  messageLabel?: string
   filterExplanation: string
   recipientIds: string[]
   initialMessage?: string
@@ -68,7 +73,7 @@ interface ResolvedPreviewRecipient {
 const EMPTY_RECIPIENT_PREVIEW: ResolvedPreviewRecipient[] = []
 
 export default function ComposePanel({
-  recipientCount, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
+  recipientCount, recipientDestination, recipientNameControl, recipientContent, sendLabel, messageLabel, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
   mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience, excludedRecipients = []
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
@@ -536,10 +541,10 @@ export default function ComposePanel({
               </div>
             </div>
           </div>
-        ) : (
+        ) : recipientContent ? <div style={{ marginBottom: spacing.lg }}>{recipientContent}</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginBottom: spacing.lg }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-              {recipientSummary.length > 0 ? (
+              {recipientSummary.length > 0 || recipientNameControl ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', marginRight: spacing.xs }}>
                     {recipientSummary.map((recipient, index) => (
@@ -548,10 +553,11 @@ export default function ComposePanel({
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: '16px', fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
-                    {recipientSummary.map(person => `${person.first_name} ${person.last_name}`).join(', ')}
+                  <div style={{ minWidth: 0, maxWidth: '100%', fontSize: '16px', fontWeight: typography.weightSemibold, color: colors.text, fontFamily: typography.fontSans }}>
+                    {recipientNameControl || recipientSummary.map(person => `${person.first_name} ${person.last_name}`).join(', ')}
                     {remainingRecipientCount > 0 ? `, and ${remainingRecipientCount} more` : ''}
                   </div>
+                  {recipientDestination && <span style={{ fontSize: typography.sizeBase, color: colors.textSecondary, overflowWrap: 'anywhere', minWidth: 0 }}>{recipientDestination}</span>}
                 </>
               ) : (
                 <div style={{ fontSize: '16px', fontWeight: typography.weightNormal, color: colors.text, fontFamily: typography.fontSans }}>
@@ -560,7 +566,7 @@ export default function ComposePanel({
               )}
               {removedIds.size > 0 && <span style={{ color: colors.textMuted, fontSize: typography.sizeSm }}>({removedIds.size} removed)</span>}
             </div>
-            {filterExplanation && <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>{filterExplanation}</div>}
+            {filterExplanation && !messageLabel && <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>{filterExplanation}</div>}
           </div>
         )}
 
@@ -636,6 +642,7 @@ export default function ComposePanel({
             </div>
           )}
           <Textarea
+            label={messageLabel}
             aria-label="SMS message"
             disabled={conversation?.disabled || isSending}
             value={message}
@@ -842,7 +849,7 @@ export default function ComposePanel({
           disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled}
           style={{ maxWidth: '100%' }}
         >
-          {isSending ? 'Sending…' : 'Send message'}
+          {isSending ? 'Sending…' : sendLabel || 'Send message'}
         </LoadingButton>
       </ComposerFooter>
     </div>

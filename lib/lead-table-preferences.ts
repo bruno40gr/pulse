@@ -1,21 +1,23 @@
+import { normalizeTablePreferences, tablePreferenceKey } from './table-preferences'
+
 export const LEAD_COLUMN_IDS = ['signal', 'status', 'name', 'phone', 'email', 'followUp', 'lastActivity', 'program', 'source', 'created', 'campaign', 'marketingSource', 'medium', 'referrer', 'priority'] as const
 export type LeadColumnId = typeof LEAD_COLUMN_IDS[number]
 export type LeadTablePreferences = { columns: LeadColumnId[]; density: 'comfortable' | 'compact' }
+export const LEAD_TABLE_SCHEMA = {
+  columnIds: LEAD_COLUMN_IDS,
+  defaultColumns: ['signal', 'status', 'name', 'phone', 'email', 'followUp', 'lastActivity', 'program'],
+  requiredColumns: ['name'],
+  storagePrefix: 'pulse_lead_table_v1',
+} as const
 
 export function defaultLeadTablePreferences(): LeadTablePreferences {
-  return { columns: ['signal', 'status', 'name', 'phone', 'email', 'followUp', 'lastActivity', 'program'], density: 'comfortable' }
+  return normalizeTablePreferences(null, LEAD_TABLE_SCHEMA) as LeadTablePreferences
 }
 
 export function normalizeLeadTablePreferences(value: unknown): LeadTablePreferences {
-  if (!value || typeof value !== 'object') return defaultLeadTablePreferences()
-  const input = value as Record<string, unknown>
-  const storedColumns = input.columns
-  const columns = Array.isArray(storedColumns)
-    ? LEAD_COLUMN_IDS.filter(id => id === 'name' || storedColumns.includes(id))
-    : defaultLeadTablePreferences().columns
-  return { columns, density: input.density === 'compact' ? 'compact' : 'comfortable' }
+  return normalizeTablePreferences(value, LEAD_TABLE_SCHEMA) as LeadTablePreferences
 }
 
 export function leadTablePreferenceKey(tenantId: string, membershipId: string) {
-  return `pulse_lead_table_v1:${encodeURIComponent(tenantId)}:${encodeURIComponent(membershipId)}`
+  return tablePreferenceKey(LEAD_TABLE_SCHEMA, tenantId, membershipId)
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { useContext } from 'react'
+import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import ContactBulkMessageModal from '@/components/inbox/ContactBulkMessageModal'
 import MessageActions from '@/components/inbox/MessageActions'
@@ -7,17 +9,19 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
-import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useRef } from 'react'
-import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, House, RefreshCw, Sparkles } from 'lucide-react'
+import { getActiveTenantId } from '@/lib/tenant'
+import { SlidersHorizontal, X, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
+import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import { groupContactFamilies } from '@/lib/family-list'
+import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, SlidePanel, PageHeader, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -26,6 +30,12 @@ import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 interface Contact {
   id: string
+  tenant_id?: string
+  student_id?: string | null
+  is_student?: boolean
+  account_holder_person_id?: string | null
+  account_holders?: { person_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
+  message_routing?: string
   account_id?: string | null
   first_name: string
   last_name: string
@@ -99,6 +109,7 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 }
 
 export default function ContactsPage() {
+  const prototype = useContext(ContactPrototypeContext)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
   const [loading, setLoading] = useState(true)
@@ -112,6 +123,8 @@ export default function ContactsPage() {
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [selectedAccount, setSelectedAccount] = useState<{ name: string; members: Contact[] } | null>(null)
+  const [accountPanelTab, setAccountPanelTab] = useState<'profile' | 'scheduling' | 'billing'>('profile')
   const [initialNotesTab, setInitialNotesTab] = useState<'notes' | 'internal'>('notes')
   const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
@@ -137,10 +150,11 @@ export default function ContactsPage() {
 
   const closeContactState = () => {
     setSelectedContact(null)
+    setSelectedAccount(null)
     removeCurrentSearchParam('contact')
   }
   const contactHistory = useMobilePanelHistory({
-    isOpen: Boolean(selectedContact),
+    isOpen: Boolean(selectedContact || selectedAccount),
     isMobile,
     historyKey: 'pulseMobileContactProfile',
     onClose: closeContactState,
@@ -163,12 +177,10 @@ export default function ContactsPage() {
   const sortedDisplayed = [...displayed].sort((left, right) => {
     const direction = contactSort.direction === 'asc' ? 1 : -1
     const text = (value: string | null | undefined) => value || ''
-    const leftContact = left.is_minor === true || left.custom_fields?.is_minor === true
-      ? left.account_holder_phone || left.account_holder_email
-      : left.phone || left.email
-    const rightContact = right.is_minor === true || right.custom_fields?.is_minor === true
-      ? right.account_holder_phone || right.account_holder_email
-      : right.phone || right.email
+    const leftDestination = contactDestination(left)
+    const rightDestination = contactDestination(right)
+    const leftContact = leftDestination.phone || leftDestination.email
+    const rightContact = rightDestination.phone || rightDestination.email
     const values: Record<ContactSortKey, [string, string]> = {
       name: [`${text(left.last_name)} ${text(left.first_name)}`, `${text(right.last_name)} ${text(right.first_name)}`],
       status: [text(left.client_status), text(right.client_status)],
@@ -182,6 +194,10 @@ export default function ContactsPage() {
     return `${text(left.last_name)} ${text(left.first_name)}`.localeCompare(`${text(right.last_name)} ${text(right.first_name)}`, undefined, { sensitivity: 'base' })
   })
   const visibleFamilies = groupContactFamilies(sortedDisplayed).slice(0, visibleCount)
+  const holderPersonIds = new Set(visibleFamilies.flatMap(group => {
+    const holder = familyHolderPerson(group.members)
+    return holder ? [holder.id] : []
+  }))
   const visibleContactCount = visibleFamilies.reduce((count, group) => count + group.members.length, 0)
   const filterSummary = filterExplanation
     ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
@@ -487,20 +503,13 @@ export default function ContactsPage() {
     {
       id: 'name',
       header: 'Name',
-      width: 'minmax(260px, 1.7fr)',
+      width: 'minmax(180px, 1.2fr)',
       sortable: true,
       sortKey: 'name',
       render: (contact) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-          <Avatar
-            firstName={contact.first_name}
-            lastName={contact.last_name}
-            size={32}
-            src={shouldUseDemoPhotos(tenantId) ? getContactDemoAvatarUrl(tenantId, contact)
-              : contact.staff_id || contact.custom_fields?.contact_kind === 'instructor'
-                ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined}
-          />
           <PersonName as="button"
+            weight={holderPersonIds.has(contact.id) ? 'semibold' : contact.account_id ? 'normal' : 'semibold'}
             type="button"
             onClick={(event) => handleNameClick(contact, event)}
             style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
@@ -515,10 +524,10 @@ export default function ContactsPage() {
     {
       id: 'status',
       header: 'Status',
-      width: '110px',
+      width: 'minmax(86px, 0.72fr)',
       sortable: true,
       sortKey: 'status',
-      render: (contact) => <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
+      render: (contact) => contact.is_student === false ? null : <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
     },
     {
       id: 'funded',
@@ -529,35 +538,31 @@ export default function ContactsPage() {
         : <span style={{ color: colors.textMuted }}>—</span>,
     },
     {
-      id: 'accountManager',
-      header: 'Account manager',
-      width: 'minmax(180px, 1fr)',
-      sortable: true,
-      sortKey: 'accountManager',
-      render: (contact) => <span style={{ color: colors.textSecondary }}>{contact.account_holder_name || '—'}</span>,
-    },
-    {
-      id: 'contact',
-      header: 'Contact',
-      width: 'minmax(220px, 1.25fr)',
+      id: 'phone',
+      header: 'Phone',
+      width: 'minmax(140px, 0.9fr)',
       sortable: true,
       sortKey: 'contact',
       render: (contact) => {
-        const isMinor = contact.is_minor === true || contact.custom_fields?.is_minor === true
-        const phone = isMinor ? contact.account_holder_phone : contact.phone
-        const email = isMinor ? contact.account_holder_email : contact.email
-        const showIcon = isMinor || contact.custom_fields?.message_routing === 'account_holder'
+        const { holder, phone } = contactDestination(contact)
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, minWidth: 0 }}>
-            {phone ? (
+          <div style={{ color: colors.tableSecondary, minWidth: 0 }}>
+            {holder ? null : phone ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
                 <span style={{ overflowWrap: 'anywhere' }}>{formatPhoneNumber(phone)}</span>
-                {showIcon && <House size={12} color="#A0A0A0" strokeWidth={1.5} />}
               </span>
             ) : <span style={{ color: colors.textMuted }}>No phone</span>}
-            <span style={{ color: colors.textSecondary, overflowWrap: 'anywhere' }}>{email || 'No email'}</span>
           </div>
         )
+      },
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      width: 'minmax(200px, 1.25fr)',
+      render: (contact) => {
+        const destination = contactDestination(contact)
+        return destination.holder ? null : <span style={{ color: colors.tableSecondary, overflowWrap: 'anywhere' }}>{destination.email || ''}</span>
       },
     },
     {
@@ -575,7 +580,7 @@ export default function ContactsPage() {
       {/* Header */}
       <PageHeader
         title="Contacts"
-        subtitle={loading ? 'Loading...' : `${contacts.length} students`}
+        subtitle={loading ? 'Loading...' : `${contacts.length} contacts`}
         right={
           <MessageActions disabled={selectedIds.size === 0} onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
         }
@@ -583,7 +588,7 @@ export default function ContactsPage() {
 
       <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
             {!loading && (
-              <Button variant="secondary"
+              <Button variant="secondary" size="toolbar"
                 onClick={handleSync}
                 disabled={syncing}
                 style={{ whiteSpace: 'nowrap' }}
@@ -600,8 +605,8 @@ export default function ContactsPage() {
                 )}
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
-            <Button variant="secondary" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
+            <Button variant="secondary" size="toolbar" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
+            <Button variant="secondary" size="toolbar" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
           </div>
 
       {/* Stale data banner */}
@@ -633,44 +638,7 @@ export default function ContactsPage() {
       <div ref={controlsAnchorRef} />
 
       {/* Search bar + Filters row */}
-      <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md, alignItems: 'stretch', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
-          <span style={{ fontSize: typography.sizeLg }}>✦</span>
-          <input
-            type="text"
-            value={query}
-            onChange={e => {
-              setQuery(e.target.value)
-            }}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]}
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
-            onFocus={e => { e.target.style.opacity = '1' }}
-            onBlur={e => { e.target.style.opacity = '1' }}
-          />
-          {query && (
-            <ControlButton kind="icon" onClick={clearSearch} >
-              <X size={15} />
-            </ControlButton>
-          )}
-          <Button variant="primary" size="sm"
-            onClick={handleSearch}
-            disabled={aiLoading || !query.trim()}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {aiLoading ? 'Searching...' : 'Search'}
-          </Button>
-        </div>
-        <Button variant="secondary"
-          onClick={() => setShowFilters(!showFilters)}
 
-        >
-          <SlidersHorizontal size={14} /> Filters
-        </Button>
-        <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
-          Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-        </Button>
-      </div>
 
       {searchError && (
         <div style={{ marginBottom: spacing.md, padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.error}`, borderRadius: radius.md, color: colors.error, background: colors.surface, fontSize: typography.sizeSm }}>
@@ -829,21 +797,86 @@ export default function ContactsPage() {
       )}
 
       {/* Contact table */}
-      {!aiLoading && (
+      {(
         <FamilyListTable
-          groups={visibleFamilies.map(group => ({
-            id: group.id,
-            parent: group.holder ? undefined : group.members[0],
-            name: group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
-            subtitle: group.holder ? 'Account holder' : '',
-            contact: <div style={{ overflowWrap: 'anywhere' }}>
-              <div>{formatPhoneNumber(group.members[0].account_holder_phone) || 'No phone'}</div>
-              <div style={{ color: colors.textSecondary }}>{group.members[0].account_holder_email || 'No email'}</div>
-            </div>,
-            members: group.holder ? group.members.map(contact => ({ id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim() })) : [],
-          }))}
+          preferenceSchema={CONTACT_TABLE_SCHEMA}
+          toolbar={<>
+        <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
+          <span style={{ fontSize: typography.sizeLg }}>✦</span>
+          <input
+            type="text"
+            value={query}
+            onChange={e => {
+              setQuery(e.target.value)
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]}
+            style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
+            onFocus={e => { e.target.style.opacity = '1' }}
+            onBlur={e => { e.target.style.opacity = '1' }}
+          />
+          {query && (
+            <ControlButton kind="icon" onClick={clearSearch} >
+              <X size={15} />
+            </ControlButton>
+          )}
+          <Button variant="primary" size="sm"
+            onClick={handleSearch}
+            disabled={aiLoading || !query.trim()}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {aiLoading ? 'Searching...' : 'Search'}
+          </Button>
+        </div>
+        <Button variant="secondary" size="toolbar"
+          onClick={() => setShowFilters(!showFilters)}
+
+        >
+          <SlidersHorizontal size={14} /> Filters
+        </Button>
+        <Button variant="secondary" size="toolbar" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
+          Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+        </Button>
+          </>}
+          groups={visibleFamilies.map(group => {
+            const holderPerson = familyHolderPerson(group.members)
+            return {
+              id: group.id,
+              parent: group.holder ? holderPerson : group.members[0],
+              name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
+              subtitle: group.holder ? 'Account holder' : '',
+              summaryCells: {
+                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(group.members[0].account_holder_phone) || 'No phone'}</span>,
+                email: <span style={{ color: colors.tableSecondary }}>{group.members[0].account_holder_email || ''}</span>,
+              },
+              members: group.holder ? group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
+                id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim(),
+                isAccountHolder: group.members.some(member => member.tenant_id === contact.tenant_id
+                  && (member.account_holder_person_id === contact.id || member.account_holders?.some(holder => holder.person_id === contact.id))),
+              })).sort((left, right) => Number(right.isAccountHolder) - Number(left.isAccountHolder)) : [],
+            }
+          })}
           nameColumn="name"
-          columns={contactColumns}
+          onOpenMember={member => { setSelectedAccount(null); setAccountPanelTab('profile'); setSelectedContact(member) }}
+          onOpenGroup={group => {
+            if (group.parent) {
+              setSelectedAccount(null)
+              setAccountPanelTab('profile')
+              setSelectedContact(group.parent)
+              return
+            }
+            const members = [...(group.parent ? [group.parent] : []), ...group.members.flatMap(member => member.row ? [member.row] : [])]
+            if (members.some(member => member.account_id)) {
+              setSelectedContact(null)
+              const accountId = members[0]?.account_id
+              const accountTenant = members[0]?.tenant_id
+              setSelectedAccount({ name: group.name, members: contacts.filter(member => member.account_id === accountId && member.tenant_id === accountTenant) })
+            } else if (group.parent) {
+              setAccountPanelTab('profile')
+              setSelectedContact(group.parent)
+            }
+          }}
+          columns={['status', 'name', 'phone', 'email', 'funded', 'instructor'].flatMap(id => contactColumns.filter(column => column.id === id))}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={setContactSort}
@@ -867,10 +900,9 @@ export default function ContactsPage() {
             selectAllLabel: 'Select all contacts',
             getRowLabel: (contact) => `${contact.first_name} ${contact.last_name}`.trim(),
           }}
-          loading={loading}
+          loading={loading || aiLoading}
           skeletonRows={8}
           emptyContent="No contacts found."
-          minDesktopWidth={1100}
           onRowClick={(contact, _index, event) => handleRowClick(contact, sortedDisplayed.findIndex(row => row.id === contact.id), event)}
           getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
           ariaLabel="Contacts"
@@ -878,10 +910,18 @@ export default function ContactsPage() {
       )}
 
       {/* Contact slide panel */}
+      {selectedAccount && !selectedContact && <AccountFamilyPanel
+        name={selectedAccount.name}
+        members={selectedAccount.members}
+        onClose={contactHistory.closePanel}
+        onOpenMember={(member, tab) => { setAccountPanelTab(tab); setSelectedContact(member) }}
+      />}
       {selectedContact && (
         <ContactSlidePanel
           key={selectedContact.id}
+          prototype={prototype}
           contact={selectedContact}
+          initialPanelTab={accountPanelTab}
           initialNotesTab={initialNotesTab}
           tenantFields={tenantFields}
           onClose={contactHistory.closePanel}

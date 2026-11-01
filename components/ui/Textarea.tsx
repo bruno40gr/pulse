@@ -1,5 +1,6 @@
 'use client'
-import { forwardRef, TextareaHTMLAttributes } from 'react'
+import { forwardRef, useId, type TextareaHTMLAttributes } from 'react'
+import styles from './FormControl.module.css'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -8,15 +9,21 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  function Textarea({ label, hint, style, ...props }, ref) {
+  function Textarea({ label, hint, style, id, className, 'aria-describedby': describedBy, ...props }, ref) {
+    const generatedId = useId()
+    const controlId = id || generatedId
+    const hintId = `${controlId}-hint`
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
         {label && (
-          <label style={{ ...typography.label, color: colors.text }}>
+          <label htmlFor={controlId} style={{ ...typography.label, color: colors.text }}>
             {label}
           </label>
         )}
         <textarea
+          id={controlId}
+          className={[styles.control, className].filter(Boolean).join(' ')}
+          aria-describedby={[describedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined}
           ref={ref}
           style={{
             border: `1px solid ${colors.border}`,
@@ -26,7 +33,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             fontFamily: typography.fontSans,
             color: colors.text,
             background: colors.surface,
-            outline: 'none',
             width: '100%',
             minWidth: 0,
             maxWidth: '100%',
@@ -37,7 +43,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           }}
           {...props}
         />
-        {hint && <span style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
+        {hint && <span id={hintId} style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
       </div>
     )
   }

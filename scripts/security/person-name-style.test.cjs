@@ -62,7 +62,8 @@ test('all people table entry points use the same PersonName component, not link-
   ]
   for (const file of files) {
     const source = fs.readFileSync(path.join(root, file), 'utf8')
-    assert.match(source, /<PersonName[ >]/, file)
+    // TablePersonName is the shared table variant; both keep one name component.
+    assert.match(source, /<(?:Table)?PersonName[ >]/, file)
     assert.ok(!source.includes('PersonNameButton'), file)
     assert.doesNotMatch(source, /<ControlButton kind="link"[^>]*aria-label=\{`Open conversation with/, file)
   }

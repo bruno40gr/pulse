@@ -53,7 +53,8 @@ test('preview send exits before provider submission and retains the draft', () =
 })
 test('CRM lists share the name component and channel buttons use standard Button', () => {
   for (const file of ['app/dashboard/contacts/page.tsx', 'app/dashboard/staff/page.tsx', 'components/leads/LeadsView.tsx', 'components/inbox/Conversations.tsx']) {
-    assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /<PersonName(?:Button)?[ >\n]/)
+    // TablePersonName is the shared table variant; both keep one name component.
+    assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /<(?:Table)?PersonName(?:Button)?[ >\n]/)
   }
   const source = fs.readFileSync(path.join(root, 'components/inbox/PrototypeNewMessage.tsx'), 'utf8')
   assert.match(source, /<SmsRecipientPicker\b/)

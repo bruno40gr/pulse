@@ -28,6 +28,8 @@ function load(file, workspace, runtime) {
     // Shared UI components now import their sibling Button (toolbar sizing), so load
     // the real component instead of blocking it.
     if (id === './Button') return load('components/ui/Button.tsx')
+    // Shared form controls import their stylesheet; give the harness real class names.
+    if (id.endsWith('.module.css')) return new Proxy({}, { get: (_target, key) => String(key) })
     if (id === '@/components/ui') return { ...Object.fromEntries(['Button', 'Input', 'Notice', 'SectionTitle', 'Select', 'SurfacePanel'].map(name => [name, load(`components/ui/${name}.tsx`)[name]])), Modal: ({ isOpen, children }) => isOpen ? React.createElement('div', { role: 'dialog' }, children) : null, ModalBody: ({ children }) => React.createElement('div', null, children), ModalFooter: ({ children }) => React.createElement('div', null, children), ModalHeader: ({ title }) => React.createElement('h2', null, title) }
     if (id.startsWith('@/components/ui/')) return load(`${id.replace('@/', '')}.tsx`)
     throw new Error(`Blocked dependency ${id}`)

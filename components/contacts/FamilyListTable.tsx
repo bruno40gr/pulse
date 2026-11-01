@@ -1,90 +1,80 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { ResponsiveDataTable, type ResponsiveDataTableProps } from '@/components/ui'
-import { ControlButton } from '@/components/ui/ControlButton'
-import { PersonName } from '@/components/ui/PersonName'
-import { colors, spacing, typography } from '@/lib/tokens'
+import { type ReactNode } from 'react'
+import { RichDataTable, type RichDataTableProps } from '@/components/ui/RichDataTable'
+import { TablePersonName } from '@/components/ui/TablePersonName'
+import { colors } from '@/lib/tokens'
 
 export type FamilyListGroup<Row> = {
   id: string
-  /** A real row (Leads), or a presentation-only account summary (Contacts). */
+  /** Only a verified person record, never a name/address match. */
   parent?: Row
   name: string
   subtitle: string
   contact?: ReactNode
-  members: { id: string; row?: Row; name: string; detail?: string }[]
+  summaryCells?: Record<string, ReactNode>
+  members: { id: string; row?: Row; name: string; detail?: string; isAccountHolder?: boolean }[]
 }
-type Entry<Row> = { id: string; row?: Row; group: FamilyListGroup<Row>; child: boolean; name: string; detail?: string }
 
-/** Adds hierarchy to the existing table, without introducing any messaging identities. */
-export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', onToggleMembers, ...table }: Omit<ResponsiveDataTableProps<Row, SortKey>, 'rows'> & {
+/** Contacts interactions on the same grouped-row primitive used by released Leads. */
+export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', onToggleMembers, onOpenGroup, onOpenMember, ...table }: Omit<RichDataTableProps<Row, SortKey>, 'rows'> & {
   groups: FamilyListGroup<Row>[]; nameColumn: string; contactColumn?: string; detailColumn?: string
-  /** Atomically select only this filtered family's real records, without range selection. */
   onToggleMembers?: (rows: Row[], checked: boolean) => void
+  onOpenGroup?: (group: FamilyListGroup<Row>) => void
+  onOpenMember?: (row: Row) => void
 }) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const toggle = (id: string) => setCollapsed(current => {
-    const next = new Set(current)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    return next
-  })
-  const entries: Entry<Row>[] = groups.flatMap(group => [
-    { id: group.id, row: group.parent, group, child: false, name: group.name },
-    ...(!collapsed.has(group.id) ? group.members.map(member => ({ ...member, group, child: true })) : []),
-  ])
   const source = table.selection
-  const selected = new Set<string>()
-  for (const entry of entries) {
-    if (entry.row && source?.selectedKeys.has(table.getRowKey(entry.row))) selected.add(entry.id)
-    else if (!entry.row && !entry.child && entry.group.members.length && entry.group.members.every(member => member.row && source?.selectedKeys.has(table.getRowKey(member.row)))) selected.add(entry.id)
-  }
-  const columns = table.columns.map(column => ({
-    ...column,
-    render: (entry: Entry<Row>, index: number) => {
-      if (column.id === nameColumn) return <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, paddingLeft: entry.child ? spacing.xl : 0 }}>
-        {!entry.child && entry.group.members.length > 0 && <ControlButton kind="icon" aria-label={`${collapsed.has(entry.group.id) ? 'Expand' : 'Collapse'} ${entry.name}`} aria-expanded={!collapsed.has(entry.group.id)} onClick={() => toggle(entry.group.id)}>
-          {collapsed.has(entry.group.id) ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-        </ControlButton>}
-        {entry.child && <span aria-hidden="true" style={{ color: colors.textMuted }}>↳</span>}
-        <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-          {entry.row ? column.render(entry.row, index) : <PersonName>{entry.name}</PersonName>}
-          {!entry.child && <div style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>{entry.group.subtitle}</div>}
-        </div>
-      </div>
-      if (entry.row) return column.render(entry.row, index)
-      if (!entry.child && column.id === contactColumn) return entry.group.contact
-      if (entry.child && column.id === detailColumn) return entry.detail || '—'
-      return null
-    },
-  }))
-  return <ResponsiveDataTable<Entry<Row>, SortKey>
+  const realRows = (group: FamilyListGroup<Row>) => [
+    ...(group.parent ? [group.parent] : []),
+    ...group.members.flatMap(member => member.row ? [member.row] : []),
+  ]
+  const selected = new Set(groups.filter(group => {
+    const rows = realRows(group)
+    return rows.length > 0 && rows.every(row => source?.selectedKeys.has(table.getRowKey(row)))
+  }).map(group => group.id))
+
+  return <RichDataTable<FamilyListGroup<Row>, SortKey>
     {...table}
-    rows={entries}
-    columns={columns}
-    getRowKey={entry => entry.id}
-    getDetailRows={table.getDetailRows ? (entry, index) => entry.row ? table.getDetailRows!(entry.row, index) : [] : undefined}
+    groupedRows
+    rows={groups}
+    getRowKey={group => group.id}
+    columns={table.columns.map(column => ({
+      ...column,
+      render: (group, index) => {
+        if (column.id === nameColumn) return <TablePersonName onOpen={onOpenGroup ? () => onOpenGroup(group) : undefined}>{group.name}</TablePersonName>
+        if (group.parent) return column.render(group.parent, index)
+        return group.summaryCells?.[column.id] ?? (column.id === contactColumn ? group.contact : null)
+      },
+    }))}
+    getDetailRows={(group, index) => group.members.map(member => ({
+      key: member.id,
+      cells: table.columns.map(column => {
+        if (column.id === nameColumn) return <TablePersonName key={column.id} detail={!member.isAccountHolder} onOpen={member.row && onOpenMember ? () => onOpenMember(member.row!) : undefined}>{member.name}</TablePersonName>
+        if (member.row) return column.render(member.row, index)
+        return column.id === detailColumn ? member.detail : null
+      }),
+    }))}
     selection={source ? {
       ...source,
       selectedKeys: selected,
-      isSelectable: entry => Boolean(entry.row || (!entry.child && entry.group.members.some(member => member.row))),
-      getRowLabel: entry => entry.name,
-      onToggle: (entry, index, event) => {
-        if (entry.row) source.onToggle(entry.row, index, event)
-        else if (!entry.child) {
-          if (onToggleMembers) onToggleMembers(entry.group.members.flatMap(member => member.row ? [member.row] : []), event.target.checked)
-          else for (const member of entry.group.members) {
-            if (member.row && source.selectedKeys.has(table.getRowKey(member.row)) !== event.target.checked) source.onToggle(member.row, index, event)
-          }
+      isSelectable: group => realRows(group).length > 0,
+      getRowLabel: group => group.name,
+      onToggle: (group, index, event) => {
+        const rows = realRows(group)
+        if (group.members.length && onToggleMembers) onToggleMembers(rows, event.target.checked)
+        else if (group.parent) source.onToggle(group.parent, index, event)
+        else for (const row of rows) {
+          if (source.selectedKeys.has(table.getRowKey(row)) !== event.target.checked) source.onToggle(row, index, event)
         }
       },
     } : undefined}
-    onRowClick={(entry, index, event) => {
-      if (entry.row) table.onRowClick?.(entry.row, index, event)
-      else if (!entry.child) toggle(entry.group.id)
-      else if (entry.group.parent) table.onRowClick?.(entry.group.parent, index, event)
+    onRowClick={(group, index, event) => {
+      if (onOpenGroup) onOpenGroup(group)
+      else if (group.parent) table.onRowClick?.(group.parent, index, event)
     }}
-    getRowStyle={entry => entry.row ? table.getRowStyle?.(entry.row, 0) : undefined}
+    getRowStyle={(group, index) => ({
+      ...(group.parent ? table.getRowStyle?.(group.parent, index) : undefined),
+      background: selected.has(group.id) ? '#F5F8FF' : index % 2 === 0 ? colors.surface : colors.background,
+    })}
   />
 }

@@ -11,7 +11,10 @@ const lead = (patch = {}) => ({ status: 'contacted', created_at: date(1), update
 
 test('release table retains the left signal column and existing family rows', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../components/leads/LeadsView.tsx'), 'utf8')
-  const columns = source.slice(source.indexOf('const leadColumns ='), source.indexOf('const prospectAge ='))
+  // leadColumns carries a type annotation, so anchor on the name and bound the slice
+  // at the next declaration that follows it.
+  const start = source.indexOf('const leadColumns')
+  const columns = source.slice(start, source.indexOf('const prospectAge =', start))
   assert.ok(columns.indexOf("id: 'signal'") < columns.indexOf("id: 'status'"))
   assert.match(columns, /const signal = getLeadSignal\(lead\)/)
   assert.match(columns, /title=\{signal.label\} aria-label=\{signal.label\}/)
