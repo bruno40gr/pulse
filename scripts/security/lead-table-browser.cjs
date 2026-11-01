@@ -36,7 +36,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       assert.ok(leadRequests.every(tab => tab === 'lesson_inquiry'), 'No unopened tabs are prefetched')
       const trigger = page.getByRole('button', { name: 'Columns & spacing', exact: true })
       const picker = page.getByRole('group', { name: 'Table display options' })
-      const peers = [page.getByRole('button', { name: 'Action first', exact: true }), page.getByRole('button', { name: 'Export CSV', exact: true }), page.getByRole('combobox', { name: 'Filter leads by status' }), trigger]
+      const peers = [page.getByRole('button', { name: 'Export CSV', exact: true }), page.getByRole('combobox', { name: 'Filter leads by status' }), trigger]
       const treatments = await Promise.all(peers.map(control => control.evaluate(el => {
         const s = getComputedStyle(el)
         return [s.fontSize, s.fontWeight, s.borderRadius, s.borderTopColor, s.borderTopWidth, s.minHeight, el.getBoundingClientRect().height]
@@ -120,14 +120,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://localhost:3157/existin
       assert.equal(await search.inputValue(), 'Student Alpha')
       assert.equal(leadRequests.length, requestsBeforeToggle)
       await search.fill('')
-      const ordering = () => table.getByRole('rowgroup').allTextContents()
-      const beforeAction = await ordering()
-      const actionFirst = page.getByRole('button', { name: /^Action first/ })
-      await actionFirst.click()
-      assert.equal(await actionFirst.getAttribute('aria-pressed'), 'true')
-      await actionFirst.click()
-      assert.equal(await actionFirst.getAttribute('aria-pressed'), 'false')
-      assert.deepEqual(await ordering(), beforeAction, 'Turning action sort off restores prior ordering')
+      assert.equal(await page.getByRole('button', { name: /^Action first/ }).count(), 0)
       const rows = groups.first().getByRole('row')
       const boxes = await Promise.all([0, 1, 2].map(i => rows.nth(i).boundingBox()))
       assert.equal((await parentName.boundingBox()).x, (await childName.boundingBox()).x)

@@ -13,14 +13,12 @@ import type { ContactListView } from '@/lib/contact-list-views'
 
 export function LeadToolbarShowcase() {
   const [preferences, setPreferences] = useState<TablePreferences>(defaultLeadTablePreferences)
-  const [actionFirst, setActionFirst] = useState(false)
   const [status, setStatus] = useState('all')
   const [contactView, setContactView] = useState<ContactListView>('family')
   return <section style={{ marginBottom: spacing['2xl'] }}>
     <SectionLabel>Table toolbar</SectionLabel>
     <p>Secondary toolbar buttons and toolbar selects share typography, border, radius, and a 42px minimum height. The columns trigger uses Button, not a custom disclosure.</p>
     <div role="group" aria-label="Table toolbar example" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
-      <Button variant="secondary" size="toolbar" aria-pressed={actionFirst} onClick={() => setActionFirst(value => !value)}>Action first{actionFirst ? ' ✓' : ''}</Button>
       <Button variant="secondary" size="toolbar" disabled>Export CSV</Button>
       <Select controlSize="toolbar" aria-label="Example status filter" fullWidth={false} value={status} onChange={event => setStatus(event.target.value)}>
         <option value="all">Status: All</option>

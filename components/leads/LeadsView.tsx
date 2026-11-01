@@ -36,13 +36,13 @@ import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { compareLeadStatus, getStatusSortOrder } from '@/lib/lead-status-sort'
 import { compareNewestLead, isNewLead, NEW_LEAD_ROW_BACKGROUND, NEW_LEAD_WINDOW_MS } from '@/lib/lead-table-order'
 import { getLeadSignal } from '@/lib/lead-signal'
-import { compareLeadAction, leadTablePhone } from '@/lib/lead-table-priority'
+import { leadTablePhone } from '@/lib/lead-table-priority'
 import Papa from 'papaparse'
 import { LEAD_TABLE_SCHEMA } from '@/lib/lead-table-preferences'
 
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback' | 'enrolled' | 'lost'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
-type LeadSortKey = 'action' | 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
+type LeadSortKey = 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
 type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
 type ManualLeadFormState = LessonRequestFields & {
@@ -599,7 +599,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState<LeadSortKey>('created')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const sortBeforeAction = useRef<{ key: LeadSortKey; direction: SortDirection }>({ key: 'created', direction: 'desc' })
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
   const leadListRequestRef = useRef(0)
@@ -663,7 +662,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     const direction = sortDirection === 'asc' ? 1 : -1
 
     return [...visibleLeads].sort((left, right) => {
-      if (sortKey === 'action') return compareLeadAction(left, right, activeTab)
       if (sortKey === 'created') return compareNewestLead(left, right) * (sortDirection === 'desc' ? 1 : -1)
       if (sortKey === 'status') return compareLeadStatus(left, right, activeTab, sortDirection)
       let comparison = 0
@@ -1922,16 +1920,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
           toolbar={<>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
-          <Button variant="secondary" size="toolbar" aria-pressed={sortKey === 'action'} title="Sort due follow-ups and active inquiries first. Click again to restore your previous sort." onClick={() => {
-            if (sortKey === 'action') {
-              setSortKey(sortBeforeAction.current.key)
-              setSortDirection(sortBeforeAction.current.direction)
-            } else {
-              sortBeforeAction.current = { key: sortKey, direction: sortDirection }
-              setSortKey('action')
-              setSortDirection('asc')
-            }
-          }}>Action first{sortKey === 'action' ? ' ✓' : ''}</Button>
+
           <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
