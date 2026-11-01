@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { resolveCommunicationRecipients, type RecipientContact, type RecipientResolution } from '@/lib/communication-recipients'
 
 export function validContactSelection(value: unknown): value is string[] {
@@ -17,6 +18,22 @@ export async function communicationRecipients(tenantId: string, ids: string[], c
       throw new Error('Recipients could not be verified. Please try again.')
     }
     contacts.push(...(data || []) as RecipientContact[])
+  }
+  // Preserve existing SMS support for lead-only CRM contacts. Resolve them in
+  // preview as well as send, instead of bypassing preview during transport.
+  if (channel === 'sms') {
+    const found = new Set(contacts.map(contact => contact.id))
+    const missing = ids.filter(id => !found.has(id))
+    for (let offset = 0; offset < missing.length; offset += 100) {
+      const { data, error } = await crmSupabaseAdmin.from('crm_contacts')
+        .select('id,first_name,last_name,full_name,phone').eq('tenant_id', tenantId).in('id', missing.slice(offset, offset + 100))
+      if (error) throw new Error('Lead recipients could not be verified. Please try again.')
+      contacts.push(...(data || []).map(contact => ({ id: contact.id,
+        first_name: contact.first_name || contact.full_name?.split(/\s+/)[0] || '',
+        last_name: contact.last_name || contact.full_name?.split(/\s+/).slice(1).join(' ') || '',
+        phone: contact.phone, students: [],
+      })))
+    }
   }
   // Reject foreign/deleted IDs instead of silently reducing the audience.
   if (contacts.length !== ids.length) throw new Error('Some selected contacts are no longer available in this account. Refresh Contacts.')

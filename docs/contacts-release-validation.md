@@ -48,7 +48,7 @@ This closes the changed-path comparison gap, not a claim that every ignored file
 in the old worktree was promoted. Backups remain untouched. No branches/worktrees
 were created or deleted and no Odeon source was edited.
 
-## SMS safety: still a release gate, not authorized
+## SMS safety: original audit findings (superseded by owner review below)
 
 The four new tests exercise the real campaign-send route with a mocked directory,
 database and Twilio transport: stale preview refusal before writes, unavailable
@@ -83,3 +83,30 @@ Before enabling new routing:
 
 No production writes, migrations or real sends were performed. Family management
 remains deferred to the existing Odeon workspace/enrollment work.
+
+### Follow-up: focused recipient review
+
+The owner resolved the listed phone conflicts: account managers can also be
+students, adults can use account-manager destinations, and renters/instructors
+must not be blocked merely by their recorded business roles. Those overlaps are
+not proof of a wrong recipient. The experimental blanket account-routing and
+shared-number restrictions were removed before shipping.
+
+Campaign composers now display actual recipient names and phone destinations and
+submit a server preview version. Delivery resolves again and refuses a changed
+preview. Lead-only CRM contacts use the same preview path instead of a transport
+fallback. Inbox replies verify the requested number against server resolution.
+Opt-outs, missing destinations and sibling destination deduplication remain in
+place. No new schema or family-management UI is introduced.
+
+Validation: 686 security tests passed, TypeScript passed, changed-file lint has
+zero errors / 12 pre-existing warnings, and actual-recipient / stale-preview /
+missing-destination browser checks passed at 1440, 900 and 390 pixels. A Gmail
+regression harness now fixes its October fixture month to avoid calendar-rollover
+failures; production date logic is unchanged.
+
+These changes do not apply the owner's age or business-role corrections to the
+database. Existing stored routing remains authoritative; no production records
+were changed and no real SMS was sent. The account-manager picker remains
+simulation-only. Real delivery still requires a separately approved controlled
+send; passing mocked checks is not a delivery claim.

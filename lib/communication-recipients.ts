@@ -15,9 +15,12 @@ const emailAddress = (value?: string | null) => {
   const email = value?.trim().toLowerCase() || ''
   return email.length <= 254 && /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email) ? email : ''
 }
-const phoneNumber = (value?: string | null) => {
-  const digits = (value || '').replace(/\D/g, '')
-  return digits.length === 10 ? `+1${digits}` : digits.length >= 11 && digits.length <= 15 ? `+${digits}` : ''
+export const smsDestination = (value?: string | null) => {
+  const text = value?.trim() || ''
+  if (!text || !/^\+?[\d\s().-]+$/.test(text)) return ''
+  const digits = text.replace(/\D/g, '')
+  if (digits.length === 10 && !text.startsWith('+')) return `+1${digits}`
+  return /^[1-9]\d{10,14}$/.test(digits) && (text.startsWith('+') || (digits.length === 11 && digits.startsWith('1'))) ? `+${digits}` : ''
 }
 
 /** One deterministic policy for preview and delivery. Never fall back to a minor's own details. */
@@ -29,7 +32,7 @@ export function resolveCommunicationRecipients(contacts: RecipientContact[], cha
   for (const contact of [...uniqueContacts, ...suppressedContacts].filter(contact => contact.opted_out)) {
     const accounts = (contact.students || []).flatMap(student => [...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts))])
     for (const target of [contact, ...accounts]) {
-      const destination = channel === 'email' ? emailAddress(target.email) : phoneNumber(target.phone)
+      const destination = channel === 'email' ? emailAddress(target.email) : smsDestination(target.phone)
       if (destination) blocked.add(destination)
     }
   }
@@ -44,7 +47,7 @@ export function resolveCommunicationRecipients(contacts: RecipientContact[], cha
     const targets = useAccounts ? accounts : [{ name, email: contact.email, phone: contact.phone }]
     let reachable = false
     for (const target of targets) {
-      const destination = channel === 'email' ? emailAddress(target.email) : phoneNumber(target.phone)
+      const destination = channel === 'email' ? emailAddress(target.email) : smsDestination(target.phone)
       if (!destination || blocked.has(destination)) continue
       reachable = true
       const existing = destinations.get(destination)

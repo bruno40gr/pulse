@@ -110,7 +110,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, onC
     {recipientError ? <Notice variant="error">{recipientError}</Notice> : 'Checking recipients…'}
     {senderError && <Notice variant="error">{senderError}</Notice>}
   </div>
-  if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version }} excludedRecipients={audience.excluded} />
+  if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version, recipients: audience.recipients }} excludedRecipients={audience.excluded} />
   return <>
     {senderError && <Notice variant="error" style={{ margin: spacing.lg }}>{senderError}</Notice>}
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}

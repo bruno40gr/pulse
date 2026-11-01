@@ -11,6 +11,7 @@ import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import type { RecipientResolution } from '@/lib/communication-recipients'
 
 const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
 const KUMON = '00000000-0000-0000-0000-000000000003'
@@ -52,7 +53,7 @@ interface ComposePanelProps {
   leadId?: string
   /** Keep a scratch draft owned by its workspace without replacing the campaign send flow. */
   draft?: { body: string; onChange: (body: string) => void }
-  resolvedAudience?: { count: number; version: string }
+  resolvedAudience?: { count: number; version: string; recipients: RecipientResolution['recipients'] }
   excludedRecipients?: Array<{ id: string; name: string; reason: string }>
   /** Embed the same composer with a conversation-owned draft and send transport. */
   conversation?: {
@@ -74,7 +75,7 @@ const EMPTY_RECIPIENT_PREVIEW: ResolvedPreviewRecipient[] = []
 
 export default function ComposePanel({
   recipientCount, recipientDestination, recipientNameControl, recipientContent, sendLabel, messageLabel, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
-  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience, excludedRecipients = []
+  mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience: providedAudience, excludedRecipients = []
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
@@ -105,14 +106,35 @@ export default function ComposePanel({
   const [sendError, setSendError] = useState<string | null>(null)
   const [resolvedRecipientPreview, setResolvedRecipientPreview] = useState<ResolvedPreviewRecipient[]>(recipientPreview)
   const prePolishMessage = useRef<string>('')
+  const [audienceReview, setAudienceReview] = useState<{ key: string; audience?: RecipientResolution & { version: string }; error?: string } | null>(null)
+  const [tenantId, setTenantId] = useState(DEFAULT_TENANT)
+  const selectionKey = recipientIds.filter(id => !removedIds.has(id)).join(',')
+  const reviewKey = `${tenantId}:${selectionKey}`
+  const needsReview = !conversation && channel === 'sms' && !providedAudience
+  const currentReview = audienceReview?.key === reviewKey ? audienceReview : null
+  const resolvedAudience = providedAudience || (currentReview?.audience ? { count: currentReview.audience.recipients.length, version: currentReview.audience.version, recipients: currentReview.audience.recipients } : undefined)
+  const smsReviewBlocked = needsReview && !currentReview?.audience
+
+  useEffect(() => {
+    if (!needsReview || !selectionKey) return
+    let cancelled = false
+    void fetch(`/api/communications/recipients?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactIds: selectionKey.split(','), channel: 'sms' }),
+    }).then(async response => {
+      const result = await response.json()
+      if (!response.ok || !Array.isArray(result.recipients) || !Array.isArray(result.excluded) || typeof result.version !== 'string' || !result.version) throw new Error(result.error || 'SMS recipients could not be verified.')
+      if (!cancelled) setAudienceReview({ key: reviewKey, audience: result })
+    }).catch(error => { if (!cancelled) setAudienceReview({ key: reviewKey, error: error instanceof Error ? error.message : 'SMS recipients could not be verified.' }) })
+    return () => { cancelled = true }
+  }, [needsReview, selectionKey, tenantId, reviewKey])
 
   const isMMS = !!mediaUrl
-  const firstNamePreview = resolvedAudience ? 'there' : contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
+  const firstNamePreview = resolvedAudience ? resolvedAudience.recipients.length === 1 ? resolvedAudience.recipients[0].name.split(/\s+/)[0] : 'there' : contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
-  const effectiveCount = resolvedAudience?.count ?? effectiveRecipientIds.length
+  const effectiveCount = smsReviewBlocked ? 0 : resolvedAudience?.count ?? effectiveRecipientIds.length
   const effectiveSendCount = effectiveCount
-  const [tenantId, setTenantId] = useState(DEFAULT_TENANT)
   const tenantBrand = getTenantBrand(tenantId)
   const recipientSummary = resolvedAudience ? [] : resolvedRecipientPreview.slice(0, 3)
   const remainingRecipientCount = Math.max(effectiveCount - recipientSummary.length, 0)
@@ -420,7 +442,7 @@ export default function ComposePanel({
   }
 
   const handleSend = async () => {
-    if (!message.trim() || effectiveCount === 0 || isSending || conversation?.disabled) return
+    if (!message.trim() || effectiveCount === 0 || isSending || conversation?.disabled || smsReviewBlocked) return
     setIsSending(true)
     setSendError(null)
     startSendProgress()
@@ -443,6 +465,7 @@ export default function ComposePanel({
         })
       })
       const campaign = await campaignRes.json()
+      if (!campaignRes.ok || !campaign.id) throw new Error(campaign.error || 'The campaign could not be created.')
 
       const sendRes = await fetch(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
@@ -570,7 +593,16 @@ export default function ComposePanel({
           </div>
         )}
 
-        <ExcludedRecipientsNotice contacts={excludedRecipients} channel="sms" />
+        {needsReview && !currentReview?.audience && <Notice variant={currentReview?.error ? 'error' : 'info'}>{currentReview?.error || 'Checking SMS recipients…'}</Notice>}
+        {resolvedAudience && <div role="region" aria-label="Verified SMS recipients" style={{ marginBottom: spacing.lg, overflowWrap: 'anywhere' }}>
+          <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Actual SMS recipients</div>
+          <ul style={{ margin: 0, paddingLeft: spacing.lg }}>
+            {resolvedAudience.recipients.map(recipient => <li key={recipient.destination}>
+              <span>{recipient.name}</span> — <span>{recipient.destination}</span>
+            </li>)}
+          </ul>
+        </div>}
+        <ExcludedRecipientsNotice contacts={currentReview?.audience?.excluded || excludedRecipients} channel="sms" />
 
         {/* Inline warnings */}
         {(normalizedSensitiveCheck.flagged.length > 0 || normalizedSensitiveCheck.opted_out.length > 0) && (

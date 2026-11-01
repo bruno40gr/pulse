@@ -5,7 +5,6 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import twilio from 'twilio'
-import { resolveCommunicationRecipients, type RecipientContact } from '@/lib/communication-recipients'
 import { toE164PhoneNumber } from '@/lib/phone'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -16,7 +15,6 @@ type SendContact = {
   last_name: string | null
   phone: string | null
   opted_out?: boolean | null
-  students?: RecipientContact['students']
 }
 
 type MessageCreateParams = {
@@ -45,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { recipientIds, leadId, recipientVersion } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
+    if (!authorization.demo && (typeof recipientVersion !== 'string' || !recipientVersion || !validContactSelection(recipientIds))) return NextResponse.json({ error: 'Review verified SMS recipients before sending.' }, { status: 409 })
     if (recipientVersion !== undefined && !authorization.demo && authorization.context.roleKey !== 'owner' && !authorization.context.permissions.has('contacts.read')) return NextResponse.json({ error: 'Contact access is required.' }, { status: 403 })
     // Contacts bulk compose supplies a preview version. Resolve again on the
     // server; do not trust client counts or recipient phone numbers.
@@ -123,47 +122,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Twilio not configured. Please connect Twilio in Settings.' }, { status: 400 })
     }
 
-    // Get contacts from new schema
-    const { data: people, error: contactsError } = await supabaseAdmin
-      .from('people')
-      .select(`
-        id, first_name, last_name, phone, opted_out,
-        students (
-          message_routing, is_minor,
-          accounts ( name, phone, email ),
-          student_accounts ( accounts ( name, phone, email ) )
-        )
-      `)
-      .in('id', recipientIds)
-      .eq('tenant_id', tenantId)
-    if (contactsError) throw contactsError
-
-    const foundPersonIds = new Set((people || []).map((person) => person.id))
-    const missingIds = recipientIds.filter((recipientId: string) => !foundPersonIds.has(recipientId))
-    const { data: crmContacts, error: crmContactsError } = missingIds.length > 0
-      ? await crmSupabaseAdmin.from('crm_contacts').select('id, first_name, last_name, full_name, phone').in('id', missingIds).eq('tenant_id', tenantId)
-      : { data: [], error: null }
-    if (crmContactsError) throw crmContactsError
-    const contacts: SendContact[] = [
-      ...(people || []),
-      ...(crmContacts || []).map((contact) => ({
-        id: contact.id,
-        first_name: contact.first_name || contact.full_name?.split(' ')[0] || 'there',
-        last_name: contact.last_name || '',
-        phone: contact.phone,
-        students: [],
-      })),
-    ]
-
-    const verifiedPeople = !audience && people?.length ? await communicationRecipients(tenantId, people.map(person => person.id), 'sms') : null
-    const resolved = audience || (() => {
-      const leads = resolveCommunicationRecipients(contacts.filter(contact => !foundPersonIds.has(contact.id)), 'sms')
-      const destinations = new Map((verifiedPeople?.recipients || []).map(recipient => [recipient.destination, recipient]))
-      for (const recipient of leads.recipients) if (!destinations.has(recipient.destination)) destinations.set(recipient.destination, recipient)
-      return { recipients: [...destinations.values()], excluded: [...(verifiedPeople?.excluded || []), ...leads.excluded] }
-    })()
+    // Only the server-verified preview may reach transport, including lead and
+    // account-manager destinations resolved through that same preview path.
+    if (!audience) return NextResponse.json({ error: 'Review verified SMS recipients before sending.' }, { status: 409 })
+    const resolved = audience
     const missingPhone = resolved.excluded
-    const sendable: SendContact[] = resolved.recipients.map(recipient => ({ id: recipient.contactIds[0], first_name: recipient.name.split(/\s+/)[0], last_name: '', phone: recipient.destination, students: [] }))
+    const sendable: SendContact[] = resolved.recipients.map(recipient => ({ id: recipient.contactIds[0], first_name: recipient.name.split(/\s+/)[0], last_name: '', phone: recipient.destination }))
     // Student-specific fields cannot safely be filled when several selected
     // students route to one family destination. Use neutral copy instead.
     if (resolved.recipients.some(recipient => recipient.contactIds.length > 1) && /\{(?:first_name|last_name|student[^}]*|instrument)\}/i.test(campaign.message || '')) return NextResponse.json({ error: 'Use a greeting without student-specific placeholders for this message.' }, { status: 400 })

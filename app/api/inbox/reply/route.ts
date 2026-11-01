@@ -4,6 +4,8 @@ import { authorizeCommunicationSend } from '@/lib/communication-authorization'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import twilio from 'twilio'
 import { toE164PhoneNumber } from '@/lib/phone'
+import { communicationRecipients, validContactSelection } from '@/lib/communication-recipient-directory'
+import { smsDestination } from '@/lib/communication-recipients'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -44,6 +46,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, demo: true })
     }
 
+    if (!validContactSelection([contact_id])) return NextResponse.json({ error: 'Choose a verified contact before replying.' }, { status: 409 })
+    const audience = await communicationRecipients(tenantId, [contact_id], 'sms')
+    const recipient = audience.recipients.find(candidate => candidate.destination === smsDestination(to_phone))
+    if (audience.excluded.length || !recipient) {
+      return NextResponse.json({ error: 'SMS recipient is unavailable, ambiguous, opted out, or changed. Review the contact before replying.' }, { status: 409 })
+    }
+
     const { data: twilioConfig } = await supabaseAdmin
       .from('twilio_config')
       .select('*')
@@ -56,7 +65,7 @@ export async function POST(request: Request) {
 
     const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token)
 
-    const normalizedToPhone = toE164PhoneNumber(to_phone)
+    const normalizedToPhone = toE164PhoneNumber(recipient.destination)
     if (!normalizedToPhone) return NextResponse.json({ error: 'A valid recipient phone is required' }, { status: 400 })
     const callbackOrigin = process.env.PULSE_APP_URL?.trim().replace(/\/$/, '') || new URL(request.url).origin
     const statusCallback = `${callbackOrigin}/api/twilio/status`

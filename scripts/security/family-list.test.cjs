@@ -62,7 +62,7 @@ test('self inquiries use contact identity; legacy siblings are displayed once', 
   assert.deepEqual(plain(inquiryStudents({ student_name: 'Emma', family_members: [{ name: 'Noah' }], siblings: [{ name: 'Noah' }] }, 'Jane').map(student => student.name)), ['Emma', 'Noah'])
   assert.deepEqual(plain(inquiryStudents({ student_requests: [null, {}, { name: '   ' }] }, 'Jane')), [])
 })
-test('SMS siblings with differently formatted holder phone receive one destination, no Regarding requirement', () => {
+test('SMS siblings with differently formatted manager phone receive one destination', () => {
   const { resolveCommunicationRecipients } = load('lib/communication-recipients.ts')
   const children = ['emma', 'noah'].map((id, index) => ({ id, first_name: id, phone: '+12025550999', students: [{ is_minor: true, accounts: { name: 'Jane', phone: index ? '+1 202 555 0101' : '(202) 555-0101' } }] }))
   const result = resolveCommunicationRecipients(children, 'sms')

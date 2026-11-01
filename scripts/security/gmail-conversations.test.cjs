@@ -108,7 +108,11 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
       const builder = { select() { return builder }, eq(key, value) { queries.push([table, key, value]); return builder }, order() { return Promise.resolve({ data: mailboxes, error: null }) } }
       return builder
     } } },
-    '@/lib/conversation-email-range': load('lib/conversation-email-range.ts'),
+    // Legacy fixtures are dated October 2026. Freeze only this module's default
+    // month, so a calendar rollover cannot silently filter every fixture out.
+    '@/lib/conversation-email-range': load('lib/conversation-email-range.ts', {}, { Date: class extends Date {
+      constructor(...args) { super(...(args.length ? args : ['2026-10-21T12:00:00Z'])) }
+    } }),
     '@/lib/conversation-email-query': load('lib/conversation-email-query.ts'),
     '@/lib/conversations-directory': { conversationDirectory: async () => [person, ...additionalPeople] },
     '@/lib/gmail/conversations': { ...helper, conversationMailbox: async (...args) => { calls.push(['mailbox', ...args]); return { id: 'mailbox-one', email: 'office@example.com', token: 'not-a-real-token', scopes: sendScope ? ['https://www.googleapis.com/auth/gmail.send'] : [] } }, gmailGet: async (_, url) => { calls.push(['get', url]); if (failRead) { const failure = failRead(url); if (failure) throw failure }; return url.startsWith('threads?') ? { threads: threads.map(thread => ({ id: thread.id })), nextPageToken: 'page-two' } : threads.find(thread => url.includes(thread.id)) } },

@@ -24,6 +24,7 @@ test('missing account-holder schema blocks routing with an actionable setup erro
   const query = { select() { return this }, eq() { return this }, in: async () => ({ error: { code: 'PGRST200' } }) }
   const directory = load('lib/communication-recipient-directory.ts', {
     '@/lib/supabase/admin': { supabaseAdmin: { from: () => query } },
+    '@/lib/supabase/crm-admin': {},
     '@/lib/communication-recipients': policy,
   })
   await assert.rejects(directory.communicationRecipients('tenant', ['one'], 'email'), /Student Accounts Migration 001/)
@@ -62,7 +63,7 @@ test('Contacts and Conversations use the same messaging actions in their page he
   assert.equal((actions.match(/variant="primary" size="md"/g) || []).length, 2)
   assert.ok(!actions.includes('fontSize:'))
 })
-test('minors reach all account holders, including non-primary, once per destination', () => {
+test('minors reach all account managers once per destination for email and SMS', () => {
   const result = policy.resolveCommunicationRecipients([child('one'), child('two')], 'email')
   assert.equal(result.recipients.length, 2)
   assert.deepEqual(plain(result.recipients.map(item => item.destination)), ['one@example.com', 'two@example.com'])
@@ -258,4 +259,95 @@ test('SMS provider failure is not reported as delivery', async () => {
   assert.equal(response.status, 502)
   assert.equal(response.body.sent, 0)
   assert.equal(response.body.failed, 1)
+})
+
+test('SMS cannot bypass the server preview by omitting its version', async () => {
+  for (const recipientVersion of [undefined, null, '', 12]) {
+    const h = smsHarness()
+    assert.equal((await h.send({ recipientVersion })).status, 409)
+    assert.equal(h.deliveries.length, 0)
+    assert.equal(h.writes.length, 0)
+  }
+})
+
+test('adult account-manager preference and overlapping business roles do not block SMS', () => {
+  const adult = child('adult', { phone: null, students: [{ is_minor: false, message_routing: 'account_holder', accounts: accounts[0] }] })
+  const manager = child('manager', { phone: accounts[0].phone, students: [{ is_minor: false, accounts: accounts[0] }] })
+  const resolution = policy.resolveCommunicationRecipients([adult, manager], 'sms')
+  assert.equal(resolution.recipients.length, 1)
+  assert.equal(resolution.recipients[0].destination, '+12025550101')
+  assert.deepEqual(plain(resolution.recipients[0].contactIds), ['adult', 'manager'])
+  for (const students of [[], [{ is_minor: false }]]) {
+    assert.equal(policy.resolveCommunicationRecipients([child('direct', { students })], 'sms').recipients[0].destination, '+12025550999')
+  }
+})
+
+test('SMS rejects extensions, letters, invalid country codes and ambiguous international formatting', () => {
+  for (const value of ['(202) 555-0101 ext 2', 'call 2025550101', '+02025550101', '442079460123', '+2025550101']) assert.equal(policy.smsDestination(value), '')
+  assert.equal(policy.smsDestination('(202) 555-0101'), '+12025550101')
+  assert.equal(policy.smsDestination('+44 20 7946 0123'), '+442079460123')
+})
+
+function replyHarness({ destination = '+12025550101', excluded = [], directoryError = false } = {}) {
+  const deliveries = [], writes = []
+  const query = { select() { return query }, eq() { return query }, single: async () => ({ data: { phone_number: '+12025550102' } }), insert: async row => { writes.push(row); return { error: null } } }
+  const api = load('app/api/inbox/reply/route.ts', {
+    'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },
+    '@/lib/account-audit': { writeAccountAuditEvent: async () => true },
+    '@/lib/communication-authorization': { authorizeCommunicationSend: async () => ({ ok: true, tenantId: 'school', demo: false, context: { membershipId: 'owner' } }) },
+    '@/lib/supabase/admin': { supabaseAdmin: { from: () => query } },
+    '@/lib/communication-recipient-directory': {
+      validContactSelection: ids => ids[0] === 'contact',
+      communicationRecipients: async () => { if (directoryError) throw new Error('Directory unavailable'); return { recipients: destination ? [{ destination }] : [], excluded } },
+    },
+    '@/lib/communication-recipients': policy,
+    '@/lib/phone': { toE164PhoneNumber: value => value },
+    twilio: { default: () => ({ messages: { create: async input => { deliveries.push(input); return { sid: 'SMsynthetic', status: 'queued' } } } }) },
+  }, { process: { env: {} } })
+  return { deliveries, writes, send: patch => api.POST(new Request('https://synthetic.invalid/api/inbox/reply', { method: 'POST', body: JSON.stringify({ contact_id: 'contact', to_phone: '+12025550101', body: 'Hello', ...patch }) })) }
+}
+
+test('inbox SMS refuses client destination tampering, missing contacts, exclusions and directory failures', async () => {
+  for (const [options, patch] of [[{}, { to_phone: '+12025550999' }], [{}, { contact_id: null }], [{ destination: '' }, {}], [{ excluded: [{ reason: 'Opted out' }] }, {}], [{ directoryError: true }, {}]]) {
+    const h = replyHarness(options)
+    assert.ok((await h.send(patch)).status >= 400)
+    assert.equal(h.deliveries.length, 0)
+    assert.equal(h.writes.length, 0)
+  }
+})
+
+test('inbox SMS uses the server-verified destination, not client formatting', async () => {
+  const h = replyHarness()
+  assert.equal((await h.send({ to_phone: '(202) 555-0101' })).status, 200)
+  assert.equal(h.deliveries[0].to, '+12025550101')
+  assert.equal(h.writes[0].to_phone, '+12025550101')
+})
+
+test('SMS directory resolves lead-only contacts in preview and paginates opt-outs in tenant scope', async () => {
+  for (const mode of ['person', 'lead', 'suppressed-second-page', 'missing', 'lead-error', 'suppression-error']) {
+    const queries = []
+    function client(legacy) { return { from(table) {
+      const query = {
+        select() { return query },
+        eq(key, value) { queries.push({ legacy, table, key, value }); return query },
+        order() { return query },
+        in: async () => legacy ? { data: mode === 'missing' ? [] : [{ id: 'one', full_name: 'Fictional Lead', phone: '+12025550999' }], error: mode === 'lead-error' ? {} : null }
+          : { data: mode === 'person' || mode === 'suppressed-second-page' || mode === 'suppression-error' ? [child('one', { students: [{ is_minor: false }] })] : [], error: null },
+        range: async offset => {
+          if (mode === 'suppression-error') return { data: null, error: {} }
+          return { data: mode === 'suppressed-second-page' ? offset === 0 ? Array.from({ length: 500 }, (_, i) => ({ id: `empty-${i}`, opted_out: true })) : [{ id: 'unselected', phone: '+12025550999', opted_out: true }] : [], error: null }
+        },
+      }
+      return query
+    } } }
+    const directory = load('lib/communication-recipient-directory.ts', {
+      '@/lib/supabase/admin': { supabaseAdmin: client(false) },
+      '@/lib/supabase/crm-admin': { crmSupabaseAdmin: client(true) },
+      '@/lib/communication-recipients': policy,
+    })
+    if (mode.endsWith('error') || mode === 'missing') await assert.rejects(directory.communicationRecipients('school', ['one'], 'sms'), /could not be verified|no longer available/)
+    else assert.equal((await directory.communicationRecipients('school', ['one'], 'sms')).recipients.length, mode === 'suppressed-second-page' ? 0 : 1)
+    assert.ok(queries.length > 0)
+    for (const query of queries.filter(query => query.key === 'tenant_id')) assert.equal(query.value, 'school')
+  }
 })
