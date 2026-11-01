@@ -599,6 +599,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState<LeadSortKey>('created')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const sortBeforeAction = useRef<{ key: LeadSortKey; direction: SortDirection }>({ key: 'created', direction: 'desc' })
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
   const leadListRequestRef = useRef(0)
@@ -1409,7 +1410,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     {
       id: 'status',
       header: 'Status',
-      width: 'minmax(86px, 0.72fr)',
+      width: 'minmax(128px, 0.72fr)',
       sortable: true,
       sortKey: 'status',
       defaultSortDirection: 'asc',
@@ -1921,7 +1922,16 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
           toolbar={<>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
-          <Button variant="secondary" size="toolbar" aria-pressed={sortKey === 'action'} title="Prioritize due follow-ups and active inquiries among loaded leads" onClick={() => { setSortKey('action'); setSortDirection('asc') }}>Action first{sortKey === 'action' ? ' ✓' : ''}</Button>
+          <Button variant="secondary" size="toolbar" aria-pressed={sortKey === 'action'} title="Sort due follow-ups and active inquiries first. Click again to restore your previous sort." onClick={() => {
+            if (sortKey === 'action') {
+              setSortKey(sortBeforeAction.current.key)
+              setSortDirection(sortBeforeAction.current.direction)
+            } else {
+              sortBeforeAction.current = { key: sortKey, direction: sortDirection }
+              setSortKey('action')
+              setSortDirection('asc')
+            }
+          }}>Action first{sortKey === 'action' ? ' ✓' : ''}</Button>
           <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>

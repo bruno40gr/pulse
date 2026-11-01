@@ -272,6 +272,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                 }}
                 style={{
                   ...desktopRowStyle,
+                  ...(!groupedRows ? { minHeight: density === 'comfortable' ? 60 : 44, paddingTop: density === 'comfortable' ? spacing.lg : spacing.sm, paddingBottom: density === 'comfortable' ? spacing.lg : spacing.sm } : undefined),
                   ...selectionInset,
                   gridTemplateColumns: columnTemplate,
                   background: rowBackground,

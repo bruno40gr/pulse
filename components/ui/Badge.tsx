@@ -43,6 +43,8 @@ export function Badge({ variant = 'neutral', size = 'md', children, style }: Bad
       borderRadius: radius.full,
       fontFamily: typography.fontSans,
       display: 'inline-block',
+      whiteSpace: 'nowrap',
+      flexShrink: 0,
       ...style,
     }}>
       {children}
