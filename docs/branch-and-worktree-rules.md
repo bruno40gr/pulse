@@ -56,9 +56,10 @@ worktrees/<name>/
 manifest.md                       # the operation record and decisions
 ```
 
-An offsite copy of the bundle lives under
+A second local copy of the bundle lives under
 `/Users/brunowong/odeon-private/pulse-branch-backups-<date>/` so a failure of the
-repository directory itself is survivable.
+repository directory itself is survivable. This is on the same machine, not an
+offsite backup, and does not protect against loss of the machine.
 
 ## Recovery
 
@@ -78,10 +79,22 @@ tar -xzf /path/to/worktrees/<name>/working-files.tar.gz -C /tmp/restore-wt
 
 ## Current state after the 2026-10-31 hygiene pass
 
-- Local branches: `main`, `fix/restore-lead-signal-column`,
-  `integration/odeon-release-20261030`,
+- Local branches: `main`, `integration/odeon-release-20261030`,
   `backup/odeon-before-integration-20261030-105257`.
-- Worktrees: `/Users/brunowong/pulse`, `/private/tmp/pulse-lead-signal-release`,
-  `/Users/brunowong/pulse-odeon-integration`.
+- Worktrees: `/Users/brunowong/pulse`, `/Users/brunowong/pulse-odeon-integration`.
 - Backup set: `/Users/brunowong/pulse-backups/branches-hygiene-20261031/`
   (recovery drill passed).
+- Approved release UI/tooling landed on `main` in `e40a4ea` and was pushed.
+  The release branch and dirty release worktree were subsequently removed after
+  an ancestry check, without refreshing the backup/recovery gate or completing a
+  dirty-file comparison. The earlier archive remains the recovery source; full
+  archived-content equivalence has not yet been verified. Do not treat ancestry
+  alone as proof that uncommitted files were preserved.
+- Removing that worktree broke the isolated preview's source/dependency links.
+  `/private/tmp/pulse-p2-release-lab` now points to `/Users/brunowong/pulse`,
+  including its four dashboard wrapper imports. Original wrappers were saved in
+  `/private/tmp/pulse-preview-repair-20261031/`. The lab listens on loopback port
+  3218, uses fictional API fixtures, and rejects unsupported writes.
+- Preview revalidation: Contacts HTTP 200; Contacts, Leads and profile/recipient
+  browser checks passed at 1440/900/390px; holder-picker checks passed at
+  1440/390px; security suite passed 676/676. Simulated SMS is not delivery evidence.
