@@ -133,7 +133,6 @@ interface ContactSlidePanelProps {
   onClose: () => void
   onUpdated: (updated: Contact) => void
   prototype?: boolean
-  onPrototypeEdit?: () => void
   onCompose?: (contactIds: string[]) => void
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
@@ -152,7 +151,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ prototype = false, onPrototypeEdit, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const contextualCompose = useContext(ConversationComposeContext)
@@ -326,11 +325,6 @@ export default function ContactSlidePanel({ prototype = false, onPrototypeEdit, 
   }
 
   const patch = async (fields: Partial<Contact>, silent = false) => {
-    if (prototype) {
-      onUpdated({ ...contact, ...fields })
-      if (!silent) showToast('Preview changes saved locally')
-      return
-    }
     setSaving(true)
     try {
       const updated = await fetch(`/api/contacts/${contact.id}`, {
@@ -350,10 +344,6 @@ export default function ContactSlidePanel({ prototype = false, onPrototypeEdit, 
   }
 
   const handleStartEditing = () => {
-    if (prototype && onPrototypeEdit) {
-      onPrototypeEdit()
-      return
-    }
     const initial: Record<string, unknown> = {}
     if (contact.first_name) initial.first_name = contact.first_name
     if (contact.last_name) initial.last_name = contact.last_name
