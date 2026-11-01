@@ -685,12 +685,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const leadPageCount = Math.max(1, Math.ceil(sortedLeads.length / 10))
   const leadPage = Math.min(tablePage, leadPageCount)
   const pagedLeads = sortedLeads.slice((leadPage - 1) * 10, leadPage * 10)
-  type LeadTableRow = LeadRecord & { tableStudent?: LeadStudent; tableStudentIndex?: number }
-  const tableRows: LeadTableRow[] = personView === 'family' ? pagedLeads : pagedLeads.flatMap(lead => [
-    lead,
-    ...(!isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label))
-      .map((student, index) => ({ ...lead, tableStudent: student, tableStudentIndex: index })),
-  ])
   useEffect(() => { setTablePage(1) }, [activeTab, statusFilter, inquirySearch, sortKey, sortDirection, personView])
 
   const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
@@ -1917,7 +1911,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         <RichDataTable
           preferenceSchema={LEAD_TABLE_SCHEMA}
           columnLabels={{ signal: 'Signal' }}
-          displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
+          displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" individualLabel="Account holders" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
           toolbar={<>
           <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
 
@@ -1953,16 +1947,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
           </>}
           groupedRows={personView === 'family'}
-          rows={tableRows}
-          columns={leadColumns.map(column => ({ ...column, render: (lead: LeadTableRow, index: number) => {
-            const student = lead.tableStudent
-            if (!student) return column.render(lead, index)
-            if (column.id === 'name') return <TablePersonName detail>{student.name || 'Student name not recorded'}</TablePersonName>
-            if (column.id === 'phone') return <div style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
-            if (column.id === 'email') return <div style={secondaryCellStyle}>{student.email || ''}</div>
-            if (column.id === 'program') return <div style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
-            return null
-          } }))}
+          rows={pagedLeads}
+          columns={leadColumns}
           getDetailRows={lead => personView !== 'family' || !isLessonLead(lead.intake_type) ? [] : leadStudentDetailRows(lead.payload || {}, lead.program_label)
             .map((student, index) => ({ key: `${lead.id}-student-${index}`, style: { background: colors.surface }, cells: leadColumns.map(column => {
               if (column.id === 'name') return <TablePersonName key={column.id} detail>{student.name || 'Student name not recorded'}</TablePersonName>
@@ -1971,7 +1957,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
               return null
             }) }))}
-          getRowKey={(lead) => lead.tableStudent ? `${lead.id}-student-${lead.tableStudentIndex}` : lead.id}
+          getRowKey={(lead) => lead.id}
           sort={{ key: sortKey, direction: sortDirection }}
           onSortChange={(nextSort) => {
             setSortKey(nextSort.key)
@@ -1979,8 +1965,6 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           }}
           selection={{
             selectedKeys: selectedIds,
-            isSelectable: lead => !lead.tableStudent,
-            showCheckbox: lead => !lead.tableStudent,
             onToggle: (lead) => toggleLeadSelection(lead.id),
             onToggleAll: toggleSelectAllVisible,
             allSelected: allVisibleSelected,
@@ -1998,7 +1982,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           )}
           onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
           getRowStyle={(lead, index) => ({
-            background: lead.tableStudent ? colors.surface : selectedIds.has(lead.id)
+            background: selectedIds.has(lead.id)
               ? colors.surfaceSelected
               : selectedLeadId === lead.id
                 ? '#FBFCFF'
