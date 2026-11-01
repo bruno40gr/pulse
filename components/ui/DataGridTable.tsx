@@ -28,7 +28,9 @@ export type DataTableColumn<Row, SortKey extends string> = {
 export type DataTableSelection<Row> = {
   selectedKeys: ReadonlySet<string>
   isSelectable?: (row: Row) => boolean
+  showCheckbox?: (row: Row) => boolean
   onToggle: (row: Row, index: number, event: ChangeEvent<HTMLInputElement>) => void
+  onDoubleClick?: (row: Row, index: number) => void
   onToggleAll: () => void
   allSelected: boolean
   someSelected?: boolean
@@ -53,7 +55,9 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   stickyHeaderOffset?: number
   onRowClick?: (row: Row, index: number, event: MouseEvent<HTMLElement>) => void
   getRowStyle?: (row: Row, index: number) => CSSProperties | undefined
-  getDetailRows?: (row: Row, index: number) => { key: string; cells: ReactNode[] }[]
+  getDetailRows?: (row: Row, index: number) => { key: string; cells: ReactNode[]; style?: CSSProperties; selection?: {
+    checked: boolean; disabled?: boolean; label: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void
+  } }[]
   /** Opt-in inquiry grouping; other tables retain their existing row density. */
   groupedRows?: boolean
   /** Opt-in spacious inquiry rows; existing consumers retain compact grouping. */
@@ -136,6 +140,8 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   const isMobile = useIsMobile(mobileBreakpoint)
   const comfortable = groupedRows && density === 'comfortable'
   const groupedRowStyle = { minHeight: comfortable ? 44 : 32, paddingTop: 0, paddingBottom: 0, borderBottom: 'none', opacity: 1 }
+  const groupEdgeSpacing = comfortable ? spacing.sm : spacing.xs
+  const groupEdgePadding = comfortable ? 8 : 4
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const columnTemplate = `${selection ? '48px ' : ''}${columns.map((column) => column.width).join(' ')}`
   const desktopMinWidth = typeof minDesktopWidth === 'number' ? `${minDesktopWidth}px` : minDesktopWidth
@@ -255,7 +261,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
             const details = getDetailRows?.(row, index) || []
             return (
-              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity, background: rowBackground, paddingTop: comfortable ? spacing.sm : spacing.xs, paddingBottom: comfortable ? spacing.sm : spacing.xs } : undefined}>
+              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity, background: details.some(detail => detail.selection) ? undefined : rowBackground } : undefined}>
               <div
                 key={rowKey}
                 role="row"
@@ -271,7 +277,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   background: rowBackground,
                   cursor: onRowClick ? 'pointer' : 'default',
                   ...customRowStyle,
-                  ...(groupedRows ? groupedRowStyle : undefined),
+                  ...(groupedRows ? { ...groupedRowStyle, paddingTop: groupEdgeSpacing, paddingBottom: details.length ? 0 : groupEdgeSpacing, minHeight: groupedRowStyle.minHeight + groupEdgePadding * (details.length ? 1 : 2) } : undefined),
                 }}
               >
                 {selection && (
@@ -280,14 +286,15 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                     style={desktopSelectionCellStyle}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <input
+                    {(selection.showCheckbox?.(row) ?? true) && <input
                       type="checkbox"
                       checked={selected}
                       disabled={!selectable}
                       onChange={(event) => selection.onToggle(row, index, event)}
+                      onDoubleClick={() => selection.onDoubleClick?.(row, index)}
                       aria-label={`Select ${selection.getRowLabel(row)}`}
                       style={{ ...checkboxStyle, cursor: selectable ? 'pointer' : 'not-allowed' }}
-                    />
+                    />}
                   </div>
                 )}
                 {columns.map((column) => (
@@ -303,10 +310,13 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   </div>
                 ))}
               </div>
-              {details.map(detail => <div key={detail.key} role="row" onClick={event => {
+              {details.map((detail, detailIndex) => <div key={detail.key} role="row" aria-selected={detail.selection?.checked} onClick={event => {
                 if (onRowClick && !isInteractiveTarget(event.target, event.currentTarget)) onRowClick(row, index, event)
-              }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: groupedRows ? 'none' : customRowStyle?.borderBottom || desktopRowStyle.borderBottom, ...(groupedRows ? { ...groupedRowStyle, color: colors.textSecondary } : undefined), cursor: onRowClick ? 'pointer' : 'default' }}>
-                {selection && <div role="cell" />}
+              }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: groupedRows ? 'none' : customRowStyle?.borderBottom || desktopRowStyle.borderBottom, ...(groupedRows ? { ...groupedRowStyle, color: colors.textSecondary, paddingBottom: detailIndex === details.length - 1 ? groupEdgeSpacing : 0, minHeight: groupedRowStyle.minHeight + (detailIndex === details.length - 1 ? groupEdgePadding : 0) } : undefined), cursor: onRowClick ? 'pointer' : 'default', ...detail.style }}>
+                {selection && <div role="cell" style={desktopSelectionCellStyle} onClick={event => event.stopPropagation()}>
+                  {detail.selection && <IndeterminateCheckbox checked={detail.selection.checked} disabled={detail.selection.disabled}
+                    aria-label={detail.selection.label} onChange={detail.selection.onChange} style={checkboxStyle} />}
+                </div>}
                 {columns.map((column, columnIndex) => <div key={column.id} role="cell" style={{ ...desktopCellStyle, justifyContent: alignToJustify(column.align) }}>{detail.cells[columnIndex]}</div>)}
               </div>)}
               </div>

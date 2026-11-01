@@ -17,7 +17,9 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
-import { groupContactFamilies } from '@/lib/family-list'
+import { accountStudentCount, contactViewGroups, type ContactListView } from '@/lib/contact-list-views'
+import { TablePagination } from '@/components/ui/TablePagination'
+import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
@@ -142,8 +144,10 @@ export default function ContactsPage() {
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const [showStickyActions, setShowStickyActions] = useState(false)
-  const [visibleCount, setVisibleCount] = useState(12)
+  const [contactPage, setContactPage] = useState(1)
+  const pageSize = 10
   const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>({ key: 'name', direction: 'asc' })
+  const [contactView, setContactView] = useState<ContactListView>('family')
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
@@ -173,7 +177,8 @@ export default function ContactsPage() {
     return true
   })
 
-  const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const filteredContacts = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const displayed = filteredContacts
   const sortedDisplayed = [...displayed].sort((left, right) => {
     const direction = contactSort.direction === 'asc' ? 1 : -1
     const text = (value: string | null | undefined) => value || ''
@@ -193,12 +198,15 @@ export default function ContactsPage() {
     if (comparison !== 0) return comparison * direction
     return `${text(left.last_name)} ${text(left.first_name)}`.localeCompare(`${text(right.last_name)} ${text(right.first_name)}`, undefined, { sensitivity: 'base' })
   })
-  const visibleFamilies = groupContactFamilies(sortedDisplayed).slice(0, visibleCount)
+  const viewGroups = contactViewGroups(sortedDisplayed, contacts, contactView)
+  const pageCount = Math.max(1, Math.ceil(viewGroups.length / pageSize))
+  const currentPage = Math.min(contactPage, pageCount)
+  const visibleFamilies = viewGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const selectableContacts = [...new Map(visibleFamilies.flatMap(group => group.selectionRows).map(contact => [contact.id, contact])).values()]
   const holderPersonIds = new Set(visibleFamilies.flatMap(group => {
-    const holder = familyHolderPerson(group.members)
+    const holder = contactView === 'family' ? familyHolderPerson(group.members) : undefined
     return holder ? [holder.id] : []
   }))
-  const visibleContactCount = visibleFamilies.reduce((count, group) => count + group.members.length, 0)
   const filterSummary = filterExplanation
     ? formatFilterSummary(filterExplanation, displayIds ? displayIds.length : null)
     : ''
@@ -254,38 +262,8 @@ export default function ContactsPage() {
   }, [tenantId])
 
   useEffect(() => {
-    if (loading) {
-      setVisibleCount(12)
-      return
-    }
-
-    if (displayed.length <= 12) {
-      setVisibleCount(displayed.length)
-      return
-    }
-
-    setVisibleCount(12)
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-    const revealMore = () => {
-      timeoutId = setTimeout(() => {
-        if (cancelled) return
-        setVisibleCount(prev => {
-          const next = Math.min(prev + 12, displayed.length)
-          if (next < displayed.length) revealMore()
-          return next
-        })
-      }, 45)
-    }
-
-    revealMore()
-
-    return () => {
-      cancelled = true
-      if (timeoutId) clearTimeout(timeoutId)
-    }
-  }, [loading, displayed.length])
+    setContactPage(1)
+  }, [contactView, displayIds, appliedFilters, contactSort])
 
   useEffect(() => {
     fetch(`/api/tenant/sync-status?tenant=${tenantId}`)
@@ -432,8 +410,8 @@ export default function ContactsPage() {
   }
 
   const toggleSelectAll = () => {
-    if (displayed.length > 0 && displayed.every(contact => selectedIds.has(contact.id))) setSelectedIds(new Set())
-    else setSelectedIds(new Set(displayed.map(c => c.id)))
+    if (selectableContacts.length > 0 && selectableContacts.every(contact => selectedIds.has(contact.id))) setSelectedIds(new Set())
+    else setSelectedIds(new Set(selectableContacts.map(c => c.id)))
   }
 
   const clearSelection = () => {
@@ -501,6 +479,14 @@ export default function ContactsPage() {
 
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
     {
+      id: 'account', header: 'Family / account', width: 'minmax(160px, 1fr)',
+      render: contact => contact.family_name || contact.account_holder_name || '—',
+    },
+    {
+      id: 'students', header: 'Students', width: '110px',
+      render: () => null,
+    },
+    {
       id: 'name',
       header: 'Name',
       width: 'minmax(180px, 1.2fr)',
@@ -524,7 +510,7 @@ export default function ContactsPage() {
     {
       id: 'status',
       header: 'Status',
-      width: 'minmax(86px, 0.72fr)',
+      width: '86px',
       sortable: true,
       sortKey: 'status',
       render: (contact) => contact.is_student === false ? null : <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
@@ -535,7 +521,7 @@ export default function ContactsPage() {
       width: '100px',
       render: (contact) => contact.funded
         ? <Badge size="sm" variant="success">Funded</Badge>
-        : <span style={{ color: colors.textMuted }}>—</span>,
+        : null,
     },
     {
       id: 'phone',
@@ -571,7 +557,7 @@ export default function ContactsPage() {
       width: 'minmax(160px, 0.9fr)',
       sortable: true,
       sortKey: 'instructor',
-      render: (contact) => contact.instructor?.name ? <PersonName>{contact.instructor.name}</PersonName> : <span style={{ color: colors.textSecondary }}>—</span>,
+      render: (contact) => contact.instructor?.name ? <PersonName>{contact.instructor.name}</PersonName> : null,
     },
   ]
 
@@ -770,19 +756,19 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Viewing counter */}
-      {!aiLoading && !loading && (
+      {/* Contact table */}
+      {(
+        <FamilyListTable
+          key={contactView}
+          renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
+          beforeTable={!aiLoading && !loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', columnGap: spacing.lg, rowGap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.lg, minHeight: 40 }}>
           <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
             {selectedIds.size > 0
               ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
               : `Viewing ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
           </p>
-          {visibleContactCount > 0 && visibleContactCount < displayed.length && (
-            <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
-              Showing {visibleContactCount} of {displayed.length}
-            </p>
-          )}
+
           {
             <ControlButton kind="link"
               onClick={clearSelection}
@@ -795,11 +781,13 @@ export default function ContactsPage() {
           }
         </div>
       )}
-
-      {/* Contact table */}
-      {(
-        <FamilyListTable
           preferenceSchema={CONTACT_TABLE_SCHEMA}
+          displayToolbar={<TablePersonViewToggle ariaLabel="Contact view" value={contactView} onChange={view => {
+          setContactPage(1)
+          setContactView(view)
+          setSelectedIds(new Set())
+          setLastSelectedIndex(-1)
+        }} />}
           toolbar={<>
         <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
@@ -811,7 +799,7 @@ export default function ContactsPage() {
             }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
             placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]}
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
+            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
             onFocus={e => { e.target.style.opacity = '1' }}
             onBlur={e => { e.target.style.opacity = '1' }}
           />
@@ -839,17 +827,19 @@ export default function ContactsPage() {
         </Button>
           </>}
           groups={visibleFamilies.map(group => {
-            const holderPerson = familyHolderPerson(group.members)
+            const holderPerson = group.parent
             return {
               id: group.id,
-              parent: group.holder ? holderPerson : group.members[0],
+              parent: holderPerson,
+              selectionRows: group.selectionRows,
               name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
               subtitle: group.holder ? 'Account holder' : '',
-              summaryCells: {
-                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(group.members[0].account_holder_phone) || 'No phone'}</span>,
-                email: <span style={{ color: colors.tableSecondary }}>{group.members[0].account_holder_email || ''}</span>,
+              summaryCells: contactView === 'none' || (!group.holder && !group.members[0].account_id) ? undefined : {
+                students: accountStudentCount(group.members, contacts),
+                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holder_phone) || 'No phone'}</span>,
+                email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holder_email) || ''}</span>,
               },
-              members: group.holder ? group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
+              members: contactView === 'family' && (group.holder || group.members.some(member => member.id !== holderPerson?.id)) ? group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
                 id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim(),
                 isAccountHolder: group.members.some(member => member.tenant_id === contact.tenant_id
                   && (member.account_holder_person_id === contact.id || member.account_holders?.some(holder => holder.person_id === contact.id))),
@@ -895,8 +885,8 @@ export default function ContactsPage() {
             selectedKeys: selectedIds,
             onToggle: (contact, _index, event) => handleCheckboxToggle(contact, sortedDisplayed.findIndex(row => row.id === contact.id), (event.nativeEvent as MouseEvent).shiftKey),
             onToggleAll: toggleSelectAll,
-            allSelected: displayed.length > 0 && displayed.every((contact) => selectedIds.has(contact.id)),
-            someSelected: selectedIds.size > 0 && !displayed.every((contact) => selectedIds.has(contact.id)),
+            allSelected: selectableContacts.length > 0 && selectableContacts.every((contact) => selectedIds.has(contact.id)),
+            someSelected: selectedIds.size > 0 && !selectableContacts.every((contact) => selectedIds.has(contact.id)),
             selectAllLabel: 'Select all contacts',
             getRowLabel: (contact) => `${contact.first_name} ${contact.last_name}`.trim(),
           }}
@@ -908,6 +898,8 @@ export default function ContactsPage() {
           ariaLabel="Contacts"
         />
       )}
+
+      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={page => { setContactPage(page); clearSelection() }} />}
 
       {/* Contact slide panel */}
       {selectedAccount && !selectedContact && <AccountFamilyPanel

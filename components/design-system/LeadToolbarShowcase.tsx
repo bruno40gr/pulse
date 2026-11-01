@@ -8,11 +8,14 @@ import { TableDisplayControls } from '@/components/ui/TableDisplayControls'
 import type { TablePreferences } from '@/lib/table-preferences'
 import { defaultLeadTablePreferences, LEAD_TABLE_SCHEMA } from '@/lib/lead-table-preferences'
 import { spacing } from '@/lib/tokens'
+import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
+import type { ContactListView } from '@/lib/contact-list-views'
 
 export function LeadToolbarShowcase() {
   const [preferences, setPreferences] = useState<TablePreferences>(defaultLeadTablePreferences)
   const [actionFirst, setActionFirst] = useState(false)
   const [status, setStatus] = useState('all')
+  const [contactView, setContactView] = useState<ContactListView>('family')
   return <section style={{ marginBottom: spacing['2xl'] }}>
     <SectionLabel>Table toolbar</SectionLabel>
     <p>Secondary toolbar buttons and toolbar selects share typography, border, radius, and a 42px minimum height. The columns trigger uses Button, not a custom disclosure.</p>
@@ -23,6 +26,7 @@ export function LeadToolbarShowcase() {
         <option value="all">Status: All</option>
         <option value="new">Status: New</option>
       </Select>
+      <TablePersonViewToggle ariaLabel="Contact view" value={contactView} onChange={setContactView} />
       <TableDisplayControls schema={LEAD_TABLE_SCHEMA} columns={[{ id: 'name', label: 'Name' }, { id: 'email', label: 'Email' }, { id: 'source', label: 'Source / form' }]} preferences={preferences} onChange={setPreferences} />
     </div>
   </section>

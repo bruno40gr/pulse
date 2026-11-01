@@ -69,7 +69,7 @@ test('Settings separates staff roles from permission editing and uses the shared
 
 test('Contacts reserves clear-selection space and uses inline blue non-underlined actions', () => {
   const contacts = source('app/dashboard/contacts/page.tsx')
-  const counter = contacts.slice(contacts.indexOf('{/* Viewing counter */}'), contacts.indexOf('{/* Viewing counter */}') + 2100)
+  const counter = contacts.slice(contacts.indexOf('beforeTable={'), contacts.indexOf('beforeTable={') + 2100)
   assert.match(counter, /minHeight: 40/)
   assert.match(counter, /visibility: selectedIds.size/)
   assert.match(counter, /<ControlButton kind="link"/)

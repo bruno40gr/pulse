@@ -19,6 +19,7 @@ export const colors = {
   borderLight: '#F3F4F6',
   surface: '#FFFFFF',
   surfaceMuted: '#f6f8f8',
+  surfaceSelected: '#F5F8FF',
   background: '#fbfdfc',
   backgroundSecondary: '#F3F4F6',
 

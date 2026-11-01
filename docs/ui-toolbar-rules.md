@@ -1,7 +1,8 @@
 # Table toolbars
 
 - Leads and Contacts instantiate `components/ui/RichDataTable.tsx`. It owns the toolbar layout, metadata-column picker, density, visible-column sizing and detail-cell projection. Domain adapters supply rows, columns, toolbar actions and a stable preference schema; do not clone the table or its controls per page.
-- Use `TablePersonName` for parent/detail table names. Details retain normal weight even when a domain supplies a profile-opening action; Leads details can remain display-only. All name actions use the shared name control. No family chevrons, detail checkboxes or “Via” labels.
+- Use `TablePersonName` for parent/detail table names. Details retain normal weight even when a domain supplies a profile-opening action; Leads details can remain display-only. All name actions use the shared name control. Contacts family groups stay fully expanded without indentation. No family chevrons or “Via” labels. Each person has an independent checkbox; double-clicking the account holder’s checkbox is an optional shortcut to select matching family members. No separate family selection control. Search-context-only people remain visible but unselectable.
+- Contacts and Leads use shared `TablePersonViewToggle`, built on the Notes `ToggleSwitch` between “View as: Students / Families”, immediately before Columns & spacing. Use role="switch" and aria-checked; keep all contact roles visible in either presentation. The viewing counter sits below the toolbar and above the table. Pagination keeps family groups intact. Keep this group at the right edge, wrapping on mobile.
 - `TableDisplayControls` is the shared picker (also used in the design-system showcase), not a Leads-specific control. Storage is tenant/membership/table scoped; Leads keeps its released storage key.
 
 - Use shared `Button variant="secondary" size="toolbar"` for peer toolbar actions, including column-picker triggers. Do not hand-style a native summary to resemble a button.
@@ -11,3 +12,4 @@
 - The columns picker contains only the column choices and row-spacing control. Do not add saved-preference helper copy or a reset action.
 - Preferences remain browser-local and membership-scoped. Toolbar interactions must not add polling or per-column requests.
 - The live component example is the **Table toolbar** section in `/dashboard/design`.
+- Shared `TablePagination` paginates Contacts and loaded Leads, keeping family/inquiry groups intact. Leads retains its explicit server-backed Load more action and identifies counts as loaded inquiries. Leads selects only inquiry/contact records; student rows have no checkbox, never inherit parent selection/highlighting, and never become action targets. View changes clear selection without refetching or altering actions/permissions.

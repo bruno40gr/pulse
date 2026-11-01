@@ -1,6 +1,7 @@
 'use client'
 
 
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch'
 import { ColorSwatch } from '@/components/ui/ColorSwatch'
 import { TaskCompletionButton } from '@/components/ui/TaskCompletionButton'
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -617,42 +618,7 @@ export default function NotesPage() {
             }}>Apply</Button>
           </ModalFooter>
         </Modal>
-        <ControlButton kind="toggle"
-          type="button"
-          role="switch"
-          aria-checked={!showDone}
-          onClick={toggleHideDone}
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          <span>Hide notes marked &lsquo;done&rsquo;</span>
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'relative',
-              display: 'inline-block',
-              width: 36,
-              height: 20,
-              borderRadius: 999,
-              background: !showDone ? colors.action : colors.textMuted,
-              transition: 'background 0.15s ease',
-              flexShrink: 0,
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: !showDone ? 18 : 2,
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: colors.surface,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
-                transition: 'left 0.15s ease',
-              }}
-            />
-          </span>
-        </ControlButton>
+        <ToggleSwitch checked={!showDone} onChange={toggleHideDone} label="Hide notes marked ‘done’" />
       </div>
 
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>

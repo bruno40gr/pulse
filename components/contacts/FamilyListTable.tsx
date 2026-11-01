@@ -3,12 +3,13 @@
 import { type ReactNode } from 'react'
 import { RichDataTable, type RichDataTableProps } from '@/components/ui/RichDataTable'
 import { TablePersonName } from '@/components/ui/TablePersonName'
-import { colors } from '@/lib/tokens'
+import { colors, spacing } from '@/lib/tokens'
 
 export type FamilyListGroup<Row> = {
   id: string
   /** Only a verified person record, never a name/address match. */
   parent?: Row
+  selectionRows?: Row[]
   name: string
   subtitle: string
   contact?: ReactNode
@@ -17,21 +18,20 @@ export type FamilyListGroup<Row> = {
 }
 
 /** Contacts interactions on the same grouped-row primitive used by released Leads. */
-export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', onToggleMembers, onOpenGroup, onOpenMember, ...table }: Omit<RichDataTableProps<Row, SortKey>, 'rows'> & {
+export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', renderPersonRole, onToggleMembers, onOpenGroup, onOpenMember, ...table }: Omit<RichDataTableProps<Row, SortKey>, 'rows'> & {
+  renderPersonRole?: (row: Row) => ReactNode
   groups: FamilyListGroup<Row>[]; nameColumn: string; contactColumn?: string; detailColumn?: string
   onToggleMembers?: (rows: Row[], checked: boolean) => void
   onOpenGroup?: (group: FamilyListGroup<Row>) => void
   onOpenMember?: (row: Row) => void
 }) {
   const source = table.selection
-  const realRows = (group: FamilyListGroup<Row>) => [
+  const realRows = (group: FamilyListGroup<Row>) => group.selectionRows ?? [
     ...(group.parent ? [group.parent] : []),
     ...group.members.flatMap(member => member.row ? [member.row] : []),
   ]
-  const selected = new Set(groups.filter(group => {
-    const rows = realRows(group)
-    return rows.length > 0 && rows.every(row => source?.selectedKeys.has(table.getRowKey(row)))
-  }).map(group => group.id))
+  const canSelect = (group: FamilyListGroup<Row>, row: Row) => realRows(group).some(candidate => table.getRowKey(candidate) === table.getRowKey(row))
+  const selected = new Set(groups.filter(group => group.parent && source?.selectedKeys.has(table.getRowKey(group.parent))).map(group => group.id))
 
   return <RichDataTable<FamilyListGroup<Row>, SortKey>
     {...table}
@@ -41,15 +41,30 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     columns={table.columns.map(column => ({
       ...column,
       render: (group, index) => {
-        if (column.id === nameColumn) return <TablePersonName onOpen={onOpenGroup ? () => onOpenGroup(group) : undefined}>{group.name}</TablePersonName>
+        if (column.id === nameColumn) return <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flexWrap: 'wrap' }}>
+          <TablePersonName onOpen={onOpenGroup ? () => onOpenGroup(group) : undefined}>{group.name}</TablePersonName>
+          {group.parent && renderPersonRole?.(group.parent)}
+
+        </span>
+        if (group.summaryCells && column.id in group.summaryCells) return group.summaryCells[column.id]
         if (group.parent) return column.render(group.parent, index)
         return group.summaryCells?.[column.id] ?? (column.id === contactColumn ? group.contact : null)
       },
     }))}
     getDetailRows={(group, index) => group.members.map(member => ({
       key: member.id,
+      style: { background: member.row && source?.selectedKeys.has(table.getRowKey(member.row)) ? colors.surfaceSelected : index % 2 === 0 ? colors.surface : colors.background },
+      selection: source && member.row ? {
+        checked: source.selectedKeys.has(table.getRowKey(member.row)),
+        disabled: !canSelect(group, member.row),
+        label: `Select ${member.name}`,
+        onChange: event => source.onToggle(member.row!, index, event),
+      } : undefined,
       cells: table.columns.map(column => {
-        if (column.id === nameColumn) return <TablePersonName key={column.id} detail={!member.isAccountHolder} onOpen={member.row && onOpenMember ? () => onOpenMember(member.row!) : undefined}>{member.name}</TablePersonName>
+        if (column.id === nameColumn) return <div key={column.id} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flexWrap: 'wrap' }}>
+          <TablePersonName detail={!member.isAccountHolder} onOpen={member.row && onOpenMember ? () => onOpenMember(member.row!) : undefined}>{member.name}</TablePersonName>
+          {member.row && renderPersonRole?.(member.row)}
+        </div>
         if (member.row) return column.render(member.row, index)
         return column.id === detailColumn ? member.detail : null
       }),
@@ -57,15 +72,14 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     selection={source ? {
       ...source,
       selectedKeys: selected,
-      isSelectable: group => realRows(group).length > 0,
+      showCheckbox: group => group.parent ? source.showCheckbox?.(group.parent) ?? true : false,
+      isSelectable: group => Boolean(group.parent && canSelect(group, group.parent)),
       getRowLabel: group => group.name,
+      onDoubleClick: (group) => {
+        if (group.members.length > 0 && group.parent && canSelect(group, group.parent)) onToggleMembers?.(realRows(group), true)
+      },
       onToggle: (group, index, event) => {
-        const rows = realRows(group)
-        if (group.members.length && onToggleMembers) onToggleMembers(rows, event.target.checked)
-        else if (group.parent) source.onToggle(group.parent, index, event)
-        else for (const row of rows) {
-          if (source.selectedKeys.has(table.getRowKey(row)) !== event.target.checked) source.onToggle(row, index, event)
-        }
+        if (group.parent) source.onToggle(group.parent, index, event)
       },
     } : undefined}
     onRowClick={(group, index, event) => {
@@ -74,7 +88,7 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     }}
     getRowStyle={(group, index) => ({
       ...(group.parent ? table.getRowStyle?.(group.parent, index) : undefined),
-      background: selected.has(group.id) ? '#F5F8FF' : index % 2 === 0 ? colors.surface : colors.background,
+      background: selected.has(group.id) ? colors.surfaceSelected : index % 2 === 0 ? colors.surface : colors.background,
     })}
   />
 }

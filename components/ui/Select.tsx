@@ -44,6 +44,8 @@ export function Select({ controlSize = 'default', label, hint, style, children, 
           boxSizing: 'border-box' as const,
           cursor: 'pointer',
           ...(controlSize === 'toolbar' ? { ...buttonVariantStyles.secondary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontWeight: typography.weightMedium } : {}),
+          // Toolbar button backgrounds/padding must not erase the select affordance.
+          ...(controlSize === 'toolbar' ? { background: undefined, backgroundColor: colors.surface, paddingRight: 38 } : {}),
           ...style,
         }}
         {...props}

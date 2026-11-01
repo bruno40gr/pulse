@@ -6,14 +6,47 @@ const path = require('node:path')
 const vm = require('node:vm')
 const ts = require('typescript')
 const root = path.resolve(__dirname, '../..')
-function load(file) {
+function load(file, dependencies = {}) {
   const loaded = { exports: {} }
   const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports })
+  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, require(id) {
+    if (!(id in dependencies)) throw new Error(`Unexpected dependency ${id}`)
+    return dependencies[id]
+  } })
   return loaded.exports
 }
 const { groupContactFamilies, inquiryStudents } = load('lib/family-list.ts')
 const plain = value => JSON.parse(JSON.stringify(value))
+const reviewContacts = require('./fixtures/contact-list-review.cjs')
+const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies } })
+test('family groups preserve ascending and descending contact sort instead of fixture order', () => {
+  const ascending = [...reviewContacts].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
+  for (const matches of [ascending, [...ascending].reverse()]) {
+    const ranks = new Map(matches.map((contact, index) => [contact.id, index]))
+    const groups = contactViewGroups(matches, reviewContacts, 'family')
+    const positions = groups.map(group => Math.min(...group.selectionRows.map(contact => ranks.get(contact.id))))
+    assert.deepEqual(plain(positions), [...positions].sort((a, b) => a - b))
+    assert.equal(groups[0].selectionRows.some(contact => contact.id === matches[0].id), true)
+  }
+  assert.equal(contactViewGroups(ascending, reviewContacts, 'family')[0].parent.id, 'mock-jules')
+})
+test('grouping preserves all roles and solo contacts with each family head shown once', () => {
+  const flat = contactViewGroups(reviewContacts, reviewContacts, 'none')
+  assert.equal(flat.length, reviewContacts.length)
+  assert.deepEqual(plain(flat.map(group => group.parent.id)), reviewContacts.map(contact => contact.id))
+  const families = contactViewGroups(reviewContacts, reviewContacts, 'family')
+  const shown = families.flatMap(group => [group.parent, ...group.members.filter(member => member.id !== group.parent?.id)].filter(Boolean))
+  assert.equal(shown.length, reviewContacts.length)
+  assert.equal(new Set(shown.map(contact => contact.id)).size, reviewContacts.length)
+  for (const id of ['mock-avery', 'mock-morgan', 'mock-robin', 'mock-drew']) assert.ok(families.some(group => group.parent?.id === id))
+  const ethan = reviewContacts.find(contact => contact.id === 'mock-ethan')
+  const result = contactViewGroups([ethan], reviewContacts, 'family')
+  assert.equal(result.length, 1)
+  assert.equal(result[0].parent.id, 'mock-sam')
+  assert.deepEqual(plain(result[0].selectionRows.map(contact => contact.id)), ['mock-ethan'])
+  assert.ok(result[0].members.some(contact => contact.id === 'mock-sophie'))
+  assert.deepEqual(plain(contactViewGroups([ethan], reviewContacts, 'none')[0].members.map(contact => contact.id)), ['mock-ethan'])
+})
 test('Contacts groups only explicit account IDs, retaining every real selectable contact', () => {
   const rows = [
     { id: 'emma', account_id: 'family', account_holder_name: 'Jane' },
@@ -40,7 +73,8 @@ test('explicit accounts group even when a holder name is missing; pagination nev
 })
 test('Contacts uses atomic filtered-family selection, keeping drawers and transport unchanged', () => {
   const page = fs.readFileSync(path.join(root, 'app/dashboard/contacts/page.tsx'), 'utf8')
-  assert.match(page, /groupContactFamilies\(sortedDisplayed\)\.slice\(0, visibleCount\)/)
+  assert.match(page, /contactViewGroups\(sortedDisplayed, contacts, contactView\)/)
+  assert.match(page, /viewGroups\.slice\(\(currentPage - 1\) \* pageSize, currentPage \* pageSize\)/)
   assert.match(page, /onToggleMembers=\{\(members, checked\) =>/)
   assert.match(page, /for \(const member of members\)/)
   assert.match(page, /setLastSelectedIndex\(-1\)/)
