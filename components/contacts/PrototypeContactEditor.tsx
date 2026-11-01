@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, DenseSectionPanel, FieldGrid, Input, Select, SlidePanel, SlidePanelHeader } from '@/components/ui'
+import { Button, DenseSectionPanel, FieldGrid, Input, SectionTitle, Select, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import { spacing, colors } from '@/lib/tokens'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -39,27 +39,31 @@ export default function PrototypeContactEditor<T extends PrototypePerson>({ cont
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save preview changes.') }
   }
   return <SlidePanel isOpen onClose={onClose} width={PROFILE_PANEL_WIDTH} fullScreen={mobile}>
-    <SlidePanelHeader title="Edit contact prototype" onClose={onClose} actions={<Button onClick={save}>Save preview</Button>} />
-    <div style={{ overflowY: 'auto', minWidth: 0, padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-      <p style={{ margin: 0, color: colors.textSecondary }}>Fictional data only. Changes last until reload or reset. No real records, consent or messaging permissions are changed.</p>
-      {error && <p role="alert">{error}</p>}
-      <DenseSectionPanel title="Contact details">
+    <SlidePanelHeader title="Edit contact" onClose={onClose} actions={<>
+      <Button variant="secondary" onClick={onClose}>Cancel</Button>
+      <Button variant="primary" onClick={save}>Save</Button>
+    </>} />
+    <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing['2xl'] }}>
+      {error && <p role="alert" style={{ margin: 0, color: colors.error }}>{error}</p>}
+      <section>
+        <SectionTitle as="h3">Contact details</SectionTitle>
         <FieldGrid>
           <Input label="First name" value={first} onChange={event => setFirst(event.target.value)} />
           <Input label="Last name" value={last} onChange={event => setLast(event.target.value)} />
           <Input label="Phone" type="tel" value={phone} onChange={event => setPhone(event.target.value)} />
           <Input label="Email" type="email" value={email} onChange={event => setEmail(event.target.value)} />
         </FieldGrid>
-      </DenseSectionPanel>
-      <DenseSectionPanel title="Family nesting">
-        <FieldGrid>
+      </section>
+      <section>
+        <SectionTitle as="h3">Family</SectionTitle>
+        <FieldGrid columns={1}>
           <Select label="Family" value={account} onChange={event => changeFamily(event.target.value)}>
-            <option value="">Standalone contact — no family</option>
+            <option value="">No family</option>
             {familyIds.map(id => {
               const member = local.find(person => person.account_id === id)!
               return <option key={id} value={id}>{member.account_holder_name || member.family_name || 'Unresolved family'} ({local.filter(person => person.account_id === id).length} people)</option>
             })}
-            {!familyIds.includes(`prototype:family:${contact.id}`) && adults.some(person => person.id === contact.id) && <option value={`prototype:family:${contact.id}`}>Start a new family with this contact</option>}
+            {!familyIds.includes(`prototype:family:${contact.id}`) && adults.some(person => person.id === contact.id) && <option value={`prototype:family:${contact.id}`}>Create family</option>}
           </Select>
           {account && <Select label="Account manager" value={manager} onChange={event => {
             const id = event.target.value; setManager(id)
@@ -69,23 +73,24 @@ export default function PrototypeContactEditor<T extends PrototypePerson>({ cont
             {managers.map(person => <option key={person.id} value={person.id}>{name(person)}</option>)}
           </Select>}
         </FieldGrid>
-        <p style={{ color: colors.textSecondary }}>Moving this person does not move their siblings. Changing the destination family’s account manager updates that family’s heading. A manager moved out leaves the old family unresolved for you to correct.</p>
-      </DenseSectionPanel>
-      {account && <DenseSectionPanel title="Holders for this contact" actions={<Button variant="secondary" size="toolbar" disabled={adults.every(person => holders.some(holder => holder.person_id === person.id))} onClick={() => {
+      </section>
+      {account && <section style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+          <SectionTitle as="h3" style={{ marginBottom: 0 }}>Family contacts</SectionTitle>
+          <Button variant="secondary" size="toolbar" disabled={adults.every(person => holders.some(holder => holder.person_id === person.id))} onClick={() => {
         const candidate = adults.find(person => !holders.some(holder => holder.person_id === person.id))
         if (candidate) setHolders([...holders, { person_id: candidate.id, relationship: '' }])
-      }}>Add holder</Button>}>
-        <p style={{ color: colors.textSecondary }}>Relationship describes the holder relative to this contact. Selecting a holder does not establish guardianship or permission to send.</p>
-        {holders.map((holder, index) => <DenseSectionPanel key={index} title={`Holder ${index + 1}${holder.person_id === manager ? ' · Account manager' : ''}`} actions={<Button variant="secondary" size="toolbar" disabled={holder.person_id === manager} onClick={() => setHolders(holders.filter((_, position) => position !== index))}>Remove holder {index + 1}</Button>}>
-          <FieldGrid>
-            <Select label={`Holder ${index + 1}`} value={holder.person_id} disabled={holder.person_id === manager} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, person_id: event.target.value } : row))}>
+      }}>Add contact</Button>
+        </div>
+        {holders.map((holder, index) => <DenseSectionPanel key={index} headingLevel="h4" title={name(local.find(person => person.id === holder.person_id) || contact)} actions={holder.person_id !== manager ? <Button variant="ghost" size="sm" aria-label={`Remove family contact ${index + 1}`} onClick={() => setHolders(holders.filter((_, position) => position !== index))}>Remove</Button> : undefined}>
+          <FieldGrid columns={1}>
+            {holder.person_id !== manager && <Select label="Contact" aria-label={`Family contact ${index + 1}`} value={holder.person_id} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, person_id: event.target.value } : row))}>
               {adults.filter(person => person.id === holder.person_id || !holders.some(row => row.person_id === person.id)).map(person => <option key={person.id} value={person.id}>{name(person)}</option>)}
-            </Select>
-            <Input label={`Relationship for holder ${index + 1}`} placeholder="e.g. sibling, parent, self" value={holder.relationship} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, relationship: event.target.value } : row))} />
+            </Select>}
+            <Input label="Relationship" aria-label={`Relationship for family contact ${index + 1}`} value={holder.relationship} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, relationship: event.target.value } : row))} />
           </FieldGrid>
         </DenseSectionPanel>)}
-      </DenseSectionPanel>}
-      <Button variant="secondary" onClick={onClose}>Cancel editing</Button>
+      </section>}
     </div>
   </SlidePanel>
 }

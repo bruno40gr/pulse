@@ -592,7 +592,6 @@ export default function ContactsPage() {
       />
 
       {prototype && <div style={{ marginBottom: spacing.lg, display: 'flex', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span>Fictional editing sandbox · Open a contact, then Edit. Changes reset on reload.</span>
         <Button variant="secondary" size="toolbar" onClick={() => {
           setContacts(prototypeBaseline.current)
           setSelectedContact(null)

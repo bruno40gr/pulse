@@ -2,6 +2,13 @@
 
 ## October 31 contact editing sandbox
 
+The editor uses product-facing copy: **Edit contact**, **Cancel**, **Save**,
+**Contact details**, **Family**, **Account manager**, and **Family contacts**.
+Implementation notes and safety explanations belong here, not throughout the
+form. Ordinary sections are unboxed; repeatable family contacts use shared
+entity panels with h4 headings and header actions. Existing internal `holders`
+fields remain compatibility data, not user-facing terminology.
+
 The fictional lab at `http://127.0.0.1:3218/dashboard/contacts` now supports
 opening a person, choosing **Edit contact**, and saving preview-only edits:
 

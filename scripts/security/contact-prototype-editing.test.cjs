@@ -7,6 +7,15 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const moduleUnderTest = { exports: {} }
 const source = fs.readFileSync(path.resolve(__dirname, '../../lib/contact-prototype-editing.ts'), 'utf8')
+test('editor uses product labels, flat form sections and shared header actions', () => {
+  const editor = fs.readFileSync(path.resolve(__dirname, '../../components/contacts/PrototypeContactEditor.tsx'), 'utf8')
+  assert.match(editor, /title="Edit contact"/)
+  assert.match(editor, /<SectionTitle as="h3">Contact details/)
+  assert.match(editor, /Family contacts<\/SectionTitle>/)
+  assert.match(editor, /headingLevel="h4"/)
+  assert.doesNotMatch(editor, /Fictional data only|Save preview|Edit contact prototype|Moving this person|Relationship describes|Cancel editing|Add holder|label="Holder/)
+  assert.equal((editor.match(/<DenseSectionPanel/g) || []).length, 1, 'Only repeatable people use entity panels')
+})
 new vm.Script(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText).runInNewContext({ exports: moduleUnderTest.exports, module: moduleUnderTest })
 const { applyPrototypeContactEdit: apply } = moduleUnderTest.exports
 const person = (id, account, manager, extra = {}) => ({ id, tenant_id: 'fictional', first_name: id, last_name: 'Example', phone: null, email: null, account_id: account, account_holder_person_id: manager, account_holder_name: manager, account_holder_phone: null, account_holder_email: null, family_name: null, custom_fields: {}, ...extra })
