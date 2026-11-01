@@ -1,5 +1,35 @@
 # Contacts family integration — release review
 
+## October 31 contact editing sandbox
+
+The fictional lab at `http://127.0.0.1:3218/dashboard/contacts` now supports
+opening a person, choosing **Edit contact**, and saving preview-only edits:
+
+- Edit names, phone and email; move one person to another existing family,
+  detach them as standalone, or start a new family with an adult contact.
+- Choose the destination family's account manager. This updates the family
+  heading and explicit holder references for its members, not just the edited row.
+- Add/remove holders and enter relationship labels per contact. The account
+  manager remains a holder; change the manager first to remove that holder.
+- Moving a manager away leaves their old family explicitly unresolved rather
+  than silently selecting a replacement. Siblings do not move automatically.
+- Save updates the in-memory list and profile. Cancel discards the draft.
+  **Reset preview changes**, page reload, or leaving/remounting Contacts restores
+  the fixtures. There is no persistence across navigation, identity merge,
+  whole-family move, payer editing, age/consent editing, or production write path.
+
+Only the isolated shell's explicit `ContactPrototypeContext` enables this editor.
+Normal application pages retain their existing editor. Prototype profile patches
+are local too; no PATCH request is issued. Family/holder changes do not grant
+messaging authority; SMS remains an in-memory simulation in this shell.
+
+Browser checks cover rename, family move, relationship retention, holder add/remove,
+standalone, account-manager changes, cancel, reload/reset and zero mutation requests
+at 1440/390px. Existing Leads and profile/SMS checks also pass at 1440/900/390px.
+Runner: `scripts/security/contact-prototype-editing-browser.cjs` (requires an
+installed Playwright module supplied through `PLAYWRIGHT_MODULE`). This is a
+working interaction prototype, not production relationship-management completion.
+
 ## October 31 prototype messaging iteration — current handoff
 
 Supersedes the status and validation sections below. This is fictional shell-data

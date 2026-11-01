@@ -2,6 +2,7 @@
 
 import { useContext } from 'react'
 import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
+import PrototypeContactEditor from '@/components/contacts/PrototypeContactEditor'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import ContactBulkMessageModal from '@/components/inbox/ContactBulkMessageModal'
 import MessageActions from '@/components/inbox/MessageActions'
@@ -111,6 +112,8 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 export default function ContactsPage() {
   const prototype = useContext(ContactPrototypeContext)
   const [contacts, setContacts] = useState<Contact[]>([])
+  const prototypeBaseline = useRef<Contact[]>([])
+  const [prototypeEditing, setPrototypeEditing] = useState(false)
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -149,6 +152,7 @@ export default function ContactsPage() {
   const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
 
   const closeContactState = () => {
+    setPrototypeEditing(false)
     setSelectedContact(null)
     setSelectedAccount(null)
     removeCurrentSearchParam('contact')
@@ -248,10 +252,11 @@ export default function ContactsPage() {
       fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()),
     ]).then(([contactData, fieldData]) => {
       setContacts(Array.isArray(contactData) ? contactData : [])
+      if (prototype) prototypeBaseline.current = Array.isArray(contactData) ? contactData : []
       setTenantFields(Array.isArray(fieldData) ? fieldData : [])
       setLoading(false)
     })
-  }, [tenantId])
+  }, [tenantId, prototype])
 
   useEffect(() => {
     if (loading) {
@@ -586,6 +591,17 @@ export default function ContactsPage() {
         }
       />
 
+      {prototype && <div style={{ marginBottom: spacing.lg, display: 'flex', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span>Fictional editing sandbox · Open a contact, then Edit. Changes reset on reload.</span>
+        <Button variant="secondary" size="toolbar" onClick={() => {
+          setContacts(prototypeBaseline.current)
+          setSelectedContact(null)
+          setSelectedAccount(null)
+          setPrototypeEditing(false)
+          setSelectedIds(new Set())
+        }}>Reset preview changes</Button>
+      </div>}
+
       <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
             {!loading && (
               <Button variant="secondary" size="toolbar"
@@ -916,10 +932,21 @@ export default function ContactsPage() {
         onClose={contactHistory.closePanel}
         onOpenMember={(member, tab) => { setAccountPanelTab(tab); setSelectedContact(member) }}
       />}
-      {selectedContact && (
+      {selectedContact && prototype && prototypeEditing && <PrototypeContactEditor
+        contact={selectedContact}
+        people={contacts}
+        onClose={() => setPrototypeEditing(false)}
+        onSave={updated => {
+          setContacts(updated)
+          setSelectedContact(updated.find(person => person.id === selectedContact.id) || null)
+          setPrototypeEditing(false)
+        }}
+      />}
+      {selectedContact && !prototypeEditing && (
         <ContactSlidePanel
           key={selectedContact.id}
           prototype={prototype}
+          onPrototypeEdit={() => setPrototypeEditing(true)}
           contact={selectedContact}
           initialPanelTab={accountPanelTab}
           initialNotesTab={initialNotesTab}
