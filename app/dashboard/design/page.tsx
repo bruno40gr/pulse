@@ -21,6 +21,7 @@ export default function DesignPage() {
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/back-navigation" style={{ color: colors.link }}>Open Back navigation lab →</a></p>
 
       <ModalShowcase />
+      <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/contacts-table" style={{ color: colors.link }}>Open interactive Contacts table shell →</a></p>
       <LeadToolbarShowcase />
 
       {/* COLORS */}
