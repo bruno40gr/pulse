@@ -38,3 +38,13 @@ test('browser storage validates fixture data and dates offset across months', ()
   for (const value of [null, {}, [null], [{ id: 'invalid' }], [{ ...notes[0], followUp: undefined }], [{ ...notes[0], followUp: { ownerId: 'foreign' } }]]) assert.equal(readReviewNotes(value), null)
   assert.equal(reviewDateOffset(-1, new Date('2026-11-01T12:00:00')), '2026-10-31')
 })
+
+test('editing a completed task keeps it completed and preserves sticky metadata', () => {
+  const note = { ...initialReviewNotes(now)[5], pinned: true, replies: ['Confirmed'], isPrivate: true }
+  const edited = promoteReviewNote(note, { ...note.followUp, dueDate: '2026-11-10' })
+  assert.equal(edited.completedAt, note.completedAt)
+  assert.equal(edited.pinned, true)
+  assert.equal(edited.replies, note.replies)
+  assert.equal(edited.isPrivate, true)
+  assert.equal(readReviewNotes([edited])?.length, 1)
+})

@@ -1,7 +1,7 @@
 /** Fictional, browser-local review model. Not a production task or privacy API. */
 export type RelatedPerson = { id: string; name: string; kind: 'lead' | 'contact' }
 export type FollowUp = { title: string; personId: string | null; ownerId: string; dueDate: string }
-export type PrototypeNote = { id: string; title: string; body: string; color: string; followUp: FollowUp | null; completedAt: string | null }
+export type PrototypeNote = { id: string; title: string; body: string; color: string; followUp: FollowUp | null; completedAt: string | null; pinned?: boolean; isPrivate?: boolean; createdAt?: string; replies?: string[] }
 export type FollowUpFilter = 'all' | 'today' | 'upcoming' | 'completed' | 'notes'
 export const PROTOTYPE_STORAGE_KEY = 'pulse_notes_follow_ups_review_v1'
 export const REVIEW_PEOPLE: RelatedPerson[] = [
@@ -32,7 +32,7 @@ export function initialReviewNotes(today = new Date()): PrototypeNote[] {
 export function promoteReviewNote(note: PrototypeNote, followUp: FollowUp): PrototypeNote {
   if (!followUp.title.trim() || !REVIEW_OWNERS.some(owner => owner.id === followUp.ownerId) || !isReviewDate(followUp.dueDate)
     || (followUp.personId !== null && !REVIEW_PEOPLE.some(person => person.id === followUp.personId))) throw new Error('Choose an action, owner and due date.')
-  return { ...note, followUp: { ...followUp, title: followUp.title.trim() }, completedAt: null }
+  return { ...note, followUp: { ...followUp, title: followUp.title.trim() }, completedAt: note.followUp ? note.completedAt : null }
 }
 function isReviewDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -49,6 +49,9 @@ export function matchesReviewFilter(note: PrototypeNote, filter: FollowUpFilter,
 export function readReviewNotes(value: unknown): PrototypeNote[] | null {
   if (!Array.isArray(value) || !value.every(note => note && typeof note.id === 'string' && typeof note.title === 'string' && typeof note.body === 'string'
     && typeof note.color === 'string' && (note.completedAt === null || typeof note.completedAt === 'string')
+    && (note.pinned === undefined || typeof note.pinned === 'boolean') && (note.isPrivate === undefined || typeof note.isPrivate === 'boolean')
+    && (note.createdAt === undefined || (typeof note.createdAt === 'string' && !Number.isNaN(Date.parse(note.createdAt))))
+    && (note.replies === undefined || (Array.isArray(note.replies) && note.replies.every((reply: unknown) => typeof reply === 'string')))
     && (note.followUp === null || (note.followUp && typeof note.followUp.title === 'string' && typeof note.followUp.dueDate === 'string' && isReviewDate(note.followUp.dueDate)
       && REVIEW_OWNERS.some(owner => owner.id === note.followUp.ownerId) && (note.followUp.personId === null || REVIEW_PEOPLE.some(person => person.id === note.followUp.personId)))))) return null
   return value

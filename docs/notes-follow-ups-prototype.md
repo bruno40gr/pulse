@@ -5,28 +5,37 @@ Review route: `/dashboard/design/notes-follow-ups`.
 
 ## Review scope
 
-Notes is the home, not a new Tasks destination. Cards and List project the same
-items. A sticky stays informational unless a staff member explicitly chooses
-Make a follow-up, names an action, selects an owner and sets a due date. Linking
-one lead or contact is optional; the record type remains explicit.
+This is an additive mockup, not a Notes redesign. Production Notes is unchanged.
+The review mirrors its existing subtitle, date buttons, inline sticky composer,
+bounded 390px cards, pinning, editing, replies, author/date metadata, and done
+control. It intentionally has no Cards/List switch, new-note modal, or replacement
+person workspace. Local replies only illustrate the existing control; production
+conversation/mention behavior and permissions are not being reimplemented.
 
-Color and original note text remain after conversion. Follow-up title and original
-note title are distinct. Conversion updates the existing item ID rather than
-creating an independently editable copy. Today + overdue contains only open,
-actionable items. Notes without an action do not acquire a due date or owner.
-Completed items can be reopened. Person preview includes completed context.
+Only task-specific affordances are new:
+- **Make a task** on a note opens action title, owner, due date and optional related
+  lead/contact. The note's original title, text, color and ID remain unchanged.
+- **Task details** reopens those fields for assignment or rescheduling.
+- A compact task line carries its owner and due state on the same sticky.
+- One **Tasks** dropdown adds Open tasks, Assigned to me, Today + overdue,
+  Upcoming and Completed tasks, with counts. All notes is the default.
+- Existing Mark done / reopen works on the same item. Completed tasks remain
+  available through their filter even when Hide done is enabled.
 
-All people and notes are fictional. Changes and Cards/List preference live only
-in browser localStorage under `pulse_notes_follow_ups_review_v1`, not the live
-notes store. Clear that key to restore fixtures. No domain APIs, migrations,
-messages, production note conversion, or existing first-lead-reminder integration.
-Layout selection is browser-local here, not an authenticated staff preference.
+Date buttons still refer to note creation, not task due date. Counts in the task
+selector summarize all fixture tasks; the date buttons can further narrow them.
+For a daily task check, use All dates plus Today + overdue; use Assigned to me
+for personal responsibility. No notifications or automatic messages are mocked.
+
+All people and notes are fictional. Changes live only in browser localStorage
+under `pulse_notes_follow_ups_review_v1`, not the live notes store. Clear that key
+to restore fixtures. No domain writes, migrations or reminder integration.
 
 ## Odeon boundary / eventual integration contract
 
 Do not modify ContactSlidePanel, LeadDetailPanel, shared NotesSection or Odeon's
-student workspace for this experiment. A fictional related-person modal shows
-the intended projection without establishing another profile implementation.
+student workspace for this experiment. Related people appear only as an optional
+task field; production profile projections remain a future integration concern.
 
 Future integration should request one canonical note/action by ID and project it
 in Notes and its related profile. A note may carry optional actionable metadata:
@@ -44,7 +53,7 @@ Before production integration:
   assignment, completion and rescheduling; protect concurrent edits.
 - Decide how existing lead payload reminders migrate without duplicate actions.
 - Keep sticky note date distinct from due date; define tenant calendar timezone.
-- Add per-membership view preference persistence and accessible production search.
+- Review the minimal task filter and assignment defaults before implementation.
 
 No projects, subtasks, boards, dependencies, recurring engines or workload tools.
 
