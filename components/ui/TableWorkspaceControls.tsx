@@ -26,7 +26,7 @@ export type TableContextAction = {
 function ContextAction({ action }: { action: TableContextAction }) {
   const id = useId()
   return <span tabIndex={action.disabledReason ? 0 : undefined} aria-describedby={action.disabledReason ? id : undefined} title={action.disabledReason}>
-    <Button size="toolbar" variant="ghost" style={{ color: colors.espresso, padding: `${spacing.xs} ${spacing.md}` }} disabled={!!action.disabledReason} onClick={action.onClick}>{action.label}</Button>
+    <Button size="toolbar" variant="ghost" style={{ color: colors.surface, padding: `${spacing.xs} ${spacing.md}` }} disabled={!!action.disabledReason} onClick={action.onClick}>{action.label}</Button>
     {action.disabledReason && <span id={id} style={{ position: 'absolute', width: 1, height: 1, padding: 0, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>{action.disabledReason}</span>}
   </span>
 }
@@ -35,14 +35,14 @@ function ContextAction({ action }: { action: TableContextAction }) {
 export function TableContextActionBar({ resultLabel, selectedCount, selectionHint, actions, onClear }: {
   resultLabel?: string; selectedCount: number; selectionHint?: string; actions: TableContextAction[]; onClear: () => void
 }) {
-  return <div role="region" aria-label="Table results and actions" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', minHeight: 52, boxSizing: 'border-box', padding: `${spacing.xs} ${spacing.md}`, marginBottom: spacing.lg, borderRadius: radius.sm, border: `1px solid ${colors.teal}`, background: colors.teal, fontFamily: typography.fontSans }}>
+  return <div role="region" aria-label="Table results and actions" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', minHeight: 52, boxSizing: 'border-box', padding: `${spacing.xs} ${spacing.md}`, marginBottom: spacing.lg, borderRadius: radius.sm, border: `1px solid ${colors.link}`, background: colors.link, fontFamily: typography.fontSans }}>
     <div style={{ marginRight: 'auto', flex: '1 1 240px' }}>
-      <span role="status" style={{ fontSize: typography.sizeBase, fontWeight: typography.weightSemibold, color: colors.espresso }}>{resultLabel}{selectedCount > 0 ? `${resultLabel ? ' · ' : ''}${selectedCount} selected` : ''}</span>
-      {selectionHint && <div style={{ fontSize: typography.sizeSm, color: colors.espresso }}>{selectionHint}</div>}
+      <span role="status" style={{ fontSize: typography.sizeBase, fontWeight: typography.weightSemibold, color: colors.surface }}>{resultLabel}{selectedCount > 0 ? `${resultLabel ? ' · ' : ''}${selectedCount} selected` : ''}</span>
+      {selectionHint && <div style={{ fontSize: typography.sizeSm, color: colors.surface }}>{selectionHint}</div>}
     </div>
     <div role="group" aria-label="Selection actions" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs }}>
       {actions.map(action => <ContextAction key={action.id} action={action} />)}
-      <span style={{ display: 'inline-flex', width: 48, minWidth: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>{selectedCount > 0 && <ControlButton kind="close" aria-label="Clear selection" title="Clear selection" style={{ color: colors.espresso }} onClick={onClear} />}</span>
+      <span style={{ display: 'inline-flex', width: 48, minWidth: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>{selectedCount > 0 && <ControlButton kind="close" aria-label="Clear selection" title="Clear selection" style={{ color: colors.surface }} onClick={onClear} />}</span>
     </div>
   </div>
 }

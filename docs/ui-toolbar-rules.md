@@ -19,9 +19,9 @@
   This preserves input/preferences state and responsive height without showing
   two bars. Existing consumers need not adopt selection mode immediately.
 - Use `TableContextActionBar` for selected count, domain-defined actions and a
-  labeled X to clear. The bar is solid teal (`colors.teal`) with espresso text so
-  it reads as a temporary mode rather than a notification; action buttons are
-  transparent ghost buttons with no border. The domain supplies handlers, labels
+  labeled X to clear. The bar is solid `colors.link`, the same blue as Active
+  badges, links and notices, with white text; action buttons are transparent ghost
+  buttons with no border. Do not introduce a second blue or a teal fill. The domain supplies handlers, labels
   and eligibility reasons. Contacts labels Edit for one person and Bulk Edit for
   multiple people.
 - Keep the matching-result count in `beforeTable`, separately from selected count.
