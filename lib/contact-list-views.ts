@@ -51,6 +51,24 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
 export const isRecordedStudent = (contact: ViewContact) => contact.is_student === true
   || (contact.is_student !== false && Boolean(contact.student_id))
 
+/** View changes translate the same selected accounts, not unrelated visible rows. */
+export function mapContactViewSelection<T extends ViewContact>(contacts: T[], selected: ReadonlySet<string>, from: ContactListView, to: ContactListView): Set<string> {
+  if (from === to) return new Set(selected)
+  const families = contactViewGroups(contacts, contacts, 'family')
+  return new Set(families.flatMap(group => {
+    const source = from === 'family' ? group.selectionRows : group.members
+    if (!source.some(row => selected.has(row.id))) return []
+    if (to === 'family') return group.selectionRows.map(row => row.id)
+    const students = group.members.filter(isRecordedStudent)
+    return (students.length ? students : group.selectionRows).map(row => row.id)
+  }))
+}
+
+export function contactViewSelectionCount<T extends ViewContact>(contacts: T[], selected: ReadonlySet<string>, view: ContactListView) {
+  if (view === 'none') return selected.size
+  return contactViewGroups(contacts, contacts, 'family').filter(group => group.selectionRows.some(row => selected.has(row.id))).length
+}
+
 /** Counts describe recorded students in the account, not inferred household size. */
 export function accountStudentCount<T extends ViewContact>(members: T[], contacts: T[]) {
   const account = members[0]

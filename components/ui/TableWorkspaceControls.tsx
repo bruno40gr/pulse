@@ -47,7 +47,11 @@ export function TableContextActionBar({ resultLabel, selectedCount, selectionHin
   </div>
 }
 /** Both modes share a grid cell and stay mounted; inactive controls are inert and hidden. */
-export function TableToolbarMode({ discovery, contextual }: { discovery: ReactNode; contextual?: ReactNode }) {
+export function TableToolbarMode({ discovery, contextual, placement = 'replace' }: { discovery: ReactNode; contextual?: ReactNode; placement?: 'replace' | 'below' }) {
+  if (placement === 'below') return <div data-table-toolbar-mode="stacked">
+    {discovery}
+    {contextual}
+  </div>
   const active = !!contextual
   return <div data-table-toolbar-mode={active ? 'selection' : 'discovery'} style={{ display: 'grid' }}>
     <div inert={active} aria-hidden={active} style={{ gridArea: '1 / 1', visibility: active ? 'hidden' : 'visible', minWidth: 0 }}>{discovery}</div>

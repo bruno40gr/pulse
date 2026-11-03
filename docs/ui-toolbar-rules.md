@@ -13,17 +13,15 @@
 
 ## Contextual selection mode
 
-- `RichDataTable.contextualToolbar` is the opt-in selection mode. Supply it only
-  when the domain has selected records. `TableToolbarMode` overlays both modes in
-  one grid cell; inactive discovery controls remain mounted, hidden and inert.
-  This preserves input/preferences state and responsive height without showing
-  two bars. Existing consumers need not adopt selection mode immediately.
+- `RichDataTable.contextualToolbar` supplies the domain action bar. Contacts uses
+  `contextualToolbarPlacement="below"`: discovery controls remain visible and usable,
+  with the blue bar below them only while selected. Other consumers retain the
+  opt-in replacement mode by default. Both placements use `TableToolbarMode`.
 - Use `TableContextActionBar` for selected count, domain-defined actions and a
   labeled X to clear. The bar is solid `colors.link`, the same blue as Active
   badges, links and notices, with white text; action buttons are transparent ghost
   buttons with no border. Do not introduce a second blue or a teal fill. The domain supplies handlers, labels
-  and eligibility reasons. Contacts labels Edit for one person and Bulk Edit for
-  multiple people.
+  and eligibility reasons. Contacts exposes Text, Email and Clear only; editing stays in individual profiles.
 - Keep the matching-result count in `beforeTable`, separately from selected count.
   Never show disabled messaging actions in discovery mode. Contacts uses the shared toolbar-sized segmented view control (View students / View families). Its AI search field grows to about 820px on desktop so
   it remains the primary control, and Filters sits directly beside it.
@@ -112,7 +110,14 @@ account holders were incorrect and are withdrawn.
   with toolbar sizing and pressed buttons. Contacts uses View students / View families.
   Leads retains its existing switch; this is an opt-in shared capability.
 
-- Contacts currently clears selection on view changes; it never expands selected
-  families into selected student records. The view control is hidden during
-  contextual selection mode. Changing this requires an explicit selection-policy
-  decision, not a count conversion.
+- Contacts maps selection on view changes using explicit tenant/account groups:
+  Families → Students selects every recorded student of selected families;
+  Students → Families selects the account-holder controls of represented families.
+  Three families with two students each become six students selected, then three
+  families selected on return. Standalone contacts remain selected. Mapping uses
+  all loaded contacts, not only the current page/search matches. No name matching.
+  Accounts without recorded students retain their selectable contact records;
+  partial student selections represent their whole family on conversion.
+- Family selection counts groups once, even when account-summary transport uses
+  several child IDs. Student counts count records. Neither is a delivery count;
+  the existing composer resolves/deduplicates account-holder destinations.

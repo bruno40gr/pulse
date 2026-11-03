@@ -18,7 +18,7 @@ function load(file, dependencies = {}) {
 const { groupContactFamilies, inquiryStudents } = load('lib/family-list.ts')
 const plain = value => JSON.parse(JSON.stringify(value))
 const reviewContacts = require('./fixtures/contact-list-review.cjs')
-const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies } })
+const { contactViewGroups, mapContactViewSelection, contactViewSelectionCount } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies } })
 test('family groups preserve ascending and descending contact sort instead of fixture order', () => {
   const ascending = [...reviewContacts].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
   for (const matches of [ascending, [...ascending].reverse()]) {
@@ -142,4 +142,41 @@ test('family selection is unchanged by minor/routing flags, including adult non-
   const table = fs.readFileSync(path.join(root, 'components/contacts/FamilyListTable.tsx'), 'utf8')
   assert.match(table, /selection: source && member.row && member.isAccountHolder === true/)
   assert.doesNotMatch(table, /isMessageTarget|routesToAccountHolder/)
+})
+
+test('three selected families map to six students and back, scoped by account and tenant', () => {
+  const rows = Array.from({ length: 3 }, (_, i) => [
+    { id: `holder-${i}`, tenant_id: 't', account_id: `a-${i}`, account_holder_name: `Holder ${i}`, account_holder_person_id: `holder-${i}`, is_student: false },
+    ...[0, 1].map(j => ({ id: `kid-${i}-${j}`, tenant_id: 't', account_id: `a-${i}`, account_holder_name: `Holder ${i}`, account_holder_person_id: `holder-${i}`, is_student: true })),
+  ]).flat()
+  rows.push({ id: 'foreign', tenant_id: 'other', account_id: 'a-0', account_holder_name: 'Other', is_student: true })
+  const selected = new Set(['holder-0', 'holder-1', 'holder-2'])
+  const students = mapContactViewSelection(rows, selected, 'family', 'none')
+  assert.equal(students.size, 6)
+  assert.equal(students.has('foreign'), false)
+  assert.equal(contactViewSelectionCount(rows, students, 'none'), 6)
+  const families = mapContactViewSelection(rows, students, 'none', 'family')
+  assert.deepEqual([...families].sort(), [...selected].sort())
+  assert.equal(contactViewSelectionCount(rows, families, 'family'), 3)
+  assert.equal(contactViewSelectionCount(rows, mapContactViewSelection(rows, new Set(['kid-0-0']), 'none', 'family'), 'family'), 1)
+})
+test('account-summary selection counts once and maps to every student, not just a search match', () => {
+  const rows = [0, 1].map(i => ({ id: `kid-${i}`, tenant_id: 't', account_id: 'a', account_holder_name: 'Holder', is_student: true }))
+  const selected = new Set(['kid-0'])
+  assert.equal(contactViewSelectionCount(rows, selected, 'family'), 1)
+  assert.deepEqual([...mapContactViewSelection(rows, selected, 'family', 'none')].sort(), ['kid-0', 'kid-1'])
+  assert.equal(contactViewSelectionCount(rows, mapContactViewSelection(rows, new Set(rows.map(row => row.id)), 'none', 'family'), 'family'), 1)
+})
+
+test('standalone contacts and accounts without recorded students retain visible record selections', () => {
+  const rows = [
+    { id: 'standalone', tenant_id: 't', is_student: false },
+    { id: 'adult', tenant_id: 't', account_id: 'adult-account', account_holder_name: 'Adult', is_student: false },
+  ]
+  const selected = new Set(rows.map(row => row.id))
+  const students = mapContactViewSelection(rows, selected, 'family', 'none')
+  assert.deepEqual([...students].sort(), [...selected].sort())
+  assert.deepEqual([...mapContactViewSelection(rows, students, 'none', 'family')].sort(), [...selected].sort())
+  assert.equal(contactViewSelectionCount(rows, selected, 'family'), 2)
+  assert.equal(mapContactViewSelection(rows, new Set(), 'none', 'family').size, 0)
 })

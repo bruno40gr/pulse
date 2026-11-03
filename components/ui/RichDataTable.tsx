@@ -9,8 +9,9 @@ import { spacing } from '@/lib/tokens'
 
 export type RichDataTableProps<Row, SortKey extends string> = Omit<ResponsiveDataTableProps<Row, SortKey>, 'density' | 'minDesktopWidth'> & {
   preferenceSchema: TablePreferenceSchema
-  /** Opt-in contextual mode. Other consumers retain their discovery layout. */
+  /** Opt-in contextual actions, replacing discovery by default or stacked below it. */
   contextualToolbar?: ReactNode
+  contextualToolbarPlacement?: 'replace' | 'below'
   preferencesLabel?: string
   toolbar?: ReactNode
   displayToolbar?: ReactNode
@@ -19,13 +20,13 @@ export type RichDataTableProps<Row, SortKey extends string> = Omit<ResponsiveDat
 }
 
 /** Shared table surface: display controls, scoped preferences, geometry and detail projection. */
-export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, preferencesLabel, ...table }: RichDataTableProps<Row, SortKey>) {
+export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, contextualToolbarPlacement, preferencesLabel, ...table }: RichDataTableProps<Row, SortKey>) {
   const { preferences, updatePreferences } = useTablePreferences(preferenceSchema)
   const visibleColumns = columns.filter(column => preferences.columns.includes(column.id))
   const visibleIndexes = visibleColumns.map(column => columns.indexOf(column))
   const minWidth = (table.selection ? 48 : 0) + 32 + visibleColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
   return <>
-    <TableToolbarMode contextual={contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.lg }}>
+    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.lg }}>
       {toolbar}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
         {displayToolbar}

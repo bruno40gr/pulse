@@ -18,12 +18,11 @@ import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import { DEFAULT_CONTACT_FILTERS, matchesContactFilters } from '@/lib/contact-filters'
-import { accountStudentCount, contactViewGroups, type ContactListView } from '@/lib/contact-list-views'
+import { accountStudentCount, contactViewGroups, mapContactViewSelection, contactViewSelectionCount, type ContactListView } from '@/lib/contact-list-views'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
-import BulkEditPanel from '@/components/contacts/BulkEditPanel'
 import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -138,7 +137,6 @@ export default function ContactsPage() {
   const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
-  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', phone: '', email: '' })
@@ -193,6 +191,7 @@ export default function ContactsPage() {
     if (comparison !== 0) return comparison * direction
     return `${text(left.last_name)} ${text(left.first_name)}`.localeCompare(`${text(right.last_name)} ${text(right.first_name)}`, undefined, { sensitivity: 'base' })
   })
+  const selectedCount = contactViewSelectionCount(contacts, selectedIds, contactView)
   const viewGroups = contactViewGroups(sortedDisplayed, contacts, contactView)
   const pageCount = Math.max(1, Math.ceil(viewGroups.length / pageSize))
   const currentPage = Math.min(contactPage, pageCount)
@@ -678,22 +677,17 @@ export default function ContactsPage() {
           key={contactView}
           renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
           preferencesLabel="Table Preferences"
-          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedIds.size} onClear={clearSelection} actions={[
+          contextualToolbarPlacement="below"
+          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} onClear={clearSelection} actions={[
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
-            { id: 'edit', label: selectedIds.size === 1 ? 'Edit' : 'Bulk Edit', onClick: () => {
-              if (selectedIds.size === 1) {
-                const contact = contacts.find(contact => selectedIds.has(contact.id))
-                if (contact) { setStartContactEditing(true); setSelectedContact(contact) }
-              } else setIsBulkEditOpen(true)
-            } },
           ]} /> : undefined}
           beforeTable={<p role="status" style={{ color: colors.textSecondary, fontSize: typography.sizeSm, margin: `0 0 ${spacing.sm}`, fontFamily: typography.fontSans }}>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</p>}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
           displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Contact view" value={contactView} onChange={view => {
           setContactPage(1)
+          setSelectedIds(current => mapContactViewSelection(contacts, current, contactView, view))
           setContactView(view)
-          setSelectedIds(new Set())
           setLastSelectedIndex(-1)
         }} />}
           toolbar={<>
@@ -927,21 +921,6 @@ export default function ContactsPage() {
             </Button>
           </div>
         </SlidePanel>
-      )}
-
-      {/* Bulk edit panel */}
-      {isBulkEditOpen && (
-        <BulkEditPanel
-          selectedCount={selectedIds.size}
-          selectedIds={[...selectedIds]}
-          tenantFields={tenantFields}
-          onClose={() => setIsBulkEditOpen(false)}
-          onSaved={() => {
-            setIsBulkEditOpen(false)
-            setSelectedIds(new Set())
-            fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(data => setContacts(data))
-          }}
-        />
       )}
 
       <SlidePanel isOpen={showFilters} onClose={() => setShowFilters(false)} fullScreen={isMobile} width="min(100vw, 380px)">
