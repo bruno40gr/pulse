@@ -10,6 +10,13 @@ export type RecipientContact = {
 export type ResolvedRecipient = { destination: string; name: string; contactIds: string[] }
 export type RecipientResolution = { selectedCount: number; recipients: ResolvedRecipient[]; excluded: Array<{ id: string; name: string; reason: string }> }
 
+/**
+ * One routing rule for preview, delivery and the Contacts selection gate. A
+ * student whose messages route to an account holder is never its own destination.
+ */
+export const routesToAccountHolder = (student: { is_minor?: boolean | null; message_routing?: string | null }) =>
+  student.is_minor === true || student.message_routing === 'account_holder'
+
 const array = <T,>(value: T | T[] | null | undefined): T[] => value ? Array.isArray(value) ? value : [value] : []
 const emailAddress = (value?: string | null) => {
   const email = value?.trim().toLowerCase() || ''
@@ -40,7 +47,7 @@ export function resolveCommunicationRecipients(contacts: RecipientContact[], cha
     const name = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Contact'
     if (contact.opted_out) { excluded.push({ id: contact.id, name, reason: 'Opted out' }); continue }
     const students = contact.students || []
-    const useAccounts = students.some(student => student.is_minor || student.message_routing === 'account_holder')
+    const useAccounts = students.some(routesToAccountHolder)
     const accounts = students.flatMap(student => [
       ...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts)),
     ])

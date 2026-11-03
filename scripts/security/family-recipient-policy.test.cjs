@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node synthetic fixtures. */
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const { classifyStudentDestinations } = require('./family-recipient-policy.cjs')
+const root = path.join(__dirname, '..', '..')
 
 const T = 'school'
 const person = (id, extra) => ({ id, tenant_id: T, first_name: id, last_name: 'Test', ...extra })
@@ -130,4 +133,16 @@ test('classification is deterministic and does not mutate inputs', () => {
   const data = fixture(), before = JSON.stringify(data)
   assert.deepEqual(classifyStudentDestinations(data), classifyStudentDestinations(data))
   assert.equal(JSON.stringify(data), before)
+})
+
+test('one routing rule is shared by delivery and the Contacts selection gate', () => {
+  const policy = fs.readFileSync(path.join(root, 'lib/communication-recipients.ts'), 'utf8')
+  assert.match(policy, /export const routesToAccountHolder/)
+  assert.match(policy, /students\.some\(routesToAccountHolder\)/)
+  const views = fs.readFileSync(path.join(root, 'lib/contact-list-views.ts'), 'utf8')
+  assert.match(views, /import \{ routesToAccountHolder \} from '\.\/communication-recipients'/)
+  assert.match(views, /return !routesToAccountHolder\(contact\)/)
+  // The rule itself must not be restated here; only the field types may appear.
+  assert.doesNotMatch(views, /=== 'account_holder'/)
+  assert.doesNotMatch(views, /is_minor === true/)
 })

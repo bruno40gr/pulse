@@ -33,6 +33,8 @@ export default function DesignPage() {
             { name: 'espresso', value: colors.espresso },
             { name: 'cream', value: colors.cream },
             { name: 'teal', value: colors.teal },
+            { name: 'info', value: colors.info },
+            { name: 'link', value: colors.link },
             { name: 'yellow', value: colors.yellow },
             { name: 'green', value: colors.green },
             { name: 'text', value: colors.text },

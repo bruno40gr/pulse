@@ -1,5 +1,6 @@
 import type { TablePersonView } from '@/components/ui/TablePersonViewToggle'
 import { groupContactFamilies } from './family-list'
+import { routesToAccountHolder } from './communication-recipients'
 
 export const CONTACT_LIST_VIEWS = [
   { value: 'none', label: 'Students' },
@@ -15,12 +16,12 @@ type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
 }
 
 /**
- * A person is their own message destination unless routing sends it to an account
- * holder. Mirrors the server predicate in lib/communication-recipients.ts; the
- * server stays authoritative for destinations, opt-outs and exclusions.
+ * Whether a person can be selected here. Delegates to the shared routing rule so
+ * Contacts cannot drift from what delivery does; the server stays authoritative
+ * for destinations, opt-outs and exclusions.
  */
 export function isMessageTarget(contact: ViewContact) {
-  return contact.is_minor !== true && contact.message_routing !== 'account_holder'
+  return !routesToAccountHolder(contact)
 }
 
 /** Selection rows are who a message reaches, not who matched the search. */

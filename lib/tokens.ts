@@ -27,6 +27,10 @@ export const colors = {
   action: '#1A130F',
   link: '#2563EB',
 
+  // Info blue shared by status badges, notices and the table selection bar.
+  info: '#1D4ED8',
+  infoSurface: '#EFF6FF',
+
   // Semantic (text-only, no background boxes)
   error: '#DC2626',
   success: '#16A34A',

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Badge } from './Badge'
-import { semanticColors } from '@/lib/tokens'
+import { colors, semanticColors } from '@/lib/tokens'
 
 interface StatusBadgeProps {
   status: string
@@ -9,10 +9,11 @@ interface StatusBadgeProps {
   style?: CSSProperties
 }
 
+// Shares the info tokens with the table selection bar; never add a second blue.
 const blueStyle: CSSProperties = {
-  background: '#EFF6FF',
-  color: '#1D4ED8',
-  border: '1px solid #2563EB',
+  background: colors.infoSurface,
+  color: colors.info,
+  border: `1px solid ${colors.link}`,
 }
 
 function getStatusStyle(status: string): CSSProperties | undefined {

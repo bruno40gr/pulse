@@ -18,7 +18,9 @@ function load(file, dependencies = {}) {
 const { groupContactFamilies, inquiryStudents } = load('lib/family-list.ts')
 const plain = value => JSON.parse(JSON.stringify(value))
 const reviewContacts = require('./fixtures/contact-list-review.cjs')
-const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies } })
+const recipients = load('lib/communication-recipients.ts')
+// Load the real routing rule, not a stub: Contacts must use what delivery uses.
+const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies }, './communication-recipients': recipients })
 test('family groups preserve ascending and descending contact sort instead of fixture order', () => {
   const ascending = [...reviewContacts].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
   for (const matches of [ascending, [...ascending].reverse()]) {

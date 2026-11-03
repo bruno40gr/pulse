@@ -17,7 +17,8 @@ interface NoticeProps {
 }
 
 const variantStyles: Record<NoticeVariant, { background: string; border: string; color: string; icon: typeof Info }> = {
-  info: { background: '#F2F7FF', border: '#BFDBFE', color: '#1D4ED8', icon: Info },
+  // Softer tint than a badge, but the same info blue for its text.
+  info: { background: '#F2F7FF', border: '#BFDBFE', color: colors.info, icon: Info },
   warning: { background: '#FEF7E7', border: '#FDE68A', color: colors.warning, icon: TriangleAlert },
   success: { background: '#F3FBF6', border: '#BBF7D0', color: colors.greenDark, icon: CheckCircle2 },
   error: { background: '#FEF2F2', border: '#FECACA', color: colors.error, icon: AlertCircle },
