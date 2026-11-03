@@ -1,0 +1,12 @@
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.cards { columns: 3 260px; column-gap: 14px; }
+.card { break-inside: avoid; margin-bottom: 14px; }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 14px; line-height: 1.6; }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.list { overflow-x: auto; }
+.table { width: 100%; min-width: 720px; border-collapse: collapse; text-align: left; }
+.table th, .table td { padding: 12px 10px; border-bottom: 1px solid var(--notes-border); vertical-align: top; }
+.table th { font-weight: 500; color: var(--notes-muted); font-size: 12px; }
+.table tbody tr:hover { background: var(--notes-hover); }
+.personList { display: grid; gap: 10px; }
+@media (max-width: 640px) { .cards { columns: 1; } }
