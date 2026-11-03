@@ -48,7 +48,9 @@ test('both surfaces consume the rich table and shared parent/detail name rules',
   assert.doesNotMatch(contacts, /type="checkbox"/)
   assert.doesNotMatch(contacts, /Select family|<IndeterminateCheckbox/)
   assert.match(contacts, /selection: source && member.row/)
-  assert.match(contacts, /onDoubleClick:/)
+  // Family-wide double-click selection is retired with message-target selection.
+  assert.match(contacts, /onDoubleClick: undefined/)
+  assert.match(contacts, /isMessageTarget\?\.\(member\.row\)/)
   assert.match(contacts, /style: \{ background: member.row && source\?\.selectedKeys.has/)
   assert.match(contacts, /colors.surfaceSelected/)
   assert.match(source('components/ui/DataGridTable.tsx'), /aria-selected=\{detail.selection\?\.checked\}/)

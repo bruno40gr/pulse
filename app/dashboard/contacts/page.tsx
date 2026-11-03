@@ -17,7 +17,7 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
-import { accountStudentCount, contactViewGroups, type ContactListView } from '@/lib/contact-list-views'
+import { accountStudentCount, contactViewGroups, isMessageTarget, type ContactListView } from '@/lib/contact-list-views'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
@@ -785,17 +785,7 @@ export default function ContactsPage() {
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={setContactSort}
-          onToggleMembers={(members, checked) => {
-            setSelectedIds(current => {
-              const next = new Set(current)
-              for (const member of members) {
-                if (checked) next.add(member.id)
-                else next.delete(member.id)
-              }
-              return next
-            })
-            setLastSelectedIndex(-1)
-          }}
+          isMessageTarget={isMessageTarget}
           selection={{
             selectedKeys: selectedIds,
             onToggle: (contact, _index, event) => handleCheckboxToggle(contact, sortedDisplayed.findIndex(row => row.id === contact.id), (event.nativeEvent as MouseEvent).shiftKey),

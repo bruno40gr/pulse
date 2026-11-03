@@ -10,11 +10,27 @@ export type ContactListView = TablePersonView
 type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
   account_holder_person_id?: string | null
   account_holders?: { person_id?: string; name: string | null }[]
+  is_minor?: boolean | null
+  message_routing?: string | null
+}
+
+/**
+ * A person is their own message destination unless routing sends it to an account
+ * holder. Mirrors the server predicate in lib/communication-recipients.ts; the
+ * server stays authoritative for destinations, opt-outs and exclusions.
+ */
+export function isMessageTarget(contact: ViewContact) {
+  return contact.is_minor !== true && contact.message_routing !== 'account_holder'
+}
+
+/** Selection rows are who a message reaches, not who matched the search. */
+function messageTargets<T extends ViewContact>(matched: T[], accounts: T[]) {
+  return [...new Map(matched.flatMap(contact => isMessageTarget(contact) ? [contact] : accounts).map(contact => [contact.id, contact])).values()]
 }
 
 /** Search matches choose accounts; related people are context, never extra selection. */
 export function contactViewGroups<T extends ViewContact>(matches: T[], contacts: T[], view: ContactListView) {
-  if (view === 'none') return matches.map(contact => ({ id: `contact:${contact.id}`, holder: null, members: [contact], parent: contact, selectionRows: [contact] }))
+  if (view === 'none') return matches.map(contact => ({ id: `contact:${contact.id}`, holder: null, members: [contact], parent: contact, selectionRows: isMessageTarget(contact) ? [contact] : [] }))
   const matchIds = new Set(matches.map(contact => `${contact.tenant_id || ''}:${contact.id}`))
   const holderIds = (members: T[]) => new Set(members.flatMap(member => [member.account_holder_person_id,
     ...(member.account_holders || []).map(holder => holder.person_id)].filter((id): id is string => Boolean(id))))
@@ -22,26 +38,27 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
   const linkedHolderKeys = new Set(groups.filter(group => group.holder).flatMap(group =>
     [...holderIds(group.members)].map(id => `${group.members[0].tenant_id || ''}:${id}`)))
   const matchRanks = new Map(matches.map((contact, index) => [`${contact.tenant_id || ''}:${contact.id}`, index]))
-  return groups.flatMap(group => {
+  const key = (contact: ViewContact) => `${contact.tenant_id || ''}:${contact.id}`
+  const built = groups.flatMap(group => {
     if (!group.holder) {
       const row = group.members[0]
-      if (linkedHolderKeys.has(`${row.tenant_id || ''}:${row.id}`) || !matchIds.has(`${row.tenant_id || ''}:${row.id}`)) return []
-      return [{ ...group, parent: row, selectionRows: [row] }]
+      if (linkedHolderKeys.has(key(row)) || !matchIds.has(key(row))) return []
+      return [{ rank: matchRanks.get(key(row)) ?? Infinity, value: { ...group, parent: row, selectionRows: isMessageTarget(row) ? [row] : [] } }]
     }
     const ids = holderIds(group.members)
     const parents = contacts.filter(contact => contact.tenant_id === group.members[0].tenant_id && ids.has(contact.id))
-    if (![...group.members, ...parents].some(contact => matchIds.has(`${contact.tenant_id || ''}:${contact.id}`))) return []
-    const selectionRows = [...new Map([...group.members, ...parents].filter(contact => matchIds.has(`${contact.tenant_id || ''}:${contact.id}`)).map(contact => [contact.id, contact])).values()]
+    const members = [...new Map([...group.members, ...parents].map(contact => [contact.id, contact])).values()]
+    const matched = members.filter(contact => matchIds.has(key(contact)))
+    if (!matched.length) return []
+    // A matched minor cannot receive, so their account holders carry the selection.
+    const selectionRows = messageTargets(matched, parents.filter(isMessageTarget))
     const primaryIds = new Set(group.members.map(member => member.account_holder_person_id).filter(Boolean))
     const primary = primaryIds.size === 1 ? parents.find(parent => primaryIds.has(parent.id)) : undefined
-    const members = [...new Map([...group.members, ...parents].map(contact => [contact.id, contact])).values()]
-    return [{ ...group, members, parent: primary || (parents.length === 1 ? parents[0] : undefined), selectionRows }]
-  }).sort((left, right) => {
-    // Preserve the active contact sort; families occupy their first matching person's position.
-    const rank = (group: { selectionRows: T[] }) => Math.min(...group.selectionRows.map(contact =>
-      matchRanks.get(`${contact.tenant_id || ''}:${contact.id}`) ?? Infinity))
-    return rank(left) - rank(right)
+    return [{ rank: Math.min(...matched.map(contact => matchRanks.get(key(contact)) ?? Infinity)),
+      value: { ...group, members, parent: primary || (parents.length === 1 ? parents[0] : undefined), selectionRows } }]
   })
+  // Preserve the active contact sort; families occupy their first matching person's position.
+  return built.sort((left, right) => left.rank - right.rank).map(entry => entry.value)
 }
 
 export const isRecordedStudent = (contact: ViewContact) => contact.is_student === true
