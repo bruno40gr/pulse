@@ -107,3 +107,16 @@ test('SMS siblings with differently formatted manager phone receive one destinat
   assert.equal(result.recipients[0].destination, '+12025550101')
   assert.deepEqual(plain(result.recipients[0].contactIds), ['emma', 'noah'])
 })
+test('a family whose account-holder row is unresolvable stays selectable', () => {
+  // Real payloads can omit the holder person (account_holders carries no person_id
+  // and account_holder_person_id is null for 0 or 2+ holders). Losing every checkbox
+  // in the family is worse than falling back to the matched rows.
+  const rows = [
+    { id: 'kid-a', tenant_id: 't', account_id: 'acct', account_holder_name: 'Jane Smith', is_student: true, is_minor: true },
+    { id: 'kid-b', tenant_id: 't', account_id: 'acct', account_holder_name: 'Jane Smith', is_student: true, is_minor: true },
+  ]
+  const groups = contactViewGroups(rows, rows, 'family')
+  assert.equal(groups.length, 1)
+  assert.equal(groups[0].parent, undefined)
+  assert.deepEqual(plain(groups[0].selectionRows.map(contact => contact.id)), ['kid-a', 'kid-b'])
+})

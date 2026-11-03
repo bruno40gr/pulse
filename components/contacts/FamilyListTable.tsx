@@ -32,6 +32,10 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     ...group.members.flatMap(member => member.row ? [member.row] : []),
   ]
   const canSelect = (group: FamilyListGroup<Row>, row: Row) => realRows(group).some(candidate => table.getRowKey(candidate) === table.getRowKey(row))
+  // A checkbox appears when the row is selectable now (enabled) or is a message
+  // target outside the current context (disabled). Rows that can never be part of
+  // the selection get no checkbox at all.
+  const showsSelection = (group: FamilyListGroup<Row>, row: Row) => canSelect(group, row) || (isMessageTarget?.(row) ?? true)
   const selected = new Set(groups.filter(group => group.parent && source?.selectedKeys.has(table.getRowKey(group.parent))).map(group => group.id))
 
   return <RichDataTable<FamilyListGroup<Row>, SortKey>
@@ -55,7 +59,7 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     getDetailRows={(group, index) => group.members.map(member => ({
       key: member.id,
       style: { background: member.row && source?.selectedKeys.has(table.getRowKey(member.row)) ? colors.surfaceSelected : index % 2 === 0 ? colors.surface : colors.background },
-      selection: source && member.row && (isMessageTarget?.(member.row) ?? true) ? {
+      selection: source && member.row && showsSelection(group, member.row) ? {
         checked: source.selectedKeys.has(table.getRowKey(member.row)),
         disabled: !canSelect(group, member.row),
         label: `Select ${member.name}`,
@@ -73,7 +77,7 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     selection={source ? {
       ...source,
       selectedKeys: selected,
-      showCheckbox: group => group.parent ? (isMessageTarget?.(group.parent) ?? true) && (source.showCheckbox?.(group.parent) ?? true) : false,
+      showCheckbox: group => group.parent ? showsSelection(group, group.parent) && (source.showCheckbox?.(group.parent) ?? true) : false,
       isSelectable: group => Boolean(group.parent && canSelect(group, group.parent)),
       getRowLabel: group => group.name,
       // Family-wide double-click selection is gone: members that cannot receive are not selectable.

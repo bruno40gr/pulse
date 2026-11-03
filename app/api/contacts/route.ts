@@ -176,6 +176,9 @@ export async function GET(request: Request) {
       person.custom_fields?.verification_fixture !== 'account-claim'
     )
 
+    // Every visible person, so resolved account holders can be attached to their account.
+    const contactPersonById = new Map(visiblePeople.map((person: { id: string }) => [person.id, person]))
+
     // Optional explicit holder/person relationships. Never reconcile identities by
     // name, email or phone. Older installations may not expose this relation.
     const holderPeopleByAccount = new Map<string, Set<string>>()
@@ -247,10 +250,17 @@ export async function GET(request: Request) {
       const isInstructor = !!staffId
       const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
 
-      // Account holders (single account fallback — actual schema has no student_accounts)
-      const accountHolders = account.name
-        ? [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
-        : []
+      // Prefer explicit account_holders rows so each holder keeps a person id the
+      // contacts table can select and message. Fall back to the account summary when
+      // that relation is unavailable (older installs).
+      const holderPeople = [...(holderPeopleByAccount.get(student.account_id) || [])]
+        .map(holderId => contactPersonById.get(holderId))
+        .filter(Boolean) as Array<{ id: string; first_name: string; last_name: string; phone: string | null; email: string | null }>
+      const accountHolders = holderPeople.length
+        ? holderPeople.map((holder, index) => ({ person_id: holder.id, name: `${holder.first_name} ${holder.last_name}`.trim(), phone: holder.phone, email: holder.email, relationship: null, is_primary: index === 0 }))
+        : account.name
+          ? [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
+          : []
 
       // Resolve instructor from instructor_person_id (actual schema)
       const instructorPersonId = enrollment.instructor_person_id ?? null

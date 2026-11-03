@@ -52,7 +52,10 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
     const matched = members.filter(contact => matchIds.has(key(contact)))
     if (!matched.length) return []
     // A matched minor cannot receive, so their account holders carry the selection.
-    const selectionRows = messageTargets(matched, parents.filter(isMessageTarget))
+    // When the account-holder row cannot be resolved from this payload, keep the
+    // matched rows selectable: delivery still routes their message to the account.
+    const accounts = parents.filter(isMessageTarget)
+    const selectionRows = messageTargets(matched, accounts.length ? accounts : matched)
     const primaryIds = new Set(group.members.map(member => member.account_holder_person_id).filter(Boolean))
     const primary = primaryIds.size === 1 ? parents.find(parent => primaryIds.has(parent.id)) : undefined
     return [{ rank: Math.min(...matched.map(contact => matchRanks.get(key(contact)) ?? Infinity)),
