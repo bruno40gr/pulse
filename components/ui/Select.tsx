@@ -6,7 +6,7 @@ import styles from './FormControl.module.css'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  controlSize?: 'default' | 'toolbar'
+  controlSize?: 'default' | 'toolbar' | 'compact'
   label?: string
   hint?: string
   fullWidth?: boolean
@@ -46,6 +46,7 @@ export function Select({ controlSize = 'default', label, hint, style, children, 
           ...(controlSize === 'toolbar' ? { ...buttonVariantStyles.secondary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontWeight: typography.weightMedium } : {}),
           // Toolbar button backgrounds/padding must not erase the select affordance.
           ...(controlSize === 'toolbar' ? { background: undefined, backgroundColor: colors.surface, paddingRight: 38 } : {}),
+          ...(controlSize === 'compact' ? { minHeight: 34, paddingBlock: spacing.xs, fontSize: typography.sizeSm } : {}),
           ...style,
         }}
         {...props}

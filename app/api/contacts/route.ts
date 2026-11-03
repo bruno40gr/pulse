@@ -130,6 +130,7 @@ export async function GET(request: Request) {
   const tenantId = access.tenantId
 
   try {
+    const importProfile = await getImportProfile(tenantId)
     // Actual schema: people → students → enrollments (instructor_person_id → people)
     const { data, error } = await supabaseAdmin
       .from('people')
@@ -293,6 +294,7 @@ export async function GET(request: Request) {
         date_of_birth: person.date_of_birth,
         opted_out: person.opted_out,
         client_status: student.client_status || 'active',
+        status_class: classifyStatus(student.client_status || 'active', importProfile),
         last_attended: student.last_attended,
         message_routing: nonStudentBooking ? 'student' : (student.message_routing || 'student'),
         is_minor: nonStudentBooking ? false : (student.is_minor ?? false),

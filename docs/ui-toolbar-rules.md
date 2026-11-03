@@ -37,10 +37,19 @@
 - Multi-condition filters open in a narrow `SlidePanel`, not an inline row. Stack
   shared `Select` fields with `FieldGrid columns={1}` and apply the draft only on
   Submit search, so choosing options never re-queries. Clear filters resets the
-  draft; closing without submitting discards it. Contacts defaults to Active students.
-  Basic filters: Name (student/account-holder substring), Status, Email (resolved
-  destination substring), Last active (explicitly last attendance, not login activity).
-  Advanced: instructor, email/phone availability, funding and configured tenant fields.
+  draft; closing without submitting discards it. Use compact shared Select controls.
+  Primary fields (no Basic heading): Name, Status, Email, Last active, Instructor,
+  and Program/instrument. Advanced holds Funding and remaining configured fields;
+  exclude Band/Plan and email/phone availability (those can use AI search).
+  Last active is explicitly last attendance, not login activity.
+  The bottom checkbox, Show only active students & families, defaults checked.
+  Active classification comes from the tenant import profile via API status_class;
+  the compatibility fallback includes Active and Member, case-insensitively.
+  Never restrict active students to the literal string active. Unchecking and
+  submitting restores other statuses, including Lost, subject to other filters.
+  Show the number of applied conditions (including active-only) as a bubble on
+  the Filters icon. Draft changes do not change the count; no bubble when zero.
+  AI results retain existing precedence, so bypassed standard filters are not counted.
   Conditions aggregate on Submit search; no requests occur while editing.
   Clear filters removes the default too. AI-search precedence is unchanged for now.
 - Do not change row rendering, group relationships, density or selected-row colors

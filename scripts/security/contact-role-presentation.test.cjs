@@ -101,12 +101,16 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant' } },
     'next/server': { NextResponse: { json: value => value } },
     '@/lib/supabase/admin': { supabaseAdmin: db }, '@/lib/csv-parser': {}, '@/lib/instructors': {},
-    '@/lib/demo-contact-enrichment': { enrichDemoContact: value => value }, '@/lib/import-profile': {},
+    '@/lib/demo-contact-enrichment': { enrichDemoContact: value => value }, '@/lib/import-profile': {
+      getImportProfile: async () => ({ active_statuses: ['active', 'member'], inactive_statuses: ['lost'] }),
+      classifyStatus: status => ['active', 'member'].includes(status.toLowerCase()) ? 'active' : 'inactive',
+    },
     '@/lib/contact-kind': { isNonStudentBooking: () => false },
   })
   const result = await route.GET({})
   assert.equal(result[0].student_id, 'student-role')
   assert.equal(result[0].is_student, true)
+  assert.equal(result[0].status_class, 'active')
   assert.equal(result[0].account_holder_person_id, 'adult')
   assert.equal(result[1].is_student, false)
   assert.equal(result[1].student_id, null)

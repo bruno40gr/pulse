@@ -46,6 +46,7 @@ interface Contact {
   phone: string | null
   email: string | null
   client_status: string
+  status_class?: 'active' | 'inactive' | 'unknown'
   opted_out: boolean
   last_attended: string | null
   notes: string | null
@@ -452,14 +453,15 @@ export default function ContactsPage() {
       if (vals.length) filterOptions[f.field_key] = vals
     }
   })
-  filterOptions['client_status'] = ['active', 'inactive', 'member']
 
   const statusOptions = [
-    { value: 'active_students', label: 'Active students' },
     ...[...new Set(['active', 'inactive', 'member', ...contacts.map(contact => contact.client_status)])].filter(Boolean).map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) })),
   ]
-  const filterFields = tenantFields.filter(field => field.field_key !== 'client_status' && filterOptions[field.field_key]?.length)
+  const filterFields = tenantFields.filter(field => !['client_status', 'band', 'band_name', 'plan', 'plan_name', 'email_availability', 'phone_availability'].includes(field.field_key) && !/\b(band|plan)\b/i.test(field.field_label) && filterOptions[field.field_key]?.length)
     .map(field => ({ key: field.field_key, label: field.field_label, values: filterOptions[field.field_key] }))
+  const primaryFilterFields = filterFields.filter(field => /^(program|instrument)$/.test(field.key) || /^program$/i.test(field.label))
+  const advancedFilterFields = filterFields.filter(field => !primaryFilterFields.includes(field))
+  const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
   const instructors = [...new Map(contacts.flatMap(contact => contact.instructor?.person_id && contact.instructor.name
     ? [[contact.instructor.person_id, contact.instructor.name] as const] : [])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
   const updateFilterDraft = (key: string, value: string) => setFilterDraft(previous => {
@@ -733,11 +735,13 @@ export default function ContactsPage() {
             {aiLoading ? 'Searching...' : 'Search'}
           </Button>
         </div>
-        <Button variant="secondary" size="toolbar"
+        <Button variant="secondary" size="toolbar" aria-label="Filters"
           onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }}
 
         >
-          <SlidersHorizontal size={14} /> Filters
+          <span style={{ position: 'relative', display: 'inline-flex' }}><SlidersHorizontal size={14} />
+            {appliedFilterCount > 0 && <span aria-label={`${appliedFilterCount} filters applied`} style={{ position: 'absolute', top: -10, right: -10, minWidth: 16, height: 16, padding: '0 3px', boxSizing: 'border-box', borderRadius: radius.full, background: colors.link, color: colors.surface, fontSize: 10, lineHeight: '16px', textAlign: 'center', fontWeight: typography.weightSemibold }}>{appliedFilterCount}</span>}
+          </span> Filters
         </Button>
           </>}
           groups={visibleFamilies.map(group => {
@@ -954,37 +958,40 @@ export default function ContactsPage() {
         <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />
         <form onSubmit={event => { event.preventDefault(); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing.lg} ${spacing['2xl']}` }}>
-            <h3 style={{ ...typography.label, margin: `0 0 ${spacing.md}` }}>Basic filters</h3>
             <FieldGrid columns={1}>
               <Input label="Name" placeholder="Student or account-holder name" value={filterDraft.name || ''} onChange={event => updateFilterDraft('name', event.target.value)} />
-              <Select label="Status" value={filterDraft.client_status || ''} onChange={event => updateFilterDraft('client_status', event.target.value)}>
+              <Select controlSize="compact" label="Status" value={filterDraft.client_status || ''} onChange={event => updateFilterDraft('client_status', event.target.value)}>
                 <option value="">All contacts</option>
                 {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
               <Input label="Email" placeholder="Contains email address" value={filterDraft.email || ''} onChange={event => updateFilterDraft('email', event.target.value)} />
-              <Select label="Last active" hint="Based on the last attended date." value={filterDraft.last_active || ''} onChange={event => updateFilterDraft('last_active', event.target.value)}>
+              <Select controlSize="compact" label="Last active" hint="Based on the last attended date." value={filterDraft.last_active || ''} onChange={event => updateFilterDraft('last_active', event.target.value)}>
                 <option value="">Any time</option>
                 <option value="7">Within 7 days</option><option value="30">Within 30 days</option><option value="90">Within 90 days</option>
                 <option value="over_90">More than 90 days ago</option><option value="never">No attendance recorded</option>
               </Select>
+              <Select controlSize="compact" label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
+                <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </Select>
+              {primaryFilterFields.map(field => <Select controlSize="compact" key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
+                <option value="">Any</option>{field.values.map(value => <option key={value} value={value}>{value}</option>)}
+              </Select>)}
             </FieldGrid>
             <details style={{ marginTop: spacing.xl }}>
               <summary style={{ ...typography.label, cursor: 'pointer', marginBottom: spacing.md }}>Advanced filters</summary>
               <FieldGrid columns={1}>
-                <Select label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
-                  <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </Select>
-                {(['email', 'phone'] as const).map(channel => <Select key={channel} label={`${channel === 'email' ? 'Email' : 'Phone'} availability`} value={filterDraft[`${channel}_availability`] || ''} onChange={event => updateFilterDraft(`${channel}_availability`, event.target.value)}>
-                  <option value="">Any</option><option value="present">On file</option><option value="missing">Missing</option>
-                </Select>)}
-                <Select label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
+                <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
                   <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
                 </Select>
-                {filterFields.map(field => <Select key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
+                {advancedFilterFields.map(field => <Select controlSize="compact" key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
                   <option value="">Any</option>{field.values.map(value => <option key={value} value={value}>{value}</option>)}
                 </Select>)}
               </FieldGrid>
             </details>
+            <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, ...typography.bodySmall, color: colors.text, cursor: 'pointer' }}>
+              <input type="checkbox" checked={filterDraft.active_only === 'true'} onChange={event => updateFilterDraft('active_only', event.target.checked ? 'true' : '')} />
+              Show only active students &amp; families
+            </label>
           </div>
           <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface }}>
             <Button type="submit">Submit search</Button>

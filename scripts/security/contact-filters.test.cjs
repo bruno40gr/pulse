@@ -16,12 +16,11 @@ test('default filter includes only active recorded students', () => {
   assert.equal(matchesContactFilters({ ...student, client_status: 'inactive' }, {}, now), true)
 })
 test('basic and advanced conditions aggregate using account-holder contact details', () => {
-  const filters = { name: 'sam', email: 'SAM@', last_active: '7', instructor: 'teacher', funded: 'yes', program: 'Piano', phone_availability: 'present' }
+  const filters = { name: 'sam', email: 'SAM@', last_active: '7', instructor: 'teacher', funded: 'yes', program: 'Piano' }
   assert.equal(matchesContactFilters(student, filters, now), true)
   assert.equal(matchesContactFilters(student, { ...filters, program: 'Drums' }, now), false)
   assert.equal(matchesContactFilters(student, { email: 'child@' }, now), false)
-  assert.equal(matchesContactFilters(student, { email_availability: 'missing' }, now), false)
-  assert.equal(matchesContactFilters({ ...student, account_holder_email: null }, { email_availability: 'missing' }, now), true)
+
 })
 test('last active explicitly uses recorded attendance and handles missing/invalid dates', () => {
   assert.equal(matchesContactFilters(student, { last_active: 'over_90' }, now), false)
@@ -30,4 +29,10 @@ test('last active explicitly uses recorded attendance and handles missing/invali
     assert.equal(matchesContactFilters({ ...student, last_attended }, { last_active: 'never' }, now), true)
     assert.equal(matchesContactFilters({ ...student, last_attended }, { last_active: '30' }, now), false)
   }
+})
+test('active-only includes imported Members and configured active statuses, but excludes Lost', () => {
+  assert.equal(matchesContactFilters({ ...student, client_status: 'Member' }, DEFAULT_CONTACT_FILTERS), true)
+  assert.equal(matchesContactFilters({ ...student, client_status: 'Enrolled', status_class: 'active' }, DEFAULT_CONTACT_FILTERS), true)
+  assert.equal(matchesContactFilters({ ...student, client_status: 'Lost', status_class: 'inactive' }, DEFAULT_CONTACT_FILTERS), false)
+  assert.equal(matchesContactFilters({ ...student, client_status: 'Lost' }, {}), true)
 })
