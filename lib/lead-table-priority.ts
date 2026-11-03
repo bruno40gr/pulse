@@ -27,7 +27,7 @@ export function compareLeadAction(left: ActionRow, right: ActionRow, tab: string
   }
   return Date.parse(right.created_at) - Date.parse(left.created_at)
 }
-/** Table-only US display normalization; storage and international numbers are unchanged. */
+/** Shared US display normalization; storage and international numbers are unchanged. */
 export function leadTablePhone(value: string | null | undefined): string {
-  return formatPhoneNumber(value).replace(/^\+1 (?=\()/, '')
+  return formatPhoneNumber(value)
 }

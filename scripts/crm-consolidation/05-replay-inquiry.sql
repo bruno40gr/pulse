@@ -78,6 +78,11 @@ BEGIN
       coalesce(nullif(btrim(metadata->>'message'),''),''),metadata,q.received_at,q.received_at)
     RETURNING id INTO lead;
   ELSE
+  -- Older queued inquiries predate intake's automatic first reminder. Use arrival,
+  -- not replay time, and never overwrite an explicit date or cleared reminder.
+  IF NOT (metadata ? 'follow_up_at') THEN
+    metadata := metadata || jsonb_build_object('follow_up_at',q.received_at,'follow_up_note','First follow-up');
+  END IF;
   INSERT INTO public.lead_intakes(id,tenant_id,contact_id,intake_type,source_system,source_form,
     source_page,program_label,service_label,utm_source,utm_medium,utm_campaign,referrer,payload,
     created_at,updated_at)

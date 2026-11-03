@@ -1,4 +1,5 @@
 import { leadBirthdayProblem } from '@/lib/lead-birthday'
+import { withInitialLeadFollowUp } from '@/lib/lead-initial-follow-up'
 import { NextResponse } from 'next/server'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -128,10 +129,10 @@ export async function POST(request: Request) {
     const utmMedium = normalizeText(body.utm_medium)
     const utmCampaign = normalizeText(body.utm_campaign)
     const referrer = normalizeText(body.referrer)
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, unknown> = withInitialLeadFollowUp({
       ...(body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {}),
       source,
-    }
+    }, intakeType || '')
 
     if (!intakeType) return jsonWithCors(request, { error: 'intake_type is required' }, { status: 400 })
     if (!sourceForm) return jsonWithCors(request, { error: 'source_form is required' }, { status: 400 })

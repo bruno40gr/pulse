@@ -2,6 +2,15 @@
 
 Updated: August 28, 2026
 
+## Initial follow-up
+
+New non-job inquiries created through manual intake or incoming forms receive an
+automatic staff reminder due at arrival, so the lead is due today immediately.
+This is a task reminder, not an automated SMS/email. Explicit reminder values
+(including null) are preserved; existing leads are not backfilled. Queued intake
+stores the arrival reminder and replay defaults older queued items to received_at,
+not replay time. Staff can reschedule or clear it through the existing editor.
+
 ## What is built
 
 The new lead capture and microCRM flow is now partially implemented across the Headliner website and the Pulse dashboard.

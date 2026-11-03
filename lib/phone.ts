@@ -12,7 +12,7 @@ export function formatPhoneNumber(value: string | null | undefined): string {
   }
 
   if (digits.length === 11 && digits.startsWith('1')) {
-    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}${extension}`
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}${extension}`
   }
 
   return trimmed

@@ -11,6 +11,7 @@ import { TableDisplayControls } from '@/components/ui/TableDisplayControls'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TableDiscoveryToolbar, TableContextActionBar, TableResultCount, TableResultsSlot } from '@/components/ui/TableWorkspaceControls'
 import { colors, spacing, typography } from '@/lib/tokens'
+import { formatPhoneNumber } from '@/lib/phone'
 import { smsDestination } from '@/lib/communication-recipients'
 
 const filterDefinitions = [
@@ -77,7 +78,7 @@ export default function ContactsTablePrototype() {
   const columns: DataTableColumn<Person, SortKey>[] = [
     { id: 'name', header: 'Name', width: 'minmax(220px, 1.4fr)', sortable: true, sortKey: 'name', render: (person: Person) => <div><TablePersonName onOpen={() => { setDetail(person); openPanel('Contact details') }}>{person.name}</TablePersonName><div style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>{person.role}</div></div> },
     { id: 'status', header: 'Status', width: '110px', sortable: true, sortKey: 'status', render: (person: Person) => <Badge size="sm">{person.status}</Badge> },
-    { id: 'phone', header: 'Phone', width: '170px', render: (person: Person) => person.phone || 'No phone' },
+    { id: 'phone', header: 'Phone', width: '170px', render: (person: Person) => formatPhoneNumber(person.phone) || 'No phone' },
     { id: 'email', header: 'Email', width: '230px', render: (person: Person) => person.email || 'No email' },
     { id: 'instructor', header: 'Instructor', width: '170px', sortable: true, sortKey: 'instructor', render: (person: Person) => <PersonName roleVariant="instructor">{person.instructor}</PersonName> },
   ].filter(column => preferences.columns.includes(column.id)) as DataTableColumn<Person, SortKey>[]
