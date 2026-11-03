@@ -8,6 +8,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { SlidersHorizontal, X, RefreshCw, Sparkles } from 'lucide-react'
@@ -23,6 +24,7 @@ import { contactDestination, familyHolderPerson } from '@/lib/contact-presentati
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
 import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -76,6 +78,9 @@ interface TenantField {
 interface SyncStatusResponse {
   last_synced_at?: string | null
 }
+
+/** Owner/admin-gated enrollment prototype that owns its own access check. */
+const ENROLLMENT_PATH = '/content-studio-prototype/enrollment'
 
 const PLACEHOLDER_MESSAGES = [
   "Find students who haven't attended in 3 weeks...",
@@ -577,6 +582,8 @@ export default function ContactsPage() {
             )}
             <Button variant="secondary" size="toolbar" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
             <Button variant="secondary" size="toolbar" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
+            {/* Navigation, not an action: the anchor keeps middle-click and open-in-new-tab working. */}
+            <Link href={ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
           </div>
 
       {/* Stale data banner */}

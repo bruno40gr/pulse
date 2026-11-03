@@ -1,5 +1,16 @@
 # Table toolbars
 
+## Page header (zone 1)
+
+- The header carries the title and the primary page action, never the record count.
+  Contacts keeps Sync, Import Contacts and Add contact as secondary operational
+  actions; import and sync are transitional.
+- Contacts renders Enroll new student as the primary action linking to
+  `/content-studio-prototype/enrollment`. Use an anchor styled from the exported
+  Button style objects so navigation keeps middle-click and open-in-new-tab; do not
+  nest a button inside a link. That destination performs its own owner/admin check,
+  so the header must not duplicate the enrollment access rule.
+
 ## Contextual selection mode
 
 - `RichDataTable.contextualToolbar` is the opt-in selection mode. Supply it only
