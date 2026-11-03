@@ -18,11 +18,13 @@ export type FamilyListGroup<Row> = {
 }
 
 /** Contacts interactions on the same grouped-row primitive used by released Leads. */
-export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', renderPersonRole, onOpenGroup, onOpenMember, isMessageTarget, ...table }: Omit<RichDataTableProps<Row, SortKey>, 'rows'> & {
+export default function FamilyListTable<Row, SortKey extends string>({ groups, nameColumn, contactColumn = 'contact', detailColumn = 'program', renderPersonRole, onOpenGroup, onOpenMember, isMessageTarget, onToggleMembers, ...table }: Omit<RichDataTableProps<Row, SortKey>, 'rows'> & {
   renderPersonRole?: (row: Row) => ReactNode
   groups: FamilyListGroup<Row>[]; nameColumn: string; contactColumn?: string; detailColumn?: string
   /** Rows that can never receive a message get no checkbox; context-only rows stay disabled. */
   isMessageTarget?: (row: Row) => boolean
+  /** Toggles a whole family when its rows share the selection (no single holder row). */
+  onToggleMembers?: (rows: Row[], checked: boolean) => void
   onOpenGroup?: (group: FamilyListGroup<Row>) => void
   onOpenMember?: (row: Row) => void
 }) {
@@ -32,11 +34,16 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     ...group.members.flatMap(member => member.row ? [member.row] : []),
   ]
   const canSelect = (group: FamilyListGroup<Row>, row: Row) => realRows(group).some(candidate => table.getRowKey(candidate) === table.getRowKey(row))
-  // A checkbox appears when the row is selectable now (enabled) or is a message
-  // target outside the current context (disabled). Rows that can never be part of
-  // the selection get no checkbox at all.
-  const showsSelection = (group: FamilyListGroup<Row>, row: Row) => canSelect(group, row) || (isMessageTarget?.(row) ?? true)
-  const selected = new Set(groups.filter(group => group.parent && source?.selectedKeys.has(table.getRowKey(group.parent))).map(group => group.id))
+  // A person shows a checkbox only when delivery would reach them. Everyone else
+  // (children) is reached through the family row, which stays the control even when
+  // the account-holder person cannot be resolved from the payload.
+  const showsSelection = (row: Row) => isMessageTarget?.(row) ?? true
+  // With a holder row the family row is that person. Without one (a children-only
+  // family) it is the account control and reflects whether its rows are selected.
+  const selected = new Set(groups.filter(group => {
+    if (group.parent) return source?.selectedKeys.has(table.getRowKey(group.parent))
+    return realRows(group).some(row => source?.selectedKeys.has(table.getRowKey(row)))
+  }).map(group => group.id))
 
   return <RichDataTable<FamilyListGroup<Row>, SortKey>
     {...table}
@@ -59,7 +66,7 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     getDetailRows={(group, index) => group.members.map(member => ({
       key: member.id,
       style: { background: member.row && source?.selectedKeys.has(table.getRowKey(member.row)) ? colors.surfaceSelected : index % 2 === 0 ? colors.surface : colors.background },
-      selection: source && member.row && showsSelection(group, member.row) ? {
+      selection: source && member.row && showsSelection(member.row) ? {
         checked: source.selectedKeys.has(table.getRowKey(member.row)),
         disabled: !canSelect(group, member.row),
         label: `Select ${member.name}`,
@@ -77,13 +84,15 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
     selection={source ? {
       ...source,
       selectedKeys: selected,
-      showCheckbox: group => group.parent ? showsSelection(group, group.parent) && (source.showCheckbox?.(group.parent) ?? true) : false,
-      isSelectable: group => Boolean(group.parent && canSelect(group, group.parent)),
+      showCheckbox: group => realRows(group).length > 0 && (group.parent ? showsSelection(group.parent) : true),
+      isSelectable: group => realRows(group).length > 0,
       getRowLabel: group => group.name,
       // Family-wide double-click selection is gone: members that cannot receive are not selectable.
       onDoubleClick: undefined,
       onToggle: (group, index, event) => {
-        if (group.parent) source.onToggle(group.parent, index, event)
+        const rows = realRows(group)
+        if (rows.length > 1) { onToggleMembers?.(rows, event.target.checked); return }
+        if (rows[0]) source.onToggle(rows[0], index, event)
       },
     } : undefined}
     onRowClick={(group, index, event) => {

@@ -80,7 +80,8 @@ test('Contacts uses atomic filtered-family selection, keeping drawers and transp
   assert.match(page, /contactViewGroups\(sortedDisplayed, contacts, contactView\)/)
   assert.match(page, /viewGroups\.slice\(\(currentPage - 1\) \* pageSize, currentPage \* pageSize\)/)
   assert.match(page, /isMessageTarget=\{isMessageTarget\}/)
-  assert.doesNotMatch(page, /onToggleMembers/)
+  // The family row toggles its recipients when no single holder row exists.
+  assert.match(page, /onToggleMembers=\{\(members, checked\) =>/)
   assert.match(page, /if \(key === 'client_status'\) \{\s+if \(c.client_status !== val\) return false\s+continue/)
   assert.match(page, /<ContactSlidePanel/)
   assert.match(page, /sortedDisplayed\.findIndex\(row => row.id === contact.id\)/)

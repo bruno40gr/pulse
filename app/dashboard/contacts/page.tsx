@@ -786,6 +786,17 @@ export default function ContactsPage() {
           sort={contactSort}
           onSortChange={setContactSort}
           isMessageTarget={isMessageTarget}
+          onToggleMembers={(members, checked) => {
+            setSelectedIds(current => {
+              const next = new Set(current)
+              for (const member of members) {
+                if (checked) next.add(member.id)
+                else next.delete(member.id)
+              }
+              return next
+            })
+            setLastSelectedIndex(-1)
+          }}
           selection={{
             selectedKeys: selectedIds,
             onToggle: (contact, _index, event) => handleCheckboxToggle(contact, sortedDisplayed.findIndex(row => row.id === contact.id), (event.nativeEvent as MouseEvent).shiftKey),
