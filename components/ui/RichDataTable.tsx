@@ -26,7 +26,7 @@ export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, t
   const visibleIndexes = visibleColumns.map(column => columns.indexOf(column))
   const minWidth = (table.selection ? 48 : 0) + 32 + visibleColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
   return <>
-    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbarPlacement === 'below' ? undefined : contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing['2xl'] }}>
+    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbarPlacement === 'below' ? undefined : contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.sm }}>
       {toolbar}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
         {displayToolbar}

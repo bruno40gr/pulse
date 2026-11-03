@@ -23,7 +23,7 @@ export function TableResultCount({ children }: { children: ReactNode }) {
 export function TableDiscoveryToolbar({ search, filters, view, preferences, chips }: {
   search: ReactNode; filters: ReactNode; view: ReactNode; preferences: ReactNode; chips?: ReactNode
 }) {
-  return <div style={{ marginBottom: spacing['2xl'] }}>
+  return <div style={{ marginBottom: spacing.sm }}>
     <div role="group" aria-label="Table discovery" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
       <div style={{ flex: '1 1 640px', maxWidth: 820, minWidth: 0 }}>{search}</div>
       {filters}

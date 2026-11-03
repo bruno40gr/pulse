@@ -18,7 +18,7 @@
   with `TableResultsSlot` below them: the count and blue bar share one grid cell,
   so selecting/clearing never inserts height or moves the table. Reserve 42px on
   desktop and 76px below 640px for a compact two-line action layout. Keep the
-  discovery-to-results gap at `spacing['2xl']`. Other consumers retain the
+  discovery-to-results gap at `spacing.sm` (8px). Other consumers retain the
   opt-in replacement mode by default. Both placements use `TableToolbarMode`.
 - Use `TableContextActionBar` for selected count, domain-defined actions and a
   labeled X to clear. The bar is solid `colors.link`, the same blue as Active
