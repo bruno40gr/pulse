@@ -155,7 +155,7 @@ export default function ContactList({ selectedContactIds, onContactsLoaded }: Co
                 </td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{contact.email || '—'}</td>
                 <td style={{ padding: '12px', color: '#6B6B6B' }}>{serviceType || '—'}</td>
-                <td style={{ padding: '12px' }}>{instructor ? <PersonName>{instructor}</PersonName> : '—'}</td>
+                <td style={{ padding: '12px' }}>{instructor ? <PersonName roleVariant="instructor">{instructor}</PersonName> : '—'}</td>
                 <td style={{ padding: '12px 24px' }}>
                   <Badge variant={
                     contact.opted_out ? 'error' :

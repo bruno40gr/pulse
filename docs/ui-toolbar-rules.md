@@ -15,14 +15,21 @@
 
 - `RichDataTable.contextualToolbar` supplies the domain action bar. Contacts uses
   `contextualToolbarPlacement="below"`: discovery controls remain visible and usable,
-  with the blue bar below them only while selected. Other consumers retain the
+  with `TableResultsSlot` below them: the count and blue bar share one grid cell,
+  so selecting/clearing never inserts height or moves the table. Reserve 42px on
+  desktop and 76px below 640px for a compact two-line action layout. Keep the
+  discovery-to-results gap at `spacing['2xl']`. Other consumers retain the
   opt-in replacement mode by default. Both placements use `TableToolbarMode`.
 - Use `TableContextActionBar` for selected count, domain-defined actions and a
   labeled X to clear. The bar is solid `colors.link`, the same blue as Active
   badges, links and notices, with white text; action buttons are transparent ghost
   buttons with no border. Do not introduce a second blue or a teal fill. The domain supplies handlers, labels
   and eligibility reasons. Contacts exposes Text, Email and Clear only; editing stays in individual profiles.
-- Keep the matching-result count in `beforeTable`, separately from selected count.
+- Supply the matching-result count through `TableResultCount` in `beforeTable`.
+  During selection the bar replaces it with “3 out of 167 contacts selected”;
+  pass the matching-result label to `TableContextActionBar.resultLabel`. Both
+  states use the same base font size and medium weight. The hidden normal count
+  is inert and aria-hidden. Do not render two announced counts at once.
   Never show disabled messaging actions in discovery mode. Contacts uses the shared toolbar-sized segmented view control (View students / View families). Its AI search field grows to about 820px on desktop so
   it remains the primary control, and Filters sits directly beside it.
 - Clear selection must not clear query, applied filters, sorting, view or table
@@ -32,6 +39,17 @@
   and any selection size. Its server-backed resolution owns eligibility,
   account-holder routing, deduplication and exclusions. Communications retains its
   independent compose/recipient-picker entry points.
+
+## Shared row scanning
+
+- `ResponsiveDataTable` applies the `colors.tableRowHover` inset overlay to every
+  data row, including family detail rows. The translucent blue works over white,
+  alternating light gray and selected backgrounds without changing their base
+  colors. It is presentation only; hovering never selects or opens a record.
+- Instructor names use `PersonName roleVariant="instructor"` (regular weight),
+  rather than inheriting the primary person's bold weight.
+- `/dashboard/design/contacts-table` uses the same `TableResultsSlot`,
+  `TableResultCount` and action bar to demonstrate stable selection geometry.
 - Multi-condition filters open in a narrow `SlidePanel`, not an inline row. Stack
   shared `Select` fields with `FieldGrid columns={1}` and apply the draft only on
   Submit search, so choosing options never re-queries. Clear filters resets the

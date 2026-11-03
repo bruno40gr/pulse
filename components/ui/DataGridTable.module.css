@@ -1,0 +1,4 @@
+/* An inset overlay leaves each row's white/striped/selected base intact. */
+.row:hover {
+  box-shadow: inset 0 0 0 9999px var(--table-row-hover);
+}

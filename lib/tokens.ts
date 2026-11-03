@@ -20,6 +20,7 @@ export const colors = {
   surface: '#FFFFFF',
   surfaceMuted: '#f6f8f8',
   surfaceSelected: '#F5F8FF',
+  tableRowHover: 'rgba(37, 99, 235, 0.08)',
   background: '#fbfdfc',
   backgroundSecondary: '#F3F4F6',
 

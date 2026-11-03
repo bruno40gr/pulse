@@ -1,0 +1,35 @@
+.results {
+  display: grid;
+  min-height: 42px;
+  margin-bottom: 8px;
+}
+
+.resultLayer {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.actionBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .results,
+  .actionBar {
+    min-height: 76px;
+  }
+
+  .actionBar {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+  }
+}

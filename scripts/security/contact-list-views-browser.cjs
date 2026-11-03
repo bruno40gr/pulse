@@ -38,7 +38,7 @@ const rows = [
       }
       await morgan.check()
       assert.equal(await morgan.isChecked(), true)
-      await page.getByText('1 selected', { exact: true }).waitFor()
+      await page.getByText(/^1 out of \d+ contacts? selected$/).waitFor()
       await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
       const contactsRequests = requests.filter(path => path === '/api/contacts').length
       const search = page.locator('[data-table-toolbar] input[type="text"]')
@@ -52,7 +52,7 @@ const rows = [
       assert.equal(await morgan.isChecked(), true)
       assert.equal(await table.getByRole('checkbox', { name: 'Select Alex Example', exact: true }).count(), 0)
       assert.equal(await table.getByRole('checkbox', { name: 'Select Taylor Example', exact: true }).count(), 0)
-      await page.getByText('1 selected', { exact: true }).waitFor()
+      await page.getByText(/^1 out of \d+ contacts? selected$/).waitFor()
       await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
       await view.getByRole('button', { name: 'View students', exact: true }).click()
       await table.getByRole('button', { name: 'Alex Example', exact: true }).waitFor()

@@ -67,10 +67,10 @@ test('Settings separates staff roles from permission editing and uses the shared
   assert.match(people, /display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0/)
 })
 
-test('Contacts keeps result counts separate and shares exclusive toolbar modes', () => {
+test('Contacts shares a reserved results slot and contextual actions', () => {
   const contacts = source('app/dashboard/contacts/page.tsx')
   assert.match(contacts, /contextualToolbar=\{selectedIds.size > 0/)
-  assert.match(contacts, /beforeTable=\{<p role="status"/)
+  assert.match(contacts, /beforeTable=\{<TableResultCount>/)
   const modes = source('components/ui/TableWorkspaceControls.tsx')
   assert.match(modes, /inert=\{active\}/)
   assert.match(modes, /aria-label="Clear selection"/)

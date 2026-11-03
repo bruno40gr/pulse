@@ -11,6 +11,29 @@ const { CONTACT_TABLE_SCHEMA } = harness.load('lib/contact-table-preferences.ts'
 const plain = value => JSON.parse(JSON.stringify(value))
 const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
 
+test('shared results slot overlays count and actions with matching reserved responsive heights', () => {
+  const controls = source('components/ui/TableWorkspaceControls.tsx')
+  const css = source('components/ui/TableWorkspaceControls.module.css')
+  assert.match(controls, /export function TableResultsSlot/)
+  assert.match(controls, /export function TableResultCount/)
+  assert.match(controls, /inert=\{!!contextual\}/)
+  assert.match(controls, /out of/)
+  assert.match(css, /grid-area: 1 \/ 1/)
+  assert.match(css, /min-height: 42px/)
+  assert.match(css, /min-height: 76px/)
+  assert.match(source('components/ui/RichDataTable.tsx'), /<TableResultsSlot result=\{beforeTable\} contextual=\{contextualToolbar\}/)
+})
+
+test('shared grid applies hover to parent and detail rows without replacing base backgrounds', () => {
+  const grid = source('components/ui/DataGridTable.tsx')
+  assert.equal((grid.match(/className=\{styles.row\}/g) || []).length, 4)
+  assert.match(source('components/ui/DataGridTable.module.css'), /\.row:hover/)
+  assert.match(source('components/ui/DataGridTable.module.css'), /box-shadow: inset/)
+  assert.match(grid, /colors.tableRowHover/)
+  const names = source('components/ui/PersonName.tsx')
+  assert.match(names, /roleVariant === 'instructor' \? 'normal' : 'bold'/)
+})
+
 test('each table uses the same preference rules with its own metadata schema', () => {
   for (const schema of [LEAD_TABLE_SCHEMA, CONTACT_TABLE_SCHEMA]) {
     assert.deepEqual(plain(normalizeTablePreferences(null, schema).columns), plain(schema.defaultColumns))

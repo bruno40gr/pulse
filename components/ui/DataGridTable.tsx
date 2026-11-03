@@ -5,6 +5,7 @@ import { ButtonBase } from '@/components/ui/ButtonBase'
 import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import styles from './DataGridTable.module.css'
 
 export type DataTableSortDirection = 'asc' | 'desc'
 
@@ -160,6 +161,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
       aria-label={ariaLabel}
       style={{
         ...desktopTableStyle,
+        ...({ '--table-row-hover': colors.tableRowHover } as CSSProperties),
         width: '100%',
         minWidth: 0,
         maxWidth: '100%',
@@ -264,6 +266,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
               <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity, background: details.some(detail => detail.selection) ? undefined : rowBackground } : undefined}>
               <div
                 key={rowKey}
+                className={styles.row}
                 role="row"
                 aria-selected={selection ? selected : undefined}
                 onClick={(event) => {
@@ -311,7 +314,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                   </div>
                 ))}
               </div>
-              {details.map((detail, detailIndex) => <div key={detail.key} role="row" aria-selected={detail.selection?.checked} onClick={event => {
+              {details.map((detail, detailIndex) => <div key={detail.key} className={styles.row} role="row" aria-selected={detail.selection?.checked} onClick={event => {
                 if (onRowClick && !isInteractiveTarget(event.target, event.currentTarget)) onRowClick(row, index, event)
               }} style={{ ...desktopRowStyle, ...selectionInset, gridTemplateColumns: columnTemplate, background: rowBackground, borderBottom: groupedRows ? 'none' : customRowStyle?.borderBottom || desktopRowStyle.borderBottom, ...(groupedRows ? { ...groupedRowStyle, color: colors.textSecondary, paddingBottom: detailIndex === details.length - 1 ? groupEdgeSpacing : 0, minHeight: groupedRowStyle.minHeight + (detailIndex === details.length - 1 ? groupEdgePadding : 0) } : undefined), cursor: onRowClick ? 'pointer' : 'default', ...detail.style }}>
                 {selection && <div role="cell" style={desktopSelectionCellStyle} onClick={event => event.stopPropagation()}>
@@ -353,14 +356,15 @@ export function DataGridTable({ columns, header, children, style }: DataGridTabl
 
 export function DataGridRow({ columns, children, style, as = 'div', onClick }: DataGridRowProps) {
   const sharedStyle: CSSProperties = {
+    ...({ '--table-row-hover': colors.tableRowHover } as CSSProperties),
     display: 'grid', gridTemplateColumns: columns, gap: spacing.md, padding: spacing.md,
     borderBottom: `1px solid ${colors.borderLight}`, alignItems: 'center', textAlign: 'left',
     width: '100%', minWidth: 0, fontFamily: typography.fontSans, fontSize: typography.sizeBase,
     fontWeight: typography.weightNormal, lineHeight: 1.45, whiteSpace: 'normal', overflowWrap: 'anywhere',
     background: colors.surface, ...style,
   }
-  if (as === 'button') return <ButtonBase type="button" onClick={onClick} style={sharedStyle}>{children}</ButtonBase>
-  return <div style={sharedStyle}>{children}</div>
+  if (as === 'button') return <ButtonBase className={styles.row} type="button" onClick={onClick} style={sharedStyle}>{children}</ButtonBase>
+  return <div className={styles.row} style={sharedStyle}>{children}</div>
 }
 
 const desktopTableStyle: CSSProperties = { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.xl, width: '100%', boxSizing: 'border-box', fontFamily: typography.fontSans }

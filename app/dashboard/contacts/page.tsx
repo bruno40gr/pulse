@@ -3,7 +3,7 @@
 import { useContext } from 'react'
 import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
-import { TableContextActionBar } from '@/components/ui/TableWorkspaceControls'
+import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -542,7 +542,7 @@ export default function ContactsPage() {
       width: 'minmax(160px, 0.9fr)',
       sortable: true,
       sortKey: 'instructor',
-      render: (contact) => contact.instructor?.name ? <PersonName>{contact.instructor.name}</PersonName> : null,
+      render: (contact) => contact.instructor?.name ? <PersonName roleVariant="instructor">{contact.instructor.name}</PersonName> : null,
     },
   ]
 
@@ -678,11 +678,11 @@ export default function ContactsPage() {
           renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
           preferencesLabel="Table Preferences"
           contextualToolbarPlacement="below"
-          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} onClear={clearSelection} actions={[
+          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={[
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}
-          beforeTable={<p role="status" style={{ color: colors.textSecondary, fontSize: typography.sizeSm, margin: `0 0 ${spacing.sm}`, fontFamily: typography.fontSans }}>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</p>}
+          beforeTable={<TableResultCount>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</TableResultCount>}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
           displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Contact view" value={contactView} onChange={view => {
           setContactPage(1)

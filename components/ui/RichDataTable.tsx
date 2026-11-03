@@ -1,6 +1,6 @@
 'use client'
 
-import { TableToolbarMode } from './TableWorkspaceControls'
+import { TableResultsSlot, TableToolbarMode } from './TableWorkspaceControls'
 import type { ReactNode } from 'react'
 import { ResponsiveDataTable, type ResponsiveDataTableProps } from './DataGridTable'
 import { TableDisplayControls, useTablePreferences } from './TableDisplayControls'
@@ -26,7 +26,7 @@ export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, t
   const visibleIndexes = visibleColumns.map(column => columns.indexOf(column))
   const minWidth = (table.selection ? 48 : 0) + 32 + visibleColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
   return <>
-    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.lg }}>
+    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbarPlacement === 'below' ? undefined : contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing['2xl'] }}>
       {toolbar}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
         {displayToolbar}
@@ -34,7 +34,7 @@ export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, t
           label={preferencesLabel} schema={preferenceSchema} preferences={preferences} onChange={updatePreferences} />
       </div>
     </div>} />
-    {beforeTable}
+    {contextualToolbarPlacement === 'below' ? <TableResultsSlot result={beforeTable} contextual={contextualToolbar} /> : beforeTable}
     <ResponsiveDataTable {...table} columns={visibleColumns} density={preferences.density} minDesktopWidth={minWidth}
       getDetailRows={getDetailRows ? (row, index) => getDetailRows(row, index).map(detail => ({ ...detail, cells: visibleIndexes.map(position => detail.cells[position]) })) : undefined} />
   </>

@@ -6,9 +6,10 @@ import { Button, Input, Select, Textarea, PageHeader, SlidePanel, SlidePanelHead
 import { ResponsiveDataTable, type DataTableColumn, type DataTableSort } from '@/components/ui/DataGridTable'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { TablePersonName } from '@/components/ui/TablePersonName'
+import { PersonName } from '@/components/ui/PersonName'
 import { TableDisplayControls } from '@/components/ui/TableDisplayControls'
 import { TablePagination } from '@/components/ui/TablePagination'
-import { TableDiscoveryToolbar, TableContextActionBar } from '@/components/ui/TableWorkspaceControls'
+import { TableDiscoveryToolbar, TableContextActionBar, TableResultCount, TableResultsSlot } from '@/components/ui/TableWorkspaceControls'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { smsDestination } from '@/lib/communication-recipients'
 
@@ -78,9 +79,8 @@ export default function ContactsTablePrototype() {
     { id: 'status', header: 'Status', width: '110px', sortable: true, sortKey: 'status', render: (person: Person) => <Badge size="sm">{person.status}</Badge> },
     { id: 'phone', header: 'Phone', width: '170px', render: (person: Person) => person.phone || 'No phone' },
     { id: 'email', header: 'Email', width: '230px', render: (person: Person) => person.email || 'No email' },
-    { id: 'instructor', header: 'Instructor', width: '170px', sortable: true, sortKey: 'instructor', render: (person: Person) => person.instructor },
+    { id: 'instructor', header: 'Instructor', width: '170px', sortable: true, sortKey: 'instructor', render: (person: Person) => <PersonName roleVariant="instructor">{person.instructor}</PersonName> },
   ].filter(column => preferences.columns.includes(column.id)) as DataTableColumn<Person, SortKey>[]
-  const noSelection = selected.size ? undefined : 'Select one or more contacts using the table checkboxes.'
   const channel = panel === 'Text' || panel === 'Email' ? panel : null
   const destinations = channel ? recipients(channel) : []
   const excluded = channel ? chosen.filter(person => channel === 'Text' ? !smsDestination(person.phone) : !person.email).length : 0
@@ -93,10 +93,9 @@ export default function ContactsTablePrototype() {
       preferences={<TableDisplayControls label="Table Preferences" columns={schema.columnIds.map(id => ({ id, label: id[0].toUpperCase() + id.slice(1) }))} schema={schema} preferences={preferences} onChange={setPreferences} />}
       chips={(query || Object.keys(applied).length > 0) ? <>{query && <Button variant="secondary" size="sm" onClick={() => { setQuery(''); setDraftQuery(''); setPage(1) }}>Search: {query}<X size={12} /></Button>}{filterDefinitions.filter(({ key }) => applied[key]).map(({ key, label }) => <Button key={key} variant="secondary" size="sm" aria-label={`Remove ${label} filter`} onClick={() => { setApplied(previous => { const next = { ...previous }; delete next[key]; return next }); setPage(1) }}>{label}: {applied[key]}<X size={12} /></Button>)}</> : undefined}
     />
-    <TableContextActionBar resultLabel={`${matching.length} ${matching.length === 1 ? 'contact' : 'contacts'}`} selectedCount={selected.size} selectionHint={outside || offPage ? `${outside} selected outside current results · ${offPage} selected on other pages` : undefined} onClear={() => setSelected(new Set())} actions={[
-      ...(['Text', 'Email'] as const).map(name => ({ id: name, label: name, disabledReason: noSelection || (!recipients(name).length ? `Selected contacts have no eligible ${name === 'Text' ? 'phone numbers' : 'email addresses'}.` : undefined), onClick: () => openPanel(name) })),
-      { id: 'edit', label: 'Edit', disabledReason: noSelection, onClick: () => openPanel('Edit') },
-    ]} />
+    <TableResultsSlot result={<TableResultCount>{matching.length} {matching.length === 1 ? 'contact' : 'contacts'}</TableResultCount>} contextual={selected.size > 0 ? <TableContextActionBar resultLabel={`${matching.length} ${matching.length === 1 ? 'contact' : 'contacts'}`} selectedCount={selected.size} selectionHint={outside || offPage ? `${outside} selected outside current results · ${offPage} selected on other pages` : undefined} onClear={() => setSelected(new Set())} actions={[
+      ...(['Text', 'Email'] as const).map(name => ({ id: name, label: name, disabledReason: (!recipients(name).length ? `Selected contacts have no eligible ${name === 'Text' ? 'phone numbers' : 'email addresses'}.` : undefined), onClick: () => openPanel(name) })),
+    ]} /> : undefined} />
     <ResponsiveDataTable<typeof groups[number], SortKey> ariaLabel="Contacts prototype" rows={visible} groupedRows={view === 'families'} density={preferences.density} minDesktopWidth={columns.reduce((sum, column) => sum + Number(column.width.match(/\d+/)?.[0] || 100), 48)} columns={columns.map(column => ({ ...column, render: group => column.render(group.parent, 0) }))} getRowKey={group => group.parent.id} sort={sort} onSortChange={setSort}
       selection={{ selectedKeys: selected, isSelectable: group => matchingIds.has(group.parent.id), onToggle: group => toggle(group.parent.id), onToggleAll: () => setSelected(previous => { const next = new Set(previous); visiblePeople.forEach(person => { if (allVisible) next.delete(person.id); else next.add(person.id) }); return next }), allSelected: allVisible, someSelected: visiblePeople.some(person => selected.has(person.id)) && !allVisible, selectAllLabel: 'Select all visible contacts', getRowLabel: group => group.parent.name }}
       getDetailRows={group => group.members.map(person => ({ key: person.id, style: { background: selected.has(person.id) ? colors.surfaceSelected : colors.surface }, selection: { checked: selected.has(person.id), disabled: !matchingIds.has(person.id), label: `Select ${person.name}`, onChange: () => toggle(person.id) }, cells: columns.map(column => column.render(person, 0)) }))}
