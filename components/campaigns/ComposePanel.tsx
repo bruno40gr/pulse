@@ -12,6 +12,7 @@ import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoA
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import type { RecipientResolution } from '@/lib/communication-recipients'
+import { formatPhoneNumber } from '@/lib/phone'
 
 const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
 const KUMON = '00000000-0000-0000-0000-000000000003'
@@ -596,9 +597,10 @@ export default function ComposePanel({
         {needsReview && !currentReview?.audience && <Notice variant={currentReview?.error ? 'error' : 'info'}>{currentReview?.error || 'Checking SMS recipients…'}</Notice>}
         {resolvedAudience && <div role="region" aria-label="Verified SMS recipients" style={{ marginBottom: spacing.lg, overflowWrap: 'anywhere' }}>
           <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Actual SMS recipients</div>
-          <ul style={{ margin: 0, paddingLeft: spacing.lg }}>
-            {resolvedAudience.recipients.map(recipient => <li key={recipient.destination}>
-              <span>{recipient.name}</span> — <span>{recipient.destination}</span>
+          <ul style={{ margin: `${spacing.xs} 0 0`, padding: 0, listStyle: 'none', display: 'grid', gap: spacing.xs }}>
+            {resolvedAudience.recipients.map(recipient => <li key={recipient.destination} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: spacing.sm }}>
+              <strong style={{ fontWeight: typography.weightBold }}>{recipient.name}</strong>
+              <span style={{ color: colors.textSecondary, whiteSpace: 'nowrap' }}>{formatPhoneNumber(recipient.destination)}</span>
             </li>)}
           </ul>
         </div>}
