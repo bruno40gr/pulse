@@ -120,3 +120,17 @@ test('a family whose account-holder row is unresolvable stays selectable', () =>
   assert.equal(groups[0].parent, undefined)
   assert.deepEqual(plain(groups[0].selectionRows.map(contact => contact.id)), ['kid-a', 'kid-b'])
 })
+
+test('a payer whose own row routes to the account is still the family selection', () => {
+  // Imported payer rows often carry message_routing 'account_holder' because that is
+  // what they are. Routing it to the account resolves to themselves, so the holder
+  // must stay selectable and the child must not.
+  const rows = [
+    { id: 'parent', tenant_id: 't', account_id: 'acct', account_holder_person_id: 'parent', message_routing: 'account_holder', is_student: true },
+    { id: 'child', tenant_id: 't', account_id: 'acct', account_holder_person_id: 'parent', account_holder_name: 'Jane Smith', is_student: true, is_minor: true },
+  ]
+  const groups = contactViewGroups(rows, rows, 'family')
+  assert.equal(groups.length, 1)
+  assert.equal(groups[0].parent.id, 'parent')
+  assert.deepEqual(plain(groups[0].selectionRows.map(contact => contact.id)), ['parent'])
+})

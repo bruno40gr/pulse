@@ -141,7 +141,7 @@ test('one routing rule is shared by delivery and the Contacts selection gate', (
   assert.match(policy, /students\.some\(routesToAccountHolder\)/)
   const views = fs.readFileSync(path.join(root, 'lib/contact-list-views.ts'), 'utf8')
   assert.match(views, /import \{ routesToAccountHolder \} from '\.\/communication-recipients'/)
-  assert.match(views, /return !routesToAccountHolder\(contact\)/)
+  assert.match(views, /return isAccountHolderPerson\(contact\) \|\| !routesToAccountHolder\(contact\)/)
   // The rule itself must not be restated here; only the field types may appear.
   assert.doesNotMatch(views, /=== 'account_holder'/)
   assert.doesNotMatch(views, /is_minor === true/)

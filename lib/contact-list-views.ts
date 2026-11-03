@@ -15,13 +15,21 @@ type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
   message_routing?: string | null
 }
 
+/** A person who holds the account is the destination, whatever their own row says. */
+export function isAccountHolderPerson(contact: ViewContact) {
+  return contact.account_holder_person_id === contact.id
+    || (contact.account_holders || []).some(holder => holder.person_id === contact.id)
+}
+
 /**
  * Whether a person can be selected here. Delegates to the shared routing rule so
  * Contacts cannot drift from what delivery does; the server stays authoritative
- * for destinations, opt-outs and exclusions.
+ * for destinations, opt-outs and exclusions. A payer's own student record can
+ * carry `message_routing: 'account_holder'` because that is what they are —
+ * routing it to the account resolves to themselves, so they stay selectable.
  */
 export function isMessageTarget(contact: ViewContact) {
-  return !routesToAccountHolder(contact)
+  return isAccountHolderPerson(contact) || !routesToAccountHolder(contact)
 }
 
 /** Selection rows are who a message reaches, not who matched the search. */
