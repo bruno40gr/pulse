@@ -33,6 +33,11 @@ const review = require('./fixtures/contact-list-review.cjs')
       await page.goto(process.env.CONTACTS_REVIEW_URL || 'http://127.0.0.1:3218/dashboard/contacts')
       const table = page.getByRole('table', { name: 'Contacts', exact: true })
       await table.getByRole('button', { name: 'Ethan Kim', exact: true }).waitFor()
+      // This suite exercises all-role rendering; the default active-student filter has its own suite.
+      await page.getByRole('button', { name: 'Filters', exact: true }).click()
+      await page.getByRole('dialog').getByRole('button', { name: 'Clear filters', exact: true }).click()
+      await page.getByRole('dialog').getByRole('button', { name: 'Submit search', exact: true }).click()
+
       const labels = await table.getByRole('checkbox').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))
       assert.deepEqual(labels, linked
         ? ['Select all contacts', 'Select Sam Kim', 'Select Jamie Kim']

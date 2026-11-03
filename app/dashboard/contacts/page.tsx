@@ -17,13 +17,14 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
+import { DEFAULT_CONTACT_FILTERS, matchesContactFilters } from '@/lib/contact-filters'
 import { accountStudentCount, contactViewGroups, type ContactListView } from '@/lib/contact-list-views'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -126,9 +127,8 @@ export default function ContactsPage() {
   const [displayIds, setDisplayIds] = useState<string[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
-  const [filterDraft, setFilterDraft] = useState<Record<string, string>>({})
-  const [filters, setFilters] = useState<Record<string, string>>({})
-  const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
+  const [filterDraft, setFilterDraft] = useState<Record<string, string>>(() => ({ ...DEFAULT_CONTACT_FILTERS }))
+  const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(() => ({ ...DEFAULT_CONTACT_FILTERS }))
   const [startContactEditing, setStartContactEditing] = useState(false)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<{ name: string; members: Contact[] } | null>(null)
@@ -150,7 +150,7 @@ export default function ContactsPage() {
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const [contactPage, setContactPage] = useState(1)
-  const pageSize = 10
+  const [pageSize, setPageSize] = useState(50)
   const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>({ key: 'name', direction: 'asc' })
   const [contactView, setContactView] = useState<ContactListView>('family')
   const tenantId = getActiveTenantId()
@@ -169,18 +169,7 @@ export default function ContactsPage() {
     onClose: closeContactState,
   })
 
-  // Apply standard filters
-  const standardFiltered = contacts.filter(c => {
-    for (const [key, val] of Object.entries(appliedFilters)) {
-      if (!val) continue
-      if (key === 'client_status') {
-        if (c.client_status !== val) return false
-        continue
-      }
-      if (c.custom_fields?.[key] !== val) return false
-    }
-    return true
-  })
+  const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
 
   const filteredContacts = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
   const displayed = filteredContacts
@@ -465,10 +454,20 @@ export default function ContactsPage() {
   })
   filterOptions['client_status'] = ['active', 'inactive', 'member']
 
-  const filterFields = [
-    ...tenantFields.filter(field => filterOptions[field.field_key]?.length).map(field => ({ key: field.field_key, label: field.field_label, values: filterOptions[field.field_key] })),
-    { key: 'client_status', label: 'Status', values: ['active', 'inactive', 'member'] },
+  const statusOptions = [
+    { value: 'active_students', label: 'Active students' },
+    ...[...new Set(['active', 'inactive', 'member', ...contacts.map(contact => contact.client_status)])].filter(Boolean).map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) })),
   ]
+  const filterFields = tenantFields.filter(field => field.field_key !== 'client_status' && filterOptions[field.field_key]?.length)
+    .map(field => ({ key: field.field_key, label: field.field_label, values: filterOptions[field.field_key] }))
+  const instructors = [...new Map(contacts.flatMap(contact => contact.instructor?.person_id && contact.instructor.name
+    ? [[contact.instructor.person_id, contact.instructor.name] as const] : [])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const updateFilterDraft = (key: string, value: string) => setFilterDraft(previous => {
+    const next = { ...previous }
+    if (value) next[key] = value
+    else delete next[key]
+    return next
+  })
 
   const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
@@ -699,7 +698,7 @@ export default function ContactsPage() {
           ]} /> : undefined}
           beforeTable={<p role="status" style={{ color: colors.textSecondary, fontSize: typography.sizeSm, margin: `0 0 ${spacing.sm}`, fontFamily: typography.fontSans }}>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</p>}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
-          displayToolbar={<TablePersonViewToggle ariaLabel="Contact view" value={contactView} onChange={view => {
+          displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Contact view" value={contactView} onChange={view => {
           setContactPage(1)
           setContactView(view)
           setSelectedIds(new Set())
@@ -735,7 +734,7 @@ export default function ContactsPage() {
           </Button>
         </div>
         <Button variant="secondary" size="toolbar"
-          onClick={() => { setFilterDraft({ ...filters }); setShowFilters(true) }}
+          onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }}
 
         >
           <SlidersHorizontal size={14} /> Filters
@@ -814,7 +813,7 @@ export default function ContactsPage() {
         />
       )}
 
-      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={setContactPage} />}
+      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={setContactPage} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setContactPage(1) }} itemLabel={contactView === 'family' ? 'families' : 'contacts'} />}
 
       {/* Contact slide panel */}
       {selectedAccount && !selectedContact && <AccountFamilyPanel
@@ -953,19 +952,39 @@ export default function ContactsPage() {
 
       <SlidePanel isOpen={showFilters} onClose={() => setShowFilters(false)} fullScreen={isMobile} width="min(100vw, 380px)">
         <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />
-        <form onSubmit={event => { event.preventDefault(); setFilters(filterDraft); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <form onSubmit={event => { event.preventDefault(); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing.lg} ${spacing['2xl']}` }}>
+            <h3 style={{ ...typography.label, margin: `0 0 ${spacing.md}` }}>Basic filters</h3>
             <FieldGrid columns={1}>
-              {filterFields.map(field => <Select key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => setFilterDraft(previous => {
-                const next = { ...previous }
-                if (event.target.value) next[field.key] = event.target.value
-                else delete next[field.key]
-                return next
-              })}>
-                <option value="">Any</option>
-                {field.values.map(value => <option key={value} value={value}>{value}</option>)}
-              </Select>)}
+              <Input label="Name" placeholder="Student or account-holder name" value={filterDraft.name || ''} onChange={event => updateFilterDraft('name', event.target.value)} />
+              <Select label="Status" value={filterDraft.client_status || ''} onChange={event => updateFilterDraft('client_status', event.target.value)}>
+                <option value="">All contacts</option>
+                {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Input label="Email" placeholder="Contains email address" value={filterDraft.email || ''} onChange={event => updateFilterDraft('email', event.target.value)} />
+              <Select label="Last active" hint="Based on the last attended date." value={filterDraft.last_active || ''} onChange={event => updateFilterDraft('last_active', event.target.value)}>
+                <option value="">Any time</option>
+                <option value="7">Within 7 days</option><option value="30">Within 30 days</option><option value="90">Within 90 days</option>
+                <option value="over_90">More than 90 days ago</option><option value="never">No attendance recorded</option>
+              </Select>
             </FieldGrid>
+            <details style={{ marginTop: spacing.xl }}>
+              <summary style={{ ...typography.label, cursor: 'pointer', marginBottom: spacing.md }}>Advanced filters</summary>
+              <FieldGrid columns={1}>
+                <Select label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
+                  <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </Select>
+                {(['email', 'phone'] as const).map(channel => <Select key={channel} label={`${channel === 'email' ? 'Email' : 'Phone'} availability`} value={filterDraft[`${channel}_availability`] || ''} onChange={event => updateFilterDraft(`${channel}_availability`, event.target.value)}>
+                  <option value="">Any</option><option value="present">On file</option><option value="missing">Missing</option>
+                </Select>)}
+                <Select label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
+                  <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
+                </Select>
+                {filterFields.map(field => <Select key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
+                  <option value="">Any</option>{field.values.map(value => <option key={value} value={value}>{value}</option>)}
+                </Select>)}
+              </FieldGrid>
+            </details>
           </div>
           <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface }}>
             <Button type="submit">Submit search</Button>

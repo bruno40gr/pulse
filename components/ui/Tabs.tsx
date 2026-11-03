@@ -18,19 +18,23 @@ interface TabsProps<T extends string = string> {
   style?: CSSProperties
   compact?: boolean
   variant?: 'underline' | 'prominent'
+  ariaLabel?: string
+  controlSize?: 'default' | 'toolbar'
 }
 
-export function Tabs<T extends string>({ items, activeKey, onChange, style, compact = false, variant = 'underline' }: TabsProps<T>) {
+export function Tabs<T extends string>({ items, activeKey, onChange, style, compact = false, variant = 'underline', ariaLabel, controlSize = 'default' }: TabsProps<T>) {
   const prominent = variant === 'prominent'
+  const toolbar = controlSize === 'toolbar'
 
   return (
-    <div style={{
+    <div role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} style={{
       display: 'flex',
       gap: prominent ? spacing.sm : spacing.xs,
       borderBottom: prominent ? 'none' : `1px solid ${colors.border}`,
       padding: prominent ? spacing.xs : 0,
       borderRadius: prominent ? radius.lg : 0,
       background: prominent ? colors.surfaceMuted : 'transparent',
+      ...(toolbar ? { padding: 2, gap: 2, border: `1px solid ${colors.border}`, borderRadius: radius.sm, boxSizing: 'border-box', minHeight: 42 } : {}),
       ...style,
     }}>
       {items.map((tab) => {
@@ -38,6 +42,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
         return (
           <ButtonBase
             key={tab.key}
+            type="button"
             onClick={() => onChange(tab.key)}
             aria-pressed={active}
             style={{
@@ -60,6 +65,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
               flex: compact || prominent ? '1 1 0' : undefined,
               minWidth: 0,
               whiteSpace: 'nowrap',
+              ...(toolbar ? { padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, minHeight: 36 } : {}),
             }}
           >
             <span>{tab.label}</span>

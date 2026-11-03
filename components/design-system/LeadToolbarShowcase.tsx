@@ -24,6 +24,7 @@ export function LeadToolbarShowcase() {
         <option value="all">Status: All</option>
         <option value="new">Status: New</option>
       </Select>
+      <TablePersonViewToggle variant="segmented" ariaLabel="Contacts view example" value={contactView} onChange={setContactView} />
       <TablePersonViewToggle ariaLabel="Lead view" individualLabel="Account holders" value={contactView} onChange={setContactView} />
       <TableDisplayControls schema={LEAD_TABLE_SCHEMA} columns={[{ id: 'name', label: 'Name' }, { id: 'email', label: 'Email' }, { id: 'source', label: 'Source / form' }]} preferences={preferences} onChange={setPreferences} />
     </div>

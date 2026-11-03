@@ -25,8 +25,7 @@
   and eligibility reasons. Contacts labels Edit for one person and Bulk Edit for
   multiple people.
 - Keep the matching-result count in `beforeTable`, separately from selected count.
-  Never show disabled messaging actions in discovery mode. Contacts keeps its
-  existing View as toggle. Its AI search field grows to about 820px on desktop so
+  Never show disabled messaging actions in discovery mode. Contacts uses the shared toolbar-sized segmented view control (View students / View families). Its AI search field grows to about 820px on desktop so
   it remains the primary control, and Filters sits directly beside it.
 - Clear selection must not clear query, applied filters, sorting, view or table
   preferences. Contacts selections persist across pagination; select-all toggles
@@ -38,8 +37,12 @@
 - Multi-condition filters open in a narrow `SlidePanel`, not an inline row. Stack
   shared `Select` fields with `FieldGrid columns={1}` and apply the draft only on
   Submit search, so choosing options never re-queries. Clear filters resets the
-  draft; closing without submitting discards it. Contacts keeps Status plus every
-  configured tenant field that has options.
+  draft; closing without submitting discards it. Contacts defaults to Active students.
+  Basic filters: Name (student/account-holder substring), Status, Email (resolved
+  destination substring), Last active (explicitly last attendance, not login activity).
+  Advanced: instructor, email/phone availability, funding and configured tenant fields.
+  Conditions aggregate on Submit search; no requests occur while editing.
+  Clear filters removes the default too. AI-search precedence is unchanged for now.
 - Do not change row rendering, group relationships, density or selected-row colors
   to implement toolbar modes. No mock records or review UI belong on Contacts.
 
@@ -59,7 +62,11 @@
   mapping in `FamilyListTable`; the shared grid already supports those checkboxes.
   No schema migration or new table selection framework is required. Any future bulk
   edit policy is separate; instructor reassignment remains case by case.
-- Contacts and Leads use shared `TablePersonViewToggle`, built on the Notes `ToggleSwitch` between “View as: Students / Families” for Contacts and “View as: Account holders / Families” for Leads, immediately before Columns & spacing. Use role="switch" and aria-checked; keep all contact roles visible in either Contacts presentation. Leads Account holders shows only inquiry contacts; Families expands student detail rows beneath them. The viewing counter sits below the toolbar and above the table. Pagination keeps family groups intact. Keep this group at the right edge, wrapping on mobile.
+- Contacts and Leads share `TablePersonViewToggle`. Contacts opts into toolbar-sized
+  segmented View students / View families buttons (`aria-pressed`); Leads retains
+  its Account holders / Families switch. Keep controls before Table Preferences,
+  wrapping on mobile. View changes do not change data roles or family relationships.
+
 - `TableDisplayControls` is the shared picker (also used in the design-system showcase), not a Leads-specific control. Storage is tenant/membership/table scoped; Leads keeps its released storage key.
 
 - Use shared `Button variant="secondary" size="toolbar"` for peer toolbar actions, including column-picker triggers. Do not hand-style a native summary to resemble a button.
@@ -81,3 +88,14 @@ The diagnostic reads `.env.local` and a configured/fallback tenant. Its results 
 not be described as production evidence without independently verifying that target.
 Earlier claims in this document that the local counts proved production had no
 account holders were incorrect and are withdrawn.
+
+## Page size and view controls
+
+- `TablePagination` accepts optional controlled page size/options and an item label;
+  consumers without them retain their existing pagination. Contacts defaults to 50,
+  offers 25/50/100/250, and resets to page 1 when size changes without clearing selection.
+- Family pages count whole groups, never split families. Label the size as families
+  per page in Families view and contacts per page in Students view.
+- `TablePersonViewToggle variant="segmented"` reuses `Tabs` prominent presentation
+  with toolbar sizing and pressed buttons. Contacts uses View students / View families.
+  Leads retains its existing switch; this is an opt-in shared capability.
