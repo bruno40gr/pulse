@@ -52,6 +52,7 @@
 - Minors and account-holder-routed students get **no checkbox**; their account holders carry the selection. A search that matches only minors surfaces that family's account holders as the selectable rows. A row shows a checkbox when it is selectable now (enabled) or is a message target outside the current context (disabled); rows that can never be in the selection set show none.
 - **Fallback:** if a family's account-holder row cannot be resolved from the payload, keep the matched rows selectable — delivery still routes their message to the account, and losing every checkbox in the family is worse. `/api/contacts` only sets `account_holder_person_id` when exactly one holder is known, so it now prefers the `account_holders` rows and keeps a `person_id` on each. If a tenant still shows children selectable, check that the `account_holders` table has rows for those accounts.
 - The family-wide double-click shortcut is retired.
+
 - **Bulk edit of students is deliberately unavailable.** Children are not selectable, so students cannot be bulk-edited today. To add it later, add a filter-scoped **"apply to all N matching"** action operating on *records* (distinct from the recipient-based actions) instead of restoring child checkboxes: every real bulk case is "all students matching X", never a hand-ticked set across families. Bulk instructor reassignment is explicitly not wanted — handle it case by case.
 - Contacts and Leads use shared `TablePersonViewToggle`, built on the Notes `ToggleSwitch` between “View as: Students / Families” for Contacts and “View as: Account holders / Families” for Leads, immediately before Columns & spacing. Use role="switch" and aria-checked; keep all contact roles visible in either Contacts presentation. Leads Account holders shows only inquiry contacts; Families expands student detail rows beneath them. The viewing counter sits below the toolbar and above the table. Pagination keeps family groups intact. Keep this group at the right edge, wrapping on mobile.
 - `TableDisplayControls` is the shared picker (also used in the design-system showcase), not a Leads-specific control. Storage is tenant/membership/table scoped; Leads keeps its released storage key.
@@ -64,3 +65,26 @@
 - Preferences remain browser-local and membership-scoped. Toolbar interactions must not add polling or per-column requests.
 - The live component example is the **Table toolbar** section in `/dashboard/design`.
 - Shared `TablePagination` paginates Contacts and loaded Leads, keeping family/inquiry groups intact. Leads retains its explicit server-backed Load more action and identifies counts as loaded inquiries. Leads selects only inquiry/contact records; student rows have no checkbox, never inherit parent selection/highlighting, and never become action targets. View changes clear selection without refetching or altering actions/permissions.
+### Contacts family selection — production data state (2026-11-02)
+
+`scripts/diagnostics/family-selection-diagnostic.mjs` (read-only) reports the real
+shape: 248 people, **`account_holders` has 0 rows**, and all 35 multi-person
+families are children only — every member `is_minor=true`,
+`routing=account_holder`. **No family has a resolvable account-holder person**, so
+there is no holder row to select. The holder is the *account* (`accounts.name/
+phone/email`), not a person.
+
+Consequences:
+
+- The family row is the only correct control: it carries the checkbox, children
+  never do, and toggling it selects the family's reachable rows. Selecting a child
+  id still reaches the account, because the server routes `is_minor` /
+  `account_holder` students to `students.accounts`.
+- Do not try to resolve the holder by name, phone or email. Without an
+  `account_holders` row there is no verified person to name, and guessing was what
+  made children look like the only selectable rows.
+- Populating `account_holders` is the data fix for anything that needs a *named*
+  payer (personalisation, payer identity in UI). It is a migration task, tracked
+  with the unresolved family-recipient gates in `docs/contact-family-integration.md`.
+- Verify with the diagnostic before changing selection rules again; the synthetic
+  fixtures do not reproduce this shape by default.

@@ -8,10 +8,19 @@
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 
+let envFile = ''
+try { envFile = readFileSync('.env.local', 'utf8') } catch {
+  console.error('No .env.local in this directory. Run this from the repository root.')
+  process.exit(1)
+}
 const env = {}
-for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
+for (const line of envFile.split('\n')) {
   const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
   if (m) env[m[1]] = m[2].replace(/^"|"$/g, '')
+}
+if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('.env.local is missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.')
+  process.exit(1)
 }
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
 const TENANT_ID = env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
