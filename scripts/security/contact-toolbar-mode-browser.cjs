@@ -1,0 +1,72 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Isolated review; domain writes are intercepted. */
+const assert = require('node:assert/strict')
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const contacts = require('./fixtures/contact-list-review.cjs')
+
+;(async () => {
+  const browser = await chromium.launch()
+  try {
+    for (const width of [1440, 900, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 1100 } })
+      const errors = [], writes = [], audiences = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.route('**/api/**', route => {
+        const request = route.request(), path = new URL(request.url()).pathname
+        if (path === '/api/inbox/reconcile') return route.fulfill({ json: { skipped: true } })
+        if (path === '/api/ai-filter') return route.fulfill({ json: { contact_ids: contacts.map(person => person.id), explanation: 'All contacts' } })
+        if (path === '/api/communications/recipients') {
+          audiences.push(request.postDataJSON())
+          return route.fulfill({ json: { selectedCount: request.postDataJSON().contactIds.length, recipients: [], excluded: [{ id: 'missing', name: 'Sample contact', reason: 'No account-holder email on file' }], version: 'review' } })
+        }
+        if (request.method() !== 'GET') { writes.push(path); return route.abort() }
+        return route.fulfill({ json: path === '/api/contacts' ? contacts : path === '/api/tenant-fields' ? [] : path === '/api/communications/senders' ? { senders: [] } : {} })
+      })
+      await page.goto(process.env.CONTACTS_REVIEW_URL || 'http://127.0.0.1:3218/dashboard/contacts')
+      const table = page.getByRole('table', { name: 'Contacts', exact: true })
+      await table.getByRole('button', { name: 'Ethan Kim', exact: true }).waitFor()
+      const search = page.getByRole('textbox', { name: 'Search contacts', exact: true })
+      const preferences = page.getByRole('button', { name: 'Table Preferences', exact: true })
+      assert.equal(await page.getByRole('button', { name: 'Text', exact: true }).count(), 0)
+      await search.fill('all contacts')
+      await page.getByRole('button', { name: 'Search', exact: true }).click()
+      await page.getByText('All contacts', { exact: false }).first().waitFor()
+      await preferences.click()
+      await page.getByRole('combobox', { name: 'Row spacing' }).selectOption('compact')
+      await page.keyboard.press('Escape')
+      const before = await table.boundingBox()
+      const boxes = table.getByRole('checkbox').filter({ visible: true })
+      await boxes.nth(1).check()
+      const bar = page.getByRole('region', { name: 'Table results and actions' })
+      await bar.getByText('1 selected', { exact: true }).waitFor()
+      assert.equal(await search.isVisible(), false)
+      assert.equal(await preferences.isVisible(), false)
+      assert.equal(await page.getByRole('group', { name: 'Contact view', exact: true }).count(), 0)
+      assert.ok(Math.abs((await table.boundingBox()).y - before.y) < 2, 'Table position stable entering selection')
+      await bar.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+      await boxes.nth(2).check()
+      await bar.getByRole('button', { name: 'Bulk Edit', exact: true }).waitFor()
+      await bar.getByRole('button', { name: 'Email', exact: true }).click()
+      await page.getByRole('button', { name: 'See contacts', exact: true }).click()
+      await page.getByText('No account-holder email on file', { exact: false }).first().waitFor()
+      assert.ok(audiences.length >= 1, 'Composer resolves selected recipients (development StrictMode may repeat effects)')
+      assert.equal(audiences[0].contactIds.length, 2)
+      assert.equal(audiences[0].channel, 'email')
+      await page.keyboard.press('Escape')
+      await page.screenshot({ path: `/private/tmp/pulse-toolbar-mode-selected-${width}.png`, fullPage: true })
+      await bar.getByRole('button', { name: 'Clear selection' }).click()
+      assert.equal(await bar.count(), 0)
+      assert.equal(await search.inputValue(), 'all contacts')
+      await page.getByRole('group', { name: 'Contact view', exact: true }).getByRole('switch', { name: 'Families' }).waitFor()
+      assert.ok(Math.abs((await table.boundingBox()).y - before.y) < 2, 'Table position stable clearing selection')
+      await preferences.click()
+      assert.equal(await page.getByRole('combobox', { name: 'Row spacing' }).inputValue(), 'compact')
+      await page.keyboard.press('Escape')
+      await page.screenshot({ path: `/private/tmp/pulse-toolbar-mode-discovery-${width}.png`, fullPage: true })
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+      assert.deepEqual(errors, [])
+      assert.deepEqual(writes, [])
+      console.log(`PASS ${width}px: exclusive modes, stable table geometry, direct composer/eligibility, preserved discovery state, no writes`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exitCode = 1 })

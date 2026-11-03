@@ -3,13 +3,12 @@
 import { useContext } from 'react'
 import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
-import ContactBulkMessageModal from '@/components/inbox/ContactBulkMessageModal'
-import MessageActions from '@/components/inbox/MessageActions'
+import { TableContextActionBar } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
 import { SlidersHorizontal, X, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
@@ -124,6 +123,7 @@ export default function ContactsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
+  const [startContactEditing, setStartContactEditing] = useState(false)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<{ name: string; members: Contact[] } | null>(null)
   const [accountPanelTab, setAccountPanelTab] = useState<'profile' | 'scheduling' | 'billing'>('profile')
@@ -143,17 +143,16 @@ export default function ContactsPage() {
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
-  const [showStickyActions, setShowStickyActions] = useState(false)
   const [contactPage, setContactPage] = useState(1)
   const pageSize = 10
   const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>({ key: 'name', direction: 'asc' })
   const [contactView, setContactView] = useState<ContactListView>('family')
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
-  const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
 
   const closeContactState = () => {
     setSelectedContact(null)
+    setStartContactEditing(false)
     setSelectedAccount(null)
     removeCurrentSearchParam('contact')
   }
@@ -300,23 +299,6 @@ export default function ContactsPage() {
     return () => clearInterval(interval)
   }, [aiLoading])
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const anchor = controlsAnchorRef.current
-      if (!anchor) return
-      const rect = anchor.getBoundingClientRect()
-      setShowStickyActions(rect.bottom < 0)
-    }
-
-    handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll)
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
-    }
-  }, [])
-
   const handleSearch = async () => {
     if (!query.trim()) {
       setDisplayIds(null)
@@ -410,8 +392,12 @@ export default function ContactsPage() {
   }
 
   const toggleSelectAll = () => {
-    if (selectableContacts.length > 0 && selectableContacts.every(contact => selectedIds.has(contact.id))) setSelectedIds(new Set())
-    else setSelectedIds(new Set(selectableContacts.map(c => c.id)))
+    const allVisibleSelected = selectableContacts.length > 0 && selectableContacts.every(contact => selectedIds.has(contact.id))
+    setSelectedIds(previous => {
+      const next = new Set(previous)
+      selectableContacts.forEach(contact => { if (allVisibleSelected) next.delete(contact.id); else next.add(contact.id) })
+      return next
+    })
   }
 
   const clearSelection = () => {
@@ -473,7 +459,7 @@ export default function ContactsPage() {
   })
   filterOptions['client_status'] = ['active', 'inactive', 'member']
 
-  const sel = { border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
+  const sel = { border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
 
   const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
@@ -564,13 +550,7 @@ export default function ContactsPage() {
   return (
     <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Header */}
-      <PageHeader
-        title="Contacts"
-        subtitle={loading ? 'Loading...' : `${contacts.length} contacts`}
-        right={
-          <MessageActions disabled={selectedIds.size === 0} onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
-        }
-      />
+      <PageHeader title="Contacts" />
 
       <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
             {!loading && (
@@ -621,7 +601,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      <div ref={controlsAnchorRef} />
+
 
       {/* Search bar + Filters row */}
 
@@ -632,52 +612,8 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {showStickyActions && selectedIds.size > 0 && (
-        <div style={{
-          position: 'sticky',
-          top: spacing.md,
-          zIndex: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: spacing.md,
-          padding: `${spacing.sm} ${spacing.md}`,
-          marginBottom: spacing.md,
-          background: 'rgba(255,255,255,0.96)',
-          border: `1px solid ${colors.border}`,
-          borderRadius: radius.lg,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
-          backdropFilter: 'blur(10px)',
-          animation: 'stickyBarFadeIn 180ms ease-out',
-          transition: 'opacity 180ms ease-out, transform 180ms ease-out',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-            {selectedIds.size > 0 && (
-              <>
-                <span style={{ fontSize: typography.sizeSm, color: colors.text, fontFamily: typography.fontSans, fontWeight: typography.weightMedium }}>
-                  {selectedIds.size} out of {displayed.length} {displayed.length === 1 ? 'contact' : 'contacts'} selected
-                </span>
-                <ControlButton kind="link"
-                  onClick={clearSelection}
-
-                >
-                  Unselect all
-                </ControlButton>
-              </>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-            <MessageActions onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
-            <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
-              Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Filter dropdowns — collapsible */}
-      {showFilters && (
+      {showFilters && selectedIds.size === 0 && (
         <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md, padding: `${spacing.sm} ${spacing.md}`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md }}>
           {tenantFields.map(f => (
             filterOptions[f.field_key]?.length ? (
@@ -761,26 +697,18 @@ export default function ContactsPage() {
         <FamilyListTable
           key={contactView}
           renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
-          beforeTable={!aiLoading && !loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', columnGap: spacing.lg, rowGap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.lg, minHeight: 40 }}>
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
-            {selectedIds.size > 0
-              ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
-              : `Viewing ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
-          </p>
-
-          {
-            <ControlButton kind="link"
-              onClick={clearSelection}
-              disabled={selectedIds.size === 0 || showStickyActions}
-              aria-hidden={selectedIds.size === 0 || showStickyActions}
-              style={{ gridColumn: 2, gridRow: 1, visibility: selectedIds.size > 0 && !showStickyActions ? 'visible' : 'hidden', whiteSpace: 'nowrap' }}
-            >
-              Unselect all
-            </ControlButton>
-          }
-        </div>
-      )}
+          preferencesLabel="Table Preferences"
+          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedIds.size} onClear={clearSelection} actions={[
+            { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
+            { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
+            { id: 'edit', label: selectedIds.size === 1 ? 'Edit' : 'Bulk Edit', onClick: () => {
+              if (selectedIds.size === 1) {
+                const contact = contacts.find(contact => selectedIds.has(contact.id))
+                if (contact) { setStartContactEditing(true); setSelectedContact(contact) }
+              } else setIsBulkEditOpen(true)
+            } },
+          ]} /> : undefined}
+          beforeTable={<p role="status" style={{ color: colors.textSecondary, fontSize: typography.sizeSm, margin: `0 0 ${spacing.sm}`, fontFamily: typography.fontSans }}>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</p>}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
           displayToolbar={<TablePersonViewToggle ariaLabel="Contact view" value={contactView} onChange={view => {
           setContactPage(1)
@@ -789,10 +717,11 @@ export default function ContactsPage() {
           setLastSelectedIndex(-1)
         }} />}
           toolbar={<>
-        <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
+        <div style={{ flex: '1 1 400px', maxWidth: 480, minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
           <input
             type="text"
+            aria-label="Search contacts"
             value={query}
             onChange={e => {
               setQuery(e.target.value)
@@ -804,7 +733,7 @@ export default function ContactsPage() {
             onBlur={e => { e.target.style.opacity = '1' }}
           />
           {query && (
-            <ControlButton kind="icon" onClick={clearSearch} >
+            <ControlButton kind="icon" aria-label="Clear search" onClick={clearSearch} >
               <X size={15} />
             </ControlButton>
           )}
@@ -821,9 +750,6 @@ export default function ContactsPage() {
 
         >
           <SlidersHorizontal size={14} /> Filters
-        </Button>
-        <Button variant="secondary" size="toolbar" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
-          Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </Button>
           </>}
           groups={visibleFamilies.map(group => {
@@ -899,7 +825,7 @@ export default function ContactsPage() {
         />
       )}
 
-      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={page => { setContactPage(page); clearSelection() }} />}
+      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={setContactPage} />}
 
       {/* Contact slide panel */}
       {selectedAccount && !selectedContact && <AccountFamilyPanel
@@ -912,6 +838,7 @@ export default function ContactsPage() {
         <ContactSlidePanel
           key={selectedContact.id}
           prototype={prototype}
+          startEditing={startContactEditing}
           contact={selectedContact}
           initialPanelTab={accountPanelTab}
           initialNotesTab={initialNotesTab}
@@ -942,11 +869,7 @@ export default function ContactsPage() {
       )}
 
       {/* Compose slide panel */}
-      {isComposeOpen && !singleComposeContact && <ContactBulkMessageModal
-        key={composeChannel + [...selectedIds].sort().join(',')}
-        tenantId={tenantId} contacts={contacts.filter(contact => selectedIds.has(contact.id))} channel={composeChannel}
-        onClose={() => setIsComposeOpen(false)} />}
-      <SlidePanel isOpen={isComposeOpen && !!singleComposeContact} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+      <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
         <SlidePanelHeader
           title={composeChannel === 'email' ? 'Send Email' : singleComposeContact ? `Message to ${singleComposeContact.first_name}` : 'Send SMS'}
           onBack={singleComposeContact ? () => { setIsComposeOpen(false); setSelectedContact(singleComposeContact) } : undefined}

@@ -53,12 +53,15 @@ test('private history retains connector isolation when organisation setup is abs
   await mailbox.conversationMailbox('tenant', 'box', 'member')
   assert.ok(filters.some(([key, value]) => key === 'connected_by' && value === 'member'))
 })
-test('Contacts and Conversations use the same messaging actions in their page headers', () => {
-  for (const file of ['app/dashboard/contacts/page.tsx', 'components/inbox/Conversations.tsx']) {
+test('Contacts uses contextual messaging while Conversations retains independent header actions', () => {
+  for (const file of ['components/inbox/Conversations.tsx']) {
     const source = fs.readFileSync(path.join(root, file), 'utf8')
     assert.ok(source.includes('<MessageActions'), file)
     assert.ok(!source.includes('>Send new email</Button>'), file)
   }
+  const contacts = fs.readFileSync(path.join(root, 'app/dashboard/contacts/page.tsx'), 'utf8')
+  assert.ok(contacts.includes('contextualToolbar={selectedIds.size > 0'))
+  assert.ok(!contacts.includes('<MessageActions'))
   const actions = fs.readFileSync(path.join(root, 'components/inbox/MessageActions.tsx'), 'utf8')
   assert.equal((actions.match(/variant="primary" size="md"/g) || []).length, 2)
   assert.ok(!actions.includes('fontSize:'))

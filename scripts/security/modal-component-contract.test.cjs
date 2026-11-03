@@ -67,16 +67,14 @@ test('Settings separates staff roles from permission editing and uses the shared
   assert.match(people, /display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0/)
 })
 
-test('Contacts reserves clear-selection space and uses inline blue non-underlined actions', () => {
+test('Contacts keeps result counts separate and shares exclusive toolbar modes', () => {
   const contacts = source('app/dashboard/contacts/page.tsx')
-  const counter = contacts.slice(contacts.indexOf('beforeTable={'), contacts.indexOf('beforeTable={') + 2100)
-  assert.match(counter, /minHeight: 40/)
-  assert.match(counter, /visibility: selectedIds.size/)
-  assert.match(counter, /<ControlButton kind="link"/)
-  assert.match(counter, /marginBottom: spacing.lg/)
-  const control = source('components/ui/ControlButton.tsx')
-  assert.match(control, /color: colors.link, textDecoration: 'none'/)
-  assert.doesNotMatch(control, /textDecoration: 'underline'/)
+  assert.match(contacts, /contextualToolbar=\{selectedIds.size > 0/)
+  assert.match(contacts, /beforeTable=\{<p role="status"/)
+  const modes = source('components/ui/TableWorkspaceControls.tsx')
+  assert.match(modes, /inert=\{active\}/)
+  assert.match(modes, /aria-label="Clear selection"/)
+  assert.match(modes, /variant="secondary"/)
 })
 
 test('fullscreen modal owns viewport sizing without drawer geometry', () => {
@@ -89,7 +87,7 @@ test('fullscreen modal owns viewport sizing without drawer geometry', () => {
   assert.equal(style.borderRadius, 0)
 })
 
-test('Contacts bulk channels confirm without repeating contacts then navigate into Conversations', () => {
+test('Contacts directly composes selected recipients while legacy workspace remains available', () => {
   const flow = source('components/inbox/ContactBulkMessageModal.tsx')
   assert.match(flow, /router.push\(`\/dashboard\/inbox\/bulk\?selection=/)
   assert.match(flow, />Continue<\/Button>/)
@@ -99,7 +97,10 @@ test('Contacts bulk channels confirm without repeating contacts then navigate in
   assert.match(workspace, /<ContactBulkComposer/)
   assert.match(workspace, /value.tenantId !== getActiveTenantId\(\)/)
   assert.doesNotMatch(workspace, /<Modal|<SlidePanel/)
-  assert.match(source('app/dashboard/contacts/page.tsx'), /isComposeOpen && !singleComposeContact && <ContactBulkMessageModal/)
+  const contacts = source('app/dashboard/contacts/page.tsx')
+  assert.doesNotMatch(contacts, /<ContactBulkMessageModal/)
+  assert.match(contacts, /<SlidePanel isOpen=\{isComposeOpen\}/)
+  assert.match(contacts, /<ContactBulkComposer/)
 })
 
 test('shared modal header cannot render a subtitle row', () => {

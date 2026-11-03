@@ -137,6 +137,7 @@ interface ContactSlidePanelProps {
   onViewInstructor?: (personId: string) => void
   initialNotesTab?: 'notes' | 'internal'
   mockFundingCase?: FundingCase
+  startEditing?: boolean
   initialPanelTab?: ContactPanelTab
   onInvoiceStatusChange?: (invoice: FundingInvoice) => void
   onFundingCaseUpdated?: (fundingCase: FundingCase) => void
@@ -151,7 +152,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const contextualCompose = useContext(ConversationComposeContext)
@@ -178,11 +179,11 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
   )
   const [saving, setSaving] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(startEditing)
   const [isStaffActionMenuOpen, setIsStaffActionMenuOpen] = useState(false)
   const [calling, setCalling] = useState(false)
   const [copiedEmail, setCopiedEmail] = useState(false)
-  const [edits, setEdits] = useState<Record<string, unknown>>({})
+  const [edits, setEdits] = useState<Record<string, unknown>>(() => startEditing ? { first_name: contact.first_name, last_name: contact.last_name, phone: contact.phone || '', email: contact.email || '', ...(contact.date_of_birth ? { date_of_birth: contact.date_of_birth } : {}), ...contact.custom_fields } : {})
   const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
   const [activePanelTab, setActivePanelTab] = useState<ContactPanelTab>(initialPanelTab)
   const [fundingCase, setFundingCase] = useState<FundingCase | null>(mockFundingCase || null)

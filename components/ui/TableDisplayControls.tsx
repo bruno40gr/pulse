@@ -42,7 +42,8 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
   return { preferences, updatePreferences }
 }
 
-export function TableDisplayControls({ columns, schema, preferences, onChange }: {
+export function TableDisplayControls({ columns, schema, preferences, onChange, label = 'Columns & spacing' }: {
+  label?: string
   columns: { id: string; label: string }[]
   schema: TablePreferenceSchema
   preferences: TablePreferences
@@ -69,7 +70,7 @@ export function TableDisplayControls({ columns, schema, preferences, onChange }:
         trigger.current?.focus()
       }
     }}>
-      <Button ref={trigger} type="button" variant="secondary" size="toolbar" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>Columns & spacing <ChevronDown size={16} aria-hidden="true" /></Button>
+      <Button ref={trigger} type="button" variant="secondary" size="toolbar" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>{label} <ChevronDown size={16} aria-hidden="true" /></Button>
       {open && <div id={panelId} role="group" aria-label="Table display options" style={{ position: 'absolute', right: 0, top: '100%', marginTop: spacing.xs, zIndex: 10, width: 'min(300px, calc(100vw - 48px))', maxHeight: '65vh', overflowY: 'auto', padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.sm, fontFamily: typography.fontSans, fontSize: typography.sizeBase }}>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Visible columns</legend>

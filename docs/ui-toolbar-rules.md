@@ -1,5 +1,29 @@
 # Table toolbars
 
+## Contextual selection mode
+
+- `RichDataTable.contextualToolbar` is the opt-in selection mode. Supply it only
+  when the domain has selected records. `TableToolbarMode` overlays both modes in
+  one grid cell; inactive discovery controls remain mounted, hidden and inert.
+  This preserves input/preferences state and responsive height without showing
+  two bars. Existing consumers need not adopt selection mode immediately.
+- Use `TableContextActionBar` for selected count, domain-defined actions and a
+  labeled X to clear. Use secondary buttons, neutral borders and a subtle surface,
+  not an alert outline. The domain supplies handlers, labels and eligibility
+  reasons. Contacts labels Edit for one person and Bulk Edit for multiple people.
+- Keep the matching-result count in `beforeTable`, separately from selected count.
+  Never show disabled messaging actions in discovery mode. Contacts keeps its
+  existing View as toggle; AI search is capped at 480px on desktop.
+- Clear selection must not clear query, applied filters, sorting, view or table
+  preferences. Contacts selections persist across pagination; select-all toggles
+  eligible visible people without replacing selections on other pages.
+- Contacts sends selected IDs directly to ContactBulkComposer for either channel
+  and any selection size. Its server-backed resolution owns eligibility,
+  account-holder routing, deduplication and exclusions. Communications retains its
+  independent compose/recipient-picker entry points.
+- Do not change row rendering, group relationships, density or selected-row colors
+  to implement toolbar modes. No mock records or review UI belong on Contacts.
+
 - Leads and Contacts instantiate `components/ui/RichDataTable.tsx`. It owns the toolbar layout, metadata-column picker, density, visible-column sizing and detail-cell projection. Domain adapters supply rows, columns, toolbar actions and a stable preference schema; do not clone the table or its controls per page.
 - Use `TablePersonName` for parent/detail table names. Details retain normal weight even when a domain supplies a profile-opening action; Leads details can remain display-only. All name actions use the shared name control. Contacts family groups stay fully expanded without indentation. No family chevrons or “Via” labels. Each person has an independent checkbox; double-clicking the account holder’s checkbox is an optional shortcut to select matching family members. No separate family selection control. Search-context-only people remain visible but unselectable.
 - Contacts and Leads use shared `TablePersonViewToggle`, built on the Notes `ToggleSwitch` between “View as: Students / Families” for Contacts and “View as: Account holders / Families” for Leads, immediately before Columns & spacing. Use role="switch" and aria-checked; keep all contact roles visible in either Contacts presentation. Leads Account holders shows only inquiry contacts; Families expands student detail rows beneath them. The viewing counter sits below the toolbar and above the table. Pagination keeps family groups intact. Keep this group at the right edge, wrapping on mobile.
