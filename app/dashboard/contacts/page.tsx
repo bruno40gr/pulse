@@ -22,7 +22,7 @@ import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, SlidePanel, PageHeader, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
@@ -121,6 +121,7 @@ export default function ContactsPage() {
   const [displayIds, setDisplayIds] = useState<string[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const [filterDraft, setFilterDraft] = useState<Record<string, string>>({})
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
   const [startContactEditing, setStartContactEditing] = useState(false)
@@ -459,7 +460,10 @@ export default function ContactsPage() {
   })
   filterOptions['client_status'] = ['active', 'inactive', 'member']
 
-  const sel = { border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
+  const filterFields = [
+    ...tenantFields.filter(field => filterOptions[field.field_key]?.length).map(field => ({ key: field.field_key, label: field.field_label, values: filterOptions[field.field_key] })),
+    { key: 'client_status', label: 'Status', values: ['active', 'inactive', 'member'] },
+  ]
 
   const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
@@ -612,28 +616,6 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Filter dropdowns — collapsible */}
-      {showFilters && selectedIds.size === 0 && (
-        <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md, padding: `${spacing.sm} ${spacing.md}`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md }}>
-          {tenantFields.map(f => (
-            filterOptions[f.field_key]?.length ? (
-              <select key={f.field_key} value={filters[f.field_key] || ''} onChange={e => setFilters(prev => ({ ...prev, [f.field_key]: e.target.value }))} style={sel}>
-                <option value="">{f.field_label}</option>
-                {filterOptions[f.field_key].map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : null
-          ))}
-          <select value={filters['client_status'] || ''} onChange={e => setFilters(prev => ({ ...prev, client_status: e.target.value }))} style={sel}>
-            <option value="">Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="member">Member</option>
-          </select>
-          <Button variant="primary" size="sm" onClick={() => { setAppliedFilters(filters); setDisplayIds(null); setFilterExplanation('') }}>Apply</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setFilters({}); setAppliedFilters({}); setDisplayIds(null) }}>Clear</Button>
-        </div>
-      )}
-
       {/* Active filter summary */}
       {filterExplanation && (
         <div style={{
@@ -717,7 +699,7 @@ export default function ContactsPage() {
           setLastSelectedIndex(-1)
         }} />}
           toolbar={<>
-        <div style={{ flex: '1 1 400px', maxWidth: 480, minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
+        <div style={{ flex: '1 1 640px', maxWidth: 820, minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
           <span style={{ fontSize: typography.sizeLg }}>✦</span>
           <input
             type="text"
@@ -746,7 +728,7 @@ export default function ContactsPage() {
           </Button>
         </div>
         <Button variant="secondary" size="toolbar"
-          onClick={() => setShowFilters(!showFilters)}
+          onClick={() => { setFilterDraft({ ...filters }); setShowFilters(true) }}
 
         >
           <SlidersHorizontal size={14} /> Filters
@@ -961,6 +943,29 @@ export default function ContactsPage() {
           }}
         />
       )}
+
+      <SlidePanel isOpen={showFilters} onClose={() => setShowFilters(false)} fullScreen={isMobile} width="min(100vw, 380px)">
+        <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />
+        <form onSubmit={event => { event.preventDefault(); setFilters(filterDraft); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing.lg} ${spacing['2xl']}` }}>
+            <FieldGrid columns={1}>
+              {filterFields.map(field => <Select key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => setFilterDraft(previous => {
+                const next = { ...previous }
+                if (event.target.value) next[field.key] = event.target.value
+                else delete next[field.key]
+                return next
+              })}>
+                <option value="">Any</option>
+                {field.values.map(value => <option key={value} value={value}>{value}</option>)}
+              </Select>)}
+            </FieldGrid>
+          </div>
+          <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface }}>
+            <Button type="submit">Submit search</Button>
+            <Button type="button" variant="secondary" onClick={() => setFilterDraft({})}>Clear filters</Button>
+          </div>
+        </form>
+      </SlidePanel>
 
       <CSVImporter
         isOpen={isImporterOpen}

@@ -8,12 +8,15 @@
   This preserves input/preferences state and responsive height without showing
   two bars. Existing consumers need not adopt selection mode immediately.
 - Use `TableContextActionBar` for selected count, domain-defined actions and a
-  labeled X to clear. Use secondary buttons, neutral borders and a subtle surface,
-  not an alert outline. The domain supplies handlers, labels and eligibility
-  reasons. Contacts labels Edit for one person and Bulk Edit for multiple people.
+  labeled X to clear. The bar is solid teal (`colors.teal`) with espresso text so
+  it reads as a temporary mode rather than a notification; action buttons are
+  transparent ghost buttons with no border. The domain supplies handlers, labels
+  and eligibility reasons. Contacts labels Edit for one person and Bulk Edit for
+  multiple people.
 - Keep the matching-result count in `beforeTable`, separately from selected count.
   Never show disabled messaging actions in discovery mode. Contacts keeps its
-  existing View as toggle; AI search is capped at 480px on desktop.
+  existing View as toggle. Its AI search field grows to about 820px on desktop so
+  it remains the primary control, and Filters sits directly beside it.
 - Clear selection must not clear query, applied filters, sorting, view or table
   preferences. Contacts selections persist across pagination; select-all toggles
   eligible visible people without replacing selections on other pages.
@@ -21,6 +24,11 @@
   and any selection size. Its server-backed resolution owns eligibility,
   account-holder routing, deduplication and exclusions. Communications retains its
   independent compose/recipient-picker entry points.
+- Multi-condition filters open in a narrow `SlidePanel`, not an inline row. Stack
+  shared `Select` fields with `FieldGrid columns={1}` and apply the draft only on
+  Submit search, so choosing options never re-queries. Clear filters resets the
+  draft; closing without submitting discards it. Contacts keeps Status plus every
+  configured tenant field that has options.
 - Do not change row rendering, group relationships, density or selected-row colors
   to implement toolbar modes. No mock records or review UI belong on Contacts.
 

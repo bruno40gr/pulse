@@ -74,7 +74,11 @@ test('Contacts keeps result counts separate and shares exclusive toolbar modes',
   const modes = source('components/ui/TableWorkspaceControls.tsx')
   assert.match(modes, /inert=\{active\}/)
   assert.match(modes, /aria-label="Clear selection"/)
-  assert.match(modes, /variant="secondary"/)
+  assert.match(modes, /background: colors.teal/)
+  assert.match(modes, /variant="ghost"/)
+  assert.match(source('components/ui/Button.tsx'), /ghost: \{ background: 'transparent'[^}]*border: 'none'/)
+  assert.match(contacts, /<SlidePanel isOpen=\{showFilters\}/)
+  assert.match(contacts, /Submit search/)
 })
 
 test('fullscreen modal owns viewport sizing without drawer geometry', () => {
