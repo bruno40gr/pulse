@@ -36,3 +36,11 @@ test('active-only includes imported Members and configured active statuses, but 
   assert.equal(matchesContactFilters({ ...student, client_status: 'Lost', status_class: 'inactive' }, DEFAULT_CONTACT_FILTERS), false)
   assert.equal(matchesContactFilters({ ...student, client_status: 'Lost' }, {}), true)
 })
+
+test('one service/class filter matches either imported representation; program includes instrument', () => {
+  for (const key of ['service_type', 'session_name', 'appointment_class_name']) {
+    assert.equal(matchesContactFilters({ ...student, custom_fields: { [key]: 'Private Piano' } }, { service_class: 'Private Piano' }), true)
+  }
+  assert.equal(matchesContactFilters(student, { service_class: 'Private Piano' }), false)
+  assert.equal(matchesContactFilters({ ...student, custom_fields: { instrument: 'Piano' } }, { program: 'Piano' }), true)
+})

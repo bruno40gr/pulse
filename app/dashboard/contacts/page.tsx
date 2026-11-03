@@ -439,28 +439,18 @@ export default function ContactsPage() {
     }
   }
 
-  // Unique filter options from contacts
-  const filterOptions: Record<string, string[]> = {}
-  tenantFields.forEach(f => {
-    if (f.field_options?.length) {
-      filterOptions[f.field_key] = f.field_options
-    } else {
-      const vals = [...new Set(
-        contacts
-          .map(c => c.custom_fields?.[f.field_key])
-          .filter((value): value is string => typeof value === 'string' && value.length > 0)
-      )]
-      if (vals.length) filterOptions[f.field_key] = vals
-    }
-  })
-
-  const statusOptions = [
-    ...[...new Set(['active', 'inactive', 'member', ...contacts.map(contact => contact.client_status)])].filter(Boolean).map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) })),
-  ]
-  const filterFields = tenantFields.filter(field => !['client_status', 'band', 'band_name', 'plan', 'plan_name', 'email_availability', 'phone_availability'].includes(field.field_key) && !/\b(band|plan)\b/i.test(field.field_label) && filterOptions[field.field_key]?.length)
-    .map(field => ({ key: field.field_key, label: field.field_label, values: filterOptions[field.field_key] }))
-  const primaryFilterFields = filterFields.filter(field => /^(program|instrument)$/.test(field.key) || /^program$/i.test(field.label))
-  const advancedFilterFields = filterFields.filter(field => !primaryFilterFields.includes(field))
+  // Explicit filter roles: imported fields must not create duplicate controls.
+  const optionsFor = (keys: string[]) => [...new Set([
+    ...tenantFields.filter(field => keys.includes(field.field_key)).flatMap(field => field.field_options || []),
+    ...contacts.flatMap(contact => keys.flatMap(key => {
+      const value = contact.custom_fields?.[key]
+      return typeof value === 'string' && value.trim() ? [value] : []
+    })),
+  ])].sort((a, b) => a.localeCompare(b))
+  const programOptions = optionsFor(['program', 'instrument'])
+  const serviceOptions = optionsFor(['service_type', 'session_name', 'appointment_class_name'])
+  const statusOptions = [...new Set(['active', 'inactive', 'member', ...contacts.map(contact => contact.client_status)])]
+    .filter(Boolean).map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))
   const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
   const instructors = [...new Map(contacts.flatMap(contact => contact.instructor?.person_id && contact.instructor.name
     ? [[contact.instructor.person_id, contact.instructor.name] as const] : [])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
@@ -972,22 +962,17 @@ export default function ContactsPage() {
               </Select>
               <Select controlSize="compact" label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
                 <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </Select>
-              {primaryFilterFields.map(field => <Select controlSize="compact" key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
-                <option value="">Any</option>{field.values.map(value => <option key={value} value={value}>{value}</option>)}
-              </Select>)}
+              </Select>
+              <Select controlSize="compact" label="Program" value={filterDraft.program || ''} onChange={event => updateFilterDraft('program', event.target.value)}>
+                <option value="">Any program</option>{programOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              </Select>
+              <Select controlSize="compact" label="Service / class" value={filterDraft.service_class || ''} onChange={event => updateFilterDraft('service_class', event.target.value)}>
+                <option value="">Any service or class</option>{serviceOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              </Select>
+              <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
+                <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
+              </Select>
             </FieldGrid>
-            <details style={{ marginTop: spacing.xl }}>
-              <summary style={{ ...typography.label, cursor: 'pointer', marginBottom: spacing.md }}>Advanced filters</summary>
-              <FieldGrid columns={1}>
-                <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
-                  <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
-                </Select>
-                {advancedFilterFields.map(field => <Select controlSize="compact" key={field.key} label={field.label} value={filterDraft[field.key] || ''} onChange={event => updateFilterDraft(field.key, event.target.value)}>
-                  <option value="">Any</option>{field.values.map(value => <option key={value} value={value}>{value}</option>)}
-                </Select>)}
-              </FieldGrid>
-            </details>
             <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, ...typography.bodySmall, color: colors.text, cursor: 'pointer' }}>
               <input type="checkbox" checked={filterDraft.active_only === 'true'} onChange={event => updateFilterDraft('active_only', event.target.checked ? 'true' : '')} />
               Show only active students &amp; families

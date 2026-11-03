@@ -39,6 +39,12 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
       case 'instructor':
         if (contact.instructor?.person_id !== value) return false
         break
+      case 'program':
+        if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value)) return false
+        break
+      case 'service_class':
+        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => contact.custom_fields?.[key] === value)) return false
+        break
       case 'funded':
         if (Boolean(contact.funded) !== (value === 'yes')) return false
         break

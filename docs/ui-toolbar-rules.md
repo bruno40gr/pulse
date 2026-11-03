@@ -38,9 +38,12 @@
   shared `Select` fields with `FieldGrid columns={1}` and apply the draft only on
   Submit search, so choosing options never re-queries. Clear filters resets the
   draft; closing without submitting discards it. Use compact shared Select controls.
-  Primary fields (no Basic heading): Name, Status, Email, Last active, Instructor,
-  and Program/instrument. Advanced holds Funding and remaining configured fields;
-  exclude Band/Plan and email/phone availability (those can use AI search).
+  One flat field list: Name, Status, Email, Last active, Instructor, Program,
+  Service / class and Funding. No Basic/Advanced sections. Do not automatically
+  render every tenant field: that duplicates Instructor and other concepts.
+  Service / class matches service_type, session_name or appointment_class_name;
+  Program matches program or instrument. Values remain unchanged in stored data.
+  Exclude Band/Plan and email/phone availability (those can use AI search).
   Last active is explicitly last attendance, not login activity.
   The bottom checkbox, Show only active students & families, defaults checked.
   Active classification comes from the tenant import profile via API status_class;
@@ -108,3 +111,8 @@ account holders were incorrect and are withdrawn.
 - `TablePersonViewToggle variant="segmented"` reuses `Tabs` prominent presentation
   with toolbar sizing and pressed buttons. Contacts uses View students / View families.
   Leads retains its existing switch; this is an opt-in shared capability.
+
+- Contacts currently clears selection on view changes; it never expands selected
+  families into selected student records. The view control is hidden during
+  contextual selection mode. Changing this requires an explicit selection-policy
+  decision, not a count conversion.
