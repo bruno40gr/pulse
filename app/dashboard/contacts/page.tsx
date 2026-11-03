@@ -14,6 +14,7 @@ import { getActiveTenantId } from '@/lib/tenant'
 import { SlidersHorizontal, X, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
@@ -23,7 +24,7 @@ import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
-import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, FieldLabel, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
@@ -117,6 +118,7 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 
 export default function ContactsPage() {
   const prototype = useContext(ContactPrototypeContext)
+  const tablePreferences = useTablePreferences(CONTACT_TABLE_SCHEMA)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,9 +139,6 @@ export default function ContactsPage() {
   const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
-  const [isAddOpen, setIsAddOpen] = useState(false)
-  const [savingContact, setSavingContact] = useState(false)
-  const [newContact, setNewContact] = useState({ first_name: '', last_name: '', phone: '', email: '' })
   const [singleComposeContact, setSingleComposeContact] = useState<Contact | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   const [syncing, setSyncing] = useState(false)
@@ -414,30 +413,6 @@ export default function ContactsPage() {
     setIsComposeOpen(true)
   }
 
-  const handleAddContact = async () => {
-    if (!newContact.first_name.trim() || !newContact.last_name.trim()) return
-    setSavingContact(true)
-    try {
-      const res = await fetch(`/api/contacts/create?tenant=${tenantId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newContact),
-      })
-      const data = await res.json()
-      if (data && data.error) throw new Error(data.error)
-
-      setIsAddOpen(false)
-      setNewContact({ first_name: '', last_name: '', phone: '', email: '' })
-      fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(d => {
-        if (Array.isArray(d)) setContacts(d)
-      })
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setSavingContact(false)
-    }
-  }
-
   // Explicit filter roles: imported fields must not create duplicate controls.
   const optionsFor = (keys: string[]) => [...new Set([
     ...tenantFields.filter(field => keys.includes(field.field_key)).flatMap(field => field.field_options || []),
@@ -460,7 +435,6 @@ export default function ContactsPage() {
     return next
   })
 
-  const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
     {
@@ -549,9 +523,7 @@ export default function ContactsPage() {
   return (
     <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Header */}
-      <PageHeader title="Contacts" />
-
-      <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
+      <PageHeader title="Contacts" singleLine={!isMobile} right={<div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             {!loading && (
               <Button variant="secondary" size="toolbar"
                 onClick={handleSync}
@@ -571,10 +543,9 @@ export default function ContactsPage() {
               </Button>
             )}
             <Button variant="secondary" size="toolbar" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
-            <Button variant="secondary" size="toolbar" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
             {/* Navigation, not an action: the anchor keeps middle-click and open-in-new-tab working. */}
             <Link href={ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
-          </div>
+          </div>} />
 
       {/* Stale data banner */}
       {showStaleBanner && !bannerDismissed && (
@@ -683,6 +654,7 @@ export default function ContactsPage() {
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}
           beforeTable={<TableResultCount>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</TableResultCount>}
+          preferenceState={tablePreferences}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
           displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Contact view" value={contactView} onChange={view => {
           setContactPage(1)
@@ -861,67 +833,6 @@ export default function ContactsPage() {
             onClose={() => { setIsComposeOpen(false); setSingleComposeContact(null) }} />
         </div>
       </SlidePanel>
-
-      {/* Add contact slide panel */}
-      {isAddOpen && (
-        <SlidePanel isOpen={true} onClose={() => setIsAddOpen(false)}>
-          <SlidePanelHeader title="Add contact" onClose={() => setIsAddOpen(false)} />
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: colors.surface }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, maxWidth: 420 }}>
-              <div>
-                <FieldLabel>First name</FieldLabel>
-                <input
-                  type="text"
-                  value={newContact.first_name}
-                  onChange={e => setNewContact(prev => ({ ...prev, first_name: e.target.value }))}
-                  placeholder="First name"
-                  style={addInputStyle}
-                />
-              </div>
-              <div>
-                <FieldLabel>Last name</FieldLabel>
-                <input
-                  type="text"
-                  value={newContact.last_name}
-                  onChange={e => setNewContact(prev => ({ ...prev, last_name: e.target.value }))}
-                  placeholder="Last name"
-                  style={addInputStyle}
-                />
-              </div>
-              <div>
-                <FieldLabel>Phone</FieldLabel>
-                <input
-                  type="text"
-                  value={newContact.phone}
-                  onChange={e => setNewContact(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
-                  placeholder="Phone number"
-                  style={addInputStyle}
-                />
-              </div>
-              <div>
-                <FieldLabel>Email</FieldLabel>
-                <input
-                  type="email"
-                  value={newContact.email}
-                  onChange={e => setNewContact(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="Email address"
-                  style={addInputStyle}
-                />
-              </div>
-            </div>
-          </div>
-          <div style={{ padding: '16px 28px', borderTop: `1px solid ${colors.borderLight}`, display: 'flex', justifyContent: 'flex-end', gap: '10px', background: colors.surface }}>
-            <Button variant="secondary" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-            <Button
-              variant="primary"
-              onClick={handleAddContact}
-              disabled={savingContact || !newContact.first_name.trim() || !newContact.last_name.trim()}
-            >
-              {savingContact ? 'Adding...' : 'Add contact'}
-            </Button>
-          </div>
-        </SlidePanel>
-      )}
 
       <SlidePanel isOpen={showFilters} onClose={() => setShowFilters(false)} fullScreen={isMobile} width="min(100vw, 380px)">
         <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />

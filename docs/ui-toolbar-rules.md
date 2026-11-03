@@ -3,8 +3,10 @@
 ## Page header (zone 1)
 
 - The header carries the title and the primary page action, never the record count.
-  Contacts keeps Sync, Import Contacts and Add contact as secondary operational
-  actions; import and sync are transitional.
+  Contacts keeps Sync and Import Contacts as secondary operational actions;
+  import and sync are transitional. Align these and enrollment in the header’s
+  top-right actions slot next to the title; wrap on narrow screens. There is no
+  separate Add contact action: enrollment is the creation entry point.
 - Contacts renders Enroll new student as the primary action linking to
   `/content-studio-prototype/enrollment`. Use an anchor styled from the exported
   Button style objects so navigation keeps middle-click and open-in-new-tab; do not
@@ -139,3 +141,12 @@ account holders were incorrect and are withdrawn.
 - Family selection counts groups once, even when account-summary transport uses
   several child IDs. Student counts count records. Neither is a delivery count;
   the existing composer resolves/deduplicates account-holder destinations.
+
+## Persistent table preferences
+
+- Use `useTablePreferences` at the stable page/workspace level when loading or
+  toggles unmount the table. Pass its `preferenceState` to `RichDataTable` (or
+  `FamilyListTable`); do not restart preference hydration on each table mount.
+- Preferences stay tenant/membership/table scoped in localStorage. Changes made
+  before account verification completes are retained and saved once verified,
+  rather than overwritten by older storage or silently left unsaved.

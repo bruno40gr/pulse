@@ -11,6 +11,15 @@ const { CONTACT_TABLE_SCHEMA } = harness.load('lib/contact-table-preferences.ts'
 const plain = value => JSON.parse(JSON.stringify(value))
 const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
 
+test('Contacts owns preferences above table remounts and saves pre-verification edits', () => {
+  const contacts = source('app/dashboard/contacts/page.tsx')
+  assert.match(contacts, /const tablePreferences = useTablePreferences\(CONTACT_TABLE_SCHEMA\)/)
+  assert.match(contacts, /preferenceState=\{tablePreferences\}/)
+  assert.doesNotMatch(contacts, /isAddOpen|handleAddContact|\+ Add contact/)
+  assert.match(contacts, /<PageHeader title="Contacts" singleLine=\{!isMobile\} right=/)
+  assert.match(source('components/ui/TableDisplayControls.tsx'), /if \(changed.current\) window.localStorage.setItem\(key, JSON.stringify\(latestPreferences.current\)\)/)
+})
+
 test('shared results slot overlays count and actions with matching reserved responsive heights', () => {
   const controls = source('components/ui/TableWorkspaceControls.tsx')
   const css = source('components/ui/TableWorkspaceControls.module.css')

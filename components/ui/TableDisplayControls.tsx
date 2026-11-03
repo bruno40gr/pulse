@@ -11,6 +11,7 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
   const [preferences, setPreferences] = useState(() => normalizeTablePreferences(null, schema))
   const [storageKey, setStorageKey] = useState<string | null>(null)
   const changed = useRef(false)
+  const latestPreferences = useRef(preferences)
   useEffect(() => {
     const controller = new AbortController()
     const tenant = getActiveTenantId()
@@ -23,7 +24,12 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
         const key = tablePreferenceKey(schema, tenant, data.membershipId)
         try {
           const stored = window.localStorage.getItem(key)
-          if (stored && !changed.current) setPreferences(normalizeTablePreferences(JSON.parse(stored), schema))
+          if (changed.current) window.localStorage.setItem(key, JSON.stringify(latestPreferences.current))
+          else if (stored) {
+            const restored = normalizeTablePreferences(JSON.parse(stored), schema)
+            latestPreferences.current = restored
+            setPreferences(restored)
+          }
         } catch { /* Keep defaults if storage is unavailable or malformed. */ }
         setStorageKey(key)
       }).catch(() => { /* Preferences still work for this visit without verified identity. */ })
@@ -34,6 +40,7 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
   function updatePreferences(next: TablePreferences) {
     next = normalizeTablePreferences(next, schema)
     changed.current = true
+    latestPreferences.current = next
     setPreferences(next)
     if (storageKey) {
       try { window.localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* Session-only fallback. */ }

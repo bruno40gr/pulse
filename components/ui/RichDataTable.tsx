@@ -9,6 +9,8 @@ import { spacing } from '@/lib/tokens'
 
 export type RichDataTableProps<Row, SortKey extends string> = Omit<ResponsiveDataTableProps<Row, SortKey>, 'density' | 'minDesktopWidth'> & {
   preferenceSchema: TablePreferenceSchema
+  /** Own above conditional table mounts to preserve density/columns through loading. */
+  preferenceState?: ReturnType<typeof useTablePreferences>
   /** Opt-in contextual actions, replacing discovery by default or stacked below it. */
   contextualToolbar?: ReactNode
   contextualToolbarPlacement?: 'replace' | 'below'
@@ -20,8 +22,19 @@ export type RichDataTableProps<Row, SortKey extends string> = Omit<ResponsiveDat
 }
 
 /** Shared table surface: display controls, scoped preferences, geometry and detail projection. */
-export function RichDataTable<Row, SortKey extends string>({ preferenceSchema, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, contextualToolbarPlacement, preferencesLabel, ...table }: RichDataTableProps<Row, SortKey>) {
-  const { preferences, updatePreferences } = useTablePreferences(preferenceSchema)
+export function RichDataTable<Row, SortKey extends string>(props: RichDataTableProps<Row, SortKey>) {
+  return props.preferenceState
+    ? <RichDataTableSurface {...props} preferenceState={props.preferenceState} />
+    : <UncontrolledRichDataTable {...props} />
+}
+
+function UncontrolledRichDataTable<Row, SortKey extends string>(props: RichDataTableProps<Row, SortKey>) {
+  const preferenceState = useTablePreferences(props.preferenceSchema)
+  return <RichDataTableSurface {...props} preferenceState={preferenceState} />
+}
+
+function RichDataTableSurface<Row, SortKey extends string>({ preferenceSchema, preferenceState, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, contextualToolbarPlacement, preferencesLabel, ...table }: RichDataTableProps<Row, SortKey> & { preferenceState: ReturnType<typeof useTablePreferences> }) {
+  const { preferences, updatePreferences } = preferenceState
   const visibleColumns = columns.filter(column => preferences.columns.includes(column.id))
   const visibleIndexes = visibleColumns.map(column => columns.indexOf(column))
   const minWidth = (table.selection ? 48 : 0) + 32 + visibleColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
