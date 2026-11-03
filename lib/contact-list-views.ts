@@ -1,6 +1,5 @@
 import type { TablePersonView } from '@/components/ui/TablePersonViewToggle'
 import { groupContactFamilies } from './family-list'
-import { routesToAccountHolder } from './communication-recipients'
 
 export const CONTACT_LIST_VIEWS = [
   { value: 'none', label: 'Students' },
@@ -15,31 +14,9 @@ type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
   message_routing?: string | null
 }
 
-/** A person who holds the account is the destination, whatever their own row says. */
-export function isAccountHolderPerson(contact: ViewContact) {
-  return contact.account_holder_person_id === contact.id
-    || (contact.account_holders || []).some(holder => holder.person_id === contact.id)
-}
-
-/**
- * Whether a person can be selected here. Delegates to the shared routing rule so
- * Contacts cannot drift from what delivery does; the server stays authoritative
- * for destinations, opt-outs and exclusions. A payer's own student record can
- * carry `message_routing: 'account_holder'` because that is what they are —
- * routing it to the account resolves to themselves, so they stay selectable.
- */
-export function isMessageTarget(contact: ViewContact) {
-  return isAccountHolderPerson(contact) || !routesToAccountHolder(contact)
-}
-
-/** Selection rows are who a message reaches, not who matched the search. */
-function messageTargets<T extends ViewContact>(matched: T[], accounts: T[]) {
-  return [...new Map(matched.flatMap(contact => isMessageTarget(contact) ? [contact] : accounts).map(contact => [contact.id, contact])).values()]
-}
-
 /** Search matches choose accounts; related people are context, never extra selection. */
 export function contactViewGroups<T extends ViewContact>(matches: T[], contacts: T[], view: ContactListView) {
-  if (view === 'none') return matches.map(contact => ({ id: `contact:${contact.id}`, holder: null, members: [contact], parent: contact, selectionRows: isMessageTarget(contact) ? [contact] : [] }))
+  if (view === 'none') return matches.map(contact => ({ id: `contact:${contact.id}`, holder: null, members: [contact], parent: contact, selectionRows: [contact] }))
   const matchIds = new Set(matches.map(contact => `${contact.tenant_id || ''}:${contact.id}`))
   const holderIds = (members: T[]) => new Set(members.flatMap(member => [member.account_holder_person_id,
     ...(member.account_holders || []).map(holder => holder.person_id)].filter((id): id is string => Boolean(id))))
@@ -52,18 +29,16 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
     if (!group.holder) {
       const row = group.members[0]
       if (linkedHolderKeys.has(key(row)) || !matchIds.has(key(row))) return []
-      return [{ rank: matchRanks.get(key(row)) ?? Infinity, value: { ...group, parent: row, selectionRows: isMessageTarget(row) ? [row] : [] } }]
+      return [{ rank: matchRanks.get(key(row)) ?? Infinity, value: { ...group, parent: row, selectionRows: [row] } }]
     }
     const ids = holderIds(group.members)
     const parents = contacts.filter(contact => contact.tenant_id === group.members[0].tenant_id && ids.has(contact.id))
     const members = [...new Map([...group.members, ...parents].map(contact => [contact.id, contact])).values()]
     const matched = members.filter(contact => matchIds.has(key(contact)))
     if (!matched.length) return []
-    // A matched minor cannot receive, so their account holders carry the selection.
-    // When the account-holder row cannot be resolved from this payload, keep the
-    // matched rows selectable: delivery still routes their message to the account.
-    const accounts = parents.filter(isMessageTarget)
-    const selectionRows = messageTargets(matched, accounts.length ? accounts : matched)
+    // Header selection uses explicit holders, or matching records as transport IDs
+    // for an account summary. Delivery resolves those IDs; they do not expose child checkboxes.
+    const selectionRows = parents.length ? parents : matched
     const primaryIds = new Set(group.members.map(member => member.account_holder_person_id).filter(Boolean))
     const primary = primaryIds.size === 1 ? parents.find(parent => primaryIds.has(parent.id)) : undefined
     return [{ rank: Math.min(...matched.map(contact => matchRanks.get(key(contact)) ?? Infinity)),

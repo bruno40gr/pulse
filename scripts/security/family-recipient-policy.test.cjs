@@ -135,13 +135,12 @@ test('classification is deterministic and does not mutate inputs', () => {
   assert.equal(JSON.stringify(data), before)
 })
 
-test('one routing rule is shared by delivery and the Contacts selection gate', () => {
+test('delivery owns routing independently of table checkbox presentation', () => {
   const policy = fs.readFileSync(path.join(root, 'lib/communication-recipients.ts'), 'utf8')
   assert.match(policy, /export const routesToAccountHolder/)
   assert.match(policy, /students\.some\(routesToAccountHolder\)/)
   const views = fs.readFileSync(path.join(root, 'lib/contact-list-views.ts'), 'utf8')
-  assert.match(views, /import \{ routesToAccountHolder \} from '\.\/communication-recipients'/)
-  assert.match(views, /return isAccountHolderPerson\(contact\) \|\| !routesToAccountHolder\(contact\)/)
+  assert.doesNotMatch(views, /routesToAccountHolder|isMessageTarget/)
   // The rule itself must not be restated here; only the field types may appear.
   assert.doesNotMatch(views, /=== 'account_holder'/)
   assert.doesNotMatch(views, /is_minor === true/)

@@ -18,9 +18,7 @@ function load(file, dependencies = {}) {
 const { groupContactFamilies, inquiryStudents } = load('lib/family-list.ts')
 const plain = value => JSON.parse(JSON.stringify(value))
 const reviewContacts = require('./fixtures/contact-list-review.cjs')
-const recipients = load('lib/communication-recipients.ts')
-// Load the real routing rule, not a stub: Contacts must use what delivery uses.
-const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies }, './communication-recipients': recipients })
+const { contactViewGroups } = load('lib/contact-list-views.ts', { './family-list': { groupContactFamilies } })
 test('family groups preserve ascending and descending contact sort instead of fixture order', () => {
   const ascending = [...reviewContacts].sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name))
   for (const matches of [ascending, [...ascending].reverse()]) {
@@ -47,7 +45,7 @@ test('grouping preserves all roles and solo contacts with each family head shown
   assert.equal(result[0].parent.id, 'mock-sam')
   // A matched minor cannot receive, so the Kim account holders carry the selection.
   assert.deepEqual(plain(result[0].selectionRows.map(contact => contact.id)), ['mock-sam', 'mock-jamie'])
-  assert.deepEqual(plain(contactViewGroups([ethan], reviewContacts, 'none')[0].selectionRows), [])
+  assert.deepEqual(plain(contactViewGroups([ethan], reviewContacts, 'none')[0].selectionRows.map(row => row.id)), ['mock-ethan'])
   assert.ok(result[0].members.some(contact => contact.id === 'mock-sophie'))
   assert.deepEqual(plain(contactViewGroups([ethan], reviewContacts, 'none')[0].members.map(contact => contact.id)), ['mock-ethan'])
 })
@@ -79,7 +77,7 @@ test('Contacts uses atomic filtered-family selection, keeping drawers and transp
   const page = fs.readFileSync(path.join(root, 'app/dashboard/contacts/page.tsx'), 'utf8')
   assert.match(page, /contactViewGroups\(sortedDisplayed, contacts, contactView\)/)
   assert.match(page, /viewGroups\.slice\(\(currentPage - 1\) \* pageSize, currentPage \* pageSize\)/)
-  assert.match(page, /isMessageTarget=\{isMessageTarget\}/)
+  assert.doesNotMatch(page, /isMessageTarget/)
   // The family row toggles its recipients when no single holder row exists.
   assert.match(page, /onToggleMembers=\{\(members, checked\) =>/)
   assert.match(page, /if \(key === 'client_status'\) \{\s+if \(c.client_status !== val\) return false\s+continue/)
@@ -134,4 +132,14 @@ test('a payer whose own row routes to the account is still the family selection'
   assert.equal(groups.length, 1)
   assert.equal(groups[0].parent.id, 'parent')
   assert.deepEqual(plain(groups[0].selectionRows.map(contact => contact.id)), ['parent'])
+})
+
+// Presentation roles must not depend on delivery configuration.
+test('family selection is unchanged by minor/routing flags, including adult non-holder students', () => {
+  const rows = reviewContacts.map(row => ({ ...row, is_minor: true, message_routing: 'account_holder' }))
+  const family = contactViewGroups(rows.filter(row => row.id === 'mock-ethan'), rows, 'family')[0]
+  assert.deepEqual(plain(family.selectionRows.map(row => row.id)), ['mock-sam', 'mock-jamie'])
+  const table = fs.readFileSync(path.join(root, 'components/contacts/FamilyListTable.tsx'), 'utf8')
+  assert.match(table, /selection: source && member.row && member.isAccountHolder === true/)
+  assert.doesNotMatch(table, /isMessageTarget|routesToAccountHolder/)
 })

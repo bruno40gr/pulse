@@ -46,14 +46,19 @@
 - Leads and Contacts instantiate `components/ui/RichDataTable.tsx`. It owns the toolbar layout, metadata-column picker, density, visible-column sizing and detail-cell projection. Domain adapters supply rows, columns, toolbar actions and a stable preference schema; do not clone the table or its controls per page.
 - Use `TablePersonName` for parent/detail table names. Details retain normal weight even when a domain supplies a profile-opening action; Leads details can remain display-only. All name actions use the shared name control. Contacts family groups stay fully expanded without indentation. No family chevrons or “Via” labels.
 
-- Contacts selection is **message-target selection**, not record selection. A person is selectable only when delivery would reach them: `isMessageTarget` delegates to `routesToAccountHolder` in `lib/communication-recipients.ts`, the same rule the server resolver uses. Never restate that rule in the client; a test fails if `lib/contact-list-views.ts` does. The server stays authoritative for destinations, opt-outs and exclusions.
-- **A payer is always selectable, even when their own row carries `message_routing: 'account_holder'`** — that value describes what they are, and routing it to the account resolves to themselves. Imported payer rows commonly carry it, so excluding them made the holder unselectable and left children as the only tappable rows. This was the production regression on 2026-11-02; a regression test covers it.
-- Children never get a checkbox: this restores the parent-only selection that existed before the shared person-table rollout (`694579c`) introduced per-person child checkboxes.
-- Minors and account-holder-routed students get **no checkbox**; their account holders carry the selection. A search that matches only minors surfaces that family's account holders as the selectable rows. A row shows a checkbox when it is selectable now (enabled) or is a message target outside the current context (disabled); rows that can never be in the selection set show none.
-- **Fallback:** if a family's account-holder row cannot be resolved from the payload, keep the matched rows selectable — delivery still routes their message to the account, and losing every checkbox in the family is worse. `/api/contacts` only sets `account_holder_person_id` when exactly one holder is known, so it now prefers the `account_holders` rows and keeps a `person_id` on each. If a tenant still shows children selectable, check that the `account_holders` table has rows for those accounts.
-- The family-wide double-click shortcut is retired.
-
-- **Bulk edit of students is deliberately unavailable.** Children are not selectable, so students cannot be bulk-edited today. To add it later, add a filter-scoped **"apply to all N matching"** action operating on *records* (distinct from the recipient-based actions) instead of restoring child checkboxes: every real bulk case is "all students matching X", never a hand-ticked set across families. Bulk instructor reassignment is explicitly not wanted — handle it case by case.
+- Contacts Families view exposes checkboxes on account-holder headers and explicitly
+  identified additional account holders only. Child detail rows have no checkbox,
+  regardless of age or messaging-routing flags. Standalone contacts remain selectable.
+- Account-summary headers remain selectable without a linked holder person. Their
+  matching record IDs are transport inputs to the existing composer/resolver, not
+  evidence that the child rows are selected as individual recipients.
+- Checkbox presentation is independent of delivery eligibility. The server resolver
+  owns routing, destination validation and deduplication. Do not import delivery
+  predicates into table grouping or checkbox presentation.
+- Child selection can be enabled later at the existing detail-row `selection`
+  mapping in `FamilyListTable`; the shared grid already supports those checkboxes.
+  No schema migration or new table selection framework is required. Any future bulk
+  edit policy is separate; instructor reassignment remains case by case.
 - Contacts and Leads use shared `TablePersonViewToggle`, built on the Notes `ToggleSwitch` between “View as: Students / Families” for Contacts and “View as: Account holders / Families” for Leads, immediately before Columns & spacing. Use role="switch" and aria-checked; keep all contact roles visible in either Contacts presentation. Leads Account holders shows only inquiry contacts; Families expands student detail rows beneath them. The viewing counter sits below the toolbar and above the table. Pagination keeps family groups intact. Keep this group at the right edge, wrapping on mobile.
 - `TableDisplayControls` is the shared picker (also used in the design-system showcase), not a Leads-specific control. Storage is tenant/membership/table scoped; Leads keeps its released storage key.
 
@@ -65,26 +70,14 @@
 - Preferences remain browser-local and membership-scoped. Toolbar interactions must not add polling or per-column requests.
 - The live component example is the **Table toolbar** section in `/dashboard/design`.
 - Shared `TablePagination` paginates Contacts and loaded Leads, keeping family/inquiry groups intact. Leads retains its explicit server-backed Load more action and identifies counts as loaded inquiries. Leads selects only inquiry/contact records; student rows have no checkbox, never inherit parent selection/highlighting, and never become action targets. View changes clear selection without refetching or altering actions/permissions.
-### Contacts family selection — production data state (2026-11-02)
+### Account-holder evidence and environment limits
 
-`scripts/diagnostics/family-selection-diagnostic.mjs` (read-only) reports the real
-shape: 248 people, **`account_holders` has 0 rows**, and all 35 multi-person
-families are children only — every member `is_minor=true`,
-`routing=account_holder`. **No family has a resolvable account-holder person**, so
-there is no holder row to select. The holder is the *account* (`accounts.name/
-phone/email`), not a person.
+Contacts already distinguishes the named account summary (`accounts.name/phone/email`)
+from an optional explicitly linked holder person (`account_holders.person_id`). Both
+are valid header representations. An empty optional relation does not remove the
+account-holder distinction or require a migration to render a named header.
 
-Consequences:
-
-- The family row is the only correct control: it carries the checkbox, children
-  never do, and toggling it selects the family's reachable rows. Selecting a child
-  id still reaches the account, because the server routes `is_minor` /
-  `account_holder` students to `students.accounts`.
-- Do not try to resolve the holder by name, phone or email. Without an
-  `account_holders` row there is no verified person to name, and guessing was what
-  made children look like the only selectable rows.
-- Populating `account_holders` is the data fix for anything that needs a *named*
-  payer (personalisation, payer identity in UI). It is a migration task, tracked
-  with the unresolved family-recipient gates in `docs/contact-family-integration.md`.
-- Verify with the diagnostic before changing selection rules again; the synthetic
-  fixtures do not reproduce this shape by default.
+The diagnostic reads `.env.local` and a configured/fallback tenant. Its results must
+not be described as production evidence without independently verifying that target.
+Earlier claims in this document that the local counts proved production had no
+account holders were incorrect and are withdrawn.
