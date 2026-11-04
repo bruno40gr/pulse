@@ -11,6 +11,16 @@ const { CONTACT_TABLE_SCHEMA } = harness.load('lib/contact-table-preferences.ts'
 const plain = value => JSON.parse(JSON.stringify(value))
 const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
 
+test('Leads controls page size with shared options and keeps whole inquiries together', () => {
+  const leads = source('components/leads/LeadsView.tsx')
+  assert.match(leads, /const \[pageSize, setPageSize\] = useState\(50\)/)
+  assert.match(leads, /Math.ceil\(sortedLeads.length \/ pageSize\)/)
+  assert.match(leads, /sortedLeads.slice\(\(leadPage - 1\) \* pageSize, leadPage \* pageSize\)/)
+  assert.match(leads, /pageSize=\{pageSize\} onPageSizeChange=\{size => \{ setPageSize\(size\); setTablePage\(1\) \}\}/)
+  assert.match(leads, /itemLabel=\{personView === 'family' \? 'families' : 'account holders'\}/)
+  assert.match(source('components/ui/TablePagination.tsx'), /pageSizeOptions = \[25, 50, 100, 250\]/)
+})
+
 test('Contacts owns preferences above table remounts and saves pre-verification edits', () => {
   const contacts = source('app/dashboard/contacts/page.tsx')
   assert.match(contacts, /const tablePreferences = useTablePreferences\(CONTACT_TABLE_SCHEMA\)/)

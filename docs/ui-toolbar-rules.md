@@ -126,6 +126,10 @@ account holders were incorrect and are withdrawn.
   offers 25/50/100/250, and resets to page 1 when size changes without clearing selection.
 - Family pages count whole groups, never split families. Label the size as families
   per page in Families view and contacts per page in Students view.
+- Leads also defaults to 50 with the shared 25/50/100/250 options. Size changes
+  reset to page 1 without clearing selection. Labels follow its Families / Account
+  holders view; pagination counts loaded inquiries and keeps their student detail
+  rows together. The explicit server-backed Load more leads action remains.
 - `TablePersonViewToggle variant="segmented"` reuses `Tabs` prominent presentation
   with toolbar sizing and pressed buttons. Contacts uses View students / View families.
   Leads retains its existing switch; this is an opt-in shared capability.

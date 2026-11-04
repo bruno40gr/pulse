@@ -654,6 +654,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   const [inquirySearch, setInquirySearch] = useState('')
   const [tablePage, setTablePage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [personView, setPersonView] = useState<TablePersonView>('family')
   const visibleLeads = useMemo(() => leads.filter(lead => matchesLeadInquirySearch(lead, inquirySearch)), [leads, inquirySearch])
   const sortedLeads = useMemo(() => {
@@ -682,9 +683,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     })
   }, [activeTab, visibleLeads, sortDirection, sortKey])
 
-  const leadPageCount = Math.max(1, Math.ceil(sortedLeads.length / 10))
+  const leadPageCount = Math.max(1, Math.ceil(sortedLeads.length / pageSize))
   const leadPage = Math.min(tablePage, leadPageCount)
-  const pagedLeads = sortedLeads.slice((leadPage - 1) * 10, leadPage * 10)
+  const pagedLeads = sortedLeads.slice((leadPage - 1) * pageSize, leadPage * pageSize)
   useEffect(() => { setTablePage(1) }, [activeTab, statusFilter, inquirySearch, sortKey, sortDirection, personView])
 
   const updateLeadPanelDraft = (leadId: string, draft: LeadPanelDraft) => {
@@ -1992,7 +1993,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           })}
           ariaLabel="Leads"
         />
-        {!loading && <TablePagination ariaLabel="Leads pagination" page={leadPage} pageCount={leadPageCount} onPageChange={page => { setTablePage(page); setSelectedIds(new Set()) }} />}
+        {!loading && <TablePagination ariaLabel="Leads pagination" page={leadPage} pageCount={leadPageCount} onPageChange={page => { setTablePage(page); setSelectedIds(new Set()) }} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setTablePage(1) }} itemLabel={personView === 'family' ? 'families' : 'account holders'} />}
         {hasMore && <Button type="button" variant="secondary" onClick={loadMoreLeads} disabled={loading || loadingMore} style={{ marginTop: spacing.lg }}>
           {loadingMore ? 'Loading…' : 'Load more leads'}
         </Button>}
