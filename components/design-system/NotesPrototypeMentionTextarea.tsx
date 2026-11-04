@@ -6,16 +6,19 @@ import { REVIEW_MENTIONS } from '@/lib/notes-follow-ups-prototype'
 import { colors, radius, shadows, typography } from '@/lib/tokens'
 
 /** Fictional directory only. Never invokes production mention or privacy APIs. */
-export default function NotesPrototypeMentionTextarea({ value, onChange, placeholder, style, onKeyDown }: {
+export default function NotesPrototypeMentionTextarea({ value, onChange, placeholder, style, onKeyDown, highlightMentions = false }: {
   value: string; onChange: (value: string) => void; placeholder?: string; style?: CSSProperties
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void
   mentionMembershipIds?: string[]; onMentionMembershipIdsChange?: (ids: string[]) => void
+  highlightMentions?: boolean
 }) {
   const [cursor, setCursor] = useState(0)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const match = value.slice(0, cursor).match(/(?:^|\s)@([^@\n]*)$/)
   const suggestions = open && match ? REVIEW_MENTIONS.filter(person => person.label.toLowerCase().includes(match[1].toLowerCase())) : []
+  const hasMention = highlightMentions && /@[^\s]+/.test(value)
+  const textStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text, padding: 2, fontSize: 14, lineHeight: 1.5, ...style }
   const select = (person: typeof REVIEW_MENTIONS[number]) => {
     if (!match) return
     const start = cursor - match[1].length - 1
@@ -23,7 +26,10 @@ export default function NotesPrototypeMentionTextarea({ value, onChange, placeho
     setOpen(false)
   }
   return <div style={{ position: 'relative' }}>
-    <textarea value={value} placeholder={placeholder} style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text, ...style }}
+    {hasMention && <div aria-hidden="true" style={{ ...textStyle, position: 'absolute', inset: 0, pointerEvents: 'none', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', overflow: 'hidden' }}>
+      {value.split(/(@[\u00a0A-Za-z0-9._-]+)/g).map((part, index) => part.startsWith('@') ? <span key={index} style={{ background: `color-mix(in srgb, ${colors.link} 18%, ${colors.surface})`, color: colors.info, borderRadius: 4 }}>{part}</span> : part)}
+    </div>}
+    <textarea value={value} placeholder={placeholder} style={{ ...textStyle, position: 'relative', ...(hasMention ? { color: 'transparent', caretColor: colors.text } : {}) }}
       onChange={event => { onChange(event.target.value); setCursor(event.target.selectionStart); setActive(0); setOpen(true) }}
       onBlur={() => setOpen(false)} onKeyDown={event => {
         if (suggestions.length && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) {

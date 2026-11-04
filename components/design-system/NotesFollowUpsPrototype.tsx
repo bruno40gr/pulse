@@ -3,8 +3,9 @@
 // Isolated review mirror of the existing Notes composer/card presentation.
 // Keep production Notes unchanged; only task affordances are experimental.
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Check, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
-import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea, Avatar } from '@/components/ui'
+import { CalendarDays, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
+import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea, Avatar, Badge } from '@/components/ui'
+import { TaskCompletionButton } from '@/components/ui/TaskCompletionButton'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { SlidePanel } from '@/components/ui/SlidePanel'
 import { SlidePanelHeader } from '@/components/ui/SlidePanelHeader'
@@ -12,9 +13,9 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch'
 import { ColorSwatch } from '@/components/ui/ColorSwatch'
 import MentionTextarea from '@/components/design-system/NotesPrototypeMentionTextarea'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
-import { formatFullTimestamp, formatPresentationDate } from '@/lib/presentation-date'
+import { formatFullTimestamp } from '@/lib/presentation-date'
 import { NOTE_COLORS, getNoteBackground } from '@/lib/sticky-note-appearance'
-import { initialReviewNotes, localReviewDate, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
+import { initialReviewNotes, localReviewDate, mentionedReviewPeople, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 interface Note {
   id: string; title: string; body: string; color: string; pinned: boolean; is_private: boolean;
@@ -31,8 +32,8 @@ function NoteBody({ body }: { body: string }) {
             key={i}
             style={{
               display: 'inline-block',
-              background: '#1F2937',
-              color: '#FFFFFF',
+              background: `color-mix(in srgb, ${colors.link} 18%, ${colors.surface})`,
+              color: colors.info,
               borderRadius: 6,
               padding: '0 6px',
               fontWeight: 600,
@@ -64,7 +65,6 @@ interface NoteCardProps {
   onToggleComplete: () => void
   onDelete: () => void
   onTask: () => void
-  taskLabel: string
   onReply: () => void
 }
 
@@ -81,19 +81,21 @@ function NoteCard(props: NoteCardProps) {
     document.addEventListener('pointerdown', outside, true)
     return () => document.removeEventListener('pointerdown', outside, true)
   }, [editing])
-  const bg = getNoteBackground(note.color, !!note.completed_at)
+  const bg = `color-mix(in srgb, ${getNoteBackground(note.color, !!note.completed_at)} 62%, ${colors.surface} 38%)`
+  const overdue = !!note.followUp && !note.completed_at && note.followUp.dueDate < localReviewDate()
+  const due = note.followUp ? new Date(`${note.followUp.dueDate}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
   const plainInput: CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text }
   const owner = REVIEW_OWNERS.find(person => person.id === note.followUp?.ownerId)
   return <div ref={root} onBlur={event => {
     if (editing && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) props.onSaveEdit()
   }} onClick={() => { if (!editing) props.onStartEdit() }}
-    style={{ width: '100%', maxWidth: 390, minHeight: 300, maxHeight: 460, boxSizing: 'border-box', overflowY: editing ? 'auto' : 'hidden', background: editing ? `color-mix(in srgb, ${bg} 94%, ${colors.text} 6%)` : bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
+    style={{ width: '100%', maxWidth: 390, minHeight: 300, maxHeight: 460, boxSizing: 'border-box', overflowY: editing ? 'auto' : 'hidden', background: editing ? `color-mix(in srgb, ${bg} 94%, ${colors.text} 6%)` : bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
     <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
       <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>
       <div style={{ flex: 1 }} />
-      {note.followUp ? <ControlButton kind="toggle" type="button" onClick={props.onTask} aria-label={`Task assigned to ${owner?.name || 'Alex'}`}><Avatar firstName={owner?.name.replace(' (me)', '') || 'Alex'} lastName="" size={22} /><span>Task</span></ControlButton>
-        : <Button variant="ghost" size="sm" onClick={props.onTask}>Make a task</Button>}
-      <ControlButton kind="icon" type="button" selected={!!note.completed_at} aria-pressed={!!note.completed_at} title={note.completed_at ? 'Mark note as open' : 'Mark note as done'} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete}><Check size={18} aria-hidden="true" /></ControlButton>
+      {!note.followUp && editing && mentionedReviewPeople(props.editBody).some(person => person.kind === 'staff') && <Button variant="secondary" size="sm" onClick={props.onTask}>Create task</Button>}
+      {note.followUp && <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />}
+
     </div>
     <div style={{ flex: 1, minHeight: 0, textDecoration: note.completed_at ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>
       {editing ? <>
@@ -104,12 +106,20 @@ function NoteCard(props: NoteCardProps) {
         <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 10, overflow: 'hidden' }}><NoteBody body={note.body} /></div>
       </div>}
     </div>
+    {note.followUp && <div onClick={event => event.stopPropagation()} style={{ marginTop: spacing.lg }}>
+      <ControlButton kind="name" type="button" onClick={props.onTask} aria-label={`Task assigned to ${owner?.name || 'Alex'}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, color: colors.textSecondary }}>
+        <Avatar firstName={owner?.name.replace(' (me)', '') || 'Alex'} lastName="" size={24} /><span>{owner?.name.replace(' (me)', '')}</span>
+        <CalendarDays size={16} aria-hidden="true" /><time dateTime={note.followUp.dueDate}>{due}</time>
+        {overdue ? <Badge variant="error" style={{ background: `color-mix(in srgb, ${colors.crimson} 16%, transparent)`, color: colors.error }}>Overdue</Badge> : note.completed_at ? <Badge variant="success">Done</Badge> : note.followUp.dueDate === localReviewDate() ? <Badge variant="neutral">Today</Badge> : null}
+      </ControlButton>
+    </div>}
     <div onClick={event => event.stopPropagation()} style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.md, paddingTop: spacing.sm }}>
       {editing && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: spacing.sm }}>{NOTE_COLOR_KEYS.map(color => <ColorSwatch key={color} color={NOTE_COLORS[color]} selected={note.color === color} label={`Set color to ${color}`} onClick={() => props.onColor(color)} />)}<ControlButton kind="icon" aria-label="Delete note" onClick={props.onDelete}><Trash2 size={16} /></ControlButton></div>}
-      {note.followUp && <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: spacing.xs }}>{props.taskLabel}</div>}
       {note.is_private && <div style={{ fontSize: 11, color: colors.textSecondary }}><Lock size={12} /> Private · {note.participant_count} person</div>}
-      <Button variant="ghost" size="sm" onClick={props.onReply}><MessageCircle size={14} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
-      <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: spacing.xs }}>{note.created_by} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)}>{formatPresentationDate(note.created_at)}</time></div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }}>
+        <Button variant="ghost" size="sm" onClick={props.onReply}><MessageCircle size={16} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
+        <div style={{ fontSize: 12, color: colors.textSecondary }}>{note.created_by} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)}>{new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</time></div>
+      </div>
     </div>
   </div>
 }
@@ -144,7 +154,8 @@ export default function NotesFollowUpsPrototype() {
   const [reply, setReply] = useState('')
   const today = localReviewDate()
   const plainInput: CSSProperties = { width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text, boxSizing: 'border-box' }
-  const composerBg = NOTE_COLORS[draftColor] || NOTE_COLORS.white
+  const composerBg = `color-mix(in srgb, ${NOTE_COLORS[draftColor] || NOTE_COLORS.white} 62%, ${colors.surface} 38%)`
+  const mentionedTeammate = mentionedReviewPeople(draftBody).find(person => person.kind === 'staff')
 
   useEffect(() => {
     let restored: PrototypeNote[] | null = null
@@ -171,7 +182,7 @@ export default function NotesFollowUpsPrototype() {
     setEditing(note); setError('')
   }
   const handleAdd = (asTask = false) => {
-    if (!draftTitle.trim() && !draftBody.trim()) return
+    if ((!draftTitle.trim() && !draftBody.trim()) || (asTask && !mentionedTeammate)) return
     const note: PrototypeNote = { id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: draftPinned, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }
     setNotes(current => [note, ...current])
     if (asTask) openEditor(note)
@@ -182,7 +193,6 @@ export default function NotesFollowUpsPrototype() {
     setDraft(current => ({ ...current, personId: person.id }))
     setPersonQuery(person.name); setPersonSearchOpen(false)
   }
-  const dueLabel = (note: PrototypeNote) => !note.followUp ? '' : `${note.completedAt ? 'Done' : note.followUp.dueDate < today ? 'Overdue' : note.followUp.dueDate === today ? 'Due today' : 'Due'}${note.followUp.dueDate === today ? '' : ` · ${note.followUp.dueDate}`} · ${REVIEW_OWNERS.find(owner => owner.id === note.followUp?.ownerId)?.name}`
   const matchesTask = (note: PrototypeNote) => filter === 'all' || (!!note.followUp && (
     filter === 'completed' ? !!note.completedAt : !note.completedAt && (
       filter === 'open' || (filter === 'mine' && note.followUp.ownerId === 'admin') ||
@@ -219,7 +229,7 @@ export default function NotesFollowUpsPrototype() {
       </Select>
     </div>
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
-        <div style={{ background: composerBg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.md, boxShadow: shadows.md, padding: spacing.lg }}>
+        <div style={{ background: composerBg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.xl, boxShadow: shadows.md, padding: spacing.lg }}>
           <input
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
@@ -231,6 +241,7 @@ export default function NotesFollowUpsPrototype() {
             onChange={setDraftBody}
             mentionMembershipIds={draftMentionIds}
             onMentionMembershipIdsChange={setDraftMentionIds}
+            highlightMentions
             placeholder="Take a note…"
             style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'none', minHeight: 72 }}
           />
@@ -254,6 +265,8 @@ export default function NotesFollowUpsPrototype() {
             >
               <Pin size={16} fill={draftPinned ? 'currentColor' : 'none'} />
             </ControlButton>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', marginTop: spacing.lg }}>
             <ControlButton kind="toggle"
               type="button"
               onClick={() => setDraftPrivate((value) => !value)}
@@ -291,10 +304,13 @@ export default function NotesFollowUpsPrototype() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            <Button variant="secondary" size="sm" onClick={() => handleAdd(true)} disabled={!draftTitle.trim() && !draftBody.trim()}>Create a task</Button>
+            {mentionedTeammate && <Button variant="secondary" size="sm" onClick={() => handleAdd(true)}>Create task</Button>}
             <Button variant="primary" size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
               Add as note
             </Button>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.lg, paddingTop: spacing.md, color: colors.textSecondary, fontSize: 13 }}>
+            {mentionedTeammate ? <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={mentionedTeammate.label} lastName="" size={24} /><span>Assigned to {mentionedTeammate.label}</span></div> : <em>Mention a teammate with @ to create a task.</em>}
           </div>
           {draftPrivate && (
             <div style={{ color: colors.textSecondary, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginTop: spacing.sm }}>
@@ -316,7 +332,7 @@ export default function NotesFollowUpsPrototype() {
             const current = editingId === note.id ? { ...note, title: editTitle, body: editBody } : note
             if (editingId === note.id) { updateNote(note.id, { title: editTitle, body: editBody }); setEditingId(null) }
             openEditor(current)
-          }} taskLabel={dueLabel(note)} />
+          }} />
       </article>)}
     </div>}
     <p style={{ color: colors.textSecondary, fontSize: typography.sizeXs, marginTop: spacing.xl }}>Mockup only · Existing Notes layout · Fictional data saved in this browser · No messages or production writes.</p>
