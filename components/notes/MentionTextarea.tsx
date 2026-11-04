@@ -3,8 +3,9 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
-import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
+import { colors, radius, shadows, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
+import type { TaskPerson } from '@/lib/note-tasks'
 
 export interface MentionMember {
   membership_id: string
@@ -27,10 +28,13 @@ interface MentionTextareaProps {
   onMentionMembershipIdsChange?: (ids: string[]) => void
   placeholder?: string
   style?: React.CSSProperties
+  taskMentions?: boolean
+  highlightMentions?: boolean
+  onRelatedPersonMention?: (person: TaskPerson) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
-export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown }: MentionTextareaProps) {
+export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown, taskMentions = false, highlightMentions = false, onRelatedPersonMention }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
   const selectedMentionTokensRef = useRef(new Map<string, string>())
@@ -39,6 +43,8 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
   const [mentionStart, setMentionStart] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<MentionMember[]>([])
+  const [relatedSuggestions, setRelatedSuggestions] = useState<TaskPerson[]>([])
+  const [scrollTop, setScrollTop] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
 
   const close = () => {
@@ -46,6 +52,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     setMentionStart(null)
     setQuery('')
     setSuggestions([])
+    setRelatedSuggestions([])
     setActiveIndex(0)
   }
 
@@ -57,8 +64,14 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
         const qs = query ? `?q=${encodeURIComponent(query)}&tenant=${tenantId}` : `?tenant=${tenantId}`
         const res = await fetch(`/api/staff/mention-directory${qs}`)
         const data = await res.json()
+        let related: TaskPerson[] = []
+        if (taskMentions && query.trim()) {
+          const response = await fetch(`/api/notes/directory?tenant=${tenantId}&q=${encodeURIComponent(query)}`)
+          if (response.ok) related = await response.json()
+        }
         if (!cancelled) {
           setSuggestions((Array.isArray(data) ? data : []).slice(0, 8))
+          setRelatedSuggestions(related.slice(0, 8))
           setActiveIndex(0)
         }
       } catch {
@@ -69,7 +82,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
       cancelled = true
       clearTimeout(timer)
     }
-  }, [open, query, tenantId])
+  }, [open, query, tenantId, taskMentions])
 
   const detectMention = (val: string, cursor: number) => {
     const before = val.slice(0, cursor)
@@ -109,6 +122,18 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     })
   }
 
+  const selectRelated = (person: TaskPerson) => {
+    const start = mentionStart ?? 0
+    const name = person.name.replace(/ /g, NBSP)
+    onChange(`${value.slice(0, start)}@${name} ${value.slice(cursorRef.current)}`)
+    onRelatedPersonMention?.(person)
+    close()
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(start + name.length + 2, start + name.length + 2)
+    })
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const el = e.target
     const val = el.value
@@ -126,20 +151,23 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (open && suggestions.length > 0) {
+    const count = suggestions.length + relatedSuggestions.length
+    if (open && count > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActiveIndex((i) => (i + 1) % suggestions.length)
+        setActiveIndex((i) => (i + 1) % count)
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setActiveIndex((i) => (i - 1 + suggestions.length) % suggestions.length)
+        setActiveIndex((i) => (i - 1 + count) % count)
         return
       }
       if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault()
-        select(suggestions[activeIndex])
+        const index = activeIndex % count
+        if (index < suggestions.length) select(suggestions[index])
+        else selectRelated(relatedSuggestions[index - suggestions.length])
         return
       }
       if (e.key === 'Escape') {
@@ -151,27 +179,26 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     onKeyDown?.(e)
   }
 
+  const highlighted = highlightMentions && /@[\u00a0\p{L}\p{N}._-]+/u.test(value)
+  const textStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text, padding: 0, ...style }
   return (
     <div style={{ position: 'relative' }}>
+      {highlighted && <div aria-hidden="true" style={{ ...textStyle, position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+        <div style={{ transform: `translateY(-${scrollTop}px)` }}>{value.split(/(@[\u00a0\p{L}\p{N}._-]+)/gu).map((part, index) => part.startsWith('@') ? <span key={index} style={{ background: '#DBEAFE', color: '#1E40AF', borderRadius: 4 }}>{part}</span> : part)}</div>
+      </div>}
       <textarea
         ref={textareaRef}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
-        style={{
-          width: '100%',
-          border: 'none',
-          outline: 'none',
-          background: 'transparent',
-          fontFamily: typography.fontSans,
-          color: colors.text,
-          ...style,
-        }}
+        style={{ ...textStyle, position: 'relative', ...(highlighted ? { color: 'transparent', caretColor: colors.text } : {}) }}
       />
-      {open && suggestions.length > 0 && (
+      {open && suggestions.length + relatedSuggestions.length > 0 && (
         <div
+          role="group" aria-label="Mention suggestions"
           style={{
             position: 'absolute',
             top: '100%',
@@ -197,9 +224,9 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  select(person)
                 }}
                 onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => select(person)}
                 style={{ width: '100%' }}
               >
                 <span style={{ fontSize: typography.sizeBase, fontWeight: typography.weightMedium, color: colors.text }}>
@@ -213,6 +240,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
               </ControlButton>
             )
           })}
+          {relatedSuggestions.map((person, index) => <ControlButton key={person.id} kind="row" selected={activeIndex === suggestions.length + index} type="button" style={{ width: '100%' }} onMouseDown={event => event.preventDefault()} onClick={() => selectRelated(person)}>@{person.name} · {person.kind === 'lead' ? 'Lead' : 'Contact'}</ControlButton>)}
         </div>
       )}
     </div>

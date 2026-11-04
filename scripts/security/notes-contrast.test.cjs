@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Validate local review palette without browser dependencies. */
+/* eslint-disable @typescript-eslint/no-require-imports -- Validate dashboard Notes palette without browser dependencies. */
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness } = require('./synthetic-harness.cjs')
-const { REVIEW_NOTE_COLORS, REVIEW_NOTE_INK, REVIEW_NOTE_MUTED_INK, reviewNoteBackground } = createHarness().load('lib/notes-prototype-appearance.ts')
+const { NOTE_COLORS, NOTE_INK, NOTE_MUTED_INK, noteBackground } = createHarness().load('lib/dashboard-note-appearance.ts')
 function luminance(hex) {
   const channels = [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16) / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
@@ -13,9 +13,9 @@ function ratio(a, b) {
 }
 test('sticky text and metadata exceed 4.5:1 on every normal, focused and completed color', () => {
   let worst = Infinity
-  for (const color of Object.keys(REVIEW_NOTE_COLORS)) for (const completed of [false, true]) for (const focused of [false, true]) {
-    const background = reviewNoteBackground(color, completed, focused)
-    for (const ink of [REVIEW_NOTE_INK, REVIEW_NOTE_MUTED_INK]) {
+  for (const color of Object.keys(NOTE_COLORS)) for (const completed of [false, true]) for (const focused of [false, true]) {
+    const background = noteBackground(color, completed, focused)
+    for (const ink of [NOTE_INK, NOTE_MUTED_INK]) {
       const contrast = ratio(ink, background)
       worst = Math.min(worst, contrast)
       assert.ok(contrast >= 4.5, `${ink} on ${background}: ${contrast.toFixed(2)}`)

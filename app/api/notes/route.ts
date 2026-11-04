@@ -3,6 +3,9 @@ import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 import { addPrivateNoteParticipants, getPrivateNoteParticipantIds } from '@/lib/note-privacy'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
+import { PERMISSIONS } from '@/lib/permissions'
+import { validateNoteTask, NoteTaskError } from '@/lib/note-task-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -12,6 +15,8 @@ function isDateValue(value: string | null): value is string {
 
 export async function GET(request: Request) {
   try {
+    const permission = await authorizeTenantRequest(request, { permission: PERMISSIONS.notesRead, allowDemo: true })
+    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
@@ -69,6 +74,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const permission = await authorizeTenantRequest(request, { permission: PERMISSIONS.notesManage, allowDemo: true })
+    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
@@ -84,6 +91,7 @@ export async function POST(request: Request) {
     const mentionMembershipIds = tenantAccess.context
       ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
       : []
+    const task = body.follow_up === undefined ? null : await validateNoteTask(tenantId, body.follow_up, tenantAccess.context)
 
     const { data, error } = await supabaseAdmin.from('notes').insert({
       tenant_id: tenantId,
@@ -95,6 +103,7 @@ export async function POST(request: Request) {
       note_date: noteDate,
       created_by: tenantAccess.identity.displayName,
       created_by_membership_id: tenantAccess.context?.membershipId || null,
+      ...(task ? { follow_up: task } : {}),
     }).select().single()
     if (error) throw error
 
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
         participantCount = await addPrivateNoteParticipants({
           tenantId,
           noteId: data.id,
-          membershipIds: [tenantAccess.context.membershipId, ...mentionMembershipIds],
+          membershipIds: [tenantAccess.context.membershipId, ...mentionMembershipIds, ...(task ? [task.ownerId] : [])],
         })
       } catch (privacyError) {
         await supabaseAdmin.from('notes').delete().eq('id', data.id).eq('tenant_id', tenantId)
@@ -132,6 +141,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ...data, participant_count: participantCount, reply_count: 0 })
   } catch (error) {
+    if (error instanceof NoteTaskError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('[notes][create] Error', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

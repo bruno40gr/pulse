@@ -22,7 +22,6 @@ export default function DesignPage() {
 
       <ModalShowcase />
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/contacts-table" style={{ color: colors.link }}>Open interactive Contacts table shell →</a></p>
-      <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/notes-follow-ups" style={{ color: colors.link }}>Open Notes and follow-ups prototype →</a></p>
       <LeadToolbarShowcase />
 
       {/* COLORS */}
