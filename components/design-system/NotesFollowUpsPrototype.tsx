@@ -154,7 +154,6 @@ export default function NotesFollowUpsPrototype() {
   const [draftBody, setDraftBody] = useState('')
   const [draftMentionIds, setDraftMentionIds] = useState<string[]>([])
   const [draftColor, setDraftColor] = useState('yellow')
-  const [draftPinned, setDraftPinned] = useState(false)
   const [draftPrivate, setDraftPrivate] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
@@ -191,7 +190,7 @@ export default function NotesFollowUpsPrototype() {
   }
   const handleAdd = (asTask = false) => {
     if ((!draftTitle.trim() && !draftBody.trim()) || (asTask && !mentionedTeammate)) return
-    const note: PrototypeNote = { id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: draftPinned, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }
+    const note: PrototypeNote = { id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: false, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }
     setNotes(current => [note, ...current])
     if (asTask) openEditor(note, true)
     setDraftTitle(''); setDraftBody(''); setDraftMentionIds([])
@@ -223,7 +222,7 @@ export default function NotesFollowUpsPrototype() {
 
   return <div className={styles.surface}><PageContainer style={{ boxSizing: 'border-box', minWidth: 0 }}>
     <PageHeader title="Notes" subtitle="Quick thoughts, names, phone numbers. Jot it down." />
-    <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`, marginBottom: spacing.xl }}>
+    <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`, marginBottom: spacing.xl }}>
       {([['all', 'All dates'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'Last week'], ['range', 'Date range']] as const).map(([value, label]) =>
         <Button key={value} size="sm" variant={dateFilter === value ? 'primary' : 'secondary'} aria-pressed={dateFilter === value} onClick={() => value === 'range' ? setRangeOpen(true) : setDateFilter(value)}>{label}</Button>)}
       <ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" />
@@ -264,15 +263,6 @@ export default function NotesFollowUpsPrototype() {
                 />
               ))}
             </div>
-            <ControlButton kind="icon" selected={draftPinned}
-              type="button"
-              onClick={() => setDraftPinned((v) => !v)}
-              title={draftPinned ? 'Unpin' : 'Pin'}
-              aria-label={draftPinned ? 'Unpin note' : 'Pin note'}
-              style={{ width: 26 }}
-            >
-              <Pin size={16} fill={draftPinned ? 'currentColor' : 'none'} />
-            </ControlButton>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', marginTop: spacing.lg }}>
             <ControlButton kind="toggle"
@@ -312,11 +302,12 @@ export default function NotesFollowUpsPrototype() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            <Button className={mentionedTeammate ? styles.secondary : styles.primary} variant={mentionedTeammate ? 'secondary' : 'primary'} size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
+            <Button className={mentionedTeammate || (!draftTitle.trim() && !draftBody.trim()) ? styles.secondary : styles.primary} variant={mentionedTeammate ? 'secondary' : 'primary'} size="sm" onClick={() => handleAdd()} aria-disabled={!draftTitle.trim() && !draftBody.trim()} aria-describedby={!draftTitle.trim() && !draftBody.trim() ? 'notes-empty-hint' : undefined}>
               {mentionedTeammate ? 'Keep as note' : 'Add as note'}
             </Button>
             {mentionedTeammate && <Button variant="primary" className={styles.primary} size="sm" onClick={() => handleAdd(true)}>Create a task</Button>}
           </div>
+          {!draftTitle.trim() && !draftBody.trim() && <p id="notes-empty-hint" style={{ color: REVIEW_NOTE_MUTED_INK, fontSize: 12, marginBottom: 0 }}>Write a note to enable adding it.</p>}
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.lg, paddingTop: spacing.md, color: REVIEW_NOTE_MUTED_INK, fontSize: 13 }}>
             {mentionedTeammate ? <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={mentionedTeammate.label} lastName="" size={28} style={{ background: colors.espresso, color: colors.surface, fontSize: 14 }} /><span>Assigned to {mentionedTeammate.label}</span></div> : <em>Mention a teammate with @ to create a task.</em>}
           </div>
