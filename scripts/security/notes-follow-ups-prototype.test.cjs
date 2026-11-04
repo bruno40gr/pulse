@@ -2,8 +2,21 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness } = require('./synthetic-harness.cjs')
-const { initialReviewNotes, promoteReviewNote, matchesReviewFilter, readReviewNotes, reviewDateOffset } = createHarness().load('lib/notes-follow-ups-prototype.ts')
+const { initialReviewNotes, promoteReviewNote, matchesReviewFilter, readReviewNotes, reviewDateOffset, mentionedReviewPeople, reviewTaskDraft } = createHarness().load('lib/notes-follow-ups-prototype.ts')
 const now = new Date('2026-11-03T12:00:00')
+
+test('mentions preselect related client and staff owner separately without automatic conversion', () => {
+  const note = { ...initialReviewNotes(now)[0], body: '@Michelle\u00a0Morgan please call @Jordan about lessons.' }
+  assert.equal(mentionedReviewPeople(note.body).map(person => person.id).join(','), 'lead-michelle,jordan')
+  const draft = reviewTaskDraft(note, '2026-11-03')
+  assert.equal(draft.personId, 'lead-michelle')
+  assert.equal(draft.ownerId, 'jordan')
+  assert.equal(note.followUp, null)
+  assert.equal(mentionedReviewPeople('Email name@Jordan.com and @Jordanne').length, 0)
+  const existing = { ...note, followUp: { ...draft, personId: 'contact-shauna', ownerId: 'admin' } }
+  assert.equal(reviewTaskDraft(existing, '2026-11-04').personId, 'contact-shauna')
+  assert.equal(reviewTaskDraft(existing, '2026-11-04').ownerId, 'admin')
+})
 
 test('purposeful conversion retains one identity, color and original context', () => {
   const original = initialReviewNotes(now)[0]

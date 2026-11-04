@@ -10,6 +10,25 @@ export const REVIEW_PEOPLE: RelatedPerson[] = [
   { id: 'contact-shauna', name: 'Shauna Parker', kind: 'contact' },
 ]
 export const REVIEW_OWNERS = [{ id: 'admin', name: 'Alex (me)' }, { id: 'jordan', name: 'Jordan' }]
+export const REVIEW_MENTIONS = [
+  ...REVIEW_PEOPLE.map(person => ({ ...person, label: person.name })),
+  ...REVIEW_OWNERS.map(owner => ({ ...owner, label: owner.name.replace(' (me)', ''), kind: 'staff' as const })),
+]
+export function mentionedReviewPeople(body: string) {
+  const normalized = body.replace(/\u00a0/g, ' ')
+  return REVIEW_MENTIONS.filter(person => {
+    const token = `@${person.label}`
+    const index = normalized.toLowerCase().indexOf(token.toLowerCase())
+    if (index < 0 || (index > 0 && /[\w@]/.test(normalized[index - 1]))) return false
+    const after = normalized[index + token.length]
+    return !after || !/[\w]/.test(after)
+  }).sort((a, b) => normalized.toLowerCase().indexOf(`@${a.label.toLowerCase()}`) - normalized.toLowerCase().indexOf(`@${b.label.toLowerCase()}`))
+}
+export function reviewTaskDraft(note: PrototypeNote, today: string): FollowUp {
+  if (note.followUp) return { ...note.followUp }
+  const mentions = mentionedReviewPeople(note.body)
+  return { title: note.title || note.body, personId: mentions.find(person => person.kind !== 'staff')?.id || null, ownerId: mentions.find(person => person.kind === 'staff')?.id || 'admin', dueDate: today }
+}
 
 export function localReviewDate(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`

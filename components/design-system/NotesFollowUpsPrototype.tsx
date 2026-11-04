@@ -4,16 +4,16 @@
 // Keep production Notes unchanged; only task affordances are experimental.
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
-import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select } from '@/components/ui'
+import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { TaskCompletionButton } from '@/components/ui/TaskCompletionButton'
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch'
 import { ColorSwatch } from '@/components/ui/ColorSwatch'
-import MentionTextarea from '@/components/notes/MentionTextarea'
+import MentionTextarea from '@/components/design-system/NotesPrototypeMentionTextarea'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { formatFullTimestamp, formatPresentationDate } from '@/lib/presentation-date'
 import { NOTE_COLORS, getNoteBackground } from '@/lib/sticky-note-appearance'
-import { initialReviewNotes, localReviewDate, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
+import { initialReviewNotes, localReviewDate, mentionedReviewPeople, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 interface Note {
   id: string; title: string; body: string; color: string; pinned: boolean; is_private: boolean;
@@ -259,6 +259,9 @@ export default function NotesFollowUpsPrototype() {
   const [showDone, setShowDone] = useState(true)
   const [editing, setEditing] = useState<PrototypeNote | null>(null)
   const [draft, setDraft] = useState<FollowUp>({ title: '', personId: null, ownerId: 'admin', dueDate: '' })
+  const [personQuery, setPersonQuery] = useState('')
+  const [personSearchOpen, setPersonSearchOpen] = useState(false)
+  const [activePerson, setActivePerson] = useState(0)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -294,13 +297,23 @@ export default function NotesFollowUpsPrototype() {
   const updateNote = (id: string, changes: Partial<PrototypeNote>) => setNotes(current => current.map(note => note.id === id ? { ...note, ...changes } : note))
   const toggleDone = (note: PrototypeNote) => updateNote(note.id, { completedAt: note.completedAt ? null : new Date().toISOString() })
   const openEditor = (note: PrototypeNote) => {
-    setDraft(note.followUp || { title: note.title, personId: null, ownerId: 'admin', dueDate: today })
+    const next = reviewTaskDraft(note, today)
+    setDraft(next)
+    setPersonQuery(REVIEW_PEOPLE.find(person => person.id === next.personId)?.name || '')
+    setPersonSearchOpen(false)
     setEditing(note); setError('')
   }
-  const handleAdd = () => {
+  const handleAdd = (asTask = false) => {
     if (!draftTitle.trim() && !draftBody.trim()) return
-    setNotes(current => [{ id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: draftPinned, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }, ...current])
+    const note: PrototypeNote = { id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: draftPinned, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }
+    setNotes(current => [note, ...current])
+    if (asTask) openEditor(note)
     setDraftTitle(''); setDraftBody(''); setDraftMentionIds([])
+  }
+  const matchingPeople = REVIEW_PEOPLE.filter(person => `${person.name} ${person.kind}`.toLowerCase().includes(personQuery.trim().toLowerCase()))
+  const selectPerson = (person: typeof REVIEW_PEOPLE[number]) => {
+    setDraft(current => ({ ...current, personId: person.id }))
+    setPersonQuery(person.name); setPersonSearchOpen(false)
   }
   const dueLabel = (note: PrototypeNote) => !note.followUp ? '' : `${note.completedAt ? 'Done' : note.followUp.dueDate < today ? 'Overdue' : note.followUp.dueDate === today ? 'Due today' : 'Due'}${note.followUp.dueDate === today ? '' : ` · ${note.followUp.dueDate}`} · ${REVIEW_OWNERS.find(owner => owner.id === note.followUp?.ownerId)?.name}`
   const matchesTask = (note: PrototypeNote) => filter === 'all' || (!!note.followUp && (
@@ -354,7 +367,7 @@ export default function NotesFollowUpsPrototype() {
             placeholder="Take a note…"
             style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'none', minHeight: 72 }}
           />
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {NOTE_COLOR_KEYS.map((key) => (
                 <ColorSwatch color={NOTE_COLORS[key]} selected={key === draftColor} label={`Set color to ${key}`}
@@ -411,7 +424,8 @@ export default function NotesFollowUpsPrototype() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            <Button variant="primary" size="sm" onClick={handleAdd} disabled={(!draftTitle.trim() && !draftBody.trim())}>
+            {mentionedReviewPeople(draftBody).length > 0 && <Button variant="secondary" size="sm" onClick={() => handleAdd(true)}>Make a task</Button>}
+            <Button variant="primary" size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
               Add
             </Button>
           </div>
@@ -451,17 +465,35 @@ export default function NotesFollowUpsPrototype() {
       <form style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }} onSubmit={event => {
         event.preventDefault()
         if (!editing) return
+        if (personQuery.trim() && !draft.personId) { setError('Select a lead or contact from the search results, or clear the search.'); return }
         try {
           const updated = promoteReviewNote(editing, draft)
           setNotes(current => current.map(note => note.id === updated.id ? updated : note))
           setEditing(null)
         } catch (cause) { setError(cause instanceof Error ? cause.message : 'Check the fields.') }
       }}>
-        <ModalBody><p>Keep this note as it is. Add an owner and a due date to track it as a task.</p>
+        <ModalBody>
           {error && <p role="alert" style={{ color: colors.error }}>{error}</p>}
           <FieldGrid columns={1}>
-            <Input label="Action" required value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} />
-            <Select label="Related lead or contact" value={draft.personId || ''} onChange={event => setDraft({ ...draft, personId: event.target.value || null })}><option value="">No person linked</option>{REVIEW_PEOPLE.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.kind})</option>)}</Select>
+            <Textarea label="Action" required rows={4} style={{ resize: 'vertical' }} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} />
+            <div>
+              <Input label="Related to" type="search" role="combobox" autoComplete="off" placeholder="Search leads or contacts…" aria-expanded={personSearchOpen} aria-controls="notes-task-people" aria-autocomplete="list" aria-activedescendant={personSearchOpen && matchingPeople[activePerson] ? `notes-task-person-${matchingPeople[activePerson].id}` : undefined}
+                value={personQuery} onFocus={() => { setPersonSearchOpen(true); setActivePerson(0) }}
+                onBlur={event => { if (!event.currentTarget.parentElement?.parentElement?.contains(event.relatedTarget)) setPersonSearchOpen(false) }}
+                onChange={event => { setPersonQuery(event.target.value); setDraft({ ...draft, personId: null }); setPersonSearchOpen(true); setActivePerson(0) }}
+                onKeyDown={event => {
+                  if (event.key === 'Escape' && personSearchOpen) { event.preventDefault(); event.stopPropagation(); setPersonSearchOpen(false) }
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault(); setPersonSearchOpen(true)
+                    setActivePerson(index => matchingPeople.length ? (index + (event.key === 'ArrowDown' ? 1 : matchingPeople.length - 1)) % matchingPeople.length : 0)
+                  }
+                  if (event.key === 'Enter' && personSearchOpen) { event.preventDefault(); if (matchingPeople[activePerson]) selectPerson(matchingPeople[activePerson]) }
+                }} />
+              {personSearchOpen && <div id="notes-task-people" role="listbox" aria-label="Matching leads and contacts" style={{ border: `1px solid ${colors.border}`, borderRadius: radius.md, marginTop: spacing.xs }}>
+                {matchingPeople.map((person, index) => <ControlButton key={person.id} id={`notes-task-person-${person.id}`} kind="row" type="button" role="option" aria-selected={draft.personId === person.id} selected={index === activePerson} style={{ width: '100%' }} onMouseDown={event => event.preventDefault()} onClick={() => selectPerson(person)}>{person.name} · {person.kind === 'lead' ? 'Lead' : 'Contact'}</ControlButton>)}
+                {matchingPeople.length === 0 && <p role="status" style={{ padding: spacing.sm }}>No matching leads or contacts.</p>}
+              </div>}
+            </div>
             <Select label="Owner" value={draft.ownerId} onChange={event => setDraft({ ...draft, ownerId: event.target.value })}>{REVIEW_OWNERS.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</Select>
             <Input label="Due date" type="date" required value={draft.dueDate} onChange={event => setDraft({ ...draft, dueDate: event.target.value })} />
           </FieldGrid>

@@ -13,8 +13,15 @@ person workspace. Local replies only illustrate the existing control; production
 conversation/mention behavior and permissions are not being reimplemented.
 
 Only task-specific affordances are new:
+- Selecting an @mention in the existing sticky composer reveals **Make a task**.
+  It saves that sticky and opens the task modal directly. Mentioning alone does
+  not create a task. Fictional lead/contact mentions preselect Related to; staff
+  mentions preselect Owner. First mention of each kind wins for a new task;
+  saved task choices are preserved when reopening. Production mentions stay staff-only.
 - **Make a task** on a note opens action title, owner, due date and optional related
   lead/contact. The note's original title, text, color and ID remain unchanged.
+- Action is multiline. Related to searches the fictional lead/contact directory;
+  choose a result rather than saving unmatched free text. Clearing search unlinks it.
 - **Task details** reopens those fields for assignment or rescheduling.
 - A compact task line carries its owner and due state on the same sticky.
 - One **Tasks** dropdown adds Open tasks, Assigned to me, Today + overdue,
