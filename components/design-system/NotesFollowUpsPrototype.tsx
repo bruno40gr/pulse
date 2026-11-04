@@ -216,7 +216,7 @@ export default function NotesFollowUpsPrototype() {
   const conversation = notes.find(note => note.id === conversationId)
 
   return <div className={styles.surface}><PageContainer style={{ boxSizing: 'border-box', minWidth: 0 }}>
-    <PageHeader title="Notes" right={<div style={{ marginLeft: 'auto' }}><ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" /></div>} />
+    <PageHeader title="Notes" />
     <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`, marginBottom: spacing.xl }}>
       <Select label="Date" controlSize="toolbar" fullWidth={false} value={dateFilter} onChange={event => {
         if (event.target.value === 'range') setRangeOpen(true)
@@ -227,6 +227,9 @@ export default function NotesFollowUpsPrototype() {
       {dateFilter === 'range' && <Button variant="secondary" className={styles.secondary} onClick={() => setRangeOpen(true)}>Edit date range</Button>}
       <div role="group" aria-label="View" style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
         {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} className={filter === view.key ? styles.primary : styles.secondary} aria-pressed={filter === view.key} onClick={() => setFilter(view.key)}>{view.label}</Button>)}
+      </div>
+      <div style={{ marginLeft: 'auto', minHeight: 42, display: 'flex', alignItems: 'center' }}>
+        <ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" />
       </div>
     </div>
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
