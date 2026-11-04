@@ -201,11 +201,9 @@ export default function NotesFollowUpsPrototype() {
     setPersonQuery(person.name); setPersonSearchOpen(false)
   }
   const matchesTask = (note: PrototypeNote) => filter === 'all' || (!!note.followUp && (
-    filter === 'completed' ? !!note.completedAt : !note.completedAt && (
-      filter === 'open' || (filter === 'mine' && note.followUp.ownerId === 'admin') ||
-      (filter === 'today' && note.followUp.dueDate <= today) || (filter === 'upcoming' && note.followUp.dueDate > today))))
+    filter === 'open' ? !note.completedAt : note.followUp.ownerId === 'admin'))
   const visible = notes.filter(note => {
-    if ((!showDone && filter !== 'completed' && note.completedAt) || !matchesTask(note)) return false
+    if ((!showDone && note.completedAt) || !matchesTask(note)) return false
     const createdDate = localReviewDate(new Date(note.createdAt || `${today}T12:00:00`))
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
     const week = new Date(); week.setDate(week.getDate() - 7)
@@ -215,13 +213,10 @@ export default function NotesFollowUpsPrototype() {
       (dateFilter === 'range' && createdDate >= dateFrom && createdDate <= dateTo)
   }).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) ||
     (filter !== 'all' ? (a.followUp?.dueDate || '').localeCompare(b.followUp?.dueDate || '') : (b.createdAt || '').localeCompare(a.createdAt || '')))
-  const taskCount = (scope: string) => notes.filter(note => note.followUp && (scope === 'completed' ? !!note.completedAt : !note.completedAt && (
-    scope === 'open' || (scope === 'mine' && note.followUp.ownerId === 'admin') ||
-    (scope === 'today' && note.followUp.dueDate <= today) || (scope === 'upcoming' && note.followUp.dueDate > today)))).length
   const conversation = notes.find(note => note.id === conversationId)
 
   return <div className={styles.surface}><PageContainer style={{ boxSizing: 'border-box', minWidth: 0 }}>
-    <PageHeader title="Notes" subtitle="Quick thoughts, names, phone numbers. Jot it down." />
+    <PageHeader title="Notes" right={<div style={{ marginLeft: 'auto' }}><ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" /></div>} />
     <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`, marginBottom: spacing.xl }}>
       <Select label="Date" controlSize="toolbar" fullWidth={false} value={dateFilter} onChange={event => {
         if (event.target.value === 'range') setRangeOpen(true)
@@ -230,15 +225,9 @@ export default function NotesFollowUpsPrototype() {
         <option value="all">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">Last week</option><option value="range">Date range</option>
       </Select>
       {dateFilter === 'range' && <Button variant="secondary" className={styles.secondary} onClick={() => setRangeOpen(true)}>Edit date range</Button>}
-      <ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" />
-      <Select label="View" controlSize="toolbar" fullWidth={false} value={filter} onChange={event => setFilter(event.target.value)}>
-        <option value="all">All notes</option>
-        <option value="open">Open tasks ({taskCount('open')})</option>
-        <option value="mine">Assigned to me ({taskCount('mine')})</option>
-        <option value="today">Today + overdue ({taskCount('today')})</option>
-        <option value="upcoming">Upcoming ({taskCount('upcoming')})</option>
-        <option value="completed">Completed tasks ({taskCount('completed')})</option>
-      </Select>
+      <div role="group" aria-label="View" style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+        {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} className={filter === view.key ? styles.primary : styles.secondary} aria-pressed={filter === view.key} onClick={() => setFilter(view.key)}>{view.label}</Button>)}
+      </div>
     </div>
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
         <div className={styles.sticky} style={{ background: composerBg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.xl, boxShadow: shadows.md, padding: spacing.lg }}>
