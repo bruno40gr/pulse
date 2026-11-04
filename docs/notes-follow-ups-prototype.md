@@ -20,34 +20,33 @@ Focus mixes the sticky's existing color with a subtle 6% darker tint (not a
 status color). Per the supplied reference, only tasks show the green outlined
 **Mark done** text button; informational notes have no completion control.
 
-The supplied reference supersedes the earlier always-visible task button and
-avatar + Task chip. The composer shows primary **Add as note**. Mention a staff
-teammate to reveal secondary **Create task**, with an avatar and Assigned to name
-below a divider. Before assignment it reads “Mention a teammate with @ to create
-a task.” Removing the teammate mention hides the task action. A lead/contact
-mention alone does not enable task creation. Avatars are fictional initials.
+Creation and inline editing share one mention-driven pattern:
+- Without an eligible staff mention, the composer has **Add as note** and existing
+  stickies retain save-on-blur. A bare @, unknown name or client-only mention
+  does not expose task actions.
+- An eligible staff mention reveals bottom actions: primary **Create a task** on
+  the composer, primary **Convert to task** on an existing sticky, with secondary
+  **Keep as note**. Removing the mention hides the actions.
+- Keep as note saves the mention and content, with no assignment. Real mention
+  notifications remain a future production integration, not a local mockup claim.
+- Conversion updates the same ID. Text, color, pin state, privacy and replies stay.
+  The mentioned staff member preselects Owner; a related client remains separate.
+- Task details use **Description**, populated from the sticky body (not its title).
+  The original sticky remains intact. Description is optional in the local stored
+  model for backward compatibility, and required in the task form.
+- **Due date** is second, with Today, Tomorrow, 2 days and Specific date shortcuts.
+  Related to search and Owner follow. Date arithmetic uses local calendar days.
 
 Cards use softer versions of the existing sticky colors. Saved tasks have an
 owner-avatar/name, formatted date and due-status row; clicking this row opens
-the existing task-details SlidePanel. Plain notes have only their content and
+the task-details SlidePanel. Plain notes have only their content and
 Reply/author/time footer. Blue mention highlighting is shown in the composer.
+Avatars are fictional initials, not authenticated profile photos.
 
-Task-specific affordances:
-- Selecting an @mention preselects the task person when **Create task** opens
-  from the composer. It saves that sticky and opens task details. Mentioning alone does
-  not create a task. Fictional lead/contact mentions preselect Related to; staff
-  mentions preselect Owner. First mention of each kind wins for a new task;
-  saved task choices are preserved when reopening. Production mentions stay staff-only.
-- Editing an existing note and mentioning a teammate reveals **Create task**.
-  It opens action title, owner, due date and optional related lead/contact. The note's original title, text, color and ID remain unchanged.
-- Action is multiline. Related to searches the fictional lead/contact directory;
-  choose a result rather than saving unmatched free text. Clearing search unlinks it.
-- The **owner/date/status row** reopens those fields for assignment or rescheduling.
-- A compact task line carries its owner and due state on the same sticky.
-- One **Tasks** dropdown adds Open tasks, Assigned to me, Today + overdue,
-  Upcoming and Completed tasks, with counts. All notes is the default.
-- Mark done / reopen works on the same item. Completed tasks remain
-  available through their filter even when Hide done is enabled.
+The Tasks dropdown retains Open tasks, Assigned to me, Today + overdue, Upcoming
+and Completed tasks. Completed tasks remain available even when Hide done is on.
+Related to searches fictional leads/contacts; unmatched free text must be chosen
+from results or cleared. Existing saved assignments are preserved on reopening.
 
 Date buttons still refer to note creation, not task due date. Counts in the task
 selector summarize all fixture tasks; the date buttons can further narrow them.

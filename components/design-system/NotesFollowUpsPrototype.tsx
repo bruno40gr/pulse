@@ -15,7 +15,7 @@ import MentionTextarea from '@/components/design-system/NotesPrototypeMentionTex
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { formatFullTimestamp } from '@/lib/presentation-date'
 import { NOTE_COLORS, getNoteBackground } from '@/lib/sticky-note-appearance'
-import { initialReviewNotes, localReviewDate, mentionedReviewPeople, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
+import { initialReviewNotes, localReviewDate, reviewDateOffset, mentionedReviewPeople, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 interface Note {
   id: string; title: string; body: string; color: string; pinned: boolean; is_private: boolean;
@@ -93,7 +93,6 @@ function NoteCard(props: NoteCardProps) {
     <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
       <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>
       <div style={{ flex: 1 }} />
-      {!note.followUp && editing && mentionedReviewPeople(props.editBody).some(person => person.kind === 'staff') && <Button variant="secondary" size="sm" onClick={props.onTask}>Create task</Button>}
       {note.followUp && <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />}
 
     </div>
@@ -115,6 +114,10 @@ function NoteCard(props: NoteCardProps) {
     </div>}
     <div onClick={event => event.stopPropagation()} style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.md, paddingTop: spacing.sm }}>
       {editing && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: spacing.sm }}>{NOTE_COLOR_KEYS.map(color => <ColorSwatch key={color} color={NOTE_COLORS[color]} selected={note.color === color} label={`Set color to ${color}`} onClick={() => props.onColor(color)} />)}<ControlButton kind="icon" aria-label="Delete note" onClick={props.onDelete}><Trash2 size={16} /></ControlButton></div>}
+      {!note.followUp && editing && mentionedReviewPeople(props.editBody).some(person => person.kind === 'staff') && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md }}>
+        <Button variant="secondary" size="sm" onClick={props.onSaveEdit}>Keep as note</Button>
+        <Button variant="primary" size="sm" onClick={props.onTask}>Convert to task</Button>
+      </div>}
       {note.is_private && <div style={{ fontSize: 11, color: colors.textSecondary }}><Lock size={12} /> Private · {note.participant_count} person</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }}>
         <Button variant="ghost" size="sm" onClick={props.onReply}><MessageCircle size={16} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
@@ -135,6 +138,8 @@ export default function NotesFollowUpsPrototype() {
   const [rangeOpen, setRangeOpen] = useState(false)
   const [showDone, setShowDone] = useState(true)
   const [editing, setEditing] = useState<PrototypeNote | null>(null)
+  const [creatingTask, setCreatingTask] = useState(false)
+  const [specificDate, setSpecificDate] = useState(false)
   const [draft, setDraft] = useState<FollowUp>({ title: '', personId: null, ownerId: 'admin', dueDate: '' })
   const [personQuery, setPersonQuery] = useState('')
   const [personSearchOpen, setPersonSearchOpen] = useState(false)
@@ -174,18 +179,20 @@ export default function NotesFollowUpsPrototype() {
 
   const updateNote = (id: string, changes: Partial<PrototypeNote>) => setNotes(current => current.map(note => note.id === id ? { ...note, ...changes } : note))
   const toggleDone = (note: PrototypeNote) => updateNote(note.id, { completedAt: note.completedAt ? null : new Date().toISOString() })
-  const openEditor = (note: PrototypeNote) => {
+  const openEditor = (note: PrototypeNote, isNew = false) => {
     const next = reviewTaskDraft(note, today)
     setDraft(next)
     setPersonQuery(REVIEW_PEOPLE.find(person => person.id === next.personId)?.name || '')
     setPersonSearchOpen(false)
+    setCreatingTask(isNew)
+    setSpecificDate(![0, 1, 2].some(days => reviewDateOffset(days) === next.dueDate))
     setEditing(note); setError('')
   }
   const handleAdd = (asTask = false) => {
     if ((!draftTitle.trim() && !draftBody.trim()) || (asTask && !mentionedTeammate)) return
     const note: PrototypeNote = { id: crypto.randomUUID(), title: draftTitle.trim(), body: draftBody.trim(), color: draftColor, followUp: null, completedAt: null, pinned: draftPinned, isPrivate: draftPrivate, createdAt: new Date().toISOString(), replies: [] }
     setNotes(current => [note, ...current])
-    if (asTask) openEditor(note)
+    if (asTask) openEditor(note, true)
     setDraftTitle(''); setDraftBody(''); setDraftMentionIds([])
   }
   const matchingPeople = REVIEW_PEOPLE.filter(person => `${person.name} ${person.kind}`.toLowerCase().includes(personQuery.trim().toLowerCase()))
@@ -304,10 +311,10 @@ export default function NotesFollowUpsPrototype() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            {mentionedTeammate && <Button variant="secondary" size="sm" onClick={() => handleAdd(true)}>Create task</Button>}
-            <Button variant="primary" size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
-              Add as note
+            <Button variant={mentionedTeammate ? 'secondary' : 'primary'} size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
+              {mentionedTeammate ? 'Keep as note' : 'Add as note'}
             </Button>
+            {mentionedTeammate && <Button variant="primary" size="sm" onClick={() => handleAdd(true)}>Create a task</Button>}
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.lg, paddingTop: spacing.md, color: colors.textSecondary, fontSize: 13 }}>
             {mentionedTeammate ? <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={mentionedTeammate.label} lastName="" size={24} /><span>Assigned to {mentionedTeammate.label}</span></div> : <em>Mention a teammate with @ to create a task.</em>}
@@ -348,21 +355,29 @@ export default function NotesFollowUpsPrototype() {
       <ModalFooter><Button disabled={!reply.trim()} onClick={() => { if (conversation) updateNote(conversation.id, { replies: [...(conversation.replies || []), reply.trim()] }); setReply('') }}>Reply</Button></ModalFooter>
     </SlidePanel>
     <SlidePanel isOpen={!!editing} onClose={() => setEditing(null)} ariaLabel="Task details" width="min(100vw, 560px)">
-      <SlidePanelHeader title={editing?.followUp ? 'Task details' : 'Create a task'} onClose={() => setEditing(null)} />
+      <SlidePanelHeader title={editing?.followUp ? 'Task details' : creatingTask ? 'Create a task' : 'Convert to task'} onClose={() => setEditing(null)} />
       <form style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }} onSubmit={event => {
         event.preventDefault()
         if (!editing) return
         if (personQuery.trim() && !draft.personId) { setError('Select a lead or contact from the search results, or clear the search.'); return }
         try {
-          const updated = promoteReviewNote(editing, draft)
-          setNotes(current => current.map(note => note.id === updated.id ? updated : note))
+          promoteReviewNote(editing, draft)
+          setNotes(current => current.map(note => note.id === editing.id ? promoteReviewNote(note, draft) : note))
           setEditing(null)
         } catch (cause) { setError(cause instanceof Error ? cause.message : 'Check the fields.') }
       }}>
         <ModalBody>
           {error && <p role="alert" style={{ color: colors.error }}>{error}</p>}
           <FieldGrid columns={1}>
-            <Textarea label="Action" required rows={4} style={{ resize: 'vertical' }} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} />
+            <Textarea label="Description" required rows={4} style={{ resize: 'vertical' }} value={draft.description ?? ''} onChange={event => setDraft({ ...draft, description: event.target.value })} />
+            <div>
+              <div style={{ marginBottom: spacing.xs, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }}>Due date</div>
+              <div role="group" aria-label="Due date shortcuts" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
+                {([{ days: 0, label: 'Today' }, { days: 1, label: 'Tomorrow' }, { days: 2, label: '2 days' }]).map(option => <Button type="button" key={option.days} size="sm" variant={!specificDate && draft.dueDate === reviewDateOffset(option.days) ? 'primary' : 'secondary'} aria-pressed={!specificDate && draft.dueDate === reviewDateOffset(option.days)} onClick={() => { setDraft({ ...draft, dueDate: reviewDateOffset(option.days) }); setSpecificDate(false) }}>{option.label}</Button>)}
+                <Button type="button" size="sm" variant={specificDate ? 'primary' : 'secondary'} aria-pressed={specificDate} onClick={() => setSpecificDate(true)}>Specific date</Button>
+              </div>
+              {specificDate ? <Input label="Due date" type="date" required value={draft.dueDate} onChange={event => setDraft({ ...draft, dueDate: event.target.value })} /> : <time dateTime={draft.dueDate} style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>{new Date(`${draft.dueDate}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</time>}
+            </div>
             <div>
               <Input label="Related to" type="search" role="combobox" autoComplete="off" placeholder="Search leads or contacts…" aria-expanded={personSearchOpen} aria-controls="notes-task-people" aria-autocomplete="list" aria-activedescendant={personSearchOpen && matchingPeople[activePerson] ? `notes-task-person-${matchingPeople[activePerson].id}` : undefined}
                 value={personQuery} onFocus={() => { setPersonSearchOpen(true); setActivePerson(0) }}
@@ -382,10 +397,9 @@ export default function NotesFollowUpsPrototype() {
               </div>}
             </div>
             <Select label="Owner" value={draft.ownerId} onChange={event => setDraft({ ...draft, ownerId: event.target.value })}>{REVIEW_OWNERS.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</Select>
-            <Input label="Due date" type="date" required value={draft.dueDate} onChange={event => setDraft({ ...draft, dueDate: event.target.value })} />
           </FieldGrid>
         </ModalBody>
-        <ModalFooter><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit">{editing?.followUp ? 'Save task' : 'Create task'}</Button></ModalFooter>
+        <ModalFooter><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit">{editing?.followUp ? 'Save task' : creatingTask ? 'Create task' : 'Convert to task'}</Button></ModalFooter>
       </form>
     </SlidePanel>
 

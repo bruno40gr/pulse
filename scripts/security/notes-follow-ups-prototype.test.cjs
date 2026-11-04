@@ -11,11 +11,24 @@ test('mentions preselect related client and staff owner separately without autom
   const draft = reviewTaskDraft(note, '2026-11-03')
   assert.equal(draft.personId, 'lead-michelle')
   assert.equal(draft.ownerId, 'jordan')
+  assert.equal(draft.description, note.body)
   assert.equal(note.followUp, null)
   assert.equal(mentionedReviewPeople('Email name@Jordan.com and @Jordanne').length, 0)
   const existing = { ...note, followUp: { ...draft, personId: 'contact-shauna', ownerId: 'admin' } }
   assert.equal(reviewTaskDraft(existing, '2026-11-04').personId, 'contact-shauna')
   assert.equal(reviewTaskDraft(existing, '2026-11-04').ownerId, 'admin')
+})
+
+test('conversion keeps the original sticky and all context while adding a multiline description', () => {
+  const note = { ...initialReviewNotes(now)[0], pinned: true, isPrivate: true, replies: ['Please call after four.'], body: '@Jordan confirm the time.\nKeep the schedule unchanged until confirmed.' }
+  const draft = reviewTaskDraft(note, '2026-11-03')
+  const converted = promoteReviewNote(note, draft)
+  for (const field of ['id', 'title', 'body', 'color', 'pinned', 'isPrivate', 'replies']) assert.equal(converted[field], note[field])
+  assert.equal(converted.followUp.description, note.body)
+  assert.equal(converted.followUp.ownerId, 'jordan')
+  assert.equal(note.followUp, null)
+  assert.throws(() => promoteReviewNote(note, { ...draft, description: ' ' }))
+  assert.equal(readReviewNotes([converted])?.length, 1)
 })
 
 test('purposeful conversion retains one identity, color and original context', () => {
