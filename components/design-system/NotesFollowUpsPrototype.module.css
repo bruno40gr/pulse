@@ -1,0 +1,78 @@
+/* Scoped to this review; shared Button/ControlButton appearances remain unchanged. */
+.surface {
+  color: #29231b;
+  --notes-ink: #29231b;
+  --notes-secondary: #504638;
+}
+.surface button {
+  min-height: 36px !important;
+  min-width: 36px;
+  font-size: 14px !important;
+  opacity: 1 !important;
+}
+.surface button:disabled {
+  background: #e5e7eb !important;
+  color: #4b5563 !important;
+  border: 1px solid #6b7280 !important;
+  cursor: not-allowed;
+}
+.surface button:focus-visible,
+.surface input:focus-visible,
+.surface textarea:focus-visible,
+.surface select:focus-visible,
+.surface [role='button']:focus-visible {
+  outline: 3px solid #1a130f !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 2px #fff !important;
+}
+.surface input::placeholder,
+.surface textarea::placeholder {
+  color: #504638;
+  opacity: 1;
+}
+.sticky {
+  color: var(--notes-ink);
+}
+.sticky button[data-kind='icon'],
+.sticky button[data-kind='toggle'],
+.sticky button[data-kind='name'] {
+  color: var(--notes-secondary) !important;
+}
+.sticky button[data-kind='icon']:hover,
+.sticky button[data-kind='name']:hover {
+  background: rgba(255,255,255,0.55) !important;
+}
+.secondary {
+  color: #29231b !important;
+  border: 1px solid #504638 !important;
+  background: rgba(255,255,255,0.65) !important;
+}
+.secondary:not(:disabled):hover { background: #fff !important; }
+.primary {
+  background: #1a130f !important;
+  color: #fff !important;
+  border: 1px solid #1a130f !important;
+}
+.primary:not(:disabled):hover { background: #392e23 !important; }
+.reply {
+  color: #29231b !important;
+}
+.swatches button[aria-label^='Set color'] {
+  min-width: 28px !important;
+  min-height: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-color: #504638 !important;
+}
+.swatches button[aria-label^='Set color'][aria-pressed='true'] {
+  border: 3px solid #1a130f !important;
+  box-shadow: 0 0 0 2px #fff !important;
+}
+.sticky button[aria-label^='Mark note'] {
+  background: #fff !important;
+  color: #1f5c3a !important;
+  border-color: #1f5c3a !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface * { transition: none !important; }
+}

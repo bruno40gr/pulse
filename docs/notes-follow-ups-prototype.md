@@ -57,6 +57,24 @@ All people and notes are fictional. Changes live only in browser localStorage
 under `pulse_notes_follow_ups_review_v1`, not the live notes store. Clear that key
 to restore fixtures. No domain writes, migrations or reminder integration.
 
+## Prototype contrast and keyboard pass
+
+Review-only palette lives in `lib/notes-prototype-appearance.ts`. Yellow is a
+brighter amber `#FFE299`, not the former muted yellow/gray mix. Dark body ink
+`#29231B` and metadata ink `#504638` retain at least 6.08:1 contrast across all
+eight colors in normal, focused and completed states in the palette tests.
+Buttons no longer use opacity blending for disabled states. Primary actions use
+solid dark ink/white; secondary actions have a dark border and light surface.
+Today, overdue and done retain readable text and explicit labels, not color alone.
+Keyboard focus has a dark 3px outline with a white separating ring. Color swatches
+have 28px targets, accessible color names and pressed state; other buttons are at
+least 36px high. Avatar initials use dark backgrounds with white text.
+
+Tests: `node --test scripts/security/notes-prototype-contrast.test.cjs`, plus the
+existing responsive browser regression (focus outline, opacity, swatch size).
+This is a focused contrast/keyboard improvement, not a claim of a full accessibility
+audit or WCAG conformance. Production shared controls remain unchanged.
+
 ## Odeon boundary / eventual integration contract
 
 Do not modify ContactSlidePanel, LeadDetailPanel, shared NotesSection or Odeon's
