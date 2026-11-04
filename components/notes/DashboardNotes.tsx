@@ -98,7 +98,7 @@ function NoteCard(props: NoteCardProps) {
     <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
       <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>
       <div style={{ flex: 1 }} />
-      {note.follow_up && <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />}
+      <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />
 
     </div>
     <div style={{ flex: 1, minHeight: 0, textDecoration: note.completed_at ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>

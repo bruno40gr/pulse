@@ -41,6 +41,9 @@ leave the nullable column/function intact. Do not drop task data to roll back UI
 - All notes includes notes and tasks; Open tasks excludes completed tasks; My
   tasks uses the authenticated membership, not a display name. Hide done applies
   to All notes and My tasks. Date filters use the existing `note_date` field.
+- Plain notes and tasks both retain the header Mark done / Done control. Plain
+  note completion does not create a task; it uses the same notes.manage permission
+  and private-note access check, persists across reloads, and respects Hide done.
 - Inline edits save on blur/click-out. Failed saves keep the draft visible with
   a retry message. Creation and task failures retain the form; cancelling new
   task creation does not save an orphan note.
