@@ -2,18 +2,19 @@
 
 // Isolated review mirror of the existing Notes composer/card presentation.
 // Keep production Notes unchanged; only task affordances are experimental.
-import { useEffect, useState, type CSSProperties } from 'react'
-import { Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
-import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea } from '@/components/ui'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Check, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
+import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea, Avatar } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { TaskCompletionButton } from '@/components/ui/TaskCompletionButton'
+import { SlidePanel } from '@/components/ui/SlidePanel'
+import { SlidePanelHeader } from '@/components/ui/SlidePanelHeader'
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch'
 import { ColorSwatch } from '@/components/ui/ColorSwatch'
 import MentionTextarea from '@/components/design-system/NotesPrototypeMentionTextarea'
 import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
 import { formatFullTimestamp, formatPresentationDate } from '@/lib/presentation-date'
 import { NOTE_COLORS, getNoteBackground } from '@/lib/sticky-note-appearance'
-import { initialReviewNotes, localReviewDate, mentionedReviewPeople, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
+import { initialReviewNotes, localReviewDate, reviewTaskDraft, promoteReviewNote, PROTOTYPE_STORAGE_KEY, readReviewNotes, REVIEW_OWNERS, REVIEW_PEOPLE, type FollowUp, type PrototypeNote } from '@/lib/notes-follow-ups-prototype'
 const NOTE_COLOR_KEYS = Object.keys(NOTE_COLORS)
 interface Note {
   id: string; title: string; body: string; color: string; pinned: boolean; is_private: boolean;
@@ -58,7 +59,6 @@ interface NoteCardProps {
   onEditBody: (v: string) => void
   onEditMentionIds: (ids: string[]) => void
   onSaveEdit: () => void
-  onCancelEdit: () => void
   onPin: () => void
   onColor: (color: string) => void
   onToggleComplete: () => void
@@ -69,182 +69,49 @@ interface NoteCardProps {
 }
 
 function NoteCard(props: NoteCardProps) {
-  const { note, editing, editTitle, editBody } = props
-  const bg = getNoteBackground(note.color, Boolean(note.completed_at))
-  const isWhite = note.color === 'white'
-  const cardStyle: React.CSSProperties = {
-    width: '100%',
-    maxWidth: 390,
-    minHeight: 300,
-    maxHeight: 460,
-    boxSizing: 'border-box',
-    overflowX: 'hidden',
-    overflowY: 'hidden',
-    background: bg,
-    border: `1px solid ${isWhite ? colors.border : 'rgba(0,0,0,0.06)'}`,
-    borderRadius: radius.md,
-    boxShadow: shadows.sm,
-    padding: spacing.lg,
-  }
-  const plainInput: React.CSSProperties = {
-    width: '100%',
-    border: 'none',
-    outline: 'none',
-    background: 'transparent',
-    fontFamily: typography.fontSans,
-    color: colors.text,
-  }
-  const completionButton = (
-    <TaskCompletionButton completed={Boolean(note.completed_at)}
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation()
-        props.onToggleComplete()
-      }}
-      title={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
-      aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'}
-    >
-    </TaskCompletionButton>
-  )
-
-  if (editing) {
-    return (
-      <div style={{ ...cardStyle, position: 'relative', overflowY: 'auto' }}>
-        <ControlButton kind="icon" selected={note.pinned}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            props.onPin()
-          }}
-          title={note.pinned ? 'Unpin note' : 'Pin note'}
-          aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-          style={{ width: 26, position: 'absolute', top: spacing.md, left: spacing.md }}
-        >
-          <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
-        </ControlButton>
-        <div style={{ position: 'absolute', top: spacing.md, right: spacing.md }}>
-          {completionButton}
-        </div>
-        <div style={{ paddingTop: 34 }}>
-          <input
-            autoFocus
-            value={editTitle}
-            onChange={(e) => props.onEditTitle(e.target.value)}
-            placeholder="Title"
-            style={{ ...plainInput, fontSize: 15, fontWeight: 600, marginBottom: spacing.sm }}
-          />
-          <MentionTextarea
-            value={editBody}
-            onChange={props.onEditBody}
-            mentionMembershipIds={props.editMentionIds}
-            onMentionMembershipIdsChange={props.onEditMentionIds}
-            placeholder="Take a note…"
-            style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, resize: 'vertical', minHeight: 90 }}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') props.onSaveEdit()
-            }}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }} aria-label="Note color">
-            {NOTE_COLOR_KEYS.map((key) => (
-              <ColorSwatch selected={key === note.color} color={NOTE_COLORS[key]} label={`Set color to ${key}`}
-                key={key}
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  props.onColor(key)
-                }}
-                title={`Set color to ${key}`}
-                aria-label={`Set color to ${key}`}
-              />
-            ))}
-          </div>
-          <div style={{ flex: 1 }} />
-          <ControlButton kind="icon"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              props.onDelete()
-            }}
-            title="Delete note"
-            aria-label="Delete note"
-            style={{ width: 26 }}
-          >
-            <Trash2 size={16} />
-          </ControlButton>
-          <Button variant="ghost" size="sm" onClick={props.onCancelEdit}>Cancel</Button>
-          <Button variant="primary" size="sm" onClick={props.onSaveEdit}>Save</Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      onClick={props.onStartEdit}
-      style={{ ...cardStyle, position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'text' }}
-    >
-      <ControlButton kind="icon" selected={note.pinned}
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation()
-          props.onPin()
-        }}
-        title={note.pinned ? 'Unpin note' : 'Pin note'}
-        aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-        style={{ width: 26, position: 'absolute', top: spacing.md, left: spacing.md }}
-      >
-        <Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} />
-      </ControlButton>
-      <div onClick={(event) => event.stopPropagation()} style={{ position: 'absolute', top: spacing.md, right: spacing.md, display: 'flex', gap: spacing.xs }}>
-        <Button variant="ghost" size="sm" onClick={props.onTask}>{note.followUp ? 'Task details' : 'Make a task'}</Button>
-        {completionButton}
-      </div>
-      <div style={{ minHeight: 0, flex: '1 1 auto', paddingTop: 34, overflow: 'hidden', textDecoration: note.completed_at ? 'line-through' : 'none' }}>
-        {note.title && (
-          <div style={{
-            display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden',
-            fontWeight: 600, fontSize: 15, color: colors.text, marginBottom: 4, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
-          }}>
-            {note.title}
-          </div>
-        )}
-        {note.body && (
-          <div style={{
-            display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 14, overflow: 'hidden',
-            fontSize: 13.5, lineHeight: 1.5, color: colors.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
-          }}>
-            <NoteBody body={note.body} />
-          </div>
-        )}
-      </div>
-      <div style={{ width: '100%', marginTop: spacing.md, paddingTop: spacing.sm, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-        {note.followUp && <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: spacing.xs }}>
-          {note.followUp.title !== note.title && <div style={{ fontWeight: typography.weightSemibold }}>Task: {note.followUp.title}</div>}
-          {props.taskLabel}
-        </div>}
-        {note.is_private && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: colors.textSecondary, fontSize: 11, fontWeight: typography.weightSemibold, marginBottom: spacing.xs }}>
-            <Lock size={12} aria-hidden="true" />
-            Private · {note.participant_count} {note.participant_count === 1 ? 'person' : 'people'}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
-          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onReply() }} >
-            <MessageCircle size={14} aria-hidden="true" />
-            {note.reply_count > 0 ? <strong>Replies {note.reply_count}</strong> : 'Reply'}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); props.onStartEdit() }}>
-            Edit
-          </Button>
-        </div>
-        <span style={{ display: 'block', fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {note.created_by || 'You'} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)} aria-label={formatFullTimestamp(note.created_at)}>{formatPresentationDate(note.created_at)}</time>
-        </span>
-      </div>
+  const { note, editing } = props
+  const root = useRef<HTMLDivElement>(null)
+  const latestSave = useRef(props.onSaveEdit)
+  latestSave.current = props.onSaveEdit
+  useEffect(() => {
+    if (!editing) return
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) latestSave.current()
+    }
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
+  }, [editing])
+  const bg = getNoteBackground(note.color, !!note.completed_at)
+  const plainInput: CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text }
+  const owner = REVIEW_OWNERS.find(person => person.id === note.followUp?.ownerId)
+  return <div ref={root} onBlur={event => {
+    if (editing && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) props.onSaveEdit()
+  }} onClick={() => { if (!editing) props.onStartEdit() }}
+    style={{ width: '100%', maxWidth: 390, minHeight: 300, maxHeight: 460, boxSizing: 'border-box', overflowY: editing ? 'auto' : 'hidden', background: editing ? `color-mix(in srgb, ${bg} 94%, ${colors.text} 6%)` : bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.md, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
+    <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
+      <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>
+      <div style={{ flex: 1 }} />
+      {note.followUp ? <ControlButton kind="toggle" type="button" onClick={props.onTask} aria-label={`Task assigned to ${owner?.name || 'Alex'}`}><Avatar firstName={owner?.name.replace(' (me)', '') || 'Alex'} lastName="" size={22} /><span>Task</span></ControlButton>
+        : <Button variant="ghost" size="sm" onClick={props.onTask}>Make a task</Button>}
+      <ControlButton kind="icon" type="button" selected={!!note.completed_at} aria-pressed={!!note.completed_at} title={note.completed_at ? 'Mark note as open' : 'Mark note as done'} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete}><Check size={18} aria-hidden="true" /></ControlButton>
     </div>
-  )
+    <div style={{ flex: 1, minHeight: 0, textDecoration: note.completed_at ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>
+      {editing ? <>
+        <input autoFocus aria-label="Note title" placeholder="Title" value={props.editTitle} onChange={event => props.onEditTitle(event.target.value)} style={{ ...plainInput, fontWeight: 600, fontSize: 15, marginBottom: spacing.sm }} />
+        <MentionTextarea value={props.editBody} onChange={props.onEditBody} placeholder="Take a note…" style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, minHeight: 130, resize: 'vertical' }} />
+      </> : <div tabIndex={0} role="button" aria-label={`Edit ${note.title || 'note'}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onStartEdit() } }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, whiteSpace: 'pre-wrap' }}>{note.title}</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 10, overflow: 'hidden' }}><NoteBody body={note.body} /></div>
+      </div>}
+    </div>
+    <div onClick={event => event.stopPropagation()} style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.md, paddingTop: spacing.sm }}>
+      {editing && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: spacing.sm }}>{NOTE_COLOR_KEYS.map(color => <ColorSwatch key={color} color={NOTE_COLORS[color]} selected={note.color === color} label={`Set color to ${color}`} onClick={() => props.onColor(color)} />)}<ControlButton kind="icon" aria-label="Delete note" onClick={props.onDelete}><Trash2 size={16} /></ControlButton></div>}
+      {note.followUp && <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: spacing.xs }}>{props.taskLabel}</div>}
+      {note.is_private && <div style={{ fontSize: 11, color: colors.textSecondary }}><Lock size={12} /> Private · {note.participant_count} person</div>}
+      <Button variant="ghost" size="sm" onClick={props.onReply}><MessageCircle size={14} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
+      <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: spacing.xs }}>{note.created_by} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)}>{formatPresentationDate(note.created_at)}</time></div>
+    </div>
+  </div>
 }
 
 export default function NotesFollowUpsPrototype() {
@@ -424,9 +291,9 @@ export default function NotesFollowUpsPrototype() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            {mentionedReviewPeople(draftBody).length > 0 && <Button variant="secondary" size="sm" onClick={() => handleAdd(true)}>Make a task</Button>}
+            <Button variant="secondary" size="sm" onClick={() => handleAdd(true)} disabled={!draftTitle.trim() && !draftBody.trim()}>Create a task</Button>
             <Button variant="primary" size="sm" onClick={() => handleAdd()} disabled={(!draftTitle.trim() && !draftBody.trim())}>
-              Add
+              Add as note
             </Button>
           </div>
           {draftPrivate && (
@@ -442,10 +309,14 @@ export default function NotesFollowUpsPrototype() {
         <NoteCard note={{ ...note, pinned: !!note.pinned, is_private: !!note.isPrivate, participant_count: 1, created_by: 'Alex', completed_at: note.completedAt, created_at: note.createdAt || `${today}T12:00:00`, reply_count: note.replies?.length || 0 }}
           editing={editingId === note.id} editTitle={editTitle} editBody={editBody} editMentionIds={editMentionIds}
           onStartEdit={() => { setEditingId(note.id); setEditTitle(note.title); setEditBody(note.body) }} onEditTitle={setEditTitle} onEditBody={setEditBody} onEditMentionIds={setEditMentionIds}
-          onSaveEdit={() => { updateNote(note.id, { title: editTitle, body: editBody }); setEditingId(null) }} onCancelEdit={() => setEditingId(null)}
+          onSaveEdit={() => { updateNote(note.id, { title: editTitle, body: editBody }); setEditingId(current => current === note.id ? null : current) }}
           onPin={() => updateNote(note.id, { pinned: !note.pinned })} onColor={color => updateNote(note.id, { color })} onToggleComplete={() => toggleDone(note)}
           onDelete={() => setNotes(current => current.filter(entry => entry.id !== note.id))} onReply={() => setConversationId(note.id)}
-          onTask={() => openEditor(note)} taskLabel={dueLabel(note)} />
+          onTask={() => {
+            const current = editingId === note.id ? { ...note, title: editTitle, body: editBody } : note
+            if (editingId === note.id) { updateNote(note.id, { title: editTitle, body: editBody }); setEditingId(null) }
+            openEditor(current)
+          }} taskLabel={dueLabel(note)} />
       </article>)}
     </div>}
     <p style={{ color: colors.textSecondary, fontSize: typography.sizeXs, marginTop: spacing.xl }}>Mockup only · Existing Notes layout · Fictional data saved in this browser · No messages or production writes.</p>
@@ -455,14 +326,14 @@ export default function NotesFollowUpsPrototype() {
       <ModalBody><FieldGrid columns={1}><Input label="From" type="date" value={dateFrom} max={dateTo || undefined} onChange={event => setDateFrom(event.target.value)} /><Input label="To" type="date" min={dateFrom || undefined} value={dateTo} onChange={event => setDateTo(event.target.value)} /></FieldGrid></ModalBody>
       <ModalFooter><Button variant="secondary" onClick={() => setRangeOpen(false)}>Cancel</Button><Button disabled={!dateFrom || !dateTo || dateFrom > dateTo} onClick={() => { setDateFilter('range'); setRangeOpen(false) }}>Apply</Button></ModalFooter>
     </Modal>
-    <Modal isOpen={!!conversation} onClose={() => setConversationId(null)} ariaLabel="Note replies" size="md">
-      <ModalHeader title={conversation?.title || 'Note replies'} onClose={() => setConversationId(null)} />
+    <SlidePanel isOpen={!!conversation} onClose={() => setConversationId(null)} ariaLabel="Note replies" width="min(100vw, 560px)">
+      <SlidePanelHeader title={conversation?.title || 'Note replies'} onClose={() => setConversationId(null)} />
       <ModalBody><p>{conversation?.body}</p>{conversation?.replies?.map((text, index) => <p key={index}>Alex · {text}</p>)}<Input label="Reply" value={reply} onChange={event => setReply(event.target.value)} /><p style={{ color: colors.textSecondary }}>Fictional local replies only. Production conversations are unchanged.</p></ModalBody>
       <ModalFooter><Button disabled={!reply.trim()} onClick={() => { if (conversation) updateNote(conversation.id, { replies: [...(conversation.replies || []), reply.trim()] }); setReply('') }}>Reply</Button></ModalFooter>
-    </Modal>
-    <Modal isOpen={!!editing} onClose={() => setEditing(null)} ariaLabel="Make a task" size="md">
-      <ModalHeader title={editing?.followUp ? 'Edit task' : 'Make a task'} onClose={() => setEditing(null)} />
-      <form style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }} onSubmit={event => {
+    </SlidePanel>
+    <SlidePanel isOpen={!!editing} onClose={() => setEditing(null)} ariaLabel="Task details" width="min(100vw, 560px)">
+      <SlidePanelHeader title={editing?.followUp ? 'Task details' : 'Create a task'} onClose={() => setEditing(null)} />
+      <form style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }} onSubmit={event => {
         event.preventDefault()
         if (!editing) return
         if (personQuery.trim() && !draft.personId) { setError('Select a lead or contact from the search results, or clear the search.'); return }
@@ -500,7 +371,7 @@ export default function NotesFollowUpsPrototype() {
         </ModalBody>
         <ModalFooter><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit">{editing?.followUp ? 'Save task' : 'Create task'}</Button></ModalFooter>
       </form>
-    </Modal>
+    </SlidePanel>
 
   </PageContainer>
 }

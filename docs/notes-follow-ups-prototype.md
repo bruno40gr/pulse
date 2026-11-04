@@ -12,9 +12,21 @@ control. It intentionally has no Cards/List switch, new-note modal, or replaceme
 person workspace. Local replies only illustrate the existing control; production
 conversation/mention behavior and permissions are not being reimplemented.
 
-Only task-specific affordances are new:
-- Selecting an @mention in the existing sticky composer reveals **Make a task**.
-  It saves that sticky and opens the task modal directly. Mentioning alone does
+## Sticky interaction refinement
+
+Clicking a sticky enters inline editing. Clicking outside, or moving keyboard
+focus outside, saves its text locally; there are no sticky Save/Cancel buttons.
+Focus mixes the sticky's existing color with a subtle 6% darker tint (not a
+status color). Completion is an accessible icon-only checkmark.
+
+The composer has primary **Add as note** and secondary **Create a task**, both
+available with content, without requiring a mention. Task stickies show an owner
+avatar + Task label. Clicking it opens task details in the shared SlidePanel,
+as replies do. Avatars use fictional owner initials, not a live signed-in user.
+
+Task-specific affordances:
+- Selecting an @mention preselects the task person when **Create a task** opens
+  from the composer. It saves that sticky and opens task details. Mentioning alone does
   not create a task. Fictional lead/contact mentions preselect Related to; staff
   mentions preselect Owner. First mention of each kind wins for a new task;
   saved task choices are preserved when reopening. Production mentions stay staff-only.
@@ -22,11 +34,11 @@ Only task-specific affordances are new:
   lead/contact. The note's original title, text, color and ID remain unchanged.
 - Action is multiline. Related to searches the fictional lead/contact directory;
   choose a result rather than saving unmatched free text. Clearing search unlinks it.
-- **Task details** reopens those fields for assignment or rescheduling.
+- The **avatar + Task** label reopens those fields for assignment or rescheduling.
 - A compact task line carries its owner and due state on the same sticky.
 - One **Tasks** dropdown adds Open tasks, Assigned to me, Today + overdue,
   Upcoming and Completed tasks, with counts. All notes is the default.
-- Existing Mark done / reopen works on the same item. Completed tasks remain
+- The checkmark / reopen works on the same item. Completed tasks remain
   available through their filter even when Hide done is enabled.
 
 Date buttons still refer to note creation, not task due date. Counts in the task
