@@ -20,7 +20,7 @@ test('sticky text and metadata exceed 4.5:1 on every normal, focused and complet
       worst = Math.min(worst, contrast)
       assert.ok(contrast >= 4.5, `${ink} on ${background}: ${contrast.toFixed(2)}`)
     }
-    assert.ok(ratio('#1A130F', background) >= 3, 'Focus outline and swatch boundary')
+    assert.ok(ratio('#2563EB', background) >= 3, 'Blue focus outline and selected swatch ring')
   }
   console.log(`Lowest sticky text contrast: ${worst.toFixed(2)}:1`)
 })

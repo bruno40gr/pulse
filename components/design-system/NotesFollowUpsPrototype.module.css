@@ -13,7 +13,7 @@
 .surface button:disabled {
   background: #e5e7eb !important;
   color: #4b5563 !important;
-  border: 1px solid #6b7280 !important;
+  border: 1px solid #e5e7eb !important;
   cursor: not-allowed;
 }
 .surface button:focus-visible,
@@ -21,9 +21,8 @@
 .surface textarea:focus-visible,
 .surface select:focus-visible,
 .surface [role='button']:focus-visible {
-  outline: 3px solid #1a130f !important;
-  outline-offset: 3px !important;
-  box-shadow: 0 0 0 2px #fff !important;
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
 }
 .surface input::placeholder,
 .surface textarea::placeholder {
@@ -44,14 +43,14 @@
 }
 .secondary {
   color: #29231b !important;
-  border: 1px solid #504638 !important;
-  background: rgba(255,255,255,0.65) !important;
+  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
 }
 .secondary:not(:disabled):hover { background: #fff !important; }
 .primary {
   background: #1a130f !important;
   color: #fff !important;
-  border: 1px solid #1a130f !important;
+  border: 1px solid transparent !important;
 }
 .primary:not(:disabled):hover { background: #392e23 !important; }
 .reply {
@@ -62,16 +61,16 @@
   min-height: 28px !important;
   width: 28px !important;
   height: 28px !important;
-  border-color: #504638 !important;
+  border-color: #fff !important;
 }
 .swatches button[aria-label^='Set color'][aria-pressed='true'] {
-  border: 3px solid #1a130f !important;
-  box-shadow: 0 0 0 2px #fff !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 0 2px #2563eb !important;
 }
 .sticky button[aria-label^='Mark note'] {
   background: #fff !important;
   color: #1f5c3a !important;
-  border-color: #1f5c3a !important;
+  border-color: #e5e7eb !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .surface * { transition: none !important; }

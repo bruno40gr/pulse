@@ -64,10 +64,10 @@ brighter amber `#FFE299`, not the former muted yellow/gray mix. Dark body ink
 `#29231B` and metadata ink `#504638` retain at least 6.08:1 contrast across all
 eight colors in normal, focused and completed states in the palette tests.
 Buttons no longer use opacity blending for disabled states. Primary actions use
-solid dark ink/white; secondary actions have a dark border and light surface.
+solid dark ink/white; secondary actions have the shared soft gray border and white surface.
 Today, overdue and done retain readable text and explicit labels, not color alone.
-Keyboard focus has a dark 3px outline with a white separating ring. Color swatches
-have 28px targets, accessible color names and pressed state; other buttons are at
+Keyboard focus has a 2px blue outline, with no heavy black borders. Color swatches
+have white edges and a blue selected ring, 28px targets, accessible color names and pressed state; other buttons are at
 least 36px high. Avatar initials use dark backgrounds with white text.
 
 Tests: `node --test scripts/security/notes-prototype-contrast.test.cjs`, plus the
