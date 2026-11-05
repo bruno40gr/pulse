@@ -18,6 +18,11 @@ export const routesToAccountHolder = (student: { is_minor?: boolean | null; mess
   student.is_minor === true || student.message_routing === 'account_holder'
 
 const array = <T,>(value: T | T[] | null | undefined): T[] => value ? Array.isArray(value) ? value : [value] : []
+
+/** Shared direct and linked account lookup for directory display and delivery. */
+export const recipientAccounts = (students: NonNullable<RecipientContact['students']>) => students.flatMap(student => [
+  ...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts)),
+])
 const emailAddress = (value?: string | null) => {
   const email = value?.trim().toLowerCase() || ''
   return email.length <= 254 && /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email) ? email : ''
@@ -37,7 +42,7 @@ export function resolveCommunicationRecipients(contacts: RecipientContact[], cha
   const uniqueContacts = [...new Map(contacts.map(contact => [contact.id, contact])).values()].sort((a, b) => a.id.localeCompare(b.id))
   const blocked = new Set<string>()
   for (const contact of [...uniqueContacts, ...suppressedContacts].filter(contact => contact.opted_out)) {
-    const accounts = (contact.students || []).flatMap(student => [...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts))])
+    const accounts = recipientAccounts(contact.students || [])
     for (const target of [contact, ...accounts]) {
       const destination = channel === 'email' ? emailAddress(target.email) : smsDestination(target.phone)
       if (destination) blocked.add(destination)
@@ -48,9 +53,7 @@ export function resolveCommunicationRecipients(contacts: RecipientContact[], cha
     if (contact.opted_out) { excluded.push({ id: contact.id, name, reason: 'Opted out' }); continue }
     const students = contact.students || []
     const useAccounts = students.some(routesToAccountHolder)
-    const accounts = students.flatMap(student => [
-      ...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts)),
-    ])
+    const accounts = recipientAccounts(students)
     const targets = useAccounts ? accounts : [{ name, email: contact.email, phone: contact.phone }]
     let reachable = false
     for (const target of targets) {

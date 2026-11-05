@@ -78,3 +78,37 @@ test('Communications uses the account holder while retaining student ID and sear
   const missing = conversationContact({ ...row, students: [{ is_minor: true, accounts: null }] })
   assert.equal(missing.phone, '', 'Never substitute a minor’s own number for a missing holder')
 })
+
+test('linked account holders with three students resolve identically in Communications and Contacts delivery', async () => {
+  const harness = createHarness()
+  const account = { name: 'Morgan Example (account)', phone: '+12025550102', email: 'morgan@example.invalid' }
+  const rows = ['Alex', 'Taylor', 'Casey'].map((first_name, index) => ({
+    id: `child-${index}`, tenant_id: HEAD, first_name, last_name: 'Example', phone: '+12025550999',
+    students: [{ is_minor: true, accounts: null, student_accounts: [{ accounts: [account] }] }],
+  }))
+  harness.setScenario({ fixtures: { people: rows } })
+  const { conversationDirectory, conversationContact } = harness.load('lib/conversations-directory.ts')
+  const { resolveCommunicationRecipients } = harness.load('lib/communication-recipients.ts')
+  const directory = await conversationDirectory(HEAD, true, false)
+  assert.equal(directory.length, 3)
+  for (const [index, person] of directory.entries()) {
+    assert.equal(person.name, 'Morgan Example')
+    assert.equal(person.student, `${rows[index].first_name} Example`)
+    assert.equal(person.phone, account.phone)
+    assert.equal(person.smsContactId, rows[index].id)
+    assert.equal(person.email, account.email)
+  }
+  for (const channel of ['sms', 'email']) {
+    const resolution = resolveCommunicationRecipients(rows, channel)
+    assert.equal(resolution.recipients.length, 1, 'Siblings still deduplicate at delivery')
+    assert.equal(resolution.recipients[0].destination, channel === 'sms' ? account.phone : account.email)
+  }
+  assert.ok(harness.getQueries().some(query => query.table === 'people'
+    && query.filters.some(([op, key, value]) => op === 'eq' && key === 'tenant_id' && value === HEAD)))
+  const missing = conversationContact({ ...rows[0], students: [{ is_minor: true, student_accounts: [] }] })
+  assert.equal(missing.phone, '', 'Missing links never expose a child destination')
+  assert.equal(missing.email, '')
+  const direct = conversationContact({ ...rows[0], students: [{ is_minor: true,
+    accounts: { name: 'Direct Holder', phone: '+12025550103' }, student_accounts: [{ accounts: account }] }] })
+  assert.equal(direct.name, 'Direct Holder', 'Direct account retains precedence')
+})

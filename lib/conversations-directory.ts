@@ -2,13 +2,14 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { normalizePhoneNumber } from '@/lib/phone'
 import type { ConversationPerson } from '@/lib/conversations-live'
-import { routesToAccountHolder, type RecipientContact } from '@/lib/communication-recipients'
+import { recipientAccounts, routesToAccountHolder, type RecipientContact } from '@/lib/communication-recipients'
 
 /** Display the routed recipient, retaining student identity only as reference. */
 export function conversationContact(row: RecipientContact): ConversationPerson {
   const studentName = `${row.first_name || ''} ${row.last_name || ''}`.trim()
   const student = row.students?.find(routesToAccountHolder)
-  const account = Array.isArray(student?.accounts) ? student.accounts[0] : student?.accounts
+  const accounts = recipientAccounts(row.students || [])
+  const account = student ? accounts.find(account => account.phone || account.email) || accounts[0] : undefined
   return {
     id: `person:${row.id}`, name: (account?.name?.replace(/\s*\(account\)\s*$/i, '').trim() || studentName) || row.email || row.phone || 'Contact',
     email: student ? account?.email || '' : row.email || '', phone: student ? account?.phone || '' : row.phone || '',
@@ -21,7 +22,7 @@ export async function conversationDirectory(tenantId: string, includeContacts: b
   const people: ConversationPerson[] = []
   if (includeContacts) {
     for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone,students(is_minor,message_routing,accounts(name,email,phone))')
+      const { data, error } = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(accounts(name,email,phone)))')
         .eq('tenant_id', tenantId).order('id').range(offset, offset + 999)
       if (error) throw new Error('Contacts could not be loaded.')
       for (const row of data || []) people.push(conversationContact(row))

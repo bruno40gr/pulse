@@ -21,6 +21,13 @@ const people = rows.map(row => ({ ...row, email: null, phone: null, students: [{
   const api = harness.load('app/api/ai-filter/route.ts')
   const { conversationContact } = harness.load('lib/conversations-directory.ts')
   const directory = people.map(conversationContact)
+  const linkedFamily = ['Alex', 'Taylor', 'Casey'].map((first_name, index) => ({
+    id: `linked-${index}`, first_name, last_name: 'Example', phone: '+12025550999',
+    students: [{ is_minor: true, accounts: null, student_accounts: [{ accounts: {
+      name: 'Morgan Example', phone: '+12025550102', email: 'morgan@example.invalid',
+    } }] }],
+  }))
+  directory.push(...linkedFamily.map(conversationContact))
   const browser = await chromium.launch()
   try {
     for (const width of [1440, 900, 390]) {
@@ -59,9 +66,26 @@ const people = rows.map(row => ({ ...row, email: null, phone: null, students: [{
       await page.getByRole('button', { name: 'Open conversation with Valerie Sanchez', exact: true }).click()
       await page.getByText('Student: Faith Sanchez', { exact: false }).waitFor()
       assert.equal(await page.getByRole('button', { name: 'Open conversation with Faith Sanchez', exact: true }).count(), 0)
+      await page.goto(`${base}/dashboard/inbox`)
+      await page.getByRole('button', { name: 'Send new text message', exact: true }).click()
+      const picker = page.getByRole('dialog', { name: 'New message', exact: true })
+      const recipientSearch = picker.getByRole('textbox', { name: 'Search SMS recipients', exact: true })
+      await recipientSearch.fill('morgan')
+      const results = picker.getByRole('table', { name: 'SMS recipients search results', exact: true })
+      assert.equal(await results.getByText('Morgan Example', { exact: true }).count(), 3)
+      assert.equal(await results.getByText('+12025550102', { exact: true }).count(), 3)
+      for (const name of ['Alex', 'Taylor', 'Casey']) {
+        await recipientSearch.fill(name)
+        await results.getByText('Morgan Example', { exact: true }).waitFor()
+        assert.equal(await results.getByText(`${name} Example`, { exact: true }).count(), 0)
+      }
+      await results.getByRole('checkbox', { name: 'Select Add Morgan Example to SMS recipients', exact: true }).check()
+      await picker.getByRole('button', { name: 'Send text message (1)', exact: true }).click()
+      await page.getByRole('heading', { name: 'Morgan Example', exact: true }).waitFor()
+      await page.getByText('Student: Casey Example', { exact: false }).waitFor()
       assert.deepEqual(errors, [])
       assert.deepEqual(writes, [])
-      console.log(`PASS ${width}px: Contacts first/last/holder/mixed-case and AI search; searchable student opens account-holder conversation`)
+      console.log(`PASS ${width}px: Contacts search, account-holder conversation and new-text picker with three linked students`)
       await page.close()
     }
   } finally { await browser.close() }
