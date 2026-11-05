@@ -13,6 +13,8 @@ The new-text and edit-recipient dialogs share the same Family/Student picker.
 - No contacts are merged or deleted. Server authorization, opt-outs and recipient
   resolution remain authoritative. Missing/invalid destinations are not selectable.
 - The shared wide modal provides space for family rows and remains viewport-bound.
+- Search and view controls share a toolbar row (search left, view right), stacking
+  on narrow screens. Phone display uses `(202) 555-0102`; raw routing values stay unchanged.
 
 The fictional example at `/dashboard/design/contacts-table` reuses the production
 picker without sending. Browser regression coverage exercises both views, search,

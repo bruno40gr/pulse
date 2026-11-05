@@ -7,16 +7,18 @@ import { Button } from './Button'
 import { RecipientChip } from './RecipientChip'
 import { PersonName } from './PersonName'
 import { colors, spacing, typography } from '@/lib/tokens'
+import styles from './RecipientPicker.module.css'
 
 export interface PickerRecipient { id: string; name: string; detail: string; disabled?: boolean; children?: { id: string; name: string }[] }
 
 /** Shared SMS/email layout. The containing modal owns padding. */
-export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email', selectionKey = person => person.id, onTogglePerson, compactColumns = false }: {
+export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email', selectionKey = person => person.id, onTogglePerson, compactColumns = false, inlineControls = false }: {
   label: string; people: PickerRecipient[]; selected: PickerRecipient[]; onChange: (ids: string[]) => void
   query: string; onQueryChange: (query: string) => void; loading?: boolean; fill?: boolean; controls?: ReactNode; detailLabel?: string
   selectionKey?: (person: PickerRecipient) => string
   onTogglePerson?: (person: PickerRecipient) => void
   compactColumns?: boolean
+  inlineControls?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [visibleCount, setVisibleCount] = useState(10)
@@ -49,8 +51,13 @@ export function RecipientPicker({ label, people, selected, onChange, query, onQu
   const eligible = people.filter(person => !person.disabled)
   const allSelected = eligible.length > 0 && eligible.every(person => selectedIds.includes(selectionKey(person)))
   return <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, minWidth: 0, minHeight: 0, flex: fill ? 1 : undefined }}>
-    <div style={{ flexShrink: 0 }}><Input aria-label={`Search ${label}`} placeholder="Search everyone…" value={query} onChange={event => onQueryChange(event.target.value)} /></div>
-    {controls}
+    {inlineControls ? <div className={styles.toolbar} aria-label="Recipient discovery">
+      <div className={styles.search}><Input aria-label={`Search ${label}`} placeholder="Search everyone…" value={query} onChange={event => onQueryChange(event.target.value)} /></div>
+      {controls && <div className={styles.controls}>{controls}</div>}
+    </div> : <>
+      <div style={{ flexShrink: 0 }}><Input aria-label={`Search ${label}`} placeholder="Search everyone…" value={query} onChange={event => onQueryChange(event.target.value)} /></div>
+      {controls}
+    </>}
     <div style={{ flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined, maxHeight: fill ? undefined : 320, overflow: 'auto' }}>
       <ResponsiveDataTable rows={people} getRowKey={person => person.id} ariaLabel={`${label} search results`} minDesktopWidth={compactColumns ? 0 : 480} mobileBreakpoint={0} loading={loading} emptyContent="No matching contacts available."
         getDetailRows={person => (person.children || []).map(child => ({ key: child.id, cells: [<span key={child.id} style={{ paddingLeft: spacing.lg }}>{child.name}</span>, null] }))}

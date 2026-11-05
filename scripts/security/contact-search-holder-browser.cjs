@@ -80,7 +80,15 @@ const people = rows.map(row => ({ ...row, email: null, phone: null, students: [{
       await recipientSearch.fill('morgan')
       const results = picker.getByRole('table', { name: 'SMS recipients search results', exact: true })
       assert.equal(await results.getByText('Morgan Example', { exact: true }).count(), 1)
-      assert.equal(await results.getByText('+12025550102', { exact: true }).count(), 1)
+      assert.equal(await results.getByText('(202) 555-0102', { exact: true }).count(), 1)
+      const searchBounds = await recipientSearch.boundingBox()
+      const viewBounds = await picker.getByRole('group', { name: 'Recipient view', exact: true }).boundingBox()
+      if (width >= 900) {
+        assert.ok(Math.abs(searchBounds.y - viewBounds.y) < 4, 'Search and toggles share a toolbar row')
+        assert.ok(viewBounds.x > searchBounds.x + searchBounds.width, 'View toggles sit to the right of search')
+      } else {
+        assert.ok(viewBounds.y >= searchBounds.y + searchBounds.height, 'Mobile toolbar stacks without crowding')
+      }
       assert.equal(await results.getByRole('checkbox').count(), 2, 'Only parent and select-all checkboxes in family view')
       for (const name of ['Alex', 'Taylor', 'Casey']) {
         await recipientSearch.fill(name)
@@ -90,6 +98,7 @@ const people = rows.map(row => ({ ...row, email: null, phone: null, students: [{
       await results.getByRole('checkbox', { name: 'Select Add Morgan Example to SMS recipients', exact: true }).check()
       await picker.getByRole('button', { name: 'View students', exact: true }).click()
       await results.getByText('Casey Example', { exact: true }).waitFor()
+      await results.getByText('(202) 555-0102', { exact: true }).waitFor()
       await picker.getByRole('button', { name: 'Remove Morgan Example from SMS recipients', exact: true }).click()
       await results.getByRole('checkbox', { name: 'Select Add Casey Example to SMS recipients', exact: true }).check()
       await picker.getByRole('button', { name: 'View families', exact: true }).click()
