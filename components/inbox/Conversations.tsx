@@ -30,7 +30,7 @@ import { useSearchParams } from 'next/navigation'
 import { mergeConversationThreads, personThread, type ConversationPerson, type LiveThread, type Mailbox } from '@/lib/conversations-live'
 import ConversationProfilePanel from '@/components/inbox/ConversationProfilePanel'
 import ComposePanel from '@/components/campaigns/ComposePanel'
-import SmsRecipientPicker from '@/components/inbox/SmsRecipientPicker'
+import SmsRecipientPicker from '@/components/inbox/ConversationSmsRecipientPicker'
 import PrototypeNewMessage from '@/components/inbox/PrototypeNewMessage'
 import { initialMockTemplates, type MockEmailRecipients, type MockTemplate } from '@/lib/prototype-messaging'
 import { prototypeHtmlText, prototypePreviewDocument } from '@/lib/conversations-prototype-html'
@@ -402,7 +402,6 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const composing = location.view === 'compose' && !!active && !!draft
   const composingSms = location.view === 'sms-compose' && !!newSms && location.activeId === newSms.id
   const smsRecipients = contacts.filter(person => newSms?.ids.includes(person.id))
-  const smsOptions = contacts.map(person => ({ id: person.id, first_name: person.name.split(' ')[0], last_name: person.name.split(' ').slice(1).join(' '), phone: person.phone, email: person.email, student: person.student }))
   const standalone = !!draft && draft.contactOnly === false
   const latestMessage = (person: typeof contact) => person.threads.flatMap(thread => thread.messages).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).at(0)
   useEffect(() => {
@@ -619,7 +618,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           draft={{ body: newSms.body, onChange: body => setNewSms(current => current ? { ...current, body } : current) }}
           onSent={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }); void refreshSms() }} />
       </SurfacePanel>
-      <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="lg"><ModalHeader compact title="Select text message recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody style={{ display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} results={smsOptions.filter(person => `${person.first_name} ${person.last_name} ${person.student} ${person.phone}`.toLowerCase().includes(smsRecipientQuery.trim().toLowerCase()))} selected={smsOptions.filter(person => newSms.ids.includes(person.id))} handleSearch={setSmsRecipientQuery} toggleRecipient={person => setNewSms(current => current ? { ...current, ids: current.ids.includes(person.id) ? current.ids.filter(id => id !== person.id) : [...current.ids, person.id] } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
+      <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="wide"><ModalHeader compact title="Select text message recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody style={{ display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} people={contacts} selected={newSms.ids} onQueryChange={setSmsRecipientQuery} onChange={ids => setNewSms(current => current ? { ...current, ids } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
       <Modal isOpen={discardOpen} onClose={() => setDiscardOpen(false)} ariaLabel="Discard text message" size="sm"><ModalHeader title="Discard this text message?" onClose={() => setDiscardOpen(false)} /><ModalBody>Your recipients and unsent text will be removed.</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep message</Button><Button variant="destructive" onClick={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }) }}>Discard message</Button></ModalFooter></Modal>
     </section> : <p role="status">This text message is no longer available. Go back to Communications to start a new message.</p> : standalone && composing && active && draft ? <section aria-label="New email message" style={{ minWidth: 0, width: '100%' }}>
       {sendError && <Notice variant="error" style={{ marginBottom: spacing.md }}>{sendError}</Notice>}

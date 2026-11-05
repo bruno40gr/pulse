@@ -8,12 +8,15 @@ import { RecipientChip } from './RecipientChip'
 import { PersonName } from './PersonName'
 import { colors, spacing, typography } from '@/lib/tokens'
 
-export interface PickerRecipient { id: string; name: string; detail: string; disabled?: boolean }
+export interface PickerRecipient { id: string; name: string; detail: string; disabled?: boolean; children?: { id: string; name: string }[] }
 
 /** Shared SMS/email layout. The containing modal owns padding. */
-export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email' }: {
+export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email', selectionKey = person => person.id, onTogglePerson, compactColumns = false }: {
   label: string; people: PickerRecipient[]; selected: PickerRecipient[]; onChange: (ids: string[]) => void
   query: string; onQueryChange: (query: string) => void; loading?: boolean; fill?: boolean; controls?: ReactNode; detailLabel?: string
+  selectionKey?: (person: PickerRecipient) => string
+  onTogglePerson?: (person: PickerRecipient) => void
+  compactColumns?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [visibleCount, setVisibleCount] = useState(10)
@@ -44,19 +47,20 @@ export function RecipientPicker({ label, people, selected, onChange, query, onQu
   }, [selected])
   const selectedIds = selected.map(person => person.id)
   const eligible = people.filter(person => !person.disabled)
-  const allSelected = eligible.length > 0 && eligible.every(person => selectedIds.includes(person.id))
+  const allSelected = eligible.length > 0 && eligible.every(person => selectedIds.includes(selectionKey(person)))
   return <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, minWidth: 0, minHeight: 0, flex: fill ? 1 : undefined }}>
     <div style={{ flexShrink: 0 }}><Input aria-label={`Search ${label}`} placeholder="Search everyone…" value={query} onChange={event => onQueryChange(event.target.value)} /></div>
     {controls}
     <div style={{ flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined, maxHeight: fill ? undefined : 320, overflow: 'auto' }}>
-      <ResponsiveDataTable rows={people} getRowKey={person => person.id} ariaLabel={`${label} search results`} minDesktopWidth={480} mobileBreakpoint={0} loading={loading} emptyContent="No matching contacts available."
+      <ResponsiveDataTable rows={people} getRowKey={person => person.id} ariaLabel={`${label} search results`} minDesktopWidth={compactColumns ? 0 : 480} mobileBreakpoint={0} loading={loading} emptyContent="No matching contacts available."
+        getDetailRows={person => (person.children || []).map(child => ({ key: child.id, cells: [<span key={child.id} style={{ paddingLeft: spacing.lg }}>{child.name}</span>, null] }))}
         columns={[
-          { id: 'name', header: 'Name', width: 'minmax(140px, 1fr)', render: person => <PersonName>{person.name}</PersonName> },
-          { id: 'detail', header: detailLabel, width: 'minmax(220px, 1.5fr)', render: person => person.detail },
+          { id: 'name', header: 'Name', width: compactColumns ? 'minmax(0, 1.3fr)' : 'minmax(140px, 1fr)', render: person => <PersonName>{person.name}</PersonName> },
+          { id: 'detail', header: detailLabel, width: compactColumns ? 'minmax(0, 1fr)' : 'minmax(220px, 1.5fr)', render: person => <span style={{ overflowWrap: 'anywhere' }}>{person.detail}</span> },
         ]}
-        selection={{ selectedKeys: new Set(selectedIds), isSelectable: person => !person.disabled, allSelected, selectAllLabel: allSelected ? 'Deselect all' : 'Select all', getRowLabel: person => `${selectedIds.includes(person.id) ? 'Remove' : 'Add'} ${person.name} ${selectedIds.includes(person.id) ? 'from' : 'to'} ${label}`,
-          onToggle: person => onChange(selectedIds.includes(person.id) ? selectedIds.filter(id => id !== person.id) : [...selectedIds, person.id]),
-          onToggleAll: () => onChange(allSelected ? selectedIds.filter(id => !eligible.some(person => person.id === id)) : [...new Set([...selectedIds, ...eligible.map(person => person.id)])]),
+        selection={{ selectedKeys: new Set(people.filter(person => selectedIds.includes(selectionKey(person))).map(person => person.id)), isSelectable: person => !person.disabled, allSelected, selectAllLabel: allSelected ? 'Deselect all' : 'Select all', getRowLabel: person => `${selectedIds.includes(selectionKey(person)) ? 'Remove' : 'Add'} ${person.name} ${selectedIds.includes(selectionKey(person)) ? 'from' : 'to'} ${label}`,
+          onToggle: person => onTogglePerson ? onTogglePerson(person) : onChange(selectedIds.includes(selectionKey(person)) ? selectedIds.filter(id => id !== selectionKey(person)) : [...selectedIds, selectionKey(person)]),
+          onToggleAll: () => onChange(allSelected ? selectedIds.filter(id => !eligible.some(person => selectionKey(person) === id)) : [...new Set([...selectedIds, ...eligible.map(selectionKey)])]),
         }} />
     </div>
     {selected.length > 0 && <div style={{ position: 'relative', minWidth: 0, flexShrink: 0 }}>
