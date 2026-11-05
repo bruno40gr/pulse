@@ -180,6 +180,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     const nextPeople: ConversationPerson[] = directory.people
     const smsThreads: LiveThread[] = (inbox as SmsInboxThread[]).map(thread => {
       let person = nextPeople.find(person => person.profileId && person.profileId === thread.profile_id && person.profileType === thread.profile_type)
+      if (person && thread.display_name && thread.display_name !== thread.student_name) {
+        person.name = thread.display_name
+        person.student = thread.student_name || person.student
+      }
       if (!person) {
         person = { id: `phone:${thread.thread_key}`, name: thread.display_name || thread.other_phone, phone: thread.other_phone, email: '', student: thread.student_name || '', stage: thread.client_status || '', profileType: thread.profile_type, profileId: thread.profile_id, intakeType: thread.profile_intake_type || undefined, smsContactId: thread.contact_id }
         nextPeople.push(person)

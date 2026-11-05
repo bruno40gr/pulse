@@ -3,8 +3,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
-import { assertTenantAccess } from '@/lib/access'
-import { resolveMembershipRequestContext } from '@/lib/request-context'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -53,7 +53,7 @@ Rules:
 - "explanation": short human-readable summary (e.g. "Students of Bridget").`
 
 function norm(value: unknown): string {
-  return String(value ?? '').toLowerCase().trim()
+  return String(value ?? '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 function strArray(value: unknown): string[] {
@@ -166,6 +166,12 @@ function localFilterSpec(query: string, contacts: SearchableContact[]): FilterSp
     if (matches.length > 0) spec[key] = [matches[0]]
   }
 
+  // A plain first/last/partial name must work without an AI provider. Match the
+  // query against names, not only complete stored names against the query.
+  if (!hasFilter(spec) && contacts.some(contact => contact.names.some(name => name.includes(normalizedQuery)))) {
+    spec.names = [normalizedQuery]
+  }
+
   // Staff members also exist as contacts, so a full instructor name can match
   // both dimensions. Resolve that ambiguity from the wording instead of ANDing
   // the contact-name and instructor filters together (which always returns 0).
@@ -263,6 +269,7 @@ type StudentRow = {
   client_status: string | null
   last_attended: string | null
   enrollments: EnrollmentRow[] | null
+  accounts?: { name?: string | null } | Array<{ name?: string | null }> | null
 }
 
 type PersonRow = {
@@ -279,37 +286,34 @@ export async function POST(request: Request) {
     const tenantId = tenant || getTenantId(request)
     if (!query?.trim()) return NextResponse.json({ error: 'No query provided' }, { status: 400 })
 
-    // Demo/legacy sessions use the signed Pulse cookie. Claimed staff accounts
-    // use Supabase auth cookies, so search must accept the same two auth paths as
-    // the rest of the dashboard.
-    const legacyAccess = await assertTenantAccess(request, tenantId)
-    if (!legacyAccess.ok) {
-      const membershipAccess = await resolveMembershipRequestContext(request, tenantId)
-      if (!membershipAccess.ok) {
-        return NextResponse.json({ error: membershipAccess.error }, { status: membershipAccess.status })
-      }
-    }
+    const access = await authorizeTenantRequest(request, { body: { tenantId }, permission: PERMISSIONS.contactsRead, allowDemo: true })
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
     const profile = await getImportProfile(tenantId)
 
-    const { data, error } = await supabaseAdmin
-      .from('people')
-      .select(`
-        id, first_name, last_name, email, opted_out,
-        students (
-          id, client_status, last_attended,
-          enrollments (
-            instrument, service_type, lesson_day,
-            custom_fields, instructor_person_id
+    const people: PersonRow[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from('people')
+        .select(`
+          id, first_name, last_name, email, opted_out,
+          students (
+            id, client_status, last_attended, accounts(name),
+            enrollments (
+              instrument, service_type, lesson_day,
+              custom_fields, instructor_person_id
+            )
           )
-        )
-      `)
-      .eq('tenant_id', tenantId)
-      .eq('opted_out', false)
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('opted_out', false)
+        .order('id').range(offset, offset + 999)
 
-    if (error) throw error
+      if (error) throw error
 
-    const people = (data || []) as PersonRow[]
+      people.push(...(data || []) as PersonRow[])
+      if ((data || []).length < 1000) break
+    }
 
     // Resolve instructor names from instructor_person_id → people
     const instructorPersonIds = new Set<string>()
@@ -377,7 +381,11 @@ export async function POST(request: Request) {
         client_status: clientStatus,
         last_attended: lastAttended,
         non_student_booking: nonStudentBooking,
-        names: [norm([person.first_name, person.last_name].filter(Boolean).join(' '))].filter(Boolean),
+        names: [norm([person.first_name, person.last_name].filter(Boolean).join(' ')),
+          ...(person.students || []).flatMap(student => {
+            const accounts = Array.isArray(student.accounts) ? student.accounts : student.accounts ? [student.accounts] : []
+            return accounts.map(account => norm(account.name?.replace(/\s*\(account\)\s*$/i, '')))
+          })].filter(Boolean),
         instructors: [...instructors],
         instruments: [...instruments],
         service_types: [...serviceTypes],

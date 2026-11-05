@@ -44,6 +44,8 @@ leave the nullable column/function intact. Do not drop task data to roll back UI
 - Plain notes and tasks both retain the header Mark done / Done control. Plain
   note completion does not create a task; it uses the same notes.manage permission
   and private-note access check, persists across reloads, and respects Hide done.
+- Mention editing keeps text and caret in the native textarea. The background
+  overlay only highlights mentions; it does not render a second visible text copy.
 - Inline edits save on blur/click-out. Failed saves keep the draft visible with
   a retry message. Creation and task failures retain the form; cancelling new
   task creation does not save an orphan note.

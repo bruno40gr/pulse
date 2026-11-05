@@ -103,7 +103,7 @@ function createHarness() {
         constructor() {
           this.messages = { create: async () => {
             if (!scenario.allowSyntheticAI) throw new Error('AI calls blocked in synthetic tests')
-            return { content: [{ type: 'text', text: '{"insights":[],"body":"Synthetic copy"}' }] }
+            return { content: [{ type: 'text', text: scenario.syntheticAIText || '{"insights":[],"body":"Synthetic copy"}' }] }
           } }
         }
       }

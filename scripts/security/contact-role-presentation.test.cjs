@@ -93,7 +93,7 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
   const db = { from(table) {
     const query = { table, filters: [] }; queries.push(query)
     const result = () => ({ data: table === 'people' ? people : table === 'account_holders' ? [{ tenant_id: 'tenant', account_id: 'family', person_id: 'adult' }, { tenant_id: 'foreign', account_id: 'family', person_id: 'intruder' }] : [], error: table === 'account_holders' && holderFailure ? { code: 'PGRST200' } : null })
-    const chain = { select(value) { query.select = value; return this }, eq(...args) { query.filters.push(args); return this }, in(...args) { query.filters.push(args); return this }, order() { return this }, is() { return this }, then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject) } }
+    const chain = { select(value) { query.select = value; return this }, eq(...args) { query.filters.push(args); return this }, in(...args) { query.filters.push(args); return this }, order() { return this }, range() { return this }, is() { return this }, then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject) } }
     return chain
   } }
   const route = load('app/api/contacts/route.ts', {

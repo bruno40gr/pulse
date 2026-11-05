@@ -180,11 +180,11 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
   }
 
   const highlighted = highlightMentions && /@[\u00a0\p{L}\p{N}._-]+/u.test(value)
-  const textStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, color: colors.text, padding: 0, ...style }
+  const textStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, fontSize: typography.sizeBase, lineHeight: 1.5, letterSpacing: 'normal', wordSpacing: 'normal', textAlign: 'left', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', color: colors.text, padding: 0, ...style }
   return (
     <div style={{ position: 'relative' }}>
       {highlighted && <div aria-hidden="true" style={{ ...textStyle, position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-        <div style={{ transform: `translateY(-${scrollTop}px)` }}>{value.split(/(@[\u00a0\p{L}\p{N}._-]+)/gu).map((part, index) => part.startsWith('@') ? <span key={index} style={{ background: '#DBEAFE', color: '#1E40AF', borderRadius: 4 }}>{part}</span> : part)}</div>
+        <div style={{ color: 'transparent', transform: `translateY(-${scrollTop}px)` }}>{value.split(/(@[\u00a0\p{L}\p{N}._-]+)/gu).map((part, index) => part.startsWith('@') ? <span key={index} style={{ background: '#DBEAFE', borderRadius: 4 }}>{part}</span> : part)}</div>
       </div>}
       <textarea
         ref={textareaRef}
@@ -194,7 +194,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
         onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
-        style={{ ...textStyle, position: 'relative', ...(highlighted ? { color: 'transparent', caretColor: colors.text } : {}) }}
+        style={{ ...textStyle, position: 'relative', caretColor: colors.text }}
       />
       {open && suggestions.length + relatedSuggestions.length > 0 && (
         <div

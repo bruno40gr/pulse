@@ -132,25 +132,31 @@ export async function GET(request: Request) {
   try {
     const importProfile = await getImportProfile(tenantId)
     // Actual schema: people → students → enrollments (instructor_person_id → people)
-    const { data, error } = await supabaseAdmin
-      .from('people')
-      .select(`
-        id, tenant_id, first_name, last_name, phone, email,
-        date_of_birth, opted_out, notes_history, student_notes_history,
-        custom_fields, created_at, updated_at,
-        students (
-          id, client_status, last_attended, message_routing, is_minor, account_id,
-          accounts ( id, name, phone, email ),
-          enrollments (
-            id, instrument, service_type, lesson_day, lesson_time,
-            plan_name, session_name, custom_fields, instructor_person_id
+    const data: any[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const { data: rows, error } = await supabaseAdmin
+        .from('people')
+        .select(`
+          id, tenant_id, first_name, last_name, phone, email,
+          date_of_birth, opted_out, notes_history, student_notes_history,
+          custom_fields, created_at, updated_at,
+          students (
+            id, client_status, last_attended, message_routing, is_minor, account_id,
+            accounts ( id, name, phone, email ),
+            enrollments (
+              id, instrument, service_type, lesson_day, lesson_time,
+              plan_name, session_name, custom_fields, instructor_person_id
+            )
           )
-        )
-      `)
-      .eq('tenant_id', tenantId)
-      .order('last_name', { ascending: true })
+        `)
+        .eq('tenant_id', tenantId)
+        .order('last_name', { ascending: true })
+        .order('id').range(offset, offset + 999)
 
-    if (error) throw error
+      if (error) throw error
+      data.push(...(rows || []))
+      if ((rows || []).length < 1000) break
+    }
 
     // Bulk-resolve which contacts already have an active funded-student case so the
     // contacts table can render a Funded badge without a request per row. A missing or

@@ -39,6 +39,8 @@ export function mergeConversationThreads(people: ConversationPerson[], threads: 
   const hydrated = threads.map(thread => {
     const person = people.find(person => person.id === thread.contactId)
     return { ...thread,
+      name: person?.name || thread.name,
+      student: person?.student || thread.student,
       phone: thread.phone || person?.phone || threads.find(other => other.contactId === thread.contactId && other.phone)?.phone || '',
       email: thread.email || person?.email || threads.find(other => other.contactId === thread.contactId && other.email)?.email || '',
     }
