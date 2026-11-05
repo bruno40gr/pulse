@@ -26,7 +26,7 @@ export default function ConversationSmsRecipientPicker({ people, selected, onCha
     : people.filter(person => smsPickerMatches(person, query)).map(studentOption)
   const selectedOptions = groups.filter(group => group.members.some(person => selectedIds.includes(person.id))).map(familyOption)
   const groupFor = (id: string) => groups.find(group => group.members.some(person => person.id === id))
-  return <RecipientPicker label="SMS recipients" detailLabel="Phone" fill compactColumns inlineControls query={query} onQueryChange={onQueryChange}
+  return <RecipientPicker label="SMS recipients" detailLabel="Phone" fill compactColumns inlineControls groupedRows query={query} onQueryChange={onQueryChange}
     controls={<TablePersonViewToggle variant="segmented" ariaLabel="Recipient view" value={view} onChange={setView} />}
     people={options} selected={selectedOptions} selectionKey={person => groupFor(person.id)?.id || person.id}
     onTogglePerson={option => {

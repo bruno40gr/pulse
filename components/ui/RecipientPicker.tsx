@@ -6,19 +6,21 @@ import { Input } from './Input'
 import { Button } from './Button'
 import { RecipientChip } from './RecipientChip'
 import { PersonName } from './PersonName'
+import { TablePersonName } from './TablePersonName'
 import { colors, spacing, typography } from '@/lib/tokens'
 import styles from './RecipientPicker.module.css'
 
 export interface PickerRecipient { id: string; name: string; detail: string; disabled?: boolean; children?: { id: string; name: string }[] }
 
 /** Shared SMS/email layout. The containing modal owns padding. */
-export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email', selectionKey = person => person.id, onTogglePerson, compactColumns = false, inlineControls = false }: {
+export function RecipientPicker({ label, people, selected, onChange, query, onQueryChange, loading = false, fill = false, controls, detailLabel = 'Email', selectionKey = person => person.id, onTogglePerson, compactColumns = false, inlineControls = false, groupedRows = false }: {
   label: string; people: PickerRecipient[]; selected: PickerRecipient[]; onChange: (ids: string[]) => void
   query: string; onQueryChange: (query: string) => void; loading?: boolean; fill?: boolean; controls?: ReactNode; detailLabel?: string
   selectionKey?: (person: PickerRecipient) => string
   onTogglePerson?: (person: PickerRecipient) => void
   compactColumns?: boolean
   inlineControls?: boolean
+  groupedRows?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [visibleCount, setVisibleCount] = useState(10)
@@ -60,9 +62,11 @@ export function RecipientPicker({ label, people, selected, onChange, query, onQu
     </>}
     <div style={{ flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined, maxHeight: fill ? undefined : 320, overflow: 'auto' }}>
       <ResponsiveDataTable rows={people} getRowKey={person => person.id} ariaLabel={`${label} search results`} minDesktopWidth={compactColumns ? 0 : 480} mobileBreakpoint={0} loading={loading} emptyContent="No matching contacts available."
-        getDetailRows={person => (person.children || []).map(child => ({ key: child.id, cells: [<span key={child.id} style={{ paddingLeft: spacing.lg }}>{child.name}</span>, null] }))}
+        groupedRows={groupedRows}
+        getRowStyle={groupedRows ? (person, index) => ({ background: selectedIds.includes(selectionKey(person)) ? colors.surfaceSelected : index % 2 === 0 ? colors.surface : colors.background }) : undefined}
+        getDetailRows={person => (person.children || []).map(child => ({ key: child.id, cells: [groupedRows ? <TablePersonName key={child.id} detail>{child.name}</TablePersonName> : <span key={child.id} style={{ paddingLeft: spacing.lg }}>{child.name}</span>, null] }))}
         columns={[
-          { id: 'name', header: 'Name', width: compactColumns ? 'minmax(0, 1.3fr)' : 'minmax(140px, 1fr)', render: person => <PersonName>{person.name}</PersonName> },
+          { id: 'name', header: 'Name', width: compactColumns ? 'minmax(0, 1.3fr)' : 'minmax(140px, 1fr)', render: person => groupedRows ? <TablePersonName>{person.name}</TablePersonName> : <PersonName>{person.name}</PersonName> },
           { id: 'detail', header: detailLabel, width: compactColumns ? 'minmax(0, 1fr)' : 'minmax(220px, 1.5fr)', render: person => <span style={{ overflowWrap: 'anywhere' }}>{person.detail}</span> },
         ]}
         selection={{ selectedKeys: new Set(people.filter(person => selectedIds.includes(selectionKey(person))).map(person => person.id)), isSelectable: person => !person.disabled, allSelected, selectAllLabel: allSelected ? 'Deselect all' : 'Select all', getRowLabel: person => `${selectedIds.includes(selectionKey(person)) ? 'Remove' : 'Add'} ${person.name} ${selectedIds.includes(selectionKey(person)) ? 'from' : 'to'} ${label}`,

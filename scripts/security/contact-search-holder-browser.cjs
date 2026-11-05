@@ -95,6 +95,13 @@ const people = rows.map(row => ({ ...row, email: null, phone: null, students: [{
         await results.getByText('Morgan Example', { exact: true }).waitFor()
         assert.equal(await results.getByText(`${name} Example`, { exact: true }).count(), 1)
       }
+      const familyName = results.getByText('Morgan Example', { exact: true })
+      const studentName = results.getByText('Casey Example', { exact: true })
+      assert.equal(await familyName.evaluate(node => getComputedStyle(node).fontWeight), '600', 'Shared parent name weight')
+      assert.equal(await studentName.evaluate(node => getComputedStyle(node).fontWeight), '400', 'Shared detail name weight')
+      const familyBounds = await familyName.boundingBox()
+      const studentBounds = await studentName.boundingBox()
+      assert.ok(Math.abs(familyBounds.x - studentBounds.x) < 2, 'Shared family and detail name alignment')
       await results.getByRole('checkbox', { name: 'Select Add Morgan Example to SMS recipients', exact: true }).check()
       await picker.getByRole('button', { name: 'View students', exact: true }).click()
       await results.getByText('Casey Example', { exact: true }).waitFor()

@@ -15,6 +15,9 @@ The new-text and edit-recipient dialogs share the same Family/Student picker.
 - The shared wide modal provides space for family rows and remains viewport-bound.
 - Search and view controls share a toolbar row (search left, view right), stacking
   on narrow screens. Phone display uses `(202) 555-0102`; raw routing values stay unchanged.
+- The table uses the shared grouped-row geometry, TablePersonName parent/detail
+  typography, alternating family backgrounds, shared hover overlay and selected
+  surface color. Nested students align with the name column without custom indentation.
 
 The fictional example at `/dashboard/design/contacts-table` reuses the production
 picker without sending. Browser regression coverage exercises both views, search,
