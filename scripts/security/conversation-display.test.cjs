@@ -11,6 +11,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'lib/conve
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { module: loaded, exports: loaded.exports, Date })
 const { compareConversations, conversationAttention, newestEmail, lastContactTimestamp } = loaded.exports
+test('SMS composer leaves Enter as a newline and sends through its button', () => {
+  const source = fs.readFileSync(path.join(root, 'components/inbox/PrototypeSmsConversation.tsx'), 'utf8')
+  assert.match(source, /<Textarea[^>]*aria-label="SMS message"/)
+  assert.doesNotMatch(source, /onKeyDown|onKeyUp|onKeyPress|onSubmit/)
+  assert.match(source, /<Button onClick=\{onSend\}.*>Send<\/Button>/)
+})
 test('channel filtering scopes history, attention, counts, search and sorting without mutation', () => {
   const people = [
     { name: 'Mixed', newSms: 1, newEmails: 0, threads: [

@@ -51,7 +51,7 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
       <div ref={end} />
     </div>}
     <div style={{ padding: mobile ? spacing.md : spacing['2xl'], borderTop: `1px solid ${colors.border}`, background: colors.surface, display: 'flex', flexDirection: 'column', gap: spacing.sm, flexShrink: 0 }}>
-      <Textarea disabled={disabled} aria-label="SMS message" value={draft} onChange={event => onChange(event.target.value)} onKeyDown={event => { if (!disabled && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); onSend() } }} placeholder={recipients ? 'Write a text message…' : `Reply to ${thread.name}...`} style={{ width: '100%', minHeight: 60, maxHeight: 120, resize: 'none' }} />
+      <Textarea disabled={disabled} aria-label="SMS message" value={draft} onChange={event => onChange(event.target.value)} placeholder={recipients ? 'Write a text message…' : `Reply to ${thread.name}...`} style={{ width: '100%', minHeight: 60, maxHeight: 120, resize: 'none' }} />
       {draftError && <Notice variant="error">{draftError}</Notice>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md }}>
         {!live && <Button variant="secondary" size="sm" onClick={() => onChange(draft.trim() ? `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! ${draft.trim()}` : `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! Thanks for reaching out. What days and times work best for you?`)}><Sparkles size={12} />{draft.trim() ? 'Polish with AI' : 'Draft with AI'} (sample)</Button>}
