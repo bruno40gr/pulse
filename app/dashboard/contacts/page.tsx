@@ -5,6 +5,7 @@ import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeC
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+import { tableRowSelection, type SelectionModifiers } from '@/lib/table-row-selection'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
@@ -331,45 +332,9 @@ export default function ContactsPage() {
     setAppliedFilters({})
   }
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const handleCheckboxToggle = (contact: Contact, index: number, shiftKey: boolean) => {
-    if (shiftKey && lastSelectedIndex >= 0) {
-      const start = Math.min(lastSelectedIndex, index)
-      const end = Math.max(lastSelectedIndex, index)
-      const rangeIds = sortedDisplayed.slice(start, end + 1).map(c => c.id)
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        rangeIds.forEach(id => next.add(id))
-        return next
-      })
-    } else {
-      toggleSelect(contact.id)
-      setLastSelectedIndex(index)
-    }
-  }
-
-  const handleRowClick = (contact: Contact, index: number, e: React.MouseEvent) => {
-    if (e.shiftKey && lastSelectedIndex >= 0) {
-      const start = Math.min(lastSelectedIndex, index)
-      const end = Math.max(lastSelectedIndex, index)
-      const rangeIds = sortedDisplayed.slice(start, end + 1).map(c => c.id)
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        rangeIds.forEach(id => next.add(id))
-        return next
-      })
-    } else {
-      toggleSelect(contact.id)
-      setLastSelectedIndex(index)
-    }
+  const handleRowClick = (contact: Contact, index: number, event: SelectionModifiers) => {
+    setSelectedIds(current => tableRowSelection(current, sortedDisplayed.map(row => row.id), contact.id, lastSelectedIndex, event))
+    if (!event.shiftKey) setLastSelectedIndex(index)
   }
 
   const handleNameClick = async (contact: Contact, e: React.MouseEvent) => {
@@ -757,7 +722,7 @@ export default function ContactsPage() {
           }}
           selection={{
             selectedKeys: selectedIds,
-            onToggle: (contact, _index, event) => handleCheckboxToggle(contact, sortedDisplayed.findIndex(row => row.id === contact.id), (event.nativeEvent as MouseEvent).shiftKey),
+            onToggle: (contact, _index, event) => handleRowClick(contact, sortedDisplayed.findIndex(row => row.id === contact.id), event.nativeEvent as MouseEvent),
             onToggleAll: toggleSelectAll,
             allSelected: selectableContacts.length > 0 && selectableContacts.every((contact) => selectedIds.has(contact.id)),
             someSelected: selectedIds.size > 0 && !selectableContacts.every((contact) => selectedIds.has(contact.id)),

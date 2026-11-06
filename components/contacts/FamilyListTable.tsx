@@ -89,8 +89,10 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
       },
     } : undefined}
     onRowClick={(group, index, event) => {
-      if (onOpenGroup) onOpenGroup(group)
-      else if (group.parent) table.onRowClick?.(group.parent, index, event)
+      const rows = realRows(group)
+      if (rows.length > 1 && onToggleMembers) {
+        onToggleMembers(rows, event.altKey ? false : event.ctrlKey || event.metaKey || event.shiftKey ? true : !selected.has(group.id))
+      } else if (rows[0]) table.onRowClick?.(rows[0], index, event)
     }}
     getRowStyle={(group, index) => ({
       ...(group.parent ? table.getRowStyle?.(group.parent, index) : undefined),
