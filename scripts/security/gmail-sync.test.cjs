@@ -75,7 +75,7 @@ function setup({ ambiguous = false, unrelated = false, failWrite = false, busy =
 test('sync captures dated quote once across repeated syncs',async()=>{
   const h=setup();await h.sync(tenant,'mailbox');await h.sync(tenant,'mailbox')
   assert.equal(h.receipts.length,1);assert.equal(h.records.length,1)
-  assert.equal(h.records[0].p_tenant,tenant);assert.equal(h.records[0].p_decision,null, 'Email capture must not request a status change, even for booking text')
+  assert.equal(h.records[0].p_tenant,tenant);assert.equal(h.records[0].p_decision,'booked')
   assert.ok(h.records[0].p_note.startsWith('Email sent on Oct 14, 2026'))
   assert.ok(h.queries.every(query=>query.operation === 'insert' ? query.payload.tenant_id === tenant : query.filters.some(([key,value])=>key==='tenant_id'&&value===tenant)))
 })

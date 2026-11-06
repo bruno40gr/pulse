@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { decryptToken } from './security'
 import { googleToken, gmailGet } from './google'
-import { EMAIL_CAPTURE_STATUSES, emailAddresses, emailBody, emailNote, matchEmailLeads, type EmailLead, type GmailPart } from './rules'
+import { EMAIL_CAPTURE_STATUSES, emailAddresses, emailBody, emailDecision, emailNote, matchEmailLeads, type EmailLead, type GmailPart } from './rules'
 
 type Connection = { id: string; tenant_id: string; email: string; refresh_token_ciphertext: string; connected_by: string; capture_from: string; last_synced_at: string | null; sync_until: string; page_token: string | null; sync_lease_token: string }
 type GmailMessage = { id: string; internalDate: string; labelIds?: string[]; payload: GmailPart & { headers?: { name: string; value: string }[] } }
@@ -12,8 +12,7 @@ export async function recordOutreach(tenantId: string, messageId: string, leadId
     .eq('tenant_id', tenantId).eq('id', messageId).single()
   if (error || !message || !message.candidate_lead_ids.includes(leadId)) throw new Error('Choose one of the matched leads.')
   const { error: writeError } = await crmSupabaseAdmin.rpc('gmail_record_outreach', {
-    // Capture correspondence only. Sending an email must not change a lead's status.
-    p_tenant: tenantId, p_message: messageId, p_lead: leadId, p_note: emailNote(message.body, message.sent_at), p_decision: null, p_actor: actor,
+    p_tenant: tenantId, p_message: messageId, p_lead: leadId, p_note: emailNote(message.body, message.sent_at), p_decision: emailDecision(message.body), p_actor: actor,
   })
   if (writeError) throw new Error('Email could not be recorded. Refresh and try again.')
 }
