@@ -91,6 +91,11 @@ test('refresh tokens are authenticated encrypted and state comparison fails clos
   assert.equal(security.secretMatches('different','same'), false)
   assert.equal(security.secretMatches('',''), false)
 })
+test('lead panel does not show automatic status notices or Undo controls', () => {
+  const panel = fs.readFileSync(path.join(root, 'components/leads/LeadDetailPanel.tsx'), 'utf8')
+  assert.equal(panel.includes('Automatically moved to'), false)
+  assert.equal(panel.includes('status_automation_action'), false)
+})
 test('migration guards tenant isolation, idempotency, manual overrides and allowed status transitions', () => {
   const sql = fs.readFileSync(path.join(root,'scripts/crm-consolidation/12-gmail-outreach.sql'),'utf8')
   for (const text of ['ENABLE ROW LEVEL SECURITY','UNIQUE (tenant_id, fingerprint)',"IF m.status = 'recorded'",'FOR UPDATE',"p_decision IN ('contacted', 'booked')", "l.status = 'new'", "l.payload->'status_automation'->>'paused'",'tenant_id = p_tenant','REVOKE ALL ON FUNCTION']) assert.ok(sql.includes(text),text)

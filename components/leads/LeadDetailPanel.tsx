@@ -20,7 +20,6 @@ import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { type LeadStudent, readLeadStudents, leadStudentsPatch } from '@/lib/lead-students'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
-import { readStatusAutomation } from '@/lib/lead-status-automation'
 import { reviewWinbackHierarchy } from '@/lib/winback-hierarchy'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
@@ -247,10 +246,6 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
   const urgency = getFollowUpTone(lead.follow_up_at)
   const activityEvents = (lead.events || []).filter((event) => event.event_type !== 'note_added')
   const winback = lead.payload.winback && typeof lead.payload.winback === 'object' ? lead.payload.winback as Record<string, unknown> : null
-  const automation = readStatusAutomation(lead.payload)
-  const automationEligible = (isLesson || isService) && !winback && lead.source_form !== '2026-disenrollment-import'
-  const automaticChange = automation.last_change
-  const canUndoAutomaticChange = !automation.paused && automaticChange && lead.status === automaticChange.next_status
   const winbackStatus = typeof winback?.status === 'string' ? winback.status : 'to_contact'
   const disenrollmentDate = typeof winback?.disenrollment_date === 'string' ? winback.disenrollment_date : ''
   const disenrollmentMonth = typeof winback?.disenrollment_month === 'string' ? winback.disenrollment_month : ''
@@ -500,17 +495,6 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         {isMobile && statusControls && (
           <div style={{ padding: '12px 16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             {statusControls}
-          </div>
-        )}
-
-        {automationEligible && canUndoAutomaticChange && automaticChange && (
-          <div style={{ padding: isMobile ? '12px 16px 0' : `${spacing.md} ${spacing.lg} 0`, fontSize: typography.sizeSm, color: colors.textSecondary }}>
-            {canUndoAutomaticChange && automaticChange ? (
-              <div role="status" style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span title={automaticChange.evidence}>Automatically moved to {formatLeadStatus(automaticChange.next_status)} — {automaticChange.reason}.</span>
-                <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void onPatch({ status_automation_action: 'undo', status_automation_change_id: automaticChange.id })}>Undo</Button>
-              </div>
-            ) : null}
           </div>
         )}
 
