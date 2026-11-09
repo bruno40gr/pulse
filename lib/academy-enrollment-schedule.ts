@@ -6,6 +6,22 @@ export const sampleWeek = '2026-11-02'
 export const scheduleTeachers = [
   { name: 'Jordan Vale', instruments: ['Piano', 'Violin'], days: [1, 2, 3, 4], from: 14 * 60, to: 18 * 60, maxGapMinutes: 60 },
   { name: 'Robin Ellis', instruments: ['Piano', 'Guitar', 'Voice', 'Drums'], days: [2, 3, 4, 5], from: 15 * 60, to: 19 * 60, maxGapMinutes: 90 },
+  { name: 'Maya Chen', instruments: ['Piano', 'Flute', 'Tiny Keys'], days: [1, 2, 4], from: 14 * 60, to: 18 * 60, maxGapMinutes: 90 },
+  { name: 'Leo Brooks', instruments: ['Guitar', 'Bass', 'Ukulele', 'Little Rockers', 'Band Program'], days: [1, 3, 5], from: 14 * 60, to: 19 * 60, maxGapMinutes: 90 },
+  { name: 'Nina Patel', instruments: ['Violin', 'Cello', 'Piano', 'Tiny Keys'], days: [2, 3, 5], from: 14 * 60, to: 18 * 60, maxGapMinutes: 60 },
+  { name: 'Owen Reed', instruments: ['Drums', 'Guitar', 'Little Rockers', 'Band Program'], days: [1, 2, 4], from: 15 * 60, to: 19 * 60, maxGapMinutes: 90 },
+  { name: 'Zoe Williams', instruments: ['Voice', 'Saxophone', 'Clarinet', 'Trumpet', 'Piano', 'Little Rockers'], days: [3, 4, 5], from: 14 * 60, to: 19 * 60, maxGapMinutes: 90 },
+] as const
+/** Recurring fictional group starts, not interchangeable private availability. */
+export const sampleGroupSessions = [
+  { program: 'Tiny Keys', teacher: 'Maya Chen', day: 1, time: '14:00', duration: 45 },
+  { program: 'Tiny Keys', teacher: 'Maya Chen', day: 2, time: '15:00', duration: 45 },
+  { program: 'Tiny Keys', teacher: 'Nina Patel', day: 5, time: '14:30', duration: 45 },
+  { program: 'Little Rockers', teacher: 'Leo Brooks', day: 1, time: '16:00', duration: 45 },
+  { program: 'Little Rockers', teacher: 'Owen Reed', day: 4, time: '16:15', duration: 45 },
+  { program: 'Little Rockers', teacher: 'Zoe Williams', day: 5, time: '15:30', duration: 45 },
+  { program: 'Band Program', teacher: 'Leo Brooks', day: 3, time: '17:00', duration: 60 },
+  { program: 'Band Program', teacher: 'Owen Reed', day: 2, time: '17:30', duration: 60 },
 ] as const
 export type ScheduleAppointment = {
   id: string; studentId: string; managerId: string | null; studentName: string
@@ -16,8 +32,13 @@ export const sampleAppointments: readonly ScheduleAppointment[] = [
   { id: 'sample-2', studentId: 'demo-avery', managerId: null, studentName: 'Avery Lane', teacher: 'Robin Ellis', instrument: 'Guitar', date: '2026-11-04', time: '17:00', duration: 30 },
   { id: 'sample-3', studentId: 'demo-other', managerId: null, studentName: 'Casey Bell', teacher: 'Jordan Vale', instrument: 'Violin', date: '2026-11-02', time: '16:00', duration: 60 },
   { id: 'sample-4', studentId: 'demo-other-2', managerId: null, studentName: 'Alex Moss', teacher: 'Robin Ellis', instrument: 'Voice', date: '2026-11-05', time: '15:30', duration: 30 },
+  { id: 'sample-5', studentId: 'demo-lily', managerId: null, studentName: 'Lily Nguyen', teacher: 'Maya Chen', instrument: 'Flute', date: '2026-11-02', time: '15:15', duration: 45 },
+  { id: 'sample-6', studentId: 'demo-mateo', managerId: null, studentName: 'Mateo Garcia', teacher: 'Leo Brooks', instrument: 'Ukulele', date: '2026-11-04', time: '15:00', duration: 45 },
+  { id: 'sample-7', studentId: 'demo-noah', managerId: null, studentName: 'Noah Wilson', teacher: 'Nina Patel', instrument: 'Cello', date: '2026-11-03', time: '14:15', duration: 60 },
+  { id: 'sample-8', studentId: 'demo-ruby', managerId: null, studentName: 'Ruby Davis', teacher: 'Owen Reed', instrument: 'Drums', date: '2026-11-05', time: '15:00', duration: 45 },
+  { id: 'sample-9', studentId: 'demo-aria', managerId: null, studentName: 'Aria Brown', teacher: 'Zoe Williams', instrument: 'Saxophone', date: '2026-11-06', time: '17:00', duration: 30 },
 ]
-export const scheduleTimes = Array.from({ length: 10 }, (_, index) => `${14 + Math.floor(index / 2)}:${index % 2 ? '30' : '00'}`)
+export const scheduleTimes = Array.from({ length: 20 }, (_, index) => `${14 + Math.floor(index / 4)}:${String(index % 4 * 15).padStart(2, '0')}`)
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3))
 export function overlap(a: string, aDuration: number, b: string, bDuration: number) {
   return minutes(a) < minutes(b) + bDuration && minutes(b) < minutes(a) + aDuration
@@ -32,7 +53,7 @@ export function weekStart(date: string) {
   return shiftDate(date, -((day + 6) % 7))
 }
 export function weekDates(date: string) {
-  return Array.from({ length: 5 }, (_, index) => shiftDate(weekStart(date), index))
+  return Array.from({ length: 6 }, (_, index) => shiftDate(weekStart(date), index))
 }
 export function formatScheduleDate(date: string, options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }) {
   return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
@@ -67,10 +88,12 @@ export function availableScheduleTeachers(lesson: LessonChoice, date: string, ti
   if (otherLessons.some(other => (other.studentId || student?.id) === (lesson.studentId || student?.id) && overlap(time, duration, other.time, Number(other.duration)))) return []
   return scheduleTeachers.filter(teacher =>
     teacher.instruments.some(instrument => instrument === lesson.instrument) &&
+    (lesson.service !== 'Group' || sampleGroupSessions.some(session => session.program === lesson.instrument && session.teacher === teacher.name && session.day === day && session.time === time && session.duration === duration)) &&
+    !sampleGroupSessions.some(session => session.teacher === teacher.name && session.day === day && overlap(time, duration, session.time, session.duration) && !(lesson.service === 'Group' && session.program === lesson.instrument && session.time === time && session.duration === duration)) &&
     teacher.days.some(value => value === day) && minutes(time) >= teacher.from && minutes(time) + duration <= teacher.to &&
     !sampleAppointments.some(event => event.teacher === teacher.name && event.date === date && overlap(time, duration, event.time, event.duration)),
   ).filter(teacher =>
-    !otherLessons.some(other => other.teacher === teacher.name && overlap(time, duration, other.time, Number(other.duration))) &&
+    !otherLessons.some(other => other.teacher === teacher.name && overlap(time, duration, other.time, Number(other.duration)) && !(lesson.service === 'Group' && other.service === 'Group' && other.instrument === lesson.instrument && other.time === time && other.duration === lesson.duration)) &&
     fitsTeacherGap(time, duration, [
       ...sampleAppointments.filter(event => event.teacher === teacher.name && event.date === date),
       ...otherLessons.filter(other => other.teacher === teacher.name).map(other => ({ time: other.time, duration: Number(other.duration) })),

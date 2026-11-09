@@ -1,17 +1,21 @@
 'use client'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { DenseSectionPanel } from './DenseSectionPanel'
+import { FieldLabel } from './FieldLabel'
 import { SectionTitle } from './SectionTitle'
 
-import { useEffect, useRef, useState } from 'react'
-import { Shield } from 'lucide-react'
-import { Button, Textarea } from '@/components/ui'
-import MentionTextarea from '@/components/notes/MentionTextarea'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { GraduationCap, Link2, Shield, StickyNote, X } from 'lucide-react'
+import { Button, Input, Textarea } from '@/components/ui'
+import MentionTextarea, { type MentionMember } from '@/components/notes/MentionTextarea'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { getNoteAuthorInitials } from '@/lib/note-author'
 import { Avatar } from './Avatar'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { getActiveTenantId } from '@/lib/tenant'
+import { NoteLinkPreview } from './NoteLinkPreview'
+import { CURRICULUM_LINK, noteAttachmentLabel, toNoteAttachment, type NoteAttachment } from '@/lib/note-links'
+import styles from './NotesSection.module.css'
 
 interface NoteEntry {
   id?: string
@@ -22,6 +26,13 @@ interface NoteEntry {
   editable?: boolean
   edited_at?: string | null
   completed_at?: string | null
+  links?: NoteAttachment[]
+  /** Per-note card background (e.g. a sticky note keeps its own colour). */
+  background?: string
+  /** Only task entries (sticky notes, or written notes that mention staff) show the completion toggle. */
+  task?: boolean
+  /** Marks a note that originated in the sticky-notes board. */
+  sticky?: boolean
 }
 
 interface NotesSectionProps {
@@ -30,18 +41,26 @@ interface NotesSectionProps {
   avatarInitial: string
   avatarBg: string
   cardBg: string
+  /** Extra styling for each saved note card (e.g. sticky border/shadow). */
+  cardStyle?: CSSProperties
   addLabel?: string
   saving?: boolean
   signifierLabel?: string
   helperText?: string
   showHeader?: boolean
+  /** Optional section toolbar; replaces the built-in add-note control. */
+  renderToolbar?: (onAdd: () => void, composing: boolean) => React.ReactNode
   /** Card header actions and a fixed composer above independently scrolling history. */
   panel?: boolean
   autoSaveOnBlur?: boolean
   draft?: string
   onDraftChange?: (draft: string) => void
   mentionsEnabled?: boolean
-  onSave: (text: string, mentionMembershipIds: string[]) => boolean | void | Promise<boolean | void>
+  /** Optional directory for @mentions; when provided it is used instead of the live member lookup. */
+  mentionMembers?: MentionMember[]
+  /** Show the "attach link" controls (video / PDF / media previews). */
+  attachmentsEnabled?: boolean
+  onSave: (text: string, mentionMembershipIds: string[], links?: NoteAttachment[]) => boolean | void | Promise<boolean | void>
   onToggleComplete?: (index: number) => void | Promise<void>
   onEdit?: (entry: NoteEntry, text: string) => boolean | void | Promise<boolean | void>
 }
@@ -56,16 +75,20 @@ export function NotesSection({
   notes,
   avatarBg,
   cardBg,
+  cardStyle,
   addLabel = 'Add a note',
   saving = false,
   signifierLabel,
   helperText,
   showHeader = true,
+  renderToolbar,
   panel = false,
   autoSaveOnBlur = false,
   draft,
   onDraftChange,
   mentionsEnabled = false,
+  mentionMembers,
+  attachmentsEnabled = false,
   onSave,
   onToggleComplete,
   onEdit,
@@ -73,6 +96,9 @@ export function NotesSection({
   const [showInput, setShowInput] = useState(false)
   const [input, setInput] = useState(draft || '')
   const [mentionMembershipIds, setMentionMembershipIds] = useState<string[]>([])
+  const [links, setLinks] = useState<NoteAttachment[]>([])
+  const [linkInput, setLinkInput] = useState('')
+  const [showLinkInput, setShowLinkInput] = useState(false)
   const savingRef = useRef(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -111,10 +137,13 @@ export function NotesSection({
     savingRef.current = true
     const note = input.trim()
     try {
-      const saved = await onSave(note, mentionMembershipIds)
+      const saved = await onSave(note, mentionMembershipIds, links)
       if (saved !== false) {
         updateInput('')
         setMentionMembershipIds([])
+        setLinks([])
+        setLinkInput('')
+        setShowLinkInput(false)
         setShowInput(false)
       }
     } finally {
@@ -122,8 +151,21 @@ export function NotesSection({
     }
   }
 
+  const addLink = () => {
+    const attachment = toNoteAttachment(linkInput)
+    if (!attachment.url) return
+    setLinks(current => current.some(item => item.url === attachment.url) ? current : [...current, attachment])
+    setLinkInput('')
+    setShowLinkInput(false)
+  }
+
+  const addCurriculum = () => {
+    setLinks(current => current.some(item => item.url === CURRICULUM_LINK.url) ? current : [...current, CURRICULUM_LINK])
+  }
+
   const content = (
     <div style={panel ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : undefined}>
+      {renderToolbar?.(() => setShowInput(true), showInput)}
       {showHeader && !panel && (
         <div style={{ marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
@@ -151,7 +193,7 @@ export function NotesSection({
               </span>
               )}
             </div>
-            {!showInput && (
+            {!showInput && !renderToolbar && (
               <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => setShowInput(true)}
@@ -179,8 +221,9 @@ export function NotesSection({
               gap: '12px',
               padding: '14px 16px',
               borderRadius: radius.lg,
-              background: cardBg,
+              background: entry.background || cardBg,
               border: `1px solid ${colors.borderLight}`,
+              ...cardStyle,
             }}>
               <div style={{
                 width: '28px', height: '28px',
@@ -200,21 +243,23 @@ export function NotesSection({
                   : getNoteAuthorInitials(entry.actor_name)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, marginBottom: '4px' }}>
+                <FieldLabel style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' }}>
+                  {entry.sticky && <><StickyNote size={12} aria-hidden="true" />Sticky note · </>}
                   {entry.actor_name ? `${entry.actor_name} · ${formatNoteTimestamp(entry.timestamp)}` : formatNoteTimestamp(entry.timestamp)}
-                  {entry.edited_at ? ' · Edited' : ''}
-                </div>
+                  {entry.edited_at ? ` · Edited ${formatNoteTimestamp(entry.edited_at)}` : ''}
+                </FieldLabel>
                 {editingId === entry.id ? <div>
-                  <Textarea aria-label="Edit note" value={editText} maxLength={12000} disabled={editSaving || saving} onChange={event => setEditText(event.target.value)} />
+                  <Textarea aria-label="Edit note" className={styles.composer} value={editText} maxLength={12000} disabled={editSaving || saving} onChange={event => setEditText(event.target.value)} />
                   {editError && <p role="alert">{editError}</p>}
                   <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end', marginTop: spacing.sm }}>
                     <Button type="button" variant="ghost" size="sm" disabled={editSaving || saving} onClick={() => setEditingId(null)}>Cancel edit</Button>
                     <Button type="button" variant="primary" size="sm" disabled={editSaving || saving || !editText.trim()} onClick={() => void saveEdit(entry)}>{editSaving ? 'Saving…' : 'Save changes'}</Button>
                   </div>
                 </div> : <div style={{ fontSize: typography.sizeBase, color: entry.completed_at ? colors.textSecondary : colors.text, lineHeight: 1.5, textDecoration: entry.completed_at ? 'line-through' : 'none', whiteSpace: 'pre-wrap' }}>{entry.text.replace(/\u00A0/g, ' ')}</div>}
+                {entry.links && entry.links.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, marginTop: spacing.sm }}>{entry.links.map((link, linkIndex) => <NoteLinkPreview key={`${link.url}-${linkIndex}`} link={link} />)}</div>}
               </div>
               {onEdit && entry.id && entry.editable === true && editingId !== entry.id && <Button type="button" variant="ghost" size="sm" disabled={saving || editSaving || editingId !== null} onClick={() => { setEditingId(entry.id!); setEditText(entry.text); setEditError('') }}>Edit</Button>}
-              {onToggleComplete && (
+              {onToggleComplete && entry.task && (
                 <TaskCompletionButton completed={Boolean(entry.completed_at)}
                   type="button"
                   onClick={() => onToggleComplete(i)}
@@ -230,7 +275,7 @@ export function NotesSection({
       {panel && notes.length === 0 && <p style={{ ...typography.bodySmall, color: colors.textMuted }}>No notes yet.</p>}
       </div>
 
-      {!showInput && !showHeader && !panel ? (
+      {!showInput && !showHeader && !panel && !renderToolbar ? (
         <Button variant="secondary" size="sm"
           onClick={() => setShowInput(true)}
           style={{ width: '100%' }}
@@ -256,6 +301,7 @@ export function NotesSection({
               onChange={updateInput}
               mentionMembershipIds={mentionMembershipIds}
               onMentionMembershipIdsChange={setMentionMembershipIds}
+              members={mentionMembers}
               placeholder="Write a note..."
               style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
             />
@@ -267,11 +313,34 @@ export function NotesSection({
                 if (autoSaveOnBlur) void handleSave()
               }}
               placeholder="Write a note..."
+              className={styles.composer}
               style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
             />
           )}
+          {attachmentsEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {links.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.sm }}>
+                {links.map((link, linkIndex) => <span key={`${link.url}-${linkIndex}`} style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, padding: `${spacing.xs} ${spacing.sm}`, borderRadius: radius.full, border: `1px solid ${colors.border}`, background: colors.surfaceMuted, ...typography.helper, color: colors.text }}>
+                  <Link2 size={12} aria-hidden="true" />{noteAttachmentLabel(link)}
+                  <button type="button" aria-label={`Remove attachment ${noteAttachmentLabel(link)}`} onClick={() => setLinks(current => current.filter(item => item.url !== link.url))} style={{ display: 'inline-flex', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: colors.textMuted }}><X size={12} aria-hidden="true" /></button>
+                </span>)}
+              </div>}
+              {showLinkInput ? (
+                <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}><Input aria-label="Link URL" placeholder="Paste a link (YouTube, PDF, image…)" value={linkInput} onChange={event => setLinkInput(event.target.value)} /></div>
+                  <Button type="button" variant="secondary" size="sm" onClick={addLink} disabled={!linkInput.trim()}>Add link</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setShowLinkInput(false); setLinkInput('') }}>Cancel</Button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowLinkInput(true)}><Link2 size={14} aria-hidden="true" />Attach link</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={addCurriculum}><GraduationCap size={14} aria-hidden="true" />Curriculum</Button>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput(''); setMentionMembershipIds([]) }}>Cancel</Button>
+            <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput(''); setMentionMembershipIds([]); setLinks([]); setLinkInput(''); setShowLinkInput(false) }}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
           </div>
         </div>
@@ -283,7 +352,7 @@ export function NotesSection({
 
   return (
     <DenseSectionPanel title={title}
-      actions={!showInput ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setShowInput(true)}>{addLabel}</Button> : undefined}
+      actions={!showInput && !renderToolbar ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setShowInput(true)}>{addLabel}</Button> : undefined}
       style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
       contentStyle={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {content}

@@ -16,7 +16,7 @@ export function SectionTitle({ children, style, as: Heading = 'h2', variant = 's
       marginBottom: spacing.md,
       fontFamily: typography.fontSans,
       ...(Heading !== 'h2' ? { fontSize: typography.sizeBase } : {}),
-      ...(variant === 'card' ? { fontSize: typography.sizeLg, fontWeight: typography.weightBold, marginBottom: 0 } : {}),
+      ...(variant === 'card' ? typography.h2 : {}),
       ...style,
     }}>
       {children}

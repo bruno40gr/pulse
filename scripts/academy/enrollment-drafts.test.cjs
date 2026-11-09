@@ -55,6 +55,12 @@ test('lead adapter preserves per-student interests/preferences without choosing 
   assert.equal(record.draft.consent.termsAccepted, false)
 })
 
+test('lead adapter retains contact and individual student birthdays', () => {
+  const record = domain.enrollmentDraftFromLead({ ...lead, payload: { ...lead.payload, date_of_birth: '1985-06-15', student_date_of_birth: '2016-02-29', siblings: [{ name: 'Morgan Park', date_of_birth: '2018-04-20' }] } })
+  assert.equal(record.draft.contact.birthday, '1985-06-15')
+  assert.equal(record.draft.additionalStudents[0].birthday, '2018-04-20')
+})
+
 test('ambiguous instruments remain unselected; self reuse requires explicit source flag', () => {
   const record = domain.enrollmentDraftFromLead({ ...lead, program_label: 'Piano, Guitar', payload: { student_name: 'Jamie Park' } })
   assert.equal(record.draft.lessons[0].instrument, '')
@@ -97,10 +103,20 @@ test('incomplete drafts round-trip without requiring step completion; storage is
 })
 
 test('damaged storage and unknown versions fail rather than clearing previous work', () => {
-  for (const raw of ['bad json', '{}', '{"version":2,"records":[]}', '{"version":1,"records":[{}]}']) assert.throws(() => domain.readEnrollmentDrafts(raw))
+  for (const raw of ['bad json', '{}', '{"version":99,"records":[]}', '{"version":1,"records":[{}]}']) assert.throws(() => domain.readEnrollmentDrafts(raw))
   const record = domain.newEnrollmentDraft('one', now)
   record.draft.lessons = [{}]
   assert.throws(() => domain.readEnrollmentDrafts(JSON.stringify({ version: 1, records: [record] })))
+})
+
+test('legacy staff terms/payment indices migrate without asserting payment review', () => {
+  const record = domain.newEnrollmentDraft('legacy', now)
+  record.step = 4
+  record.reviewedSteps = [0, 1, 2, 3]
+  const [migrated] = domain.readEnrollmentDrafts(JSON.stringify({ version: 1, records: [record] }))
+  assert.equal(migrated.step, 3)
+  assert.deepEqual(plain(migrated.reviewedSteps), [0, 1, 2])
+  assert.equal(migrated.draft.consent.termsAccepted, false)
 })
 
 test('storage failure and stale-tab writes fail visibly without overwriting', () => {
@@ -125,15 +141,17 @@ test('shared stepper exposes labels and current step without color alone', () =>
 test('mock enrollments are varied incomplete drafts driven by real validation', () => {
   const { createEnrollmentHubFixtures } = load(path.join(root, 'lib/academy-enrollment-hub-fixtures.ts'))
   const records = createEnrollmentHubFixtures(now)
-  assert.equal(records.length, 8)
-  assert.equal(new Set(records.map(record => domain.enrollmentDraftProgress(record).current)).size, 5)
+  assert.equal(records.length, 13)
+  assert.ok(records.some(record => record.draft.lessons.some(lesson => lesson.service === 'Semi-private' && lesson.duration === '45')))
+  for (const program of ['Tiny Keys', 'Little Rockers']) assert.ok(records.some(record => record.draft.lessons.some(lesson => lesson.service === 'Group' && lesson.instrument === program && lesson.duration === '45')))
+  assert.equal(new Set(records.map(record => domain.enrollmentDraftProgress(record).current)).size, 4)
   assert.ok(records.every(record => !domain.enrollmentDraftProgress(record).steps.every(step => step.complete)))
   assert.equal(new Set(records.map(record => record.updatedAt)).size, records.length)
   assert.ok(records.some(record => record.draft.additionalStudents.length > 0))
   assert.ok(records.some(record => record.draft.student === null && record.draft.contact))
   assert.ok(records.some(record => record.opportunityValue === undefined))
   assert.ok(records.every(record => record.draft.payer !== 'other' && !record.draft.otherPayer))
-  assert.deepEqual(plain(domain.readEnrollmentDrafts(JSON.stringify({ version: 1, records }))), plain(records))
+  assert.deepEqual(plain(domain.readEnrollmentDrafts(JSON.stringify({ version: 2, records }))), plain(records))
 })
 
 test('legacy empty mock payer is repaired without changing explicit payer details or real drafts', () => {

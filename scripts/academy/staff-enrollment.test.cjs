@@ -19,11 +19,68 @@ function load(file, overrides = {}) {
   }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
-  }).outputText, { exports: output, require: localRequire, window: overrides.window, document: overrides.document, Element: overrides.Element, crypto: require('node:crypto').webcrypto }, { filename: file, timeout: 1000 })
+  }).outputText, { exports: output, require: localRequire, structuredClone, window: overrides.window, document: overrides.document, Element: overrides.Element, crypto: require('node:crypto').webcrypto }, { filename: file, timeout: 1000 })
   return output
 }
 const domain = load(path.join(root, 'lib/academy-staff-enrollment.ts'))
 const ready = () => ({ ...domain.newStaffEnrollment(), contact: domain.enrollmentPeople[0], contactIsStudent: true, student: domain.enrollmentPeople[0], consent: { termsAccepted: true, serviceSms: false }, lessons: [{ ...domain.newLesson('one'), teacher: domain.enrollmentTeachers[0], start: '2026-11-03', time: '16:00' }] })
+
+test('quarter-hour starts support 45-minute lessons and fixed group-program lengths', () => {
+  assert.equal(schedule.scheduleTimes.length, 20)
+  assert.equal(schedule.scheduleTimes[1], '14:15')
+  const draft = ready()
+  draft.lessons[0].duration = '45'
+  assert.equal(domain.enrollmentStepError(draft, 1), null)
+  for (const instrument of ['Tiny Keys', 'Little Rockers']) {
+    draft.lessons[0] = { ...draft.lessons[0], service: 'Group', instrument, duration: '30' }
+    assert.match(domain.enrollmentStepError(draft, 1), /45 minutes/)
+    draft.lessons[0].duration = '45'
+    assert.equal(domain.enrollmentStepError(draft, 1), null)
+  }
+})
+
+test('seven fictional teachers cover every instrument and all group programs', () => {
+  assert.equal(schedule.scheduleTeachers.length, 7)
+  assert.deepEqual(Array.from(schedule.scheduleTeachers, teacher => teacher.name), Array.from(domain.enrollmentTeachers))
+  for (const program of [...domain.enrollmentInstruments, ...domain.enrollmentGroupPrograms]) {
+    assert.ok(schedule.scheduleTeachers.some(teacher => teacher.instruments.includes(program)), program)
+  }
+})
+
+test('45-minute semi-private and scheduled groups can be selected and saved', () => {
+  for (const [service, instrument, teacher, date, time] of [
+    ['Semi-private', 'Piano', 'Maya Chen', '2026-11-02', '16:00'],
+    ['Group', 'Tiny Keys', 'Maya Chen', '2026-11-02', '14:00'],
+    ['Group', 'Little Rockers', 'Owen Reed', '2026-11-05', '16:15'],
+  ]) {
+    const draft = ready()
+    draft.lessons = [schedule.selectScheduleSlot({ ...draft.lessons[0], service, instrument, duration: '45' }, date, time, teacher)]
+    assert.ok(schedule.availableScheduleTeachers(draft.lessons[0], date, time, draft.student, draft.lessons).some(item => item.name === teacher))
+    const saved = domain.saveLocalEnrollment(draft)
+    assert.equal(saved.lessons[0].service, service)
+    assert.equal(saved.lessons[0].duration, '45')
+  }
+})
+
+test('groups only offer scheduled starts and reserve teacher time from private lessons', () => {
+  const group = { ...domain.newLesson('group'), service: 'Group', instrument: 'Tiny Keys', duration: '45' }
+  assert.equal(schedule.availableScheduleTeachers(group, '2026-11-02', '14:15', null, []).length, 0)
+  assert.equal(schedule.availableScheduleTeachers({ ...group, duration: '30' }, '2026-11-02', '14:00', null, []).length, 0)
+  assert.ok(!schedule.availableScheduleTeachers(domain.newLesson('private'), '2026-11-02', '14:00', null, []).some(teacher => teacher.name === 'Maya Chen'))
+  const booked = { ...schedule.selectScheduleSlot(group, '2026-11-02', '14:00', 'Maya Chen'), studentId: 'child-one' }
+  const sibling = { ...group, id: 'sibling', studentId: 'child-two' }
+  assert.ok(schedule.availableScheduleTeachers(sibling, '2026-11-02', '14:00', null, [booked]).some(teacher => teacher.name === 'Maya Chen'))
+  assert.equal(schedule.availableScheduleTeachers({ ...sibling, studentId: 'child-one' }, '2026-11-02', '14:00', null, [booked]).length, 0)
+})
+
+test('student relationship is retained inside the collapsed gray person summary', () => {
+  const React = require('react')
+  const { renderToStaticMarkup } = require('react-dom/server')
+  const { PersonPicker } = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'))
+  const html = renderToStaticMarkup(React.createElement(PersonPicker, { title: 'Student', value: domain.enrollmentPeople[0], people: [], relationship: 'Child', onRelationship() {}, onChange() {}, onAdd() {} }))
+  assert.ok(html.includes('Relationship to contact'))
+  assert.ok(html.includes('Child'))
+})
 
 test('enrollment dropdown caret has an explicit inset and preserves forced-color native controls', () => {
   const css = fs.readFileSync(path.join(root, 'app/content-studio-prototype/enrollment/enrollment.module.css'), 'utf8')
@@ -40,11 +97,46 @@ test('enrollment starts with a blank contact, student and no lessons', () => {
 })
 
 const schedule = load(path.join(root, 'lib/academy-enrollment-schedule.ts'))
+
+test('shared calendar weeks always include Saturday even without bookings', () => {
+  assert.deepEqual(Array.from(schedule.weekDates('2026-11-02')), ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07'])
+  assert.deepEqual(Array.from(schedule.weekDates('2026-11-07')), Array.from(schedule.weekDates('2026-11-02')))
+  assert.equal(schedule.weekDates('2026-12-28').at(-1), '2027-01-02')
+})
+
+test('birthday validates real dates and survives saved enrollment copies', () => {
+  const person = { ...domain.enrollmentPeople[0], birthday: '2000-02-29' }
+  assert.equal(domain.personDetailsError(person), null)
+  assert.match(domain.personDetailsError({ ...person, birthday: '2001-02-29' }), /birthday/)
+  assert.match(domain.personDetailsError({ ...person, birthday: '2999-01-01' }), /birthday/)
+  const saved = domain.saveLocalEnrollment({ ...ready(), contact: person, student: person })
+  assert.equal(saved.student.birthday, person.birthday)
+  assert.notEqual(saved.student, person)
+})
+
+test('available windows scale proportionally while columns stay fixed', () => {
+  function render(duration) {
+    const hooks = hookRunner()
+    const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
+    const lesson = { ...domain.newLesson('active'), duration }
+    return hooks.render(Component, { lesson, lessons: [lesson], student: null, manager: null, onChange() {} })
+  }
+  const short = render('30'), long = render('60')
+  const columns = tree => elements(tree).filter(node => node.props?.className === 'daySlots').map(node => node.props.style.gridTemplateColumns)
+  assert.deepEqual(columns(short), columns(long))
+  for (const [tree, span] of [[short, 2], [long, 4]]) {
+    for (const cell of elements(tree).filter(node => node.props?.className === 'slotOption')) {
+      assert.ok(cell.props.style.gridRow.endsWith(`span ${span}`))
+      assert.equal(cell.props.style.gridColumn, 1)
+    }
+    for (const button of elements(tree).filter(node => node.props?.className === 'openSlot')) assert.ok(!/shortLesson|longLesson/.test(button.props.className))
+  }
+})
 test('calendar shows teachers by instrument and selected time', () => {
   const lesson = domain.newLesson('one')
-  assert.equal(schedule.availableScheduleTeachers(lesson, '2026-11-03', '16:00', null, []).length, 2)
+  assert.equal(schedule.availableScheduleTeachers(lesson, '2026-11-03', '16:00', null, []).length, 4)
   const guitar = schedule.availableScheduleTeachers({ ...lesson, instrument: 'Guitar' }, '2026-11-03', '16:00', null, [])
-  assert.equal(guitar.length, 1)
+  assert.equal(guitar.length, 2)
   assert.equal(guitar[0].name, 'Robin Ellis')
 })
 test('calendar accounts for teacher bookings and the full lesson length', () => {
@@ -67,7 +159,8 @@ test('siblings may share a time with different teachers but cannot share one tea
   const first = { ...schedule.selectScheduleSlot(domain.newLesson('one'), '2026-11-03', '16:00', 'Jordan Vale'), studentId: 'child-one' }
   const second = { ...domain.newLesson('two'), studentId: 'child-two' }
   const available = schedule.availableScheduleTeachers(second, '2026-11-03', '16:00', { ...domain.enrollmentPeople[2], id: 'child-two' }, [first, second])
-  assert.equal(available.length, 1)
+  assert.equal(available.length, 3)
+  assert.ok(!available.some(teacher => teacher.name === 'Jordan Vale'))
   assert.equal(available[0].name, 'Robin Ellis')
 })
 test('each student has their own lessons and pricing', () => {
@@ -100,13 +193,13 @@ test('selecting a slot fills the lesson date, day, time and teacher', () => {
   assert.equal(result.time, '16:30')
   assert.equal(result.teacher, 'Robin Ellis')
 })
-test('calendar shows all teacher blocks by default without a family toggle', () => {
+test('booking calendar keeps teacher controls out of the grid toolbar', () => {
   const React = require('react')
   const { renderToStaticMarkup } = require('react-dom/server')
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx')).default
   const html = renderToStaticMarkup(React.createElement(Component, { lesson: domain.newLesson('one'), lessons: [], student: null, manager: null, onChange() {} }))
-  for (const text of ['Jordan Vale', 'Robin Ellis', 'timeGrid', 'teachers available', 'Next week']) assert.ok(html.includes(text), text)
-  for (const text of ['Choose a time for', 'Sample schedule', 'durationLegend', 'Selected lesson times', '<details', 'Teachers available at the selected', 'Schedule view', 'Family lessons this week', 'type="radio"', 'type="checkbox"']) assert.ok(!html.includes(text), text)
+  for (const text of ['timeGrid', 'teachers available', 'Next week']) assert.ok(html.includes(text), text)
+  for (const text of ['Choose a time for', 'Sample schedule', 'durationLegend', 'Selected lesson times', '<details', 'Teachers available at the selected', 'Schedule view', 'Family lessons this week', 'type="radio"', 'type="checkbox"', 'teacherFilters']) assert.ok(!html.includes(text), text)
 })
 
 function hookRunner() {
@@ -119,7 +212,8 @@ function hookRunner() {
 }
 function elements(tree) {
   if (!tree || typeof tree !== 'object') return []
-  return [tree, ...[tree.props?.children, tree.props?.actions].flat(Infinity).flatMap(elements)]
+  const calendar = tree.type?.name === 'CalendarTimeGrid' ? elements(tree.type(tree.props)) : []
+  return [tree, ...calendar, ...[tree.props?.children, tree.props?.actions].flat(Infinity).flatMap(elements)]
 }
 
 test('UI preview compares three real component treatments with independent interactive samples', () => {
@@ -160,7 +254,7 @@ test('a time with multiple teachers opens a choice at that time', () => {
   let lesson = domain.newLesson('one')
   const props = () => ({ lesson, lessons: [lesson], student: null, manager: null, onChange(patch) { lesson = { ...lesson, ...patch } } })
   let tree = hooks.render(Component, props())
-  const slot = elements(tree).find(node => node.type === 'button' && node.props['aria-label'] === 'Tuesday, Nov 3 4:00 pm, 2 teachers available')
+  const slot = elements(tree).find(node => node.type === 'button' && node.props['aria-label'] === 'Tuesday, Nov 3 4:00 pm, 4 teachers available')
   assert.ok(slot)
   slot.props.onClick()
   assert.equal(lesson.teacher, '')
@@ -208,7 +302,8 @@ test('parent and payer can be added without replacing the student', () => {
   const draft = { ...ready(), manager: domain.enrollmentPeople[1], payer: 'manager' }
   assert.equal(domain.enrollmentStepError(draft, 0), null)
   assert.equal(domain.saveLocalEnrollment(draft).student.id, domain.enrollmentPeople[0].id)
-  assert.match(domain.enrollmentStepError({ ...draft, manager: null }, 0), /parent or guardian/)
+  assert.equal(domain.enrollmentStepError({ ...draft, manager: null }, 0), null)
+  assert.match(domain.enrollmentStepError({ ...draft, manager: null }, 3), /parent or guardian/)
   assert.match(domain.enrollmentStepError({ ...draft, manager: draft.student }, 0), /another person/)
 })
 test('lesson details can continue without a time, but scheduling and saving require one', () => {
@@ -270,8 +365,9 @@ test('a time with one teacher selects the lesson immediately', () => {
   const hooks = hookRunner()
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
   let lesson = { ...domain.newLesson('one'), instrument: 'Guitar' }
-  const props = { lesson, lessons: [], student: null, manager: null, onChange(patch) { lesson = { ...lesson, ...patch } } }
-  const tree = hooks.render(Component, props)
+  const props = { lesson, teacherPreference: 'Robin Ellis', lessons: [], student: null, manager: null, onChange(patch) { lesson = { ...lesson, ...patch } } }
+  let tree = hooks.render(Component, props)
+  tree = hooks.render(Component, props)
   elements(tree).find(node => node.props?.['aria-label'] === 'Tuesday, Nov 3 4:00 pm, 1 teacher available').props.onClick()
   assert.equal(lesson.teacher, 'Robin Ellis')
   assert.equal(lesson.time, '16:00')
@@ -378,12 +474,12 @@ test('other booked lessons show instrument and teacher while the active lesson s
   const booked = elements(tree).filter(node => node.props?.className?.includes('bookedSlot') && node.props.children === 'Avery Lane, Piano with Jordan' && node.props['aria-label']?.includes('Nov 3'))
   assert.equal(booked.length, 1)
   assert.equal(booked[0].props.children, 'Avery Lane, Piano with Jordan')
-  assert.match(booked[0].props.style.gridRow, /span 2/)
+  assert.match(booked[0].props.style.gridRow, /span 4/)
   assert.ok(!booked[0].props.className.includes('shortLesson'))
   assert.ok(!elements(tree).some(node => node.props?.className === 'selectionRow'))
   assert.ok(!elements(tree).some(node => node.props?.className === 'durationLegend'))
   const longTree = hooks.render(Component, { ...props, lesson: first, student: domain.enrollmentPeople[0] })
-  for (const block of elements(longTree).filter(node => node.props?.className === 'slotOption')) assert.match(block.props.style.gridRow, /span 2/)
+  for (const block of elements(longTree).filter(node => node.props?.className === 'slotOption')) assert.match(block.props.style.gridRow, /span 4/)
   assert.ok(elements(longTree).some(node => node.props?.className?.includes('activeBookedSlot') && node.props.children === 'Avery Lane'))
 })
 
@@ -391,8 +487,9 @@ test('booking replaces the available start option with a single name-only block'
   const hooks = hookRunner()
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
   let lesson = { ...domain.newLesson('one'), instrument: 'Guitar', studentId: 'demo-avery' }
-  const props = () => ({ lesson, lessons: [lesson], student: domain.enrollmentPeople[0], manager: null, onChange(patch) { lesson = { ...lesson, ...patch } } })
+  const props = () => ({ lesson, teacherPreference: 'Robin Ellis', lessons: [lesson], student: domain.enrollmentPeople[0], manager: null, onChange(patch) { lesson = { ...lesson, ...patch } } })
   let tree = hooks.render(Component, props())
+  tree = hooks.render(Component, props())
   const label = 'Tuesday, Nov 3 4:00 pm, 1 teacher available'
   elements(tree).find(node => node.props?.['aria-label'] === label).props.onClick()
   tree = hooks.render(Component, props())
@@ -400,27 +497,23 @@ test('booking replaces the available start option with a single name-only block'
   assert.equal(elements(tree).filter(node => node.props?.children === 'Avery Lane' && node.props['aria-label']?.includes('Nov 3')).length, 1)
 })
 
-test('teacher information is read-only and booked lessons remain visible', () => {
+test('teacher preference filters availability but keeps booked lessons visible', () => {
   const hooks = hookRunner()
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
   const lesson = { ...ready().lessons[0], studentId: 'demo-avery' }
-  const props = { lesson, lessons: [lesson], student: domain.enrollmentPeople[0], manager: null, onChange() {} }
-  let tree = hooks.render(Component, props)
-  for (const input of elements(tree).filter(node => node.type === 'input')) input.props.onChange({ target: { checked: false } })
-  tree = hooks.render(Component, props)
-  assert.ok(!elements(tree).some(node => node.type === 'input'))
-  assert.ok(elements(tree).some(node => node.props?.className === 'teacherNote'))
-  assert.ok(elements(tree).some(node => node.props?.as === 'h3' && node.props.variant === 'card' && node.props.children === 'Teacher availability'))
-  assert.ok(elements(tree).some(node => node.props?.className?.includes('openSlot')))
+  const props = { lesson, lessons: [lesson], student: domain.enrollmentPeople[0], manager: null, onChange() {}, teacherPreference: 'Unavailable teacher' }
+  const tree = hooks.render(Component, props)
+  assert.ok(!elements(tree).some(node => node.props?.type === 'checkbox'))
+  assert.ok(!elements(tree).some(node => node.props?.className === 'openSlot'))
   assert.ok(elements(tree).some(node => node.props?.children === 'Avery Lane'))
 })
 
 test('third-party payer validates and is copied without altering the family or prices', () => {
   const draft = { ...ready(), payer: 'other', otherPayer: { name: '', email: '', phone: '' } }
-  assert.match(domain.enrollmentStepError(draft, 4), /payer’s name/)
+  assert.match(domain.enrollmentStepError(draft, 3), /payer’s name/)
   assert.throws(() => domain.saveLocalEnrollment(draft), /payer’s name/)
   draft.otherPayer = { name: 'Alta', email: 'bad', phone: '' }
-  assert.match(domain.enrollmentStepError(draft, 4), /payer email/)
+  assert.match(domain.enrollmentStepError(draft, 3), /payer email/)
   draft.otherPayer.email = 'billing@example.test'
   const saved = domain.saveLocalEnrollment(draft)
   assert.equal(saved.otherPayer.name, 'Alta')
@@ -440,7 +533,7 @@ test('another payer requires opt-in and hides but retains details when switching
   }
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react }).default
   let tree = hooks.render(Component, {})
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 3; step++) {
     elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
     tree = hooks.render(Component, {})
   }
@@ -472,7 +565,7 @@ test('existing student checkbox opens lookup and choosing a result fills the per
   let value = null
   const props = () => ({ title: 'Student', studentLookup: true, value, people: domain.enrollmentPeople, onChange(person) { value = person }, onAdd() {} })
   let tree = hooks.render(PersonPicker, props())
-  assert.equal(elements(tree).filter(node => node.type === 'input' && node.props.type !== 'checkbox').length, 4)
+  assert.equal(elements(tree).filter(node => node.type === 'input' && node.props.type !== 'checkbox').length, 5)
   elements(tree).find(node => node.props?.type === 'checkbox').props.onChange({ target: { checked: true } })
   tree = hooks.render(PersonPicker, props())
   elements(tree).find(node => node.props?.type === 'search').props.onChange({ target: { value: 'Avery' } })
@@ -557,7 +650,7 @@ test('clearing a guitar booking preserves the lesson and frees Robin for voice',
   elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
   tree = hooks.render(Component, props())
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
-  assert.equal(elements(group).filter(node => node.type === 'button' && node.props['aria-pressed'] !== undefined).length, 1)
+  assert.equal(elements(group).filter(node => node.type === 'button' && node.props['aria-pressed'] !== undefined).length, 2)
   elements(tree).find(node => node.props?.children === 'Clear time slot').props.onClick()
   assert.equal(lesson.teacher, '')
   assert.equal(lesson.time, '')
@@ -566,7 +659,7 @@ test('clearing a guitar booking preserves the lesson and frees Robin for voice',
   assert.equal(lesson.duration, '30')
   assert.equal(schedule.availableScheduleTeachers(second, '2026-11-03', '16:00', sibling, [lesson, second])[0].name, 'Robin Ellis')
   tree = hooks.render(Component, props())
-  assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Tuesday, Nov 3 4:00 pm, 1 teacher available'))
+  assert.ok(elements(tree).some(node => node.props?.['aria-label'] === 'Tuesday, Nov 3 4:00 pm, 2 teachers available'))
 })
 
 test('teacher editing ignores preference filters but still excludes conflicting teachers', () => {
@@ -577,12 +670,11 @@ test('teacher editing ignores preference filters but still excludes conflicting 
   const listeners = new Map()
   const document = { addEventListener(name, callback) { listeners.set(name, callback) }, removeEventListener(name) { listeners.delete(name) } }
   class Element { constructor(inside) { this.inside = inside } closest() { return this.inside } }
-  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react, document, Element }).default
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react, document, window: document, Element }).default
   const first = { ...schedule.selectScheduleSlot(domain.newLesson('first'), '2026-11-03', '16:00', 'Robin Ellis'), studentId: 'one' }
   const second = { ...schedule.selectScheduleSlot(domain.newLesson('second'), '2026-11-03', '16:00', 'Jordan Vale'), studentId: 'two' }
-  const props = { lesson: first, lessons: [first, second], student: null, manager: null, onChange() {} }
+  const props = { lesson: first, lessons: [first, second], student: null, manager: null, onChange() {}, teacherPreference: 'Unavailable teacher' }
   let tree = hooks.render(Component, props)
-  for (const input of elements(tree).filter(node => node.props?.type === 'checkbox')) input.props.onChange({ target: { checked: false } })
   tree = hooks.render(Component, props)
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
   elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
@@ -689,7 +781,7 @@ test('completed person cards expose only Edit and restore lookup inside the edit
     assert.ok(!elements(tree).some(node => node.type === 'input'))
     elements(tree).find(node => node.props?.children === 'Edit').props.onClick()
     tree = hooks.render(PersonPicker, props)
-    assert.equal(elements(tree).filter(node => node.type === 'input' && node.props.type !== 'checkbox').length, 4)
+    assert.equal(elements(tree).filter(node => node.type === 'input' && node.props.type !== 'checkbox').length, 5)
     assert.equal(elements(tree).some(node => node.type === 'input' && node.props.type === 'checkbox'), studentLookup)
   }
 })
@@ -702,51 +794,30 @@ test('calendar card strip never wraps and shows at most four desktop cards', () 
 
 
 
-test('terms require acceptance but SMS remains optional and both start unchecked', () => {
-  const initial = domain.newStaffEnrollment().consent
-  assert.deepEqual(JSON.parse(JSON.stringify(initial)), { termsAccepted: false, serviceSms: false })
-  const draft = { ...ready(), consent: initial }
-  assert.match(domain.enrollmentStepError(draft, 3), /terms and conditions/)
-  assert.throws(() => domain.saveLocalEnrollment(draft), /terms and conditions/)
-  draft.consent.termsAccepted = true
-  const saved = domain.saveLocalEnrollment(draft)
-  assert.notEqual(saved.consent, draft.consent)
-  assert.equal(saved.consent.serviceSms, false)
+test('staff saves without asserting customer consent; self-enrollment retains its terms step', () => {
+  const draft = { ...ready(), consent: domain.newStaffEnrollment().consent }
+  assert.equal(domain.enrollmentStepError(draft, 3), null)
+  assert.equal(domain.saveLocalEnrollment(draft).consent.termsAccepted, false)
+  assert.equal(domain.enrollmentSteps.length, 4)
+  assert.ok(domain.selfEnrollmentSteps.includes('Terms & communication'))
 })
 
-test('terms have their own outlined scroll region and gate continuation before combined pricing and payment', () => {
+test('staff goes straight from Times to payment with clickable steps and no terms', () => {
   const hooks = hookRunner()
   hooks.react.useRef = () => ({ current: null })
-  const stateHook = hooks.react.useState
-  let initialized = false
-  hooks.react.useState = initial => {
-    if (!initialized) { initialized = true; return stateHook({ ...ready(), consent: domain.newStaffEnrollment().consent }) }
-    return stateHook(initial)
-  }
-  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react }).default
-  let tree = hooks.render(Component, {})
-  for (let step = 0; step < 3; step++) {
-    elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
-    tree = hooks.render(Component, {})
-  }
-  const terms = elements(tree).find(node => node.props?.['aria-label'] === 'Terms and conditions')
-  assert.equal(terms.props.tabIndex, 0)
-  assert.equal(elements(tree).find(node => node.props?.type === 'submit').props.disabled, true)
-  assert.ok(elements(terms).some(node => node.type === 'a' && node.props.href.endsWith('/terms-and-conditions')))
-  assert.equal(elements(tree).filter(node => node.props?.type === 'checkbox').length, 2)
-  assert.equal(elements(tree).filter(node => node.type === 'select').length, 0)
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react, structuredClone }).default
+  const record = { draft: ready(), step: 2, reviewedSteps: [0, 1] }
+  let tree = hooks.render(Component, { initialRecord: record })
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
-  tree = hooks.render(Component, {})
-  assert.ok(elements(tree).some(node => node.props?.role === 'alert' && /terms and conditions/.test(node.props.children)))
-  elements(tree).find(node => node.props?.type === 'checkbox').props.onChange({ target: { checked: true } })
-  tree = hooks.render(Component, {})
-  elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
-  tree = hooks.render(Component, {})
+  tree = hooks.render(Component, { initialRecord: record })
   assert.ok(elements(tree).some(node => node.type === 'h2' && node.props.children === 'Pricing & payment'))
-  assert.ok(elements(tree).some(node => node.type === 'h2' && node.props.children === 'Pricing & payment'))
-  assert.equal(elements(tree).filter(node => node.props?.type === 'checkbox').length, 1)
+  assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Terms and conditions'))
+  const nav = elements(tree).find(node => node.type === 'nav')
+  assert.equal(elements(nav).filter(node => node.type === 'button').length, 4)
+  elements(nav).find(node => node.type === 'button').props.onClick()
+  tree = hooks.render(Component, { initialRecord: record })
+  assert.ok(elements(tree).some(node => node.type === 'h2' && node.props.children === 'Contact details'))
 })
-
 
 test('contact-first intake reuses self identity, captures Child, and resets consent when contact changes', () => {
   const hooks = hookRunner()
@@ -768,9 +839,9 @@ test('contact-first intake reuses self identity, captures Child, and resets cons
   render()
   elements(tree).find(node => node.props?.onAdd && node.props?.people && !node.props.value).props.onChange(domain.enrollmentPeople[2])
   render()
-  elements(tree).find(node => node.props?.['aria-label'] === 'Student 1 relationship to contact').props.onChange({ target: { value: 'Child' } })
+  elements(tree).find(node => node.props?.relationshipLabel === 'Student 1 relationship to contact').props.onRelationship('Child')
   render()
-  assert.equal(elements(tree).find(node => node.props?.['aria-label'] === 'Student 1 relationship to contact').props.value, 'Child')
+  assert.equal(elements(tree).find(node => node.props?.relationshipLabel === 'Student 1 relationship to contact').props.relationship, 'Child')
   elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   render()
   assert.ok(elements(tree).some(node => node.props?.className === 'cardSelect' && node.props.children === 'Riley Park'))
@@ -816,7 +887,7 @@ test('payment orders heading, deferral checkbox and read-only fields without sto
   }
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react }).default
   let tree = hooks.render(Component, {})
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 3; step++) {
     elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
     tree = hooks.render(Component, {})
   }
@@ -907,7 +978,7 @@ test('final review reuses gray person cards with each student, schedule and cade
   }
   const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/StaffEnrollment.tsx'), { react: hooks.react }).default
   let tree = hooks.render(Component, {})
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 3; step++) {
     assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Review selected lessons'))
     elements(tree).find(node => node.type === 'form').props.onSubmit({ preventDefault() {} })
     tree = hooks.render(Component, {})
@@ -923,4 +994,29 @@ test('final review reuses gray person cards with each student, schedule and cade
   assert.match(text(cards[1]), /5:00 pm–6:00 pm · Robin Ellis/)
   assert.match(text(cards[1]), /One lesson · November 3, 2026/)
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Enrollment summary'))
+})
+
+test('replacement calendar keeps original reference separate and selected replacement blue', () => {
+  const hooks = hookRunner()
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
+  const lesson = { ...ready().lessons[0], studentId: 'demo-avery', start: '2026-11-05', time: '15:00', frequency: 'À-la-carte' }
+  const tree = hooks.render(Component, { lesson, lessons: [lesson], student: domain.enrollmentPeople[0], manager: null, onChange() {}, initialDate: '2026-11-02', replacementMode: true, referenceLessons: [{ id: 'original', date: '2026-11-03', time: '16:00', duration: 30, label: 'Original lesson · Piano' }], availability: () => [{ name: 'Jordan Vale' }] })
+  const original = elements(tree).find(node => node.props?.children === 'Original lesson · Piano')
+  assert.ok(original.props.className.includes('bookedSlot'))
+  assert.ok(!original.props.className.includes('replacementSlot'))
+  assert.equal(original.type, 'div', 'Original is a reference, not an editable booking')
+  const replacement = elements(tree).find(node => node.props?.['data-selected-replacement'] === '')
+  assert.equal(replacement.props.children, `3:00 pm · ${lesson.teacher}`)
+  assert.ok(replacement.props.className.includes('replacementSlot'))
+  assert.ok(!replacement.props.className.includes('activeBookedSlot'))
+})
+
+test('replacement calendar does not hide an original weekend lesson', () => {
+  const hooks = hookRunner()
+  const Component = load(path.join(root, 'app/content-studio-prototype/enrollment/LessonSchedule.tsx'), { react: hooks.react }).default
+  const lesson = { ...ready().lessons[0], start: '', time: '', frequency: 'À-la-carte' }
+  const tree = hooks.render(Component, { lesson, lessons: [], student: null, manager: null, onChange() {}, initialDate: '2026-11-02', replacementMode: true, referenceLessons: [{ id: 'weekend', date: '2026-11-07', time: '14:00', duration: 30, label: 'Original weekend lesson' }], availability: () => [] })
+  const original = elements(tree).find(node => node.props?.children === 'Original weekend lesson')
+  assert.ok(original)
+  assert.match(original.props['aria-label'], /Nov 7/)
 })

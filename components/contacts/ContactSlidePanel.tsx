@@ -1,4 +1,7 @@
 'use client'
+import { ContactAIHighlightsPanel } from './ContactAIHighlightsPanel'
+import { AccountManagersPanel } from './AccountManagersPanel'
+import { ContactDetailsPanel } from './ContactDetailsPanel'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
@@ -9,11 +12,11 @@ import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, useContext } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
-import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
-import { Button, Badge, Avatar, Input, FieldGrid, SectionTitle, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
+import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone } from 'lucide-react'
+import { Button, Badge, Avatar, Input, FieldGrid, SectionTitle, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
-import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getDemoAvatarUrl } from '@/lib/tenant'
+import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
 import { InvoiceStatusModal } from '@/components/funding/InvoiceStatusModal'
@@ -134,9 +137,20 @@ interface ContactSlidePanelProps {
   initialPanelTab?: ContactPanelTab
   onInvoiceStatusChange?: (invoice: FundingInvoice) => void
   onFundingCaseUpdated?: (fundingCase: FundingCase) => void
+  /** Development-only fictional adapter; never supplies data/actions to live profiles. */
+  preview?: {
+    tab: ContactPanelTab
+    onTabChange: (tab: ContactPanelTab) => void
+    onOpenWorkspace: () => void
+    toolbar: React.ReactNode
+    content: React.ReactNode
+    /** Quick view deliberately exposes only a subset of full-workspace sections. */
+    tabs?: { key: ContactPanelTab; label: string }[]
+    hideTabs?: boolean
+  }
 }
 
-type ContactPanelTab = 'profile' | 'scheduling' | 'billing' | 'funding'
+type ContactPanelTab = 'profile' | 'enrollments' | 'scheduling' | 'billing' | 'funding'
 
 
 const dividerStyle: React.CSSProperties = {
@@ -145,21 +159,15 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated, preview: previewAdapter }: ContactSlidePanelProps) {
+  const preview = process.env.NODE_ENV === 'development' && contact.id.startsWith('preview:') ? previewAdapter : undefined
+  const isPreview = Boolean(preview)
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const contextualCompose = useContext(ConversationComposeContext)
   const [smsOpen, setSmsOpen] = useState(false)
   useEffect(() => { setSmsOpen(false) }, [contact.id])
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
-  const cleanName = (name: string | null | undefined) =>
-    name?.replace(' (account)', '').trim() || null
-
-  const formatDOB = (date: string | null | undefined) => {
-    if (!date) return null
-    return new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-  }
-
   const [insights, setInsights] = useState<Insight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [studentNotesSaving, setStudentNotesSaving] = useState(false)
@@ -194,7 +202,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
   }, [mockFundingCase])
 
   useEffect(() => {
-    if (mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
+    if (isPreview || mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
     let active = true
     fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
       .then(async response => {
@@ -206,7 +214,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         if (active) setFundingCase(null)
       })
     return () => { active = false }
-  }, [contact.id, isInstructor, mockFundingCase, tenantId])
+  }, [contact.id, isInstructor, mockFundingCase, tenantId, isPreview])
 
   const applyFundingCase = (updated: FundingCase) => {
     setFundingCase(updated)
@@ -228,7 +236,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Load insights with note context ──
   useEffect(() => {
-    if (mockFundingCase) {
+    if (isPreview || mockFundingCase) {
       setInsights([])
       setInsightsLoading(false)
       return
@@ -289,7 +297,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory, isPreview])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -459,12 +467,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         accountHolders[0].email !== contact.email
       )
 
-  const getInitials = (name: string | null) => {
-    if (!name) return '?'
-    const parts = name.split(' ')
-    return parts.map(p => p[0]).join('').toUpperCase().slice(0, 2)
-  }
-
   const visibleTenantFields = tenantFields.filter(field => !isHiddenContactCardField(field))
   const populatedFields = visibleTenantFields.filter(f => {
     const val = contact.custom_fields?.[f.field_key]
@@ -599,7 +601,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         }
         onClose={onClose}
         toast={toastMessage || undefined}
-        titleBadge={!isInstructor ? (
+        titleBadge={!preview && !isInstructor ? (
           <ControlButton kind="icon"
             type="button"
             aria-label="Edit contact"
@@ -610,7 +612,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
             <Pencil size={16} />
           </ControlButton>
         ) : undefined}
-        actions={isInstructor ? (
+        actions={preview ? <Button variant="secondary" onClick={preview.onOpenWorkspace}>Open full workspace</Button> : isInstructor ? (
           <>
             <ControlButton kind="icon"
               type="button"
@@ -684,7 +686,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         ) : undefined}
       />
 
-      {!isInstructor && <SlidePanelActionBar isMobile={isMobile}>
+      {preview ? <SlidePanelActionBar isMobile={isMobile}>{preview.toolbar}</SlidePanelActionBar> : !isInstructor && <SlidePanelActionBar isMobile={isMobile}>
         <Button
           type="button"
           size="md"
@@ -712,23 +714,24 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
         </CompactMetaCard>
       </SlidePanelActionBar>}
 
-      <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
+      {!preview?.hideTabs && <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
           <Tabs
-            items={[
+            items={preview?.tabs || [
               { key: 'profile', label: 'Profile' },
+              ...(preview ? [{ key: 'enrollments' as const, label: 'Enrollments' }] : []),
               { key: 'scheduling', label: 'Scheduling' },
               { key: 'billing', label: 'Billing' },
               { key: 'funding', label: 'Funding Program' },
             ]}
-            activeKey={activePanelTab}
-            onChange={setActivePanelTab}
+            activeKey={preview?.tab || activePanelTab}
+            onChange={preview?.onTabChange || setActivePanelTab}
             compact={isMobile}
-            style={isMobile ? { minWidth: 430 } : undefined}
+            style={preview ? { width: 'max-content', minWidth: '100%' } : isMobile ? { minWidth: 430 } : undefined}
           />
-      </div>
+      </div>}
 
       {/* Body — two desktop columns, one mobile stack */}
-      {activePanelTab === 'scheduling' ? (
+      {preview ? <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: colors.background, padding: spacing.lg }}>{preview.content}</div> : activePanelTab === 'scheduling' ? (
         <ContactModuleEmptyState
           icon={<CalendarDays size={32} />}
           title="Scheduling coming soon"
@@ -773,88 +776,11 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {/* Account holders (conditional — no card space / divider when absent) */}
           {showAccountHolders ? (
-            <DenseSectionPanel
-              title="Account managers"
-              style={{ marginBottom: spacing.lg }}
-              contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {accountHolders.map((ah, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      flexDirection: isMobile ? 'column' : 'row',
-                      alignItems: 'stretch',
-                      gap: spacing.md,
-                      padding: '12px 14px',
-                      background: colors.surface,
-                      borderRadius: radius.lg,
-                      border: `1px solid ${colors.border}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: isMobile ? '36px' : '42px',
-                        height: isMobile ? '36px' : undefined,
-                        minHeight: isMobile ? '36px' : '72px',
-                        background: '#EEF1F1',
-                        color: '#6B7280',
-                        borderRadius: radius.lg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {getInitials(ah.name)}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'baseline', justifyContent: 'space-between', gap: isMobile ? '4px' : '12px', minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                          {cleanName(ah.name) || '—'}
-                        </div>
-                        {ah.relationship && (
-                          <div style={{ fontSize: '11px', color: colors.textMuted, fontWeight: 500, flexShrink: 0, overflowWrap: 'anywhere' }}>
-                            {ah.relationship}
-                          </div>
-                        )}
-                      </div>
-                      {!ah.is_primary && <div style={{ fontSize: '12px', color: colors.textMuted }}>Additional account manager</div>}
-                      {(ah.phone || ah.email) && (
-                        <div style={{ fontSize: '12px', color: colors.text, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: isMobile ? '6px' : '12px', minWidth: 0 }}>
-                          {ah.phone ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, minWidth: 0 }}>
-                              <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayPhone(ah.phone)}</span>
-                              <ControlButton kind="icon"
-                                type="button"
-                                onClick={() => handleCall(ah.phone)}
-                                disabled={calling}
-                                aria-label={`Call ${cleanName(ah.name) || 'account holder'}`}
-                                title={`Call ${displayPhone(ah.phone)}`}
-                                style={{ flexShrink: 0 }}
-                              >
-                                <Phone size={14} strokeWidth={1.8} />
-                              </ControlButton>
-                            </span>
-                          ) : <span style={{ color: colors.textMuted }}>—</span>}
-                          {ah.email ? <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{ah.email}</span> : <span style={{ color: colors.textMuted }}>—</span>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </DenseSectionPanel>
+            <AccountManagersPanel accountHolders={accountHolders} onCall={phone => { void handleCall(phone) }} calling={calling} />
           ) : null}
 
           {/* AI Insights */}
-          {!isInstructor && <DenseSectionPanel
-            title={<SectionTitle as="h3" variant="card"><Sparkles size={15} aria-hidden="true" /> AI highlights</SectionTitle>}
-            style={{ marginBottom: spacing.lg }}
-          >
+          {!isInstructor && <ContactAIHighlightsPanel>
           {actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
               No insights available for this contact yet.
@@ -902,7 +828,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
             </div>
           )}
-          </DenseSectionPanel>}
+          </ContactAIHighlightsPanel>}
 
           {isInstructor && (
             <DenseSectionPanel
@@ -943,81 +869,7 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
           {/* Details grid */}
           {(populatedFields.length > 0 || contact.date_of_birth) && (
-            <DenseSectionPanel title="Details">
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: isMobile ? '16px' : '16px 32px', minWidth: 0 }}>
-                {contact.date_of_birth && (
-                  <div>
-                    <FieldLabel>DOB</FieldLabel>
-                    <FieldValue style={{ overflowWrap: 'anywhere' }}>{formatDOB(contact.date_of_birth)}</FieldValue>
-                  </div>
-                )}
-                {populatedFields.map(f => {
-                  const val = contact.custom_fields?.[f.field_key]
-
-                  if (f.field_key === 'instructor') {
-                    // Instructor name may come from instructor.name or custom_fields
-                    const instrName = contact.instructor?.name || String(val || '')
-                    const firstName = instrName.split(' ')[0] || ''
-                    const lastName = instrName.split(' ').slice(1).join(' ') || ''
-
-                    const content = (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                        <Avatar
-                          firstName={firstName}
-                          lastName={lastName}
-                          size={28}
-                          src={shouldUseDemoPhotos(tenantId) && contact.instructor?.person_id
-                            ? getDemoAvatarUrl(tenantId, firstName, lastName, { isMinor: false })
-                            : getStaffAvatarUrl(tenantId, instrName)}
-                        />
-                        <span
-                          style={{
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            color: contact.instructor?.person_id ? '#2563EB' : colors.text,
-                            textDecoration: contact.instructor?.person_id ? 'underline' : 'none',
-                             minWidth: 0,
-                             overflowWrap: 'anywhere',
-                             wordBreak: 'break-word',
-                          }}
-                        >
-                          {instrName || 'Unassigned'}
-                        </span>
-                      </div>
-                    )
-
-                    // Open the instructor's contact card using the stable person id.
-                    if (contact.instructor?.person_id && onViewInstructor) {
-                      return (
-                        <div key={f.field_key}>
-                          <FieldLabel>{f.field_label}</FieldLabel>
-                          <Button variant="secondary" size="sm"
-                            onClick={() => onViewInstructor(contact.instructor!.person_id!)}
-                            style={{ maxWidth: '100%' }}
-                          >
-                            {content}
-                          </Button>
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <div key={f.field_key}>
-                        <FieldLabel>{f.field_label}</FieldLabel>
-                        {content}
-                      </div>
-                    )
-                  }
-
-                  return (
-                    <div key={f.field_key}>
-                      <FieldLabel>{f.field_label}</FieldLabel>
-                      <FieldValue style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{String(val).charAt(0).toUpperCase() + String(val).slice(1)}</FieldValue>
-                    </div>
-                  )
-                })}
-              </div>
-            </DenseSectionPanel>
+            <ContactDetailsPanel contact={contact} populatedFields={populatedFields} onViewInstructor={onViewInstructor} />
           )}
         </div>
 

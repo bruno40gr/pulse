@@ -43,25 +43,25 @@ export function enrollmentDraftProgress(record: EnrollmentDraftRecord) {
   return { steps, current: incomplete < 0 ? steps.length - 1 : incomplete }
 }
 
-function personFromInquiry(id: string, name: string, email = '', phone = ''): EnrollmentPerson {
+function personFromInquiry(id: string, name: string, email = '', phone = '', birthday = ''): EnrollmentPerson {
   const [firstName = '', ...rest] = name.trim().split(/\s+/)
   // Draft labels only. These local IDs never link or merge canonical people.
-  return { id, firstName, lastName: rest.join(' '), email, phone, activeTeacher: false }
+  return { id, firstName, lastName: rest.join(' '), email, phone, birthday, activeTeacher: false }
 }
 
 export function enrollmentDraftFromLead(lead: EnrollmentLead): EnrollmentDraftRecord | null {
   if (lead.status !== 'won' || !isLessonLead(lead.intake_type)) return null
   const record = newEnrollmentDraft(`lead:${lead.id}`, lead.updated_at)
-  const contact = lead.contact ? personFromInquiry(`inquiry:${lead.id}:contact`, lead.contact.full_name || '', lead.contact.email || '', lead.contact.phone || '') : null
+  const contact = lead.contact ? personFromInquiry(`inquiry:${lead.id}:contact`, lead.contact.full_name || '', lead.contact.email || '', lead.contact.phone || '', typeof lead.payload?.date_of_birth === 'string' ? lead.payload.date_of_birth : '') : null
   const learners = readLeadStudents(lead.payload || {}, lead.program_label)
-  const people = learners.map((student, index) => student.same_as_contact && contact ? contact : personFromInquiry(`inquiry:${lead.id}:student:${index}`, student.name, student.email, student.phone))
+  const people = learners.map((student, index) => student.same_as_contact && contact ? contact : personFromInquiry(`inquiry:${lead.id}:student:${index}`, student.name, student.email, student.phone, student.date_of_birth))
   const lessons = learners.map((student, index) => {
     const interests = student.instrument_interest.split(',').map(value => value.trim()).filter(Boolean)
     const match = interests.length === 1 ? /^(Private|Semi-private) · (.+)$/.exec(interests[0]) : null
     const instrument = match?.[2] || (interests.length === 1 ? interests[0] : '')
     const group = enrollmentGroupPrograms.find(program => program === instrument)
     const recognized = group || enrollmentInstruments.find(value => value === instrument) || ''
-    return { ...newLesson(`inquiry:${lead.id}:lesson:${index}`), studentId: people[index].id, service: group ? 'Group' as const : match?.[1] === 'Semi-private' ? 'Semi-private' as const : 'Private' as const, instrument: recognized, teacher: '', day: '', start: '', time: '' }
+    return { ...newLesson(`inquiry:${lead.id}:lesson:${index}`), duration: group && ['Tiny Keys', 'Little Rockers'].includes(group) ? '45' : '30', studentId: people[index].id, service: group ? 'Group' as const : match?.[1] === 'Semi-private' ? 'Semi-private' as const : 'Private' as const, instrument: recognized, teacher: '', day: '', start: '', time: '' }
   })
   record.sourceLeadId = lead.id
   record.draft = { ...record.draft, contact, contactIsStudent: Boolean(learners[0]?.same_as_contact && contact), student: people[0] || null, additionalStudents: people.slice(1), manager: learners[0]?.same_as_contact ? null : contact, payer: learners[0]?.same_as_contact ? 'student' : 'manager', lessons,
@@ -90,7 +90,14 @@ export function mergeEnrollmentQueue(saved: EnrollmentDraftRecord[], leads: Enro
 export function readEnrollmentDrafts(raw: string | null): EnrollmentDraftRecord[] {
   if (raw === null) return []
   const envelope: unknown = JSON.parse(raw)
-  if (!envelope || typeof envelope !== 'object' || !('version' in envelope) || envelope.version !== 1 || !('records' in envelope) || !Array.isArray(envelope.records)) throw new Error('Saved enrollment drafts could not be read. Existing storage has not been changed.')
+  if (!envelope || typeof envelope !== 'object' || !('version' in envelope) || ![1, 2].includes(Number(envelope.version)) || !('records' in envelope) || !Array.isArray(envelope.records)) throw new Error('Saved enrollment drafts could not be read. Existing storage has not been changed.')
+  // v1 had a staff terms step at index 3. Do not reinterpret it as reviewed payment.
+  if (envelope.version === 1) for (const record of envelope.records) {
+    if (record && Number.isInteger(record.step) && Array.isArray(record.reviewedSteps)) {
+      record.step = record.step === 4 ? 3 : record.step
+      record.reviewedSteps = record.reviewedSteps.filter((step: number) => step !== 3).map((step: number) => step === 4 ? 3 : step)
+    }
+  }
   for (const record of envelope.records) {
     if (!record || typeof record !== 'object' || typeof record.id !== 'string' || typeof record.updatedAt !== 'string' || !Number.isFinite(Date.parse(record.updatedAt)) || typeof record.started !== 'boolean' || !Number.isInteger(record.step) || record.step < 0 || record.step >= enrollmentSteps.length || !Array.isArray(record.reviewedSteps) || record.reviewedSteps.some((step: unknown) => !Number.isInteger(step) || Number(step) < 0 || Number(step) >= enrollmentSteps.length)) throw new Error('Saved enrollment drafts are damaged. Existing storage has not been changed.')
     const draft = record.draft
@@ -106,7 +113,7 @@ export function readEnrollmentDrafts(raw: string | null): EnrollmentDraftRecord[
 /** Compare before writing so another tab's work is never silently overwritten. */
 export function writeEnrollmentDrafts(storage: Pick<Storage, 'getItem' | 'setItem'>, key: string, previous: string | null, records: EnrollmentDraftRecord[]) {
   if (storage.getItem(key) !== previous) throw new Error('Drafts changed in another tab. Reload the enrollment list before saving; keep this tab open to preserve your work.')
-  const raw = JSON.stringify({ version: 1, records })
+  const raw = JSON.stringify({ version: 2, records })
   storage.setItem(key, raw)
   return raw
 }

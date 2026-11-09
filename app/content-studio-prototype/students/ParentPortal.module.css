@@ -1,0 +1,37 @@
+.portal { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: #fbfdfc; color: #1a1a1a; font-family: inherit; container-type: inline-size; }
+.topbar { background: white; border-bottom: 1px solid #e5e7eb; }
+.topbarInner, .content { width: 100%; max-width: 1440px; box-sizing: border-box; margin: 0 auto; padding: 24px; }
+.topbarInner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brandMark { width: 36px; height: 36px; background: #1a130f; color: white; border-radius: 8px; display: grid; place-items: center; font-weight: 700; }
+.identity { font-size: 13px; color: #6b7280; }
+.nav { display: flex; gap: 8px; overflow-x: auto; max-width: 100%; }
+.nav button { white-space: nowrap; }
+.content { display: flex; flex-direction: column; gap: 24px; box-sizing: border-box; }
+.intro { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
+.intro h1 { font-size: 28px; margin: 0 0 8px; }
+.intro p { margin: 0; color: #6b7280; line-height: 1.5; }
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 18px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.accountGrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+@container (max-width: 900px) { .accountGrid { grid-template-columns: minmax(0, 1fr); } }
+.children { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 0; border-bottom: 1px solid #e5e7eb; }
+.row:first-child { padding-top: 0; }
+.row:last-child { border-bottom: none; padding-bottom: 0; }
+.rowText { display: grid; gap: 6px; font-size: 14px; min-width: 0; }
+.muted { color: #6b7280; font-size: 13px; line-height: 1.5; }
+.amount { font-size: 28px; font-weight: 700; margin: 0 0 8px; }
+.tabs { overflow-x: auto; }
+.preview { font-size: 12px; color: #6b7280; margin: 0; }
+.lessonActions, .lessonToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.lessonToolbar { justify-content: space-between; }
+.lessonToolbar [role="group"] { display: flex; gap: 8px; }
+.makeupLayout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
+.makeupBlocks { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.makeupBlocks button { white-space: normal; }
+.makeupBlockText { display: grid; gap: 6px; min-width: 0; }
+.bookedBlock { padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+@container (max-width: 800px) { .makeupLayout { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 760px) { .grid, .children { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .topbarInner, .content { padding: 18px; } .intro h1 { font-size: 24px; } .nav { width: 100%; } }

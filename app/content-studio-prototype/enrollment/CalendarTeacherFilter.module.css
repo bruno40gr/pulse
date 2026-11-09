@@ -1,0 +1,5 @@
+.filter { position: relative; flex-shrink: 0; }
+.filter > button { min-height: 44px; }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 220px; max-width: calc(100vw - 48px); }
+.menu button { min-height: 44px; width: 100%; text-align: left; }
+.check { display: inline-block; width: 20px; flex-shrink: 0; }

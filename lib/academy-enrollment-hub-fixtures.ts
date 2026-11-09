@@ -1,5 +1,5 @@
 import { newEnrollmentDraft, type EnrollmentDraftRecord } from './academy-enrollment-drafts'
-import { newLesson, type EnrollmentPerson } from './academy-staff-enrollment'
+import { newLesson, type EnrollmentPerson, type LessonChoice } from './academy-staff-enrollment'
 import { selectScheduleSlot, sampleWeek, shiftDate } from './academy-enrollment-schedule'
 
 /** Fictional design-review data only; never seeded into the live lead queue. */
@@ -8,12 +8,17 @@ export function createEnrollmentHubFixtures(now = new Date().toISOString()): Enr
   const definitions = [
     { id: 'chen', first: 'Mia', last: 'Chen', instrument: 'Piano', stage: 2, hours: 1, value: 200 },
     { id: 'rivera', first: 'Lucas', last: 'Rivera', instrument: 'Guitar', stage: 0, hours: 3 },
-    { id: 'brooks', first: 'Ava', last: 'Brooks', instrument: 'Voice', stage: 4, hours: 5, value: 320 },
+    { id: 'brooks', first: 'Ava', last: 'Brooks', instrument: 'Voice', stage: 3, hours: 5, value: 320 },
     { id: 'patel', first: 'Arjun', last: 'Patel', instrument: 'Violin', stage: 1, hours: 8 },
     { id: 'williams', first: 'Theo', last: 'Williams', instrument: 'Drums', stage: 3, hours: 22, value: 200 },
     { id: 'kim', first: 'Sophie', last: 'Kim', instrument: 'Piano', stage: 2, hours: 27 },
     { id: 'morgan', first: 'Alex', last: 'Morgan', instrument: '', stage: 0, hours: 48 },
     { id: 'reed', first: 'Isla', last: 'Reed', instrument: 'Guitar', stage: 1, hours: 72, value: 200 },
+    { id: 'nguyen', first: 'Lily', last: 'Nguyen', instrument: 'Tiny Keys', service: 'Group' as const, stage: 2, hours: 4, value: 140 },
+    { id: 'garcia', first: 'Mateo', last: 'Garcia', instrument: 'Little Rockers', service: 'Group' as const, stage: 2, hours: 6, value: 160 },
+    { id: 'davis', first: 'Ruby', last: 'Davis', instrument: 'Piano', service: 'Semi-private' as const, stage: 2, hours: 7, value: 180 },
+    { id: 'wilson', first: 'Noah', last: 'Wilson', instrument: 'Cello', stage: 2, hours: 9, value: 240 },
+    { id: 'brown', first: 'Aria', last: 'Brown', instrument: 'Band Program', service: 'Group' as const, stage: 2, hours: 10, value: 220 },
   ]
   return definitions.map(item => {
     const updated = new Date(Date.parse(now) - item.hours * 3600000).toISOString()
@@ -29,7 +34,6 @@ export function createEnrollmentHubFixtures(now = new Date().toISOString()): Enr
     if (item.stage >= 3) {
       record.draft.lessons[0] = selectScheduleSlot(record.draft.lessons[0], shiftDate(sampleWeek, 1), '16:00', 'Robin Ellis')
     }
-    if (item.stage >= 4) record.draft.consent.termsAccepted = true
     if (item.id === 'kim') {
       const sibling = person('kim:sibling', 'Ethan', 'Kim')
       record.draft.additionalStudents = [sibling]
@@ -39,6 +43,10 @@ export function createEnrollmentHubFixtures(now = new Date().toISOString()): Enr
       record.draft.lessons[0] = selectScheduleSlot(record.draft.lessons[0], shiftDate(sampleWeek, 1), '16:00', 'Jordan Vale')
     }
     if (item.id === 'patel') record.draft.lessons[0].instrument = ''
+    if ('service' in item) {
+      const service: LessonChoice['service'] = item.service || 'Private'
+      record.draft.lessons[0] = { ...record.draft.lessons[0], service, duration: item.instrument === 'Band Program' ? '60' : '45' }
+    }
     return record
   })
 }

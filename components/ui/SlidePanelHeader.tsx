@@ -5,11 +5,12 @@ import { useContext } from 'react'
 import { DialogTitleContext } from '@/lib/useDialogLayer'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, typography, spacing } from '@/lib/tokens'
-import { Avatar } from '@/components/ui/Avatar'
+import { ProfileIdentity } from './ProfileIdentity'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
 interface SlidePanelHeaderProps {
   title: string
+  profileTransition?: boolean
   titleBadge?: React.ReactNode
   subtitle?: string
   avatar?: { firstName: string; lastName: string; size?: number; src?: string }
@@ -26,6 +27,7 @@ interface SlidePanelHeaderProps {
 
 export function SlidePanelHeader({
   title,
+  profileTransition = false,
   titleBadge,
   subtitle,
   avatar,
@@ -45,14 +47,15 @@ export function SlidePanelHeader({
 
   return (
     <div style={{
-      padding: isMobile ? '4px 16px' : '8px 24px',
+      // The 48px Close target needs 2px less per side than the workspace's 44px Back target.
+      padding: isMobile ? '10px 16px' : '20px 24px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
       flexShrink: 0,
-      minHeight: isMobile ? '56px' : '64px',
+      minHeight: isMobile ? '68px' : '88px',
       width: '100%',
       maxWidth: '100%',
       boxSizing: 'border-box',
@@ -60,54 +63,9 @@ export function SlidePanelHeader({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flex: 1 }}>
         {onBack && <BackControl label={backLabel} onClick={onBack} />}
-        {avatar && (
-          <Avatar
-            firstName={avatar.firstName}
-            lastName={avatar.lastName}
-            size={avatar.size || (isMobile ? 36 : 40)}
-            src={avatar.src}
-          />
-        )}
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-            <Heading id={titleId} style={{
-              fontSize: titleSize || typography.h2.fontSize,
-              fontWeight: typography.weightSemibold,
-              margin: 0,
-              color: colors.text,
-              fontFamily: typography.fontSans,
-              lineHeight: 1.2,
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
-            }}>
-              {title}
-            </Heading>
-            {titleBadge}
-          </div>
-          {subtitle && (
-            <div style={{
-              fontSize: typography.sizeSm,
-              color: colors.textSecondary,
-              marginTop: '2px',
-              fontFamily: typography.fontSans,
-              whiteSpace: 'normal',
-              overflowWrap: 'anywhere',
-            }}>
-              {subtitle}
-            </div>
-          )}
-          {badge && (
-            <div style={{
-              marginTop: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}>
-              {badge}
-            </div>
-          )}
-        </div>
+        <ProfileIdentity title={title} subtitle={subtitle} avatar={avatar ? { ...avatar, size: avatar.size || (isMobile ? 36 : 40) } : undefined} titleSize={titleSize} titleId={titleId} headingLevel={Heading} animate={profileTransition} badge={badge}>
+          {titleBadge}
+        </ProfileIdentity>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
         {toast && (

@@ -35,7 +35,9 @@ export default function EnrollmentHub({ storageScope, tenantId, mock = false }: 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(key)
-      const records = raw === null && mock ? createEnrollmentHubFixtures() : readEnrollmentDrafts(raw)
+      const stored = readEnrollmentDrafts(raw)
+      // Add new fictional examples without replacing locally edited demo drafts.
+      const records = mock ? [...stored, ...createEnrollmentHubFixtures().filter(fixture => !stored.some(record => record.id === fixture.id))] : stored
       setSaved(mock ? normalizeEnrollmentHubFixtures(records) : records); setPrevious(raw); setReady(true)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Browser storage is unavailable. Drafts cannot be saved.') }
   }, [key, mock])

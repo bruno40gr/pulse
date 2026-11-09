@@ -1,0 +1,37 @@
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 210px; align-items: start; gap: 10px 20px; min-width: 0; }
+.calendar, .calendar :global([data-replacement-calendar]), .calendar :global([data-replacement-calendar]) > div { display: contents; }
+.calendar :global([data-replacement-calendar]) > div > div:first-child { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+.calendar :global([role="region"]) { grid-column: 1; grid-row: 2; min-width: 0; }
+.calendar > :global([aria-label="Calendar colors"]) { grid-column: 1; grid-row: 3; }
+.controls { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.moveSummary { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.5; }
+.moveSummary p { margin: 0; }
+.moveSummary { width: 100%; min-height: 118px; }
+.emptySelection { align-self: center; margin-block: auto !important; color: #9ca3af; text-align: center; }
+.destination p + p { margin-top: 6px; }
+.checkbox { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.checkbox input { width: 16px; height: 16px; flex-shrink: 0; accent-color: #1d4ed8; }
+.teachers { display: flex; flex-direction: column; gap: 12px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.teachers legend { margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.summary { margin: 0; font-size: 13px; color: #475569; line-height: 1.5; }
+.leftRail { grid-template-columns: 240px minmax(0, 1fr); gap: 10px 24px; }
+.leftRail .calendar :global([data-replacement-calendar]) > div > div:first-child { grid-column: 2; }
+.leftRail .calendar :global([role="region"]) { grid-column: 2; }
+.leftRail .calendar > :global([aria-label="Calendar colors"]) { grid-column: 2; }
+.leftRail .controls { grid-column: 1; grid-row: 1 / span 3; }
+@container (max-width: 800px) {
+  .leftRail { grid-template-columns: minmax(0, 1fr); }
+  .leftRail .controls { grid-column: 1; grid-row: 1; }
+  .leftRail .calendar :global([data-replacement-calendar]) > div > div:first-child { grid-column: 1; grid-row: 2; }
+  .leftRail .calendar :global([role="region"]) { grid-column: 1; grid-row: 3; }
+  .leftRail .calendar > :global([aria-label="Calendar colors"]) { grid-column: 1; grid-row: 4; }
+}
+.enter { animation: booking-enter 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes booking-enter { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+@container (max-width: 560px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .controls { grid-column: 1; grid-row: 4; }
+}
+@media (prefers-reduced-motion: reduce) { .enter { animation: none; } }
+.destination { font-weight: 700; color: #1e3a8a; }
+.moveAction button { width: 100%; white-space: normal; }

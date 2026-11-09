@@ -9,6 +9,7 @@ export interface TabItem<T extends string = string> {
   key: T
   label: string
   count?: number
+  countAppearance?: 'bubble'
 }
 
 interface TabsProps<T extends string = string> {
@@ -63,13 +64,13 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
             }}
           >
             <span>{tab.label}</span>
-            {!compact && typeof tab.count === 'number' && (
+            {(!compact || tab.countAppearance === 'bubble') && typeof tab.count === 'number' && (
               <span style={{
                 color: active ? colors.textSecondary : colors.textMuted,
                 fontSize: typography.sizeSm,
-                padding: prominent ? '1px 6px' : 0,
+                padding: prominent || tab.countAppearance === 'bubble' ? '1px 6px' : 0,
                 borderRadius: radius.full,
-                background: prominent ? colors.backgroundSecondary : 'transparent',
+                background: prominent || tab.countAppearance === 'bubble' ? colors.backgroundSecondary : 'transparent',
               }}>{tab.count}</span>
             )}
           </ButtonBase>

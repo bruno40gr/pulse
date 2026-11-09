@@ -40,6 +40,8 @@ function onKeyDown(event: KeyboardEvent) {
   const top = layers.at(-1)
   if (!top) return
   if (event.key === 'Escape') {
+    // An open nested menu owns the first Escape; the next dismisses the dialog.
+    if (event.target instanceof HTMLElement && event.target.closest('[role="menu"]')) return
     event.preventDefault()
     event.stopImmediatePropagation()
     if (top.canEscape()) top.dismiss()

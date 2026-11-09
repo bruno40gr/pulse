@@ -12,7 +12,7 @@ function harness() {
   const document = { body, activeElement: null, addEventListener: (name, fn) => handlers.set(name, fn), removeEventListener: name => handlers.delete(name) }
   class Element {
     constructor(parent = null) { this.parent = parent; this.inert = false; this.style = {}; this.attributes = {}; this.isConnected = true; this.tabIndex = 0; this.items = [] }
-    closest() { return this.inert ? this : this.parent?.closest() || null }
+    closest(selector = '[inert]') { return (selector === '[role="menu"]' ? this.attributes.role === 'menu' : this.inert) ? this : this.parent?.closest(selector) || null }
     contains(element) { return element === this || !!element?.parent && this.contains(element.parent) }
     querySelectorAll() { return this.items }
     getClientRects() { return this.hidden ? [] : [{}] }
@@ -38,7 +38,7 @@ function harness() {
     result.cleanup = exports.registerDialog({ root, dialog, canEscape: () => escape, dismiss: () => result.closes++ })
     return result
   }
-  function key(key, shiftKey = false) { const event = { key, shiftKey, preventDefault() { this.prevented = true }, stopImmediatePropagation() {} }; handlers.get('keydown')?.(event); return event }
+  function key(key, shiftKey = false) { const event = { key, shiftKey, target: document.activeElement, preventDefault() { this.prevented = true }, stopImmediatePropagation() {} }; handlers.get('keydown')?.(event); return event }
   return { document, body, Element, layer, key, handlers, mutate: () => mutation?.(), ...exports }
 }
 
@@ -57,6 +57,18 @@ test('stack owns initial focus, inert background, topmost Escape and opener rest
   parent.cleanup(); assert.equal(h.document.activeElement, opener)
   assert.equal(h.body.style.overflow, 'auto'); assert.equal(background.inert, false)
   assert.equal(h.handlers.size, 0)
+})
+
+test('nested menus own Escape before their containing dialog', () => {
+  const h = harness(); const panel = h.layer()
+  const menu = new h.Element(panel.dialog); menu.setAttribute('role', 'menu')
+  new h.Element(menu).focus()
+  assert.equal(h.key('Escape').prevented, undefined)
+  assert.equal(panel.closes, 0)
+  panel.first.focus()
+  assert.equal(h.key('Escape').prevented, true)
+  assert.equal(panel.closes, 1)
+  panel.cleanup()
 })
 
 test('Tab wraps visible controls and handles an empty dialog', () => {

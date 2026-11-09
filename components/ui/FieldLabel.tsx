@@ -1,4 +1,4 @@
-import { colors, typography } from '@/lib/tokens'
+import { colors, spacing, typography } from '@/lib/tokens'
 
 interface FieldLabelProps {
   children: React.ReactNode
@@ -7,11 +7,11 @@ interface FieldLabelProps {
 
 export function FieldLabel({ children, style }: FieldLabelProps) {
   return (
-    <div style={{
+    <div data-field-label style={{
       ...typography.label,
-      fontWeight: 600,
-      color: colors.textSecondary,
-      marginBottom: '2px',
+      fontWeight: typography.weightNormal,
+      color: colors.textMuted,
+      marginBottom: spacing.xs,
       fontFamily: typography.fontSans,
       ...style,
     }}>

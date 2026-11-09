@@ -1,0 +1,8 @@
+.content { min-width: 0; }
+.contactValue { overflow-wrap: anywhere; min-width: 0; font-weight: 400; }
+.content > section { min-width: 0; }
+/* Task columns respond to the drawer, not the viewport behind it. */
+.content :global([data-inline-calendar]) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+@container (min-width: 1000px) {
+  .content :global([data-inline-calendar]) { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); }
+}

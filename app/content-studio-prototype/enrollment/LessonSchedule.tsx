@@ -1,15 +1,14 @@
 'use client'
 
-import { SectionTitle } from '@/components/ui/SectionTitle'
-
-import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
+import { useEffect, useState, type ReactNode } from 'react'
+import { CalendarTimeGrid } from './CalendarTimeGrid'
+import { CalendarWeekToolbar } from './CalendarWeekToolbar'
 import type { EnrollmentPerson, LessonChoice } from '@/lib/academy-staff-enrollment'
 import {
   availableScheduleTeachers, familyAppointments, formatScheduleDate, formatScheduleTime,
-  lessonOccursOn, overlap, sampleWeek, scheduleTeachers, scheduleTimes, selectScheduleSlot, shiftDate, weekDates, weekStart,
+  lessonOccursOn, overlap, sampleWeek, scheduleTimes, selectScheduleSlot, shiftDate, weekDates, weekStart,
 } from '@/lib/academy-enrollment-schedule'
+import { placeCalendarBlocks as placeBlocks } from '@/lib/academy-calendar-layout'
 import styles from './enrollment.module.css'
 
 type CalendarBlock = {
@@ -17,80 +16,72 @@ type CalendarBlock = {
   teachers?: readonly { name: string }[]
 }
 
-// Overlapping start options get separate lanes; every half hour has the same height.
-function placeBlocks(blocks: CalendarBlock[]) {
-  const ends: number[] = []
-  const placed = [...blocks].sort((a, b) => a.time.localeCompare(b.time) || Number(b.booked) - Number(a.booked)).map(block => {
-    const row = (Number(block.time.slice(0, 2)) * 60 + Number(block.time.slice(3)) - 14 * 60) / 30
-    let lane = ends.findIndex(end => end <= row)
-    if (lane === -1) lane = ends.length
-    ends[lane] = row + block.duration / 30
-    return { ...block, row, lane }
-  })
-  return { blocks: placed, lanes: Math.max(1, ends.length) }
-}
-
-export default function LessonSchedule({ lesson, lessons, student, students = [], manager, onChange, onSelectLesson }: {
+export default function LessonSchedule({ lesson, lessons, student, students = [], manager, onChange, onSelectLesson, availability, initialDate, compactCopy = false, teacherPreference = '', referenceLessons = [], replacementMode = false, onWeek, toolbarActions, detailedReplacementSlots = false, chooseTeacherOnClick = false }: {
   lesson: LessonChoice; lessons: readonly LessonChoice[]; student: EnrollmentPerson | null
   students?: readonly EnrollmentPerson[]; manager: EnrollmentPerson | null; onChange: (value: Partial<LessonChoice>) => void
   onSelectLesson?: (id: string) => void
+  availability?: (date: string, time: string) => readonly { name: string }[]
+  initialDate?: string
+  teacherPreference?: string
+  compactCopy?: boolean
+  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string }[]
+  replacementMode?: boolean
+  chooseTeacherOnClick?: boolean
+  detailedReplacementSlots?: boolean
+  toolbarActions?: ReactNode
+  onWeek?: (week: string) => void
 }) {
-  const [week, setWeek] = useState(() => weekStart(lesson.start || sampleWeek))
+  const [week, setWeek] = useState(() => weekStart(initialDate || lesson.start || sampleWeek))
   const [choice, setChoice] = useState<{ date: string; time: string; editing?: boolean } | null>(null)
   useEffect(() => {
-    if (!choice?.editing) return
+    if (!choice) return
     const dismiss = (event: PointerEvent) => {
       if (!(event.target instanceof Element) || !event.target.closest('[data-booking-menu]')) setChoice(null)
     }
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setChoice(null) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); setChoice(null) } }
     document.addEventListener('pointerdown', dismiss)
-    document.addEventListener('keydown', escape)
+    window.addEventListener('keydown', escape, true)
     return () => {
       document.removeEventListener('pointerdown', dismiss)
-      document.removeEventListener('keydown', escape)
+      window.removeEventListener('keydown', escape, true)
     }
   }, [choice])
-  const dates = weekDates(week)
+  const dates = referenceLessons.some(item => item.date === shiftDate(week, 6)) ? Array.from({ length: 7 }, (_, index) => shiftDate(week, index)) : weekDates(week)
   const family = [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
-  const teachers = scheduleTeachers.filter(teacher => teacher.instruments.some(instrument => instrument === lesson.instrument))
+
   const name = (id?: string) => { const person = students.find(item => item.id === id) || (student?.id === id ? student : null); return person ? `${person.firstName} ${person.lastName}` : 'Student' }
-  const choices = choice ? availableScheduleTeachers(lesson, choice.date, choice.time, student, lessons) : []
+  const availableTeachers = (date: string, time: string) => availability ? availability(date, time) : availableScheduleTeachers(lesson, date, time, student, lessons)
+  const matchesPreference = (teacher: { name: string }) => !teacherPreference || teacher.name === teacherPreference
+  const choices = choice ? availableTeachers(choice.date, choice.time).filter(teacher => choice.editing || matchesPreference(teacher)) : []
 
-  if (lesson.service !== 'Private') return <p className={styles.scheduleNotice}>Choose a {lesson.service === 'Group' ? 'scheduled group session' : 'semi-private partner and shared time'}. This scheduling preview currently supports private lessons only.</p>
-
-  return <div className={styles.schedule}>
-    <div className={styles.calendarColumn}><div className={styles.weekToolbar}>
-      <Button type="button" variant="ghost" aria-label="Previous week" onClick={() => { setWeek(shiftDate(week, -7)); setChoice(null) }}><ChevronLeft size={17} /></Button>
-      <strong>{formatScheduleDate(dates[0])}–{formatScheduleDate(dates[4], { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
-      <Button type="button" variant="ghost" aria-label="Next week" onClick={() => { setWeek(shiftDate(week, 7)); setChoice(null) }}><ChevronRight size={17} /></Button>
-    </div>
-    <div className={styles.calendarScroll} tabIndex={0} role="region" aria-label="Available lesson times">
-      <div className={styles.timeGrid}>
-        <div className={styles.timeAxis}><div className={styles.dayHeading}>Time</div>{scheduleTimes.map(time => <div key={time} className={styles.timeLabel}>{formatScheduleTime(time)}</div>)}</div>
-        {dates.map(date => {
+  return <div className={`${styles.schedule} ${replacementMode ? styles.replacementCalendar : ''}`} data-replacement-calendar={replacementMode ? '' : undefined}>
+    <div className={styles.calendarColumn}><CalendarWeekToolbar week={week} lastDate={dates[dates.length - 1]} onWeek={date => { setWeek(date); onWeek?.(date); setChoice(null) }}>{toolbarActions}</CalendarWeekToolbar>
+    {!compactCopy && lesson.service !== 'Private' && <p className={styles.teacherNote}>{lesson.service === 'Group' ? 'Fictional scheduled group sessions only. Places and capacity are not managed in this demo.' : 'Fictional semi-private times. Partner matching and shared enrollment are not managed in this demo.'}</p>}
+    <CalendarTimeGrid dates={dates} times={scheduleTimes} label="Available lesson times" renderDay={date => {
           const planned = lessons.filter(item => lessonOccursOn(item, date))
           const existing = family.filter(event => event.date === date)
           const booked: CalendarBlock[] = [
+            ...referenceLessons.filter(item => item.date === date).map(item => ({ ...item, booked: true })),
             ...planned.map(item => ({ id: item.id, time: item.time, duration: Number(item.duration), label: item.id === lesson.id ? name(item.studentId || student?.id) : `${name(item.studentId || student?.id)}, ${item.instrument} with ${item.teacher.split(' ')[0]}`, booked: true, active: item.id === lesson.id })),
             ...existing.map(event => ({ id: event.id, time: event.time, duration: event.duration, label: `${event.studentName}, ${event.instrument} with ${event.teacher.split(' ')[0]}`, booked: true })),
           ]
-          const open: CalendarBlock[] = scheduleTimes.flatMap(time => {
-            // A booked lesson replaces its start option rather than adding another block.
-            if (planned.some(item => item.id === lesson.id && overlap(time, Number(lesson.duration), item.time, Number(item.duration)))) return []
-            const available = availableScheduleTeachers(lesson, date, time, student, lessons)
-            return available.length ? [{ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available }] : []
-          })
+          const open: CalendarBlock[] = []
+          for (const time of scheduleTimes) {
+            if ([...booked, ...open].some(item => overlap(time, Number(lesson.duration), item.time, item.duration))) continue
+            const available = availableTeachers(date, time).filter(matchesPreference)
+            if (available.length) open.push({ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available })
+          }
           const layout = placeBlocks([...booked, ...open])
-          return <div key={date} className={styles.dayColumn}><div className={styles.dayHeading}><span>{formatScheduleDate(date, { weekday: 'short' })}</span><strong>{formatScheduleDate(date, { day: 'numeric' })}</strong></div><div className={styles.daySlots} style={{ gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
+          return <div className={styles.daySlots} style={{ gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
             {layout.blocks.map(block => {
-              const position = { gridRow: `${block.row + 1} / span ${block.duration / 30}`, gridColumn: block.lane + 1 }
+              const position = { gridRow: `${block.row + 1} / span ${block.duration / 15}`, gridColumn: block.lane + 1 }
               const label = `${block.label}, ${formatScheduleDate(date)}, ${formatScheduleTime(block.time)}–${formatScheduleTime(endTime(block.time, String(block.duration)))}`
               if (block.booked) {
-                const interactive = block.active || (onSelectLesson && planned.some(item => item.id === block.id))
+                const interactive = (!replacementMode && block.active) || (onSelectLesson && planned.some(item => item.id === block.id))
                 const editing = block.active && choice?.editing && choice.date === date
                 const booking = interactive
-                  ? <button type="button" className={`${styles.bookedSlot} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
-                  : <div className={`${styles.bookedSlot} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label}>{block.label}</div>
+                  ? <button type="button" className={`${styles.bookedSlot} ${detailedReplacementSlots && block.active ? styles.detailedSlot : ''} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
+                  : <div className={`${styles.bookedSlot} ${detailedReplacementSlots && block.active ? styles.detailedSlot : ''} ${block.active ? replacementMode ? styles.replacementSlot : styles.activeBookedSlot : ''}`} style={position} aria-label={label} data-selected-replacement={replacementMode && block.active ? '' : undefined}>{replacementMode && block.active ? detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{lesson.teacher}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : `${formatScheduleTime(block.time)} · ${lesson.teacher}` : block.label}</div>
                 return <div key={block.id} className={styles.bookedCell} style={position} data-booking-menu={editing ? '' : undefined}>{booking}{editing && <div className={styles.bookingPopover} role="group" aria-label="Change teacher">
                   <strong>Change teacher</strong>
                   {choices.map(teacher => <button key={teacher.name} type="button" aria-pressed={teacher.name === lesson.teacher} onClick={() => { onChange({ teacher: teacher.name }); setChoice(null) }}>{teacher.name}</button>)}
@@ -98,21 +89,18 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
                 </div>}</div>
               }
               const choosing = !choice?.editing && choice?.date === date && choice.time === block.time
-              return <div key={block.id} className={styles.slotOption} style={position}>
-                <button type="button" className={`${styles.openSlot} ${block.duration === 60 ? styles.longLesson : styles.shortLesson}`} aria-label={block.label} aria-pressed={choosing} aria-expanded={block.teachers && block.teachers.length > 1 ? choosing : undefined} onClick={() => {
-                  if (block.teachers?.length === 1) { onChange(selectScheduleSlot(lesson, date, block.time, block.teachers[0].name)); setChoice(null) }
+              return <div key={block.id} className={styles.slotOption} style={position} data-booking-menu={choosing ? '' : undefined}>
+                <button type="button" className={`${styles.openSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''}`} aria-label={block.label} aria-pressed={choosing} aria-expanded={(chooseTeacherOnClick || (block.teachers && block.teachers.length > 1)) ? choosing : undefined} onClick={() => {
+                  if (block.teachers?.length === 1 && !chooseTeacherOnClick) { onChange(selectScheduleSlot(lesson, date, block.time, block.teachers[0].name)); setChoice(null) }
                   else setChoice(choosing ? null : { date, time: block.time })
-                }}><span>{formatScheduleTime(block.time)}–{formatScheduleTime(endTime(block.time, String(block.duration)))}</span><span>{block.duration} min · {block.teachers?.length} {block.teachers?.length === 1 ? 'teacher' : 'teachers'}</span></button>
+                }}>{detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{block.teachers?.length === 1 ? block.teachers[0].name : 'Many teachers'}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : <><span>{formatScheduleTime(block.time)}{!replacementMode && `–${formatScheduleTime(endTime(block.time, String(block.duration)))}`}</span>{replacementMode ? (block.teachers && block.teachers.length > 1 && <span>{block.teachers.map(teacher => teacher.name.split(/\s+/).map(part => part[0]).join('')).join(' · ')}</span>) : <span>{block.duration} min · {block.teachers?.length} {block.teachers?.length === 1 ? 'teacher' : 'teachers'}</span>}</>}</button>
                 {choosing && <div className={styles.inlineTeachers} role="group" aria-label={`Teachers at ${formatScheduleTime(block.time)}`}>{choices.map(teacher => <button key={teacher.name} type="button" onClick={() => { onChange(selectScheduleSlot(lesson, date, block.time, teacher.name)); setChoice(null) }}>{teacher.name}</button>)}</div>}
               </div>
             })}
-          </div></div>
-        })}
-      </div>
+          </div>
+        }} />
+    {!compactCopy && <p className={styles.calendarTimezone}>America/Los_Angeles · Each grid unit is 15 minutes. Blocks show their full duration. Available windows do not overlap; selecting one keeps it in place.</p>}
     </div>
-    <p className={styles.calendarTimezone}>America/Los_Angeles</p>
-    </div>
-    <section aria-label="Teacher availability"><SectionTitle as="h3" variant="card">Teacher availability</SectionTitle><p className={styles.teacherNote}>Teachers for {lesson.instrument}: {teachers.map(teacher => teacher.name).join(', ') || 'No sample availability'}. Select a time to see available teachers.</p></section>
   </div>
 }
 

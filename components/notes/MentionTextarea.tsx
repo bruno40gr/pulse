@@ -3,7 +3,7 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
-import { colors, radius, shadows, spacing, typography } from '@/lib/tokens'
+import { colors, radius, shadows, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
 export interface MentionMember {
@@ -25,12 +25,14 @@ interface MentionTextareaProps {
   onChange: (value: string) => void
   mentionMembershipIds?: string[]
   onMentionMembershipIdsChange?: (ids: string[]) => void
+  /** When provided, suggestions come from this directory instead of fetching the live one. */
+  members?: MentionMember[]
   placeholder?: string
   style?: React.CSSProperties
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
-export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown }: MentionTextareaProps) {
+export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, members, placeholder, style, onKeyDown }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
   const selectedMentionTokensRef = useRef(new Map<string, string>())
@@ -51,6 +53,12 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
 
   useEffect(() => {
     if (!open) return
+    if (members) {
+      const q = query.trim().toLowerCase()
+      setSuggestions(members.filter(person => displayName(person).toLowerCase().includes(q)).slice(0, 8))
+      setActiveIndex(0)
+      return
+    }
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
@@ -69,7 +77,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
       cancelled = true
       clearTimeout(timer)
     }
-  }, [open, query, tenantId])
+  }, [open, query, tenantId, members])
 
   const detectMention = (val: string, cursor: number) => {
     const before = val.slice(0, cursor)

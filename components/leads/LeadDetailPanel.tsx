@@ -1,6 +1,8 @@
 'use client'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { FieldGrid } from '@/components/ui/FieldGrid'
+import { FieldLabel } from '@/components/ui/FieldLabel'
+import { FieldValue } from '@/components/ui/FieldValue'
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -215,8 +217,8 @@ function activityActor(event: LeadEvent) {
 function Field({ label: fieldLabel, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={fieldLabelStyle}>{fieldLabel}</div>
-      <div title={value || undefined} style={{ ...fieldValueStyle, color: value ? colors.text : colors.textMuted }}>{value || 'Not provided'}</div>
+      <FieldLabel>{fieldLabel}</FieldLabel>
+      <FieldValue title={value || undefined} style={{ color: value ? colors.text : colors.textMuted }}>{value || 'Not provided'}</FieldValue>
     </div>
   )
 }
@@ -584,7 +586,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             >
               {serviceEditing ? (
                 <div style={serviceEditorStyle}>
-                  <div style={fieldLabelStyle}>Service types</div>
+                  <FieldLabel>Service types</FieldLabel>
                   {serviceEditor.types.length === 0 && <div style={emptyFamilyMembersStyle}>No service types added.</div>}
                   {serviceEditor.types.map((serviceType, index) => (
                     <div key={`${serviceType}-${index}`} style={serviceTypeRowStyle}>
@@ -731,8 +733,6 @@ const metricSectionStyle: CSSProperties = { order: 1 }
 const lessonSectionStyle: CSSProperties = { order: 3 }
 const sourceSectionStyle: CSSProperties = { order: 5 }
 const followUpSectionStyle: CSSProperties = { flexShrink: 0 }
-const fieldLabelStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeXs, marginBottom: spacing.xs }
-const fieldValueStyle: CSSProperties = { minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', fontFamily: typography.fontSans, fontSize: typography.sizeBase, fontWeight: typography.weightMedium }
 const emptyFamilyMembersStyle: CSSProperties = { color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }
 const serviceEditorStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm }
 const serviceTypeRowStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: spacing.sm, alignItems: 'end' }

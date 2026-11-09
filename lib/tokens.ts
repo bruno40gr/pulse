@@ -1,3 +1,5 @@
+import { NOTE_COLORS } from './sticky-note-appearance'
+
 export const colors = {
   // Brand
   crimson: '#FF0044',
@@ -118,6 +120,19 @@ export const radius = {
   xl: '12px',
   '2xl': '16px',
   full: '9999px',
+}
+
+/** Pixel sizes for the shared Avatar (its `size` prop is a number). */
+export const avatarSizes = {
+  sm: 24,
+  md: 36,
+  lg: 48,
+} as const
+
+/** Sticky-note treatment (mirrors app/dashboard/notes): white containers, coloured note cards. */
+export const noteLane = {
+  shared: { surface: NOTE_COLORS.white, border: colors.border, card: NOTE_COLORS.white, cardSticky: false },
+  internal: { surface: NOTE_COLORS.white, border: colors.border, card: NOTE_COLORS.gray, cardSticky: true },
 }
 
 export const spacing = {

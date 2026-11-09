@@ -6,8 +6,8 @@
 .container { max-width: 1050px; padding: 38px 28px 70px; margin: auto; }
 .container h1 { font-family: var(--font-baloo-2), sans-serif; font-size: 30px; letter-spacing: -.02em; margin-bottom: 26px; outline: none; }
 .steps { display: flex; flex-wrap: wrap; gap: 30px; margin-bottom: 32px; }
-.steps > span { display: flex; align-items: center; gap: 8px; color: #6b7280; }
-.steps > span > span { display: flex; align-items: center; justify-content: center; width: 23px; height: 23px; border: 1px solid #d1d5db; border-radius: 50%; font-size: 11px; }
+.steps > button { display: flex; align-items: center; gap: 8px; color: #6b7280; border: 0; background: transparent; padding: 4px 0; font: inherit; cursor: pointer; }
+.steps > button > span { display: flex; align-items: center; justify-content: center; width: 23px; height: 23px; border: 1px solid #d1d5db; border-radius: 50%; font-size: 11px; }
 .steps .current { color: #1a130f; font-weight: 600; }
 .steps .current > span { background: #1a130f; color: white; border-color: #1a130f; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -69,7 +69,7 @@
 .scheduleLayout .summary { display: none; }
 .schedule { margin-top: 24px; }
 .calendarToolbar, .weekToolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.weekToolbar { justify-content: center; }
+.weekToolbar { justify-content: flex-start; gap: 8px; margin-bottom: 10px; }
 .weekToolbar strong { font-size: 14px; font-weight: 500; }
 .viewButtons, .teacherFilters { display: flex; gap: 6px; flex-wrap: wrap; }
 .viewButtons button, .teacherFilters button { font: inherit; font-size: 12px; color: #4b5563; background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 7px 12px; cursor: pointer; }
@@ -103,8 +103,8 @@
 .calendarEvent, .plannedEvent { display: flex; flex-direction: column; border-radius: 4px; padding: 5px; background: #f0f1f3; color: #4b5563; margin-bottom: 3px; }
 .plannedEvent { background: #e8f3eb; color: #245c3a; }
 .calendarEvent strong, .plannedEvent strong { font-weight: 500; }
-.openSlot { display: flex; flex-direction: column; width: 100%; border: 1px solid #c9ddd0; color: #245c3a; padding: 5px; border-radius: 4px; text-align: left; font: inherit; background: #f5faf6; cursor: pointer; }
-.openSlot:hover, .openSlot[aria-pressed=true] { background: #dceee1; border-color: #3d8b5f; }
+.openSlot { display: flex; flex-direction: column; width: 100%; border: 1px solid #93c5fd; color: #1e40af; padding: 5px; border-radius: 4px; text-align: left; font: inherit; background: #eff6ff; cursor: pointer; }
+.openSlot:hover, .openSlot[aria-pressed=true] { background: #dbeafe; border-color: #2563eb; }
 .openSlot + .openSlot { margin-top: 4px; }
 .openSlot span:last-child { font-size: 10px; }
 .selectedCell { background: #f5faf6; }
@@ -119,24 +119,27 @@
 .chosenSlot button { margin-left: auto; }
 @media (max-width: 750px) { .header { padding: 16px 20px; } .container { padding: 26px 18px; } .layout { grid-template-columns: minmax(0, 1fr); } .summary { border-top: 1px solid #e5e7eb; padding-top: 24px; } .card { padding: 22px; } .steps { gap: 15px; flex-wrap: wrap; font-size: 12px; } }
 @media (max-width: 420px) { .fields { grid-template-columns: minmax(0, 1fr); } .demo { max-width: 170px; text-align: right; } }
-.shortLesson { background: #eaf2ff; color: #234d82; border-color: #87aadd; }
-.longLesson { background: #f4ebff; color: #66358a; border-color: #b18bd1; }
-.openSlot.shortLesson:hover, .openSlot.shortLesson[aria-pressed=true] { background: #cedfff; border-color: #234d82; }
-.openSlot.longLesson:hover, .openSlot.longLesson[aria-pressed=true] { background: #e4cef7; border-color: #66358a; }
 .selectionRow { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 6px; border: 1px solid; }
 .selectionRow .timeTeachers { flex-direction: row; flex-wrap: wrap; }
 .billingLine { margin: 18px 0; }
 
-.timeGrid { display: grid; grid-template-columns: 75px repeat(5, minmax(0, 1fr)); min-width: 850px; font-size: 11px; }
-.dayHeading { height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fafbf9; border-bottom: 1px solid #e5e7eb; color: #6b7280; }
+.timeGrid { --calendar-slot-height: 30px; display: grid; grid-template-columns: 75px repeat(5, minmax(0, 1fr)); min-width: 850px; font-size: 11px; }
+.dayHeading { height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fafbf9; border-bottom: 1px solid #e5e7eb; color: #6b7280; }
 .dayHeading strong { font-size: 16px; color: #1a1a1a; }
 .dayColumn, .timeAxis { border-right: 1px solid #e5e7eb; }
 .dayColumn:last-child { border-right: 0; }
-.timeLabel { height: 76px; border-bottom: 1px solid #e5e7eb; padding: 8px 4px; color: #6b7280; }
-.daySlots { display: grid; grid-template-rows: repeat(10, 76px); background: repeating-linear-gradient(to bottom, transparent 0, transparent 75px, #e5e7eb 75px, #e5e7eb 76px); }
+.timeLabel { height: var(--calendar-slot-height); box-sizing: border-box; border-bottom: 1px solid #e5e7eb; padding: 3px 4px; color: #6b7280; }
+.daySlots { display: grid; grid-template-rows: repeat(20, var(--calendar-slot-height)); background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--calendar-slot-height) - 1px), #e5e7eb calc(var(--calendar-slot-height) - 1px), #e5e7eb var(--calendar-slot-height)); }
 .daySlots > button, .daySlots > div { margin: 4px 3px; min-width: 0; width: auto; overflow-wrap: anywhere; justify-content: center; }
-.bookedSlot { background: #243b53; color: #fff; border: 2px solid #243b53; border-radius: 5px; padding: 7px; text-align: left; font: inherit; font-weight: 600; }
-.activeBookedSlot { background: #124c3c; border-color: #124c3c; }
+.bookedSlot { background: #f3e8ff; color: #581c87; border: 1px solid #b18bd1; border-radius: 5px; padding: 5px; text-align: left; font: inherit; font-weight: 600; }
+.activeBookedSlot { background: #ede0fa; border: 2px solid #7e22ce; }
+.activeBookedSlot::before { content: 'Editing · '; font-size: 11px; font-weight: 700; }
+.replacementSlot { background: #dbeafe; border: 2px solid #2563eb; color: #1e3a8a; }
+.schedule.replacementCalendar { margin-top: 0; }
+.replacementCalendar .openSlot, .availableLegend { background: #eff6ff; border-color: #93c5fd; border-style: dashed; color: #1e40af; }
+.replacementCalendar .openSlot:hover { background: #fff; border-color: #2563eb; border-style: dashed; box-shadow: inset 0 0 0 1px #2563eb; }
+.replacementCalendar .openSlot[aria-pressed=true] { background: #dbeafe; border: 2px solid #2563eb; }
+.replacementCalendar .openSlot span:first-child { font-size: 12px; font-weight: 600; }
 .teacherFilters label { flex-direction: row; align-items: center; gap: 7px; color: #1a1a1a; }
 .teacherFilters input { width: 16px; height: 16px; accent-color: #243b53; }
 .payerEditor { margin-top: 20px; }
@@ -145,8 +148,8 @@
 .slotOption { position: relative; display: flex; }
 .slotOption > .openSlot { height: 100%; margin: 0; justify-content: center; }
 .slotOption:focus-within { z-index: 3; }
-.inlineTeachers { position: absolute; z-index: 4; top: 100%; left: 0; width: max-content; max-width: 230px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: white; border: 1px solid #b18bd1; border-radius: 6px; box-shadow: 0 4px 14px #0002; }
-.inlineTeachers button { padding: 10px; text-align: left; font: inherit; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: #1a1a1a; cursor: pointer; }
+.inlineTeachers { position: absolute; z-index: 4; top: 100%; left: 0; width: 100%; max-width: none; box-sizing: border-box; padding: 4px; display: flex; flex-direction: column; gap: 6px; background: white; border: 1px solid #b18bd1; border-radius: 6px; box-shadow: 0 4px 14px #0002; }
+.inlineTeachers button { min-width: 0; overflow-wrap: anywhere; padding: 10px 4px; text-align: left; font: inherit; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: #1a1a1a; cursor: pointer; }
 .daySlots > .bookedSlot { display: flex; align-items: center; }
 .daySlots > button.bookedSlot { cursor: pointer; }
 
@@ -183,6 +186,8 @@
 @media (hover: none) { .studentCard .lessonDelete { opacity: 0.65; } }
 .bookedCell { position: relative; min-width: 0; display: flex; }
 .bookedCell > .bookedSlot { width: 100%; height: 100%; display: flex; align-items: center; cursor: pointer; }
+.replacementCalendar .detailedSlot, .replacementCalendar .bookedCell > .detailedSlot { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; line-height: 12px; font-size: 10px; overflow: hidden; box-sizing: border-box; }
+.replacementCalendar .detailedSlot span { font-size: 10px; line-height: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bookedCell:has(.bookingPopover) { z-index: 5; }
 .bookingPopover { position: absolute; z-index: 5; top: 100%; right: 0; width: 190px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: white; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 14px #0002; }
 .bookingPopover strong { font-size: 12px; color: #6b7280; }

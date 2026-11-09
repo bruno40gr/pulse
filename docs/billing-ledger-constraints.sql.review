@@ -1,0 +1,57 @@
+-- REVIEW ONLY. Not an executable migration; no tables/FKs/RLS are invented here.
+-- Required reviewed relation contracts:
+-- billing_coverage_claims(tenant_id uuid, subscription_id uuid,
+--   service_period daterange, state text, draft_id uuid, invoice_line_id uuid,
+--   expires_at timestamptz, release_reason text)
+-- billing_operations(tenant_id uuid, operation_key text, request_hash text,
+--   invoice_id uuid)
+-- billing_arrangement_runs(tenant_id uuid, arrangement_version_id uuid,
+--   occurrence_key text, invoice_id uuid, state text)
+-- Resolve canonical relation names and tenant-composite foreign keys first.
+
+-- Candidate DDL for the future reviewed additive migration:
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE public.billing_coverage_claims
+  ADD CONSTRAINT billing_coverage_nonempty CHECK (
+    NOT isempty(service_period)
+    AND NOT lower_inf(service_period) AND NOT upper_inf(service_period)
+    AND lower_inc(service_period) AND NOT upper_inc(service_period)
+  ),
+  ADD CONSTRAINT billing_coverage_state CHECK (
+    state IN ('reserved', 'issued', 'retained', 'released')
+  ),
+  ADD CONSTRAINT billing_reserved_owner CHECK (
+    state <> 'reserved' OR (draft_id IS NOT NULL AND expires_at IS NOT NULL)
+  ),
+  ADD CONSTRAINT billing_issued_owner CHECK (
+    state NOT IN ('issued', 'retained') OR invoice_line_id IS NOT NULL
+  ),
+  ADD CONSTRAINT billing_release_reason CHECK (
+    state <> 'released' OR (release_reason IS NOT NULL AND length(btrim(release_reason)) > 0)
+  ),
+  ADD CONSTRAINT billing_no_active_overlap EXCLUDE USING gist (
+    tenant_id WITH =,
+    subscription_id WITH =,
+    service_period WITH &&
+  ) WHERE (state IN ('reserved', 'issued', 'retained'));
+
+CREATE UNIQUE INDEX billing_operation_idempotency
+  ON public.billing_operations (tenant_id, operation_key);
+
+CREATE UNIQUE INDEX billing_arrangement_occurrence
+  ON public.billing_arrangement_runs
+    (tenant_id, arrangement_version_id, occurrence_key);
+
+-- Further mandatory migration steps, after staging inspection:
+-- tenant-composite FKs for every owner/reference; RLS + authenticated grants;
+-- restricted RPC execute grants and safe search_path; append-only audit and
+-- charge enforcement; frozen invoice-line checks; atomic reserve/issue/release/
+-- replacement procedures; transactional expiry cleanup; idempotent outbox.
+-- Do not install only these constraints and advertise live billing as safe.
+-- Replacement transaction (design only): lock source invoices/payment allocations
+-- and claims; reject changed or settled sources; preserve all source/sibling lines;
+-- supersede source collectibility and move claims atomically; transfer payment
+-- allocations with append-only audit (never count credit twice); create replacement
+-- and outbox under the same tenant-scoped idempotent issue transaction.
+-- Local paidMinor carry-forward is NOT a production payment-allocation design.
