@@ -107,7 +107,7 @@ export default function DashboardLayout({ children, sample = false }: { children
           <ControlButton kind="icon" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" >
             <Menu size={22} />
           </ControlButton>
-          <div style={{ flex: '0 1 110px', minWidth: 0 }}>{sample ? <strong style={{ color: colors.surface }}>odeon.</strong> : <TenantBrand height={28} maxWidth="100%" width="100%" />}</div>
+          <div style={{ flex: '0 1 110px', minWidth: 0 }}><TenantBrand height={28} maxWidth="100%" width="100%" /></div>
           <div style={{ flex: 1, minWidth: 0 }}>{sample ? null : <NotificationBell inverse variant="user" onNavigate={closeMenu} />}</div>
         </header>
       )}

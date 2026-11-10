@@ -39,6 +39,7 @@ const RED = 'rgb(220, 38, 38)'
       for (const label of ['Contacts', 'Parent portal', 'School Setup']) assert.equal(await nav.getByRole('link', { name: label, exact: true }).count(), 1, `${label} is a Beta destination`)
       assert.equal(await page.getByRole('link', { name: 'Staff', exact: true }).count(), 0)
       assert.equal(await page.getByText('Odeon Music Academy', { exact: true }).count(), 0)
+      assert.equal(await page.getByText('odeon.', { exact: true }).count(), 0)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
 
       await page.goto(`${BASE}/odeon-demo?view=parent&account=demo%3Afamily-1&tenant=bruno`)
