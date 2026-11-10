@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
 import { colors, radius, spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 import type { CommunityPost, CommunityWorkspace } from '@/lib/community-posts'
@@ -12,18 +13,23 @@ import type { CommunityPost, CommunityWorkspace } from '@/lib/community-posts'
 export default function CommunityPage() {
   const [workspace, setWorkspace] = useState<CommunityWorkspace | null>(null)
   const [error, setError] = useState('')
+  const [setupRequired, setSetupRequired] = useState(false)
   const [busy, setBusy] = useState(false)
   const [url, setUrl] = useState('')
   const [filter, setFilter] = useState<CommunityPost['status']>('inbox')
   const load = useCallback(async () => {
     setBusy(true)
     setError('')
+    setSetupRequired(false)
     try {
       const response = await fetch(`/api/community-posts?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store' })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Workspace could not be loaded.')
+      if (!response.ok) {
+        setSetupRequired(data.code === 'COMMUNITY_SETUP_REQUIRED')
+        throw new Error(data.error || 'We couldn’t load your community posts. Try again.')
+      }
       setWorkspace(data)
-    } catch (issue) { setError(issue instanceof Error ? issue.message : 'Workspace unavailable.') }
+    } catch (issue) { setError(issue instanceof Error ? issue.message : 'We couldn’t load your community posts. Try again.') }
     finally { setBusy(false) }
   }, [])
   useEffect(() => { void load() }, [load])
@@ -55,9 +61,12 @@ export default function CommunityPage() {
   }
 
   return <PageContainer maxWidth="1100px">
-    <PageHeader title="Community posts" subtitle="Curate four homepage posts. Approval and homepage selection are separate." right={<Button variant="secondary" onClick={() => void load()} disabled={busy}>Reload</Button>} />
-    <p style={{ color: colors.textSecondary }}>Manual curation only. Social imports and website synchronization are not connected yet. No media is scraped or downloaded.</p>
-    {error && <p role="alert" style={{ color: colors.error }}>{error}</p>}
+    <PageHeader title="Community posts" subtitle="Collect Instagram and TikTok post links, review sharing permission, and organize your selection." right={<Button variant="secondary" onClick={() => void load()} disabled={busy}>{busy ? 'Loading…' : 'Refresh'}</Button>} />
+    <p style={{ color: colors.textSecondary }}>Add a link to the original post, record permission to share it, then approve it for your collection. Selecting a post here does not publish it to the website.</p>
+    {error && <DenseSectionPanel title={setupRequired ? 'Finish setup to start curating' : 'Your posts couldn’t be loaded'} headingLevel="h2" actions={<Button variant="secondary" onClick={() => void load()} disabled={busy}>Try again</Button>}>
+      <p role="alert" style={{ color: colors.textSecondary, margin: 0 }}>{error}</p>
+      {!workspace && <p style={{ color: colors.textSecondary, marginBottom: 0 }}>Adding, reviewing, and selecting posts will be available once the workspace loads. Keep any post links you want to add for then.</p>}
+    </DenseSectionPanel>}
     {!workspace && !error && <p role="status">Loading community workspace…</p>}
     {workspace && <>
       <form onSubmit={async event => { event.preventDefault(); if (await save({ action: 'add', url })) { setUrl(''); setFilter('inbox') } }} style={{ display: 'flex', gap: spacing.md, flexWrap: 'wrap', alignItems: 'end', marginBlock: spacing.lg }}>

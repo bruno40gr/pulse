@@ -51,3 +51,27 @@ test('stale workspace reports conflict without database details', async () => {
   assert.equal(response.status, 409)
   assert(!JSON.stringify(await response.json()).includes('private database detail'))
 })
+
+test('missing community setup gives an actionable response without database details', async () => {
+  const h = createHarness()
+  h.setScenario({ ...scenario(), rpcErrors: { community_post_workspace: { code: 'PGRST202', message: 'private schema details' } } })
+  const response = await h.load('app/api/community-posts/route.ts').GET(request())
+  const body = await response.json()
+  assert.equal(response.status, 503)
+  assert.equal(body.code, 'COMMUNITY_SETUP_REQUIRED')
+  assert.match(body.error, /one-time setup/)
+  assert.match(body.error, /then try again/)
+  assert.doesNotMatch(body.error, /migration|private schema details/)
+  assert.equal(response.headers.get('cache-control'), 'private, no-store')
+})
+
+test('temporary community failures do not incorrectly instruct admins to finish setup', async () => {
+  const h = createHarness()
+  h.setScenario({ ...scenario(), rpcErrors: { community_post_workspace: { code: '57014', message: 'private timeout details' } } })
+  const response = await h.load('app/api/community-posts/route.ts').GET(request())
+  const body = await response.json()
+  assert.equal(response.status, 503)
+  assert.equal(body.code, 'COMMUNITY_LOAD_FAILED')
+  assert.match(body.error, /Try again/)
+  assert.doesNotMatch(body.error, /one-time setup|private timeout details/)
+})

@@ -8,7 +8,15 @@ export async function GET(request: Request) {
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.tenantSettingsManage })
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   const { data, error } = await supabaseAdmin.rpc('community_post_workspace', { p_tenant: access.tenantId })
-  if (error) return NextResponse.json({ error: 'Community workspace is unavailable. Verify the community-post migration has been applied.' }, { status: 503 })
+  if (error) {
+    const setupRequired = ['PGRST202', '42883', '42P01'].includes(error.code)
+    return NextResponse.json({
+      code: setupRequired ? 'COMMUNITY_SETUP_REQUIRED' : 'COMMUNITY_LOAD_FAILED',
+      error: setupRequired
+        ? 'Community posts needs a one-time setup before you can add or review posts. Ask your technical administrator to finish Community posts setup for this environment, then try again.'
+        : 'We couldn’t load your community posts. Try again. If this continues, ask your technical administrator to check the connection for this environment.',
+    }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } })
+  }
   return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
