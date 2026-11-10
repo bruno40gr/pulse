@@ -14,7 +14,7 @@ target = Path(args.output).resolve()
 if target.exists():
     raise SystemExit('Output must be a new directory')
 target.mkdir(parents=True)
-archive = subprocess.Popen(['git', '-C', str(root), 'archive', '2b2f00e'], stdout=subprocess.PIPE)
+archive = subprocess.Popen(['git', '-C', str(root), 'archive', '6f6446c'], stdout=subprocess.PIPE)
 subprocess.run(['tar', '-x', '-C', str(target)], stdin=archive.stdout, check=True)
 archive.stdout.close()
 if archive.wait() != 0:
@@ -110,12 +110,18 @@ if "BETA academy preview" not in text or "{NAV_GROUPS.filter" in text:
     raise SystemExit('Beta navigation patch failed')
 layout.write_text(text)
 
-# The published middleware has no anonymous sandbox bypass. Add the admin gate.
+# The published middleware may already carry the gate; add it only when missing.
 middleware = target / 'middleware.ts'
-text = middleware.read_text().replace("  const pathname = request.nextUrl.pathname", "  const pathname = request.nextUrl.pathname\n  const isBetaPath = pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')")
-text = text.replace("if (pathname === '/dashboard/design'", "if (isBetaPath || pathname === '/dashboard/design'")
-text = text.replace("loginUrl.searchParams.set('next', pathname)", "loginUrl.searchParams.set('next', pathname + request.nextUrl.search)")
-text = text.replace('  return supabaseResponse\n}', "  if (isBetaPath) {\n    supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow')\n    supabaseResponse.headers.set('Cache-Control', 'private, no-store')\n  }\n  return supabaseResponse\n}")
+text = middleware.read_text()
+if 'isBetaPath' not in text:
+    text = text.replace("  const pathname = request.nextUrl.pathname", "  const pathname = request.nextUrl.pathname\n  const isBetaPath = pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')")
+    text = text.replace("if (pathname === '/dashboard/design'", "if (isBetaPath || pathname === '/dashboard/design'")
+if "loginUrl.searchParams.set('next', pathname)" in text:
+    text = text.replace("loginUrl.searchParams.set('next', pathname)", "loginUrl.searchParams.set('next', pathname + request.nextUrl.search)")
+if 'X-Robots-Tag' not in text:
+    text = text.replace('  return supabaseResponse\n}', "  if (isBetaPath) {\n    supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow')\n    supabaseResponse.headers.set('Cache-Control', 'private, no-store')\n  }\n  return supabaseResponse\n}")
+if 'isBetaPath' not in text or 'X-Robots-Tag' not in text:
+    raise SystemExit('Beta middleware patch failed')
 middleware.write_text(text)
 
 # Only academy-owned static images are overlaid; no environment files are copied.
@@ -124,6 +130,6 @@ for folder in ['images/services']:
     if source.exists():
         shutil.copytree(source, target / 'public' / folder, dirs_exist_ok=True)
 
-manifest = {'base': '2b2f00e', 'academyFiles': sorted(str(path.relative_to(root)) for path in seen), 'liveChanges': ['app/dashboard/layout.tsx', 'middleware.ts'], 'excluded': ['unrelated dirty files', 'preview host', 'environment files', 'migrations']}
+manifest = {'base': '6f6446c', 'academyFiles': sorted(str(path.relative_to(root)) for path in seen), 'liveChanges': ['app/dashboard/layout.tsx', 'middleware.ts'], 'excluded': ['unrelated dirty files', 'preview host', 'environment files', 'migrations']}
 (target / 'beta-release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print(f'Prepared {target}: {len(seen)} isolated academy dependencies')
