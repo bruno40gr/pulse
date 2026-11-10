@@ -1,7 +1,7 @@
 'use client'
 
 import { useContext } from 'react'
-import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
+import { ContactPrototypeContext, ContactNameOpenContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
@@ -118,6 +118,7 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 }
 
 export default function ContactsPage() {
+  const onOpenContact = useContext(ContactNameOpenContext)
   const prototype = useContext(ContactPrototypeContext)
   const tablePreferences = useTablePreferences(CONTACT_TABLE_SCHEMA)
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -339,6 +340,7 @@ export default function ContactsPage() {
 
   const handleNameClick = async (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenContact?.(contact.id)) return
     if (contact.staff_id) {
       const response = await fetch(`/api/contacts/${contact.id}?tenant=${tenantId}`)
       const detailedContact = await response.json()
@@ -686,8 +688,9 @@ export default function ContactsPage() {
             }
           })}
           nameColumn="name"
-          onOpenMember={member => { setSelectedAccount(null); setAccountPanelTab('profile'); setSelectedContact(member) }}
+          onOpenMember={member => { if (onOpenContact?.(member.id)) return; setSelectedAccount(null); setAccountPanelTab('profile'); setSelectedContact(member) }}
           onOpenGroup={group => {
+            if (group.parent && onOpenContact?.(group.parent.id)) return
             if (group.parent) {
               setSelectedAccount(null)
               setAccountPanelTab('profile')
