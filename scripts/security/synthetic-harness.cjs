@@ -103,8 +103,9 @@ function createHarness() {
       }
       if (id === '@anthropic-ai/sdk') return class {
         constructor() {
-          this.messages = { create: async () => {
+          this.messages = { create: async payload => {
             if (!scenario.allowSyntheticAI) throw new Error('AI calls blocked in synthetic tests')
+            scenario.captureAIRequest?.(payload)
             return { content: [{ type: 'text', text: scenario.syntheticAIText || '{"insights":[],"body":"Synthetic copy"}' }] }
           } }
         }

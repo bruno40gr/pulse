@@ -1,3 +1,5 @@
+.fieldHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.fieldActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .light { background: #fbfdfc; color: #1A1A1A; color-scheme: light; min-height: 100vh; flex: 1; }
 .shell { max-width: 1400px; margin: auto; padding: 32px; color: #1A1A1A; font-family: var(--font-dm-sans), sans-serif; }
 .notice { padding: 12px 16px; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 28px; font-size: 13px; background: #FAF6F0; }
@@ -33,7 +35,15 @@
 .placeholder { background: #FAF6F0; border: 1px dashed #9CA3AF; border-radius: 10px; padding: 40px 24px; text-align: center; }
 .small { font-size: 13px; color: #6B7280; line-height: 1.6; }
 .list { display: grid; gap: 12px; padding: 0; list-style: none; }
-.list li { display: flex; gap: 18px; align-items: center; justify-content: space-between; border: 1px solid #E5E7EB; padding: 18px; border-radius: 10px; background: white; }
+.list li { min-width: 0; }
+.list h3 { overflow-wrap: anywhere; }
+.contentActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.contentSummary, .uploadedPhoto { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.uploadedPhoto { flex-wrap: wrap; }
+.thumbnail { width: 88px; height: 72px; object-fit: contain; border-radius: 8px; flex-shrink: 0; background: #FAFAF9; }
+.fileDetails { display: grid; gap: 4px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.photoActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
+.hiddenFile { display: none; }
 .list strong { display: block; }
 .errors { padding: 16px 16px 16px 32px; color: #DC2626; background: #fff7f7; border-radius: 8px; }
 .upload { position: relative; border: 1px dashed #E5E7EB; border-radius: 12px; padding: 40px 24px; text-align: center; background: #FAFAF9; cursor: pointer; }

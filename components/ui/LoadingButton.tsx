@@ -16,6 +16,8 @@ interface LoadingButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fill?: LoadingFill
   /** 0–100. When provided, drives a determinate fill that matches real progress. */
   progress?: number
+  /** Confirmation fill that leaves the control enabled for release/cancel events. */
+  holdProgress?: number
 }
 
 const fillClasses: Record<LoadingFill, string> = {
@@ -33,6 +35,7 @@ export function LoadingButton({
   loadingLabel = 'Loading',
   fill = 1,
   progress,
+  holdProgress,
   children,
   style,
   disabled,
@@ -68,6 +71,7 @@ export function LoadingButton({
       }}
       {...props}
     >
+      {holdProgress != null && <span aria-hidden className="lb-fill" style={{ right: 'auto', width: `${Math.max(0, Math.min(100, holdProgress))}%`, background: 'rgba(127, 127, 127, 0.5)', transition: 'none' }} />}
       {loading && !determinate && <span className={fillClasses[fill]} aria-hidden />}
       {determinate && (
         <span

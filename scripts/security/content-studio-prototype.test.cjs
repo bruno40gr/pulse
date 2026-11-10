@@ -4,6 +4,15 @@ const assert = require('node:assert/strict')
 const { readFileSync } = require('node:fs')
 const { createHarness } = require('./synthetic-harness.cjs')
 const studio = () => createHarness().load('lib/content-studio-prototype.ts')
+
+test('website status follows published snapshot rather than draft status or removal action', () => {
+  const { websiteStatus } = studio()
+  assert.equal(websiteStatus({ status: 'published', hasPublishedVersion: true }), 'Published on website')
+  assert.equal(websiteStatus({ status: 'draft', hasPublishedVersion: true }), 'Published on website · draft edits not published')
+  assert.equal(websiteStatus({ status: 'draft', hasPublishedVersion: false }), 'Not published on website')
+  assert.equal(websiteStatus({ status: 'archived', hasPublishedVersion: false }), 'Archived · not on website')
+  assert.equal(websiteStatus({ status: 'published', hasPublishedVersion: false }), 'Not published on website')
+})
 const base = kind => ({ kind, title: 'Synthetic title', summary: '', body: '', date: '', time: '', image: '', imageAlt: '', artwork: 'template', ctaLabel: '', ctaUrl: '', socialUrl: '', permission: false, featured: false })
 
 test('events and deadlines always have calendar placement; announcements do not', () => {
