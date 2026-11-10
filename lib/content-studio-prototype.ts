@@ -5,6 +5,7 @@ export type StudioDraft = {
   id: string
   kind: ContentKind
   status: 'draft' | 'published' | 'archived'
+  hasPublishedVersion?: boolean
   title: string
   summary: string
   body: string
@@ -16,8 +17,12 @@ export type StudioDraft = {
   credit: string
   image: string
   imageAlt: string
+  imageFileName?: string
+  imageFileType?: string
   artworkImage?: string
   artworkAlt?: string
+  artworkFileName?: string
+  artworkFileType?: string
   imageLayout?: 'separate' | 'overlay'
   artwork: 'template' | 'upload'
   output: 'digital' | 'print'
@@ -28,6 +33,8 @@ export type StudioDraft = {
   permission: boolean
   featured: boolean
   publishedAt: string
+  publicationDate?: string
+  bodyImages?: { src: string; alt: string; caption?: string }[]
   includeLogo?: boolean
   eventTheme?: EventTheme | 'auto'
   posterLayout?: 'stage' | 'instruments' | 'portrait' | 'ensemble' | 'workshop'
@@ -80,6 +87,11 @@ export function newStudioDraft(kind: ContentKind): StudioDraft {
   return { id: crypto.randomUUID(), kind, status: 'draft', title: '', summary: '', body: '', date: '', time: '', location: '', expires: '', category: '', credit: '', image: '', imageAlt: '', artwork: 'template', output: 'digital', template: 'crimson', ctaLabel: '', ctaUrl: '', socialUrl: '', permission: false, featured: false, publishedAt: '', includeLogo: true, imageLayout: 'separate' }
 }
 
+export function websiteStatus(item: Pick<StudioDraft, 'status' | 'hasPublishedVersion'>) {
+  if (item.hasPublishedVersion) return item.status === 'published' ? 'Published on website' : 'Published on website · draft edits not published'
+  return item.status === 'archived' ? 'Archived · not on website' : 'Not published on website'
+}
+
 export function studioSteps(kind: ContentKind) {
   return [`${contentKinds.find(item => item.kind === kind)!.label} Details`, 'Design', 'Publish']
 }
@@ -129,7 +141,7 @@ export function publishErrors(draft: StudioDraft, featuredCount = 0): string[] {
   if (draft.artwork === 'upload' && !image && banner) errors.push('Upload artwork or choose a template.')
   if (image && !imageAlt.trim()) errors.push('Describe the image for accessibility.')
   if (draft.kind === 'article' && (draft.ctaLabel.trim() || draft.ctaUrl.trim())) {
-    if (!draft.ctaLabel.trim() || !safeCta(draft.ctaUrl)) errors.push('Provide both CTA text and a full HTTPS destination.')
+    if (!draft.ctaLabel.trim() || !safeCta(draft.ctaUrl)) errors.push('Add the text to display and a complete https:// link in “Add a text link”, or remove the link.')
   }
   if (draft.kind === 'social') {
     try { canonicalCommunityUrl(draft.socialUrl) } catch (error) { errors.push((error as Error).message) }

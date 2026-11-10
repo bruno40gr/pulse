@@ -16,6 +16,9 @@ export async function middleware(request: NextRequest) {
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
   const isBetaPath = pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')
+  // Read-only website delivery authenticates its own server token; public assets
+  // independently verify that the image belongs to currently published content.
+  if (request.method === 'GET' && (pathname === '/api/website-content/public' || pathname === '/api/website-content/public/assets')) return NextResponse.next({ request })
   // Static, non-personal fallback avatar must also load through image optimization.
   if (pathname === '/avatars/staff-default.svg' || /^\/avatars\/staging-(owner|admin|staff|assistant|tester)\.svg$/.test(pathname)) return NextResponse.next({ request })
   // Twilio cannot present a Pulse session. These handlers authenticate requests
@@ -115,6 +118,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isBetaPath || pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
+    || pathname === '/dashboard/website-content' || pathname.startsWith('/dashboard/website-content/')
     || pathname === '/content-studio-prototype' || pathname.startsWith('/content-studio-prototype/')) {
     const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
     const designAccess = await requireAccountAdministrator(request, tenantId)

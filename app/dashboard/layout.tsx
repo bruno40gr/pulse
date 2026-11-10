@@ -35,6 +35,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Staff' },
       { href: '/dashboard/community', label: 'Community posts' },
+      { href: '/dashboard/website-content', label: 'Website Content' },
     ],
   },
   {
@@ -135,8 +136,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
   const pathname = usePathname()
+  const [canPublishWebsite, setCanPublishWebsite] = useState(false)
   const [conversationCount, setConversationCount] = useState(0)
   const [leadCount, setLeadCount] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => { if (response.ok) { const data = await response.json(); setCanPublishWebsite(['owner', 'admin'].includes(data.roleKey)) } })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -215,7 +225,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         {NAV_GROUPS.map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
-            {group.links.map(({ href, label }) => {
+            {group.links.filter(link => link.href !== '/dashboard/website-content' || canPublishWebsite).map(({ href, label }) => {
               const active = isNavLinkActive(href, pathname)
               return (
                 <Link
