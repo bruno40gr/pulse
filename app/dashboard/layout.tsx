@@ -96,7 +96,7 @@ export default function DashboardLayout({ children, sample = false }: { children
     <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
       {!isMobile && (
-        <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh' }}>
+        <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh', overflow: 'hidden' }}>
           <SidebarBody onNavigate={closeMenu} sample={sample} />
         </aside>
       )}
@@ -233,7 +233,7 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
       <div style={{ padding: '12px 8px 0' }}>
         {sample ? <Button variant="destructive" size="sm" style={{ width: '100%' }} onClick={() => { const href = `/dashboard?tenant=${encodeURIComponent(search.get('tenant') || getActiveTenantId())}`; onNavigate(); window.location.assign(href) }}><ArrowLeft size={15} aria-hidden="true" />Back to Headliner</Button> : <NotificationBell inverse variant="user" onNavigate={onNavigate} />}
       </div>
-      <nav style={{ flex: 1, padding: '12px 8px' }}>
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>
         {(sample ? [{ label: 'BETA', links: [{ href: '/odeon-demo', label: 'Contacts' }, { href: '/odeon-demo?view=parent&account=demo%3Afamily-1', label: 'Parent portal' }, { href: '/odeon-demo/school-setup?experience=configured', label: 'School Setup' }] }] : NAV_GROUPS).map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
@@ -275,8 +275,10 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
             })}
           </div>
         ))}
+      </nav>
+      <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         {!sample && canPublishWebsite && (
-          <div style={{ padding: '0 4px', marginTop: spacing.lg }}>
+          <div style={{ padding: '0 4px', marginBottom: spacing.sm }}>
             <Link
               href={`/odeon-demo?tenant=${encodeURIComponent(getActiveTenantId())}`}
               onClick={onNavigate}
@@ -301,8 +303,6 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
             </Link>
           </div>
         )}
-      </nav>
-      <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Link
           href={sample ? '/odeon-demo/school-setup?experience=configured' : '/dashboard/settings'}
           onClick={onNavigate}

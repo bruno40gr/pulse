@@ -75,7 +75,7 @@ if 'canAccessBeta' not in text:
     text = text.replace("  const pathname = usePathname()\n  const [conversationCount", "  const [canAccessBeta, setCanAccessBeta] = useState(false)\n  useEffect(() => {\n    const controller = new AbortController()\n    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })\n      .then(async response => { if (response.ok) { const data = await response.json(); setCanAccessBeta(['owner', 'admin'].includes(data.roleKey)) } }).catch(() => {})\n    return () => controller.abort()\n  }, [])\n  const pathname = usePathname()\n  const [conversationCount")
 text = text.replace('href={href}', "href={href.startsWith('/odeon-demo') ? `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(getActiveTenantId())}` : href}")
 beta_entry = """        {canAccessBeta && (
-          <div style={{ padding: '0 4px', marginTop: spacing.lg }}>
+          <div style={{ padding: '0 4px', marginBottom: spacing.sm }}>
             <Link
               href={`/odeon-demo?tenant=${encodeURIComponent(getActiveTenantId())}`}
               onClick={onNavigate}
@@ -101,11 +101,13 @@ beta_entry = """        {canAccessBeta && (
           </div>
         )}
 """
-nav_end = "        ))}\n      </nav>"
+footer_start = "      <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>\n"
 if "BETA academy preview" not in text:
-    if nav_end not in text:
+    if footer_start not in text:
         raise SystemExit('Beta navigation anchor missing')
-    text = text.replace(nav_end, "        ))}\n" + beta_entry + "      </nav>", 1)
+    text = text.replace(footer_start, footer_start + beta_entry, 1)
+text = text.replace("position: 'fixed', top: 0, left: 0, height: '100vh' }}", "position: 'fixed', top: 0, left: 0, height: '100vh', overflow: 'hidden' }}")
+text = text.replace("<nav style={{ flex: 1, padding: '12px 8px' }}>", "<nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>")
 if "BETA academy preview" not in text or "{NAV_GROUPS.filter" in text:
     raise SystemExit('Beta navigation patch failed')
 layout.write_text(text)
