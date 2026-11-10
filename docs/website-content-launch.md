@@ -3,7 +3,22 @@
 - Photo actions moved into the uploaded-image card (Replace photo / Remove photo);
   previously Remove stretched across the form and read like body text. Verified
   at 390px and 1440px.
-- Website feed consumer (Headliner repo, uncommitted on its `main`):
+- One-time content import completed November 10, 2026 into staging
+  (`xpnygavujqmzkdmcktdm`), tenant `00000000-...-0001`, revision 21 → 33.
+  Source: `scripts/export-website-content.mjs` (3 articles, 3 posters; 1 calendar
+  event exported as a notice because it is past-dated). Every record was validated
+  with `contentCommand` before writing; each was saved then published via
+  `website_content_command` with the owning admin membership as actor. Article
+  slugs were preserved (`student-performances-at-shadys-coffee`,
+  `jennifer-belle-live-studio-session`, `wag-and-walk-with-placer-spca`). Verified:
+  authorised feed returns 7 published records (the 6 imported plus the earlier
+  test article), each article URL returns 200, homepage lists them, anonymous feed
+  and private-asset requests return 401, and no imported image is an app-managed
+  asset (they remain existing public Cloudinary URLs).
+  Two follow-ups before production: the past Halloween event is now a notice, so
+  the calendar has no upcoming events; and the older synthetic test article
+  remains published in staging.
+
   `src/lib/websiteContent.js` fetches the CRM feed server-side with the reader
   token, or falls back to today's bundled preview content when
   `WEBSITE_CONTENT_API_URL` is unset. `app/page.js`,
