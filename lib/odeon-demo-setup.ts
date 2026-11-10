@@ -1,0 +1,14 @@
+import { createOdeonDemo, demoHours, demoServices } from './odeon-demo'
+import { createSetupData, normalizePricing, type SetupRecord } from '../app/content-studio-prototype/school-setup/setup-content'
+
+/** Adapter keeps the existing onboarding editor and the public sandbox on one seed. */
+export function createDemoSetup(): Record<string, SetupRecord[]> {
+  const data = createSetupData('configured'), demo = createOdeonDemo()
+  data.school[0].values = { ...data.school[0].values, name: 'Headliner Music Academy', email: 'hello@headliner.example.invalid', phone: '202-555-0100' }
+  data.services = demoServices.map(service => ({ id: service.id, values: { name: service.name, durations: service.format === 'private' ? '30, 45, 60' : String(service.minutes), formats: JSON.stringify([service.format]), levelIds: '["level1","level2","level3"]', scheduling: '["Recurring appointments"]', planIds: JSON.stringify([service.format === 'private' ? 'demo-private' : 'demo-group']) } }))
+  data.plans = [4000, 3500].map((price, index) => ({ id: index === 0 ? 'demo-private' : 'demo-group', values: normalizePricing({ kind: 'Subscription', basis: 'Per scheduled lesson', price: String(price / 100), durationPrices: JSON.stringify([{ minutes: index === 0 ? 30 : 45, price: String(price / 100) }]), cadence: 'Monthly', first: 'Remaining scheduled lessons', visits: '1', fee: '0', deposit: '0' }) }))
+  data.locations = [{ id: 'studio', values: { name: 'Headliner Music Academy', address: 'Sample studio address', city: 'Rocklin', state: 'CA', postal: '95765' }, rooms: [...new Map(demo.sessions.map(session => [session.room, { id: session.room, name: session.room, capacity: String(session.capacity), serviceIds: demo.sessions.filter(item => item.room === session.room).map(item => item.serviceId) }])).values()] }]
+  data.teachers = demo.teachers.map(teacher => ({ id: teacher.id, values: { name: teacher.name, email: teacher.email, phone: '202-555-0100', assignments: JSON.stringify(teacher.serviceIds.map(serviceId => ({ serviceId, maxLevel: 3 }))), availability: JSON.stringify(teacher.days.map(day => { const hours = demoHours.find(item => item.day === day)!; return { id: `${teacher.id}:${day}`, day: day - 1, from: Number(hours.from.slice(0, 2)) * 60, to: Number(hours.to.slice(0, 2)) * 60 } })), service: teacher.serviceIds[0], location: 'studio', days: teacher.days.map(day => demoHours.find(hours => hours.day === day)!.label).join(', '), from: '12:00', to: '21:00', levelIds: '["level1","level2","level3"]', levels: 'Level 1, Level 2, Level 3', saturday: teacher.days.includes(6) ? '09:00–15:00' : 'Not available' } }))
+  data.policies[0].values = { ...data.policies[0].values, closure: '', start: '', end: '' }
+  return data
+}

@@ -1,0 +1,1 @@
+export { default } from '/Users/brunowong/pulse/app/dashboard/layout'

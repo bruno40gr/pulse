@@ -3,6 +3,15 @@
   overflow-anchor: none;
 }
 
+.enter { animation: panelIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.exit { animation: panelOut 220ms ease-in both; pointer-events: none !important; }
+.backdropEnter { animation: fadeIn 260ms ease both; }
+.backdropExit { animation: fadeOut 220ms ease both; }
+@keyframes panelIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes panelOut { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .panel { transition: none; }
+  .enter, .exit, .backdropEnter, .backdropExit { animation: none; }
 }

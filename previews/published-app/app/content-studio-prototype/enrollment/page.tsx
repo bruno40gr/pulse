@@ -1,0 +1,1 @@
+export { default, metadata } from '/Users/brunowong/pulse/app/content-studio-prototype/enrollment/page'
