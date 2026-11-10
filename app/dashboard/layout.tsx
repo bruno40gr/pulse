@@ -5,8 +5,9 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu } from 'lucide-react'
+import { ArrowLeft, Menu } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
+import { Button } from '@/components/ui/Button'
 import LogoutButton from '@/components/layout/LogoutButton'
 import IdentityProvider from '@/components/layout/IdentityProvider'
 import DemoBanner from '@/components/ui/DemoBanner'
@@ -31,10 +32,12 @@ const NAV_GROUPS = [
       { href: '/dashboard/rsvps', label: 'Event RSVPs' },
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/contacts', label: 'Contacts' },
+      { href: '/dashboard/enrollments', label: 'Enrollments' },
       { href: '/dashboard/inbox', label: 'Communications' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Staff' },
       { href: '/dashboard/community', label: 'Community posts' },
+      { href: '/dashboard/website-content', label: 'Website Content' },
     ],
   },
   {
@@ -61,7 +64,7 @@ function isNavLinkActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({ children, sample = false }: { children: React.ReactNode; sample?: boolean }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -70,13 +73,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const recoveryChecked = useRef(false)
   useEffect(() => {
+    if (sample) return
     if (recoveryChecked.current && pathname !== '/dashboard/inbox') return
     recoveryChecked.current = true
     void fetch(`/api/inbox/reconcile?tenant=${getActiveTenantId()}`, { method: 'POST' })
       .then(response => {
         if (!response.ok && response.status !== 403) console.warn('Message recovery check unavailable.')
       }).catch(() => console.warn('Message recovery check unavailable.'))
-  }, [pathname])
+  }, [pathname, sample])
 
   useEffect(() => {
     applyDisplayFontSize(readDisplayFontSize())
@@ -88,12 +92,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const closeMenu = () => setMenuOpen(false)
 
   return (
-    <IdentityProvider>
+    <DashboardIdentity sample={sample}>
     <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
       {!isMobile && (
         <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh' }}>
-          <SidebarBody onNavigate={closeMenu} />
+          <SidebarBody onNavigate={closeMenu} sample={sample} />
         </aside>
       )}
 
@@ -103,8 +107,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <ControlButton kind="icon" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" >
             <Menu size={22} />
           </ControlButton>
-          <div style={{ flex: '0 1 110px', minWidth: 0 }}><TenantBrand height={28} maxWidth="100%" width="100%" /></div>
-          <div style={{ flex: 1, minWidth: 0 }}><NotificationBell inverse variant="user" onNavigate={closeMenu} /></div>
+          <div style={{ flex: '0 1 110px', minWidth: 0 }}>{sample ? <strong style={{ color: colors.surface }}>odeon.</strong> : <TenantBrand height={28} maxWidth="100%" width="100%" />}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>{sample ? null : <NotificationBell inverse variant="user" onNavigate={closeMenu} />}</div>
         </header>
       )}
 
@@ -117,28 +121,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <TenantBrand height={32} maxWidth="70%" width="70%" />
               <ControlButton kind="close" type="button" onClick={closeMenu} aria-label="Close menu"  />
             </div>
-            <SidebarBody onNavigate={closeMenu} showBrand={false} />
+            <SidebarBody onNavigate={closeMenu} showBrand={false} sample={sample} />
           </div>
         </>
       )}
 
       {/* Main content */}
       <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
-        <DemoBanner />
+        {!sample && <DemoBanner />}
         {children}
       </main>
-      <ClaimReminderModal />
+      {!sample && <ClaimReminderModal />}
     </div>
-    </IdentityProvider>
+    </DashboardIdentity>
   )
 }
 
-function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
+function DashboardIdentity({ sample, children }: { sample: boolean; children: React.ReactNode }) {
+  return sample ? <>{children}</> : <IdentityProvider>{children}</IdentityProvider>
+}
+
+function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavigate: () => void; showBrand?: boolean; sample?: boolean }) {
+  const [canPublishWebsite, setCanPublishWebsite] = useState(false)
+  useEffect(() => {
+    if (sample) return
+    const controller = new AbortController()
+    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => { if (response.ok) { const data = await response.json(); setCanPublishWebsite(['owner', 'admin'].includes(data.roleKey)) } })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [sample])
   const pathname = usePathname()
+  const [sampleQuery, setSampleQuery] = useState('')
+  useEffect(() => { if (sample) setSampleQuery(window.location.search) }, [sample, pathname])
+  const search = new URLSearchParams(sampleQuery)
   const [conversationCount, setConversationCount] = useState(0)
   const [leadCount, setLeadCount] = useState(0)
 
   useEffect(() => {
+    if (sample) return
     let cancelled = false
     let revision = 0
     const poller = startVisiblePolling(async signal => {
@@ -159,9 +180,10 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       poller.stop()
       window.removeEventListener(LEAD_COUNT_EVENT, handleCountChange)
     }
-  }, [])
+  }, [sample])
 
   useEffect(() => {
+    if (sample) return
     let cancelled = false
     let countRevision = 0
     const pendingReads = new Set<string>()
@@ -197,7 +219,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       poller.stop()
       window.removeEventListener(CONVERSATION_COUNT_EVENT, handleCountChange)
     }
-  }, [])
+  }, [sample])
 
   return (
     <>
@@ -209,18 +231,18 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         </div>
       )}
       <div style={{ padding: '12px 8px 0' }}>
-        <NotificationBell inverse variant="user" onNavigate={onNavigate} />
+        {sample ? <Button variant="destructive" size="sm" style={{ width: '100%' }} onClick={() => { const href = `/dashboard?tenant=${encodeURIComponent(search.get('tenant') || getActiveTenantId())}`; onNavigate(); window.location.assign(href) }}><ArrowLeft size={15} aria-hidden="true" />Back to Headliner</Button> : <NotificationBell inverse variant="user" onNavigate={onNavigate} />}
       </div>
       <nav style={{ flex: 1, padding: '12px 8px' }}>
-        {NAV_GROUPS.map(group => (
+        {(sample ? [{ label: 'BETA', links: [{ href: '/odeon-demo', label: 'Contacts' }, { href: '/odeon-demo?view=parent&account=demo%3Afamily-1', label: 'Parent portal' }, { href: '/odeon-demo/school-setup?experience=configured', label: 'School Setup' }] }] : NAV_GROUPS).map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
-            {group.links.map(({ href, label }) => {
-              const active = isNavLinkActive(href, pathname)
+            {group.links.filter(link => link.href !== '/dashboard/website-content' || canPublishWebsite).map(({ href, label }) => {
+              const active = sample ? href.includes('screen=staff') ? search.get('screen') === 'staff' : href.includes('view=parent') ? search.get('view') === 'parent' : href.includes('school-setup') ? pathname.endsWith('/school-setup') : pathname === '/odeon-demo' && !search.get('screen') && search.get('view') !== 'parent' : isNavLinkActive(href, pathname)
               return (
                 <Link
                   key={href}
-                  href={href}
+                  href={href.startsWith('/odeon-demo') ? `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(sample ? search.get('tenant') || getActiveTenantId() : getActiveTenantId())}` : href}
                   onClick={event => {
                     if (href === '/dashboard/inbox' && pathname === href && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                       event.preventDefault()
@@ -253,10 +275,36 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
             })}
           </div>
         ))}
+        {!sample && canPublishWebsite && (
+          <div style={{ padding: '0 4px', marginTop: spacing.lg }}>
+            <Link
+              href={`/odeon-demo?tenant=${encodeURIComponent(getActiveTenantId())}`}
+              onClick={onNavigate}
+              aria-label="BETA academy preview"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: spacing.sm,
+                padding: '9px 12px',
+                borderRadius: radius.lg,
+                background: colors.yellow,
+                color: colors.espresso,
+                textDecoration: 'none',
+                fontSize: typography.sizeXs,
+                fontWeight: typography.weightBold,
+                letterSpacing: '0.08em',
+              }}
+            >
+              <span>BETA</span>
+              <span style={{ letterSpacing: 0, fontWeight: typography.weightMedium, color: 'rgba(26,19,15,0.7)' }}>Academy preview</span>
+            </Link>
+          </div>
+        )}
       </nav>
       <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Link
-          href="/dashboard/settings"
+          href={sample ? '/odeon-demo/school-setup?experience=configured' : '/dashboard/settings'}
           onClick={onNavigate}
           style={{
             ...navLinkStyle,
@@ -267,7 +315,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
         >
           Settings
         </Link>
-        <LogoutButton onLogout={onNavigate} />
+        {!sample && <LogoutButton onLogout={onNavigate} />}
       </div>
     </>
   )

@@ -4,7 +4,7 @@ import { familyActionConfirmation, useActionConfirmation } from './useActionConf
 
 import { ConfirmActionButton } from './ConfirmActionButton'
 
-import { List, Grid2X2 } from 'lucide-react'
+import { List, Grid2X2, ArrowLeft } from 'lucide-react'
 
 import { useEffect, useRef, useState } from 'react'
 import { Button, DenseSectionPanel, DetailField, EmptyState, Modal, ModalBody, ModalHeader, Select } from '@/components/ui'
@@ -29,6 +29,7 @@ import { MoveLesson } from './MoveLesson'
 import { ParentFamilyGroup } from './ParentFamilyGroup'
 import { ParentNotes } from './ParentNotes'
 import { ControlButton } from '@/components/ui/ControlButton'
+import HeadlinerLogo from '@/components/layout/HeadlinerLogo'
 import type { NoteAttachment } from '@/lib/note-links'
 import styles from './ParentPortal.module.css'
 
@@ -148,12 +149,11 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
 
   return <InlineWorkspaceContext.Provider value={true}><div className={styles.portal} data-parent-portal="" style={{ fontFamily: typography.fontSans }}>
     <header className={styles.topbar}><div className={styles.topbarInner}>
-      <div className={styles.brand}><span className={styles.brandMark} aria-hidden="true">O</span><div><strong>Odeon</strong><div className={styles.identity}>Parent portal · {account.holderName}</div></div></div>
+      <div className={styles.brand}><HeadlinerLogo height={28} /><div className={styles.identity}>Parent portal · {account.holderName}</div></div>
       <nav className={styles.nav} aria-label="Parent portal navigation">{([{ key: 'home', label: 'Home' }, { key: 'lessons', label: 'Lessons' }, { key: 'notes', label: 'Notes' }, { key: 'billing', label: 'Billing' }, { key: 'account', label: 'Account' }] as const).map(item => <Button key={item.key} variant={(section === 'payment-methods' ? 'billing' : section === 'makeups' ? 'lessons' : section) === item.key ? 'primary' : 'ghost'} aria-current={(section === 'payment-methods' ? 'billing' : section === 'makeups' ? 'lessons' : section) === item.key ? 'page' : undefined} onClick={() => navigate(item.key)}>{item.label}</Button>)}</nav>
-      <Button variant="secondary" size="sm" onClick={onExit}>Exit parent preview</Button>
+      <Button variant="destructive" size="sm" onClick={onExit}><ArrowLeft size={15} aria-hidden="true" />Back to Headliner</Button>
     </div></header>
     <main ref={contentRef} className={styles.content} aria-label="Parent portal">
-      <p className={styles.preview}>Interactive preview · Fictional data · Schedule shown in Pacific time · No real charges · Changes reset on refresh</p>
       {confirmation}
       {moving ? <MoveLesson availableSlots={date => makeupSlots({ ...data, lessons: data.lessons.filter(item => item.id !== moving.id) }, { ...makeups, items: makeups.items.filter(item => item.id !== moving.id) }, { id: moving.id, lessonId: moving.id, studentId: moving.student.id, enrollmentId: moving.enrollmentId, date: moving.date, program: moving.program, duration: moving.duration, teacher: moving.teacher, service: moving.enrollment.service }, date, moving.program, false)} key={moving.id} item={moving} data={visible} state={makeups} initialDate={moving.date} accountName={previewStudentName(moving.student)} onBack={() => setMoveId(null)} onMove={booking => {
         try { const next = applyParentScheduleAction(data, makeups, account.id, { kind: 'move', id: moving.id, booking }); onData(next.data); onMakeups(next.state); setMoveId(null); confirm('I’ve rescheduled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to reschedule lesson.' }

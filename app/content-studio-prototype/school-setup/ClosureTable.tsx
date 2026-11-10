@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { FieldGrid } from '@/components/ui/FieldGrid'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { SectionTitle } from '@/components/ui/SectionTitle'
 import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { Trash2 } from 'lucide-react'
@@ -30,6 +29,12 @@ export function holidayPresets(year: number) {
   })
 }
 
+export function CalendarSummary({ values, locations }: { values: Record<string, string>; locations: SetupRecord[] }) {
+  let rows: Closure[] = []
+  try { rows = values.closures ? JSON.parse(values.closures) : values.closure ? [{ id: 'legacy', name: values.closure, start: values.start, end: values.end, location: 'all' }] : [] } catch { /* Empty configuration. */ }
+  return <div style={{ display: 'grid', gap: spacing.lg }}><p>Add US federal holidays, observed dates or custom closures. Closure treatment is managed separately in Policies.</p>{rows.length ? rows.map(row => <div key={row.id}><strong>{row.name}</strong><p>{row.start} – {row.end} · {row.location === 'all' ? 'All locations' : locations.find(item => item.id === row.location)?.values.name || 'Location unavailable'}</p></div>) : <p>No closure dates added yet. Choose Edit details to add holidays or custom dates.</p>}</div>
+}
+
 export default function ClosureTable({ values, locations, onChange }: { values: Record<string, string>; locations: SetupRecord[]; onChange: (value: string) => void }) {
   let rows: Closure[] = []
   try { rows = values.closures ? JSON.parse(values.closures) : values.closure ? [{ id: 'legacy', name: values.closure, start: values.start, end: values.end, location: 'all' }] : [] } catch { /* Empty legacy configuration. */ }
@@ -37,15 +42,14 @@ export default function ClosureTable({ values, locations, onChange }: { values: 
   const write = (next: Closure[]) => onChange(JSON.stringify(next.map(({ id, name, start, end, location }) => ({ id, name, start, end, location }))))
   const add = (name = '', date = '') => write([...rows, { id: crypto.randomUUID(), name, start: date, end: date, location }])
   const update = (id: string, key: keyof Closure, value: string) => write(rows.map(row => row.id === id ? { ...row, [key]: value } : row))
-  return <section aria-label="School closures" style={{ display: 'grid', gap: spacing.lg }}>
-    <SectionTitle>Days off & closures</SectionTitle>
+  return <section aria-label="School closures"><DenseSectionPanel title="Days off & closures" headingLevel="h2" contentStyle={{ display: 'grid', gap: spacing.lg }}>
     <FieldGrid><Select label="Holiday year" value={year} onChange={event => setYear(event.target.value)}>{['2026', '2027', '2028'].map(value => <option key={value}>{value}</option>)}</Select><Select label="US federal holiday" value={preset} onChange={event => setPreset(event.target.value)}>{holidayPresets(Number(year)).map((holiday, index) => <option value={index} key={holiday.name}>{holiday.name}</option>)}</Select></FieldGrid><FieldGrid columns={1}><Select label="Closure location" value={location} onChange={event => setLocation(event.target.value)}><option value="all">All locations</option>{locations.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</Select></FieldGrid>
     <Checkbox label="Use observed dates for weekend holidays" checked={observed} onChange={event => setObserved(event.target.checked)} />
     <p><Button type="button" variant="secondary" onClick={() => { const holiday = holidayPresets(Number(year))[Number(preset)]; add(holiday.name, observed ? holiday.observed : holiday.actual) }}>Add holiday</Button> <Button type="button" variant="secondary" onClick={() => add()}>Add custom closure</Button></p>
-    {rows.map((row, index) => <DenseSectionPanel key={row.id} contentStyle={{ display: 'grid', gap: spacing['2xl'] }} title={row.name || `Closure ${index + 1}`} actions={<ControlButton type="button" kind="icon" aria-label={`Remove closure ${index + 1}`} onClick={() => write(rows.filter(item => item.id !== row.id))}><Trash2 size={16} /></ControlButton>}>
+    {rows.map((row, index) => <DenseSectionPanel key={row.id} contentStyle={{ display: 'grid', gap: spacing.lg }} title={row.name || `Closure ${index + 1}`} actions={<ControlButton type="button" kind="icon" aria-label={`Remove closure ${index + 1}`} onClick={() => write(rows.filter(item => item.id !== row.id))}><Trash2 size={16} /></ControlButton>}>
       <FieldGrid columns={1}><Input label={`Closure ${index + 1} name`} value={row.name} onChange={event => update(row.id, 'name', event.target.value)} /></FieldGrid>
       <FieldGrid><Input label={`Closure ${index + 1} from`} type="date" value={row.start} onChange={event => update(row.id, 'start', event.target.value)} /><Input label={`Closure ${index + 1} through`} type="date" value={row.end} onChange={event => update(row.id, 'end', event.target.value)} /></FieldGrid>
       <FieldGrid columns={1}><Select label={`Closure ${index + 1} location`} value={row.location} onChange={event => update(row.id, 'location', event.target.value)}><option value="all">All locations</option>{locations.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</Select></FieldGrid>
     </DenseSectionPanel>)}
-  </section>
+  </DenseSectionPanel></section>
 }

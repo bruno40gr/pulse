@@ -119,6 +119,20 @@ Validation logs: `/tmp/odeon-dated-{tests,ts,lint,browser,regression}.log`.
 
 ## Next review
 
+The follow-up survey is consolidated in
+[Academy policy configuration](academy-policy-configuration.md). It separates
+academy-configurable capabilities from Headliner examples and unresolved choices,
+and proposes Policies, Agreements & acceptance, room conference links and teacher
+photo management. Interactive cards now replace the small policy-field form in
+Policies, with an agreements draft/preview/version flow below the
+summary; room links and teacher photos live in their respective editors. All
+remain in-memory interactions, not booking enforcement or agreement acceptance.
+Calendar is a separate navigation item reusing the original holiday/observed-date
+and custom closure controls; policy summaries use grouped cards and explicit
+setup prompts rather than a flat list of missing values.
+See the map's interactive-mockup section for boundaries and validation;
+the handoff below remains historical context.
+
 ### School-policy handoff — November 9, 2026
 
 Next session: review school policies before wiring enforcement. This is a gap
@@ -172,3 +186,22 @@ Follow-up refinement logs:
 The browser checks cover fixed price fields, removed availability lists,
 calendar draw/move/resize and modal removal, Headliner location options,
 discount/closure row spacing, and saving at desktop/mobile widths.
+## Roadmap — deferred scope (November 10, 2026)
+
+Recorded during Beta polish review. None of these are implemented: there is no
+schema, billing, persistence or UI for them yet, and nothing below should be
+read as a promise of the current sample flows.
+
+1. **Student progress.** Decide whether progress is tracked inside Notes or by
+   renaming Notes to Progress. Whichever wins, note visibility and progress
+   visibility are separate decisions: staff-only observations, family-visible
+   progress, and anything later shared with a teacher portal must be modelled
+   independently of the existing note records.
+2. **Payment methods.** Support ACH, cash, Zelle and in-person POS alongside the
+   existing card plumbing. Cash, Zelle and POS are staff-recorded payments, so
+   they need reconciliation, receipting and an audit trail rather than a stored
+   card token. Keep the family-facing "saved payment method" language truthful
+   for methods that cannot be stored.
+3. **Retail and one-offs.** Sell merchandise and other one-off items separately
+   from lesson billing: inventory counts, taxable vs non-taxable items, receipts
+   and reporting that does not distort tuition, subscription or funding totals.
