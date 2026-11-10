@@ -31,7 +31,7 @@ function ForgotPasswordForm() {
       body: JSON.stringify({ email: email.trim() }),
     })
     if (!response.ok) throw new Error('Could not request the email.')
-    setMessage('If this email is linked to an invited or active staff account, a fresh setup or reset link is on its way. Open only the newest email and continue in this browser. Check spam if it does not arrive. If no email arrives, ask an Owner or Admin to confirm your staff email and invitation.')
+    setMessage('Request received. For your privacy, this does not confirm that an account exists or an email was sent. Eligible accounts receive a setup or reset email. Check spam and open only the newest link. If nothing arrives, an Owner or Admin must check your sign-in email and staff access link; repeatedly requesting links will not fix an unlinked account.')
     } catch {
       setError('We could not request a link. Check your connection and try again.')
     } finally {

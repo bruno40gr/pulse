@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { getAccessScope, getRequestActor, type PulseActor } from '@/lib/access'
 import type { PermissionKey } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { findLoginMembership } from '@/lib/membership-logins'
 
 export type AuthenticationSource = 'supabase' | 'legacy'
 
@@ -55,16 +56,14 @@ async function loadMembershipContext(input: {
   authUserId: string | null
   legacyActor: PulseActor | null
 }): Promise<RequestContextResult> {
-  let membershipQuery = supabaseAdmin
+  const membershipQuery = supabaseAdmin
     .from('tenant_memberships')
     .select('id, tenant_id, person_id, auth_user_id, role_id, status, legacy_access_enabled')
     .eq('tenant_id', input.tenantId)
 
-  membershipQuery = input.authUserId
-    ? membershipQuery.eq('auth_user_id', input.authUserId)
-    : membershipQuery.eq('person_id', input.legacyActor!.personId)
-
-  const { data: membership, error: membershipError } = await membershipQuery.maybeSingle()
+  const { data: membership, error: membershipError } = input.authUserId
+    ? { data: await findLoginMembership(input.authUserId, input.tenantId), error: null }
+    : await membershipQuery.eq('person_id', input.legacyActor!.personId).maybeSingle()
   if (membershipError) throw membershipError
   if (!membership) return { ok: false, status: 403, error: 'A staff membership is required for this account.' }
   const allowedStatuses = input.authSource === 'supabase' ? ['active'] : ['unclaimed', 'invited', 'active']
@@ -137,9 +136,15 @@ export async function resolveMembershipRequestContext(
           .eq('legacy_access_enabled', true).in('status', ['unclaimed', 'invited', 'active'])
       const { data, error } = await query.limit(2)
       if (error) throw error
-      if (!data?.length) return { ok: false, status: 403, error: 'An active staff membership is required.' }
-      if (data.length !== 1) return { ok: false, status: 400, error: 'Select an account before continuing.' }
-      selectedTenant = data[0].tenant_id
+      if (!data?.length && input.authUserId) {
+        const membership = await findLoginMembership(input.authUserId)
+        if (!membership || membership.status !== 'active') return { ok: false, status: 403, error: 'An active staff membership is required.' }
+        selectedTenant = membership.tenant_id
+      } else {
+        if (!data?.length) return { ok: false, status: 403, error: 'An active staff membership is required.' }
+        if (data.length !== 1) return { ok: false, status: 400, error: 'Select an account before continuing.' }
+        selectedTenant = data[0].tenant_id
+      }
     }
     return loadMembershipContext({ tenantId: selectedTenant!, ...input })
   }

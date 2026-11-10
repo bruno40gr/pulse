@@ -7,17 +7,17 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const root = path.resolve(__dirname, '../..')
 
-function setup({ status = 'invited', missing = false, mismatch = false, sendError = false } = {}) {
+function setup({ status = 'invited', missing = false, mismatch = false, sendError = false, secondary = false, linkedStatus = 'active' } = {}) {
   const sent = []
   const filters = []
   const admin = {
     from(table) {
       const query = {
-        select() { return query }, ilike() { return query }, in(key, values) { filters.push([key, values]); return query },
+        select() { return query }, eq() { return query }, is() { return query }, ilike() { return query }, in(key, values) { filters.push([key, values]); return query },
         not() { return query }, limit() { return query }, maybeSingle() { return Promise.resolve({ data: missing ? null : { id: 'membership', auth_user_id: 'auth', status } }) },
-        then(resolve) { return Promise.resolve({ data: missing ? [] : [{ id: 'staff' }] }).then(resolve) },
+        then(resolve) { return Promise.resolve({ data: table === 'membership_login_links' ? (secondary ? [{ auth_user_id: 'secondary' }] : []) : missing ? [] : [{ id: 'staff' }] }).then(resolve) },
       }
-      assert.ok(['people', 'tenant_memberships'].includes(table))
+      assert.ok(['people', 'tenant_memberships', 'membership_login_links'].includes(table))
       return query
     },
     auth: {
@@ -29,7 +29,8 @@ function setup({ status = 'invited', missing = false, mismatch = false, sendErro
   const loadedModule = { exports: {} }
   const context = vm.createContext({ module: loadedModule, exports: loadedModule.exports, URL, process: { env: {} }, require(id) {
     if (id === '@/lib/supabase/admin') return { supabaseAdmin: admin }
-    if (id === 'next/server') return { NextResponse: { json: data => Response.json(data) } }
+    if (id === '@/lib/membership-logins') return { findLoginMembership: async () => ({ id: 'membership', status: linkedStatus }) }
+    if (id === 'next/server') return { NextResponse: { json: (data, options) => Response.json(data, options) } }
     throw new Error(`Blocked dependency ${id}`)
   } })
   new vm.Script(code).runInContext(context)
@@ -46,9 +47,27 @@ for (const status of ['invited', 'active']) test(`${status} account receives the
   assert.equal(JSON.stringify(filters.find(([key]) => key === 'status')[1]), JSON.stringify(['invited', 'active']))
 })
 
-for (const scenario of [{ missing: true }, { mismatch: true }, { sendError: true }]) test(`recovery remains enumeration-safe: ${JSON.stringify(scenario)}`, async () => {
+for (const scenario of [{ missing: true }, { mismatch: true }]) test(`recovery remains enumeration-safe: ${JSON.stringify(scenario)}`, async () => {
   const { post } = setup(scenario)
   assert.deepEqual(await (await post('staff@example.com')).json(), { ok: true })
+})
+
+test('provider failure is reported without exposing private details', async () => {
+  const { post } = setup({ sendError: true })
+  const response = await post('staff@example.com')
+  assert.equal(response.status, 503)
+  assert.doesNotMatch(await response.text(), /Provider unavailable/)
+})
+test('explicit secondary login gets its own recovery email', async () => {
+  const { post, sent } = setup({ secondary: true })
+  assert.equal((await post('staff@example.com')).status, 200)
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].redirectTo, 'https://pulse.example.com/reset-password')
+})
+test('secondary login cannot recover suspended staff access', async () => {
+  const { post, sent } = setup({ secondary: true, linkedStatus: 'suspended' })
+  assert.equal((await post('staff@example.com')).status, 200)
+  assert.equal(sent.length, 0)
 })
 
 test('invalid email makes no send attempt', async () => {

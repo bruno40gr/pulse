@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { findLoginMembership } from '@/lib/membership-logins'
 
 function appOrigin(request: Request) {
   const configured = process.env.PULSE_APP_URL?.trim()
@@ -13,6 +14,21 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null)
     const email = body && typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return genericResponse
+
+    // A secondary login can intentionally differ from the staff contact email.
+    // Resolve only an explicit link; never grant access because emails match.
+    const { data: links, error: linksError } = await supabaseAdmin
+      .from('membership_login_links').select('auth_user_id').eq('login_email', email).is('revoked_at', null)
+    if (linksError) throw linksError
+    for (const link of links || []) {
+      const { data: candidate, error: candidateError } = await supabaseAdmin.auth.admin.getUserById(link.auth_user_id)
+      if (candidateError || candidate.user.email?.trim().toLowerCase() !== email) continue
+      const linkedMembership = await findLoginMembership(link.auth_user_id)
+      if (linkedMembership?.status !== 'active') return genericResponse
+      const { error: deliveryError } = await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: `${appOrigin(request)}/reset-password` })
+      if (deliveryError) throw deliveryError
+      return genericResponse
+    }
 
     const { data: people, error: peopleError } = await supabaseAdmin
       .from('people')
@@ -33,11 +49,12 @@ export async function POST(request: Request) {
     const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(membership.auth_user_id)
     if (authUserError || authUser.user.email?.trim().toLowerCase() !== email) return genericResponse
 
-    await supabaseAdmin.auth.resetPasswordForEmail(email, {
+    const { error: deliveryError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
       redirectTo: `${appOrigin(request)}${membership.status === 'invited' ? '/claim' : '/reset-password'}`,
     })
+    if (deliveryError) throw deliveryError
     return genericResponse
   } catch {
-    return genericResponse
+    return NextResponse.json({ error: 'Unable to request a recovery email right now. Try again later or contact your administrator.' }, { status: 503 })
   }
 }

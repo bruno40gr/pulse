@@ -4,6 +4,7 @@ import { ACCESS_COOKIE_NAME, getAccessScope, readAccessSession } from '@/lib/acc
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireAccountAdministrator } from '@/lib/request-context'
 import { DEFAULT_TENANT } from '@/lib/tenant'
+import { findLoginMembership } from '@/lib/membership-logins'
 
 export async function middleware(request: NextRequest) {
   const host = (
@@ -14,6 +15,7 @@ export async function middleware(request: NextRequest) {
     ?.split(':')[0]
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
+  const isBetaPath = pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')
   // Static, non-personal fallback avatar must also load through image optimization.
   if (pathname === '/avatars/staff-default.svg' || /^\/avatars\/staging-(owner|admin|staff|assistant|tester)\.svg$/.test(pathname)) return NextResponse.next({ request })
   // Twilio cannot present a Pulse session. These handlers authenticate requests
@@ -64,13 +66,8 @@ export async function middleware(request: NextRequest) {
 
   let personalMembership: { tenant_id: string } | null = null
   if (authUserId) {
-    const { data } = await supabaseAdmin
-      .from('tenant_memberships')
-      .select('tenant_id')
-      .eq('auth_user_id', authUserId)
-      .eq('status', 'active')
-      .maybeSingle()
-    personalMembership = data
+    const membership = await findLoginMembership(authUserId)
+    personalMembership = membership?.status === 'active' ? membership : null
   }
 
   let legacyAuthorized = false
@@ -113,11 +110,11 @@ export async function middleware(request: NextRequest) {
 
   if (!isPublicPath && !isAuthorized) {
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('next', pathname)
+    loginUrl.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
+  if (isBetaPath || pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
     || pathname === '/content-studio-prototype' || pathname.startsWith('/content-studio-prototype/')) {
     const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
     const designAccess = await requireAccountAdministrator(request, tenantId)
@@ -132,6 +129,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/leads', request.url))
   }
 
+  if (isBetaPath) {
+    supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    supabaseResponse.headers.set('Cache-Control', 'private, no-store')
+  }
   return supabaseResponse
 }
 

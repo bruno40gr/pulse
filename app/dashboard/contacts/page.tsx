@@ -1,7 +1,7 @@
 'use client'
 
 import { useContext } from 'react'
-import { ContactPrototypeContext, ContactNameOpenContext } from '@/components/contacts/ContactPrototypeContext'
+import { ContactSampleContext, ContactPrototypeContext, ContactNameOpenContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
@@ -33,7 +33,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 
-interface Contact {
+export interface Contact {
   id: string
   tenant_id?: string
   student_id?: string | null
@@ -118,12 +118,14 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 }
 
 export default function ContactsPage() {
-  const onOpenContact = useContext(ContactNameOpenContext)
+  const { contacts: sampleContacts, onOpen: onOpenSample } = useContext(ContactSampleContext)
+  const contextOpenContact = useContext(ContactNameOpenContext)
+  const onOpenContact = onOpenSample || contextOpenContact
   const prototype = useContext(ContactPrototypeContext)
   const tablePreferences = useTablePreferences(CONTACT_TABLE_SCHEMA)
-  const [contacts, setContacts] = useState<Contact[]>([])
+  const [contacts, setContacts] = useState<Contact[]>(sampleContacts || [])
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!sampleContacts)
   const [query, setQuery] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [filterExplanation, setFilterExplanation] = useState('')
@@ -208,9 +210,10 @@ export default function ContactsPage() {
 
   useEffect(() => {
     localStorage.getItem(`pulse_last_sync_${tenantId}`)
-  }, [tenantId])
+  }, [tenantId, sampleContacts])
 
   useEffect(() => {
+    if (sampleContacts) return
     const params = new URLSearchParams(window.location.search)
     const contactId = params.get('contact')
     if (!contactId || selectedContact) return
@@ -223,9 +226,10 @@ export default function ContactsPage() {
         }
       })
       .catch(() => {})
-  }, [selectedContact, tenantId])
+  }, [selectedContact, tenantId, sampleContacts])
 
   const handleSync = async () => {
+    if (sampleContacts) return
     const syncMethod = localStorage.getItem(`pulse_sync_method_${tenantId}`)
     if (syncMethod === 'csv') {
       setIsImporterOpen(true)
@@ -246,6 +250,7 @@ export default function ContactsPage() {
   }
 
   useEffect(() => {
+    if (sampleContacts) { setContacts(sampleContacts); setLoading(false); return }
     Promise.all([
       fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()),
       fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()),
@@ -254,13 +259,14 @@ export default function ContactsPage() {
       setTenantFields(Array.isArray(fieldData) ? fieldData : [])
       setLoading(false)
     })
-  }, [tenantId])
+  }, [tenantId, sampleContacts])
 
   useEffect(() => {
     setContactPage(1)
   }, [contactView, displayIds, appliedFilters, contactSort])
 
   useEffect(() => {
+    if (sampleContacts) return
     fetch(`/api/tenant/sync-status?tenant=${tenantId}`)
       .then(r => r.json())
       .then((data: SyncStatusResponse) => {
@@ -274,7 +280,7 @@ export default function ContactsPage() {
         // Don't show banner for tenants that have never synced
       })
       .catch(() => {})
-  }, [tenantId])
+  }, [tenantId, sampleContacts])
 
   // Cycle placeholder prompts
   useEffect(() => {
@@ -296,6 +302,12 @@ export default function ContactsPage() {
   }, [aiLoading])
 
   const handleSearch = async () => {
+    if (sampleContacts) {
+      const term = query.trim().toLowerCase()
+      setDisplayIds(term ? sampleContacts.filter(contact => JSON.stringify(contact).toLowerCase().includes(term)).map(contact => contact.id) : null)
+      setFilterExplanation(term ? query.trim() : '')
+      return
+    }
     if (!query.trim()) {
       setDisplayIds(null)
       setFilterExplanation('')
@@ -494,7 +506,7 @@ export default function ContactsPage() {
             {!loading && (
               <Button variant="secondary" size="toolbar"
                 onClick={handleSync}
-                disabled={syncing}
+                disabled={syncing || Boolean(sampleContacts)}
                 style={{ whiteSpace: 'nowrap' }}
               >
                 {syncing ? (
@@ -509,9 +521,9 @@ export default function ContactsPage() {
                 )}
               </Button>
             )}
-            <Button variant="secondary" size="toolbar" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
+            <Button variant="secondary" size="toolbar" disabled={Boolean(sampleContacts)} onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
             {/* Navigation, not an action: the anchor keeps middle-click and open-in-new-tab working. */}
-            <Link href={ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
+            <Link aria-disabled={Boolean(sampleContacts)} onClick={event => { if (sampleContacts) event.preventDefault() }} href={sampleContacts ? "#" : ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
           </div>} />
 
       {/* Stale data banner */}
@@ -532,7 +544,7 @@ export default function ContactsPage() {
               : 'a while ago'}. Attendance and enrollment info may have changed.
           </span>
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexShrink: 0 }}>
-            <Button variant="secondary" size="sm" onClick={() => setIsImporterOpen(true)}>
+            <Button variant="secondary" size="sm" disabled={Boolean(sampleContacts)} onClick={() => setIsImporterOpen(true)}>
               Sync now
             </Button>
             <ControlButton kind="close" aria-label="Close sync reminder" onClick={() => setBannerDismissed(true)} />
@@ -616,7 +628,7 @@ export default function ContactsPage() {
           renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
           preferencesLabel="Table Preferences"
           contextualToolbarPlacement="below"
-          contextualToolbar={selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={[
+          contextualToolbar={!sampleContacts && selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={[
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}

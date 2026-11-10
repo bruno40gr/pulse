@@ -22,8 +22,10 @@ export default function ResetPasswordPage() {
     ]).then(([{ data }, membership]) => {
       const valid = Boolean(data.user) && membership.ok && membership.body.canUpdateCredentials
       setReady(valid)
-      if (!valid) setError('This password-reset link is invalid, expired, or not linked to an active staff account.')
-    })
+      if (!valid) setError(data.user
+        ? 'Your email link was accepted, but this login is not linked to active staff access. Ask an Owner or Admin to link your sign-in account. Requesting another link will not fix staff access.'
+        : 'We could not verify your reset session. Open the newest email link in this browser. If it has expired, request a fresh link.')
+    }).catch(() => setError('We could not check your account access. Please reload this page or contact your administrator.'))
   }, [])
 
   const save = async () => {

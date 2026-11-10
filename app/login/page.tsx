@@ -18,6 +18,7 @@ function LoginForm() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [instructorId, setInstructorId] = useState('')
   const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingTeachers, setLoadingTeachers] = useState(true)
@@ -56,7 +57,7 @@ function LoginForm() {
       const response = await fetch('/api/access/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instructorId, password }),
+        body: JSON.stringify({ instructorId, password, email }),
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not sign in.')
@@ -95,6 +96,10 @@ function LoginForm() {
                 ))}
               </select>
             </label>
+            {selectedTeacher?.accountClaimed && <label style={labelStyle}>
+              Sign-in email (optional)
+              <input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="username" placeholder="Leave blank to use your staff email" style={fieldStyle} />
+            </label>}
             <label style={labelStyle}>
               Password
               <input

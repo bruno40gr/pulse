@@ -4,6 +4,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { resolveMembershipRequestContext } from '@/lib/request-context'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { DEFAULT_TENANT } from '@/lib/tenant'
+import { loginMatchesMembership } from '@/lib/membership-logins'
 
 function requestCookies(request: Request) {
   const cookieHeader = request.headers.get('cookie') || ''
@@ -22,12 +23,8 @@ export async function GET(request: Request) {
     const result = await resolveMembershipRequestContext(request, tenantId)
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
-    const [{ data: person, error: personError }, { data: membership, error: membershipError }] = await Promise.all([
-      supabaseAdmin.from('people').select('email').eq('id', result.context.personId).eq('tenant_id', tenantId).maybeSingle(),
-      supabaseAdmin.from('tenant_memberships').select('auth_user_id').eq('id', result.context.membershipId).eq('tenant_id', tenantId).maybeSingle(),
-    ])
+    const { data: person, error: personError } = await supabaseAdmin.from('people').select('email').eq('id', result.context.personId).eq('tenant_id', tenantId).maybeSingle()
     if (personError) throw personError
-    if (membershipError) throw membershipError
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,7 +32,7 @@ export async function GET(request: Request) {
       { cookies: { getAll: () => requestCookies(request), setAll: () => {} } },
     )
     const { data: authData } = await supabase.auth.getUser()
-    const hasMatchingPersonalSession = !!membership?.auth_user_id && authData.user?.id === membership.auth_user_id
+    const hasMatchingPersonalSession = Boolean(authData.user && await loginMatchesMembership(authData.user.id, result.context.membershipId, tenantId))
 
     return NextResponse.json({
       isOwner: result.context.roleKey === 'owner',

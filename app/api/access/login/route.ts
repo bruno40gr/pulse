@@ -8,6 +8,7 @@ import {
 } from '@/lib/access'
 import { getActiveTeachers, HEADLINER_TENANT_ID } from '@/lib/teachers'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { findLoginMembership } from '@/lib/membership-logins'
 
 type ResponseCookie = {
   name: string
@@ -47,7 +48,8 @@ export async function POST(request: Request) {
     const isClaimed = membership.status === 'active' && Boolean(membership.auth_user_id)
     if (isClaimed) {
       const person = Array.isArray(membership.person) ? membership.person[0] : membership.person
-      const email = person?.email?.trim().toLowerCase() || ''
+      const loginEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+      const email = loginEmail || person?.email?.trim().toLowerCase() || ''
       if (!email) return NextResponse.json({ error: 'This account needs help from an Owner or Admin.' }, { status: 409 })
 
       const responseCookies: ResponseCookie[] = []
@@ -66,7 +68,8 @@ export async function POST(request: Request) {
         },
       )
       const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError || !signIn.user || signIn.user.id !== membership.auth_user_id) {
+      const loginMembership = !signInError && signIn.user ? await findLoginMembership(signIn.user.id, HEADLINER_TENANT_ID) : null
+      if (signInError || !signIn.user || !loginMembership || loginMembership.id !== membership.id || loginMembership.status !== 'active') {
         return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
       }
 
