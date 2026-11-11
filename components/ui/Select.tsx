@@ -16,7 +16,7 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
   const controlId = id || generatedId
   const hintId = `${controlId}-hint`
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', ...wrapperStyle }}>
+    <div data-labeled-field={label ? '' : undefined} className={styles.field} style={{ gap: spacing.xs, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', ...wrapperStyle }}>
       {label && (
         <label htmlFor={controlId} style={{ ...typography.label, color: colors.text }}>
           {label}

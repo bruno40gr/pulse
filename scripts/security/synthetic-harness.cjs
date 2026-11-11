@@ -91,6 +91,7 @@ function createHarness() {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
     }).outputText
     const localRequire = id => {
+      if (id === 'node:crypto' || id === 'node:buffer') return require(id)
       if (id === 'next/server') return { NextResponse: SyntheticResponse }
       if (id === '@/lib/supabase/admin') return { supabaseAdmin: primary }
       if (id === '@/lib/supabase/crm-admin') return { crmSupabaseAdmin: crm }
@@ -103,7 +104,7 @@ function createHarness() {
         constructor() {
           this.messages = { create: async () => {
             if (!scenario.allowSyntheticAI) throw new Error('AI calls blocked in synthetic tests')
-            return { content: [{ type: 'text', text: '{"insights":[],"body":"Synthetic copy"}' }] }
+            return { content: [{ type: 'text', text: scenario.syntheticAIText || '{"insights":[],"body":"Synthetic copy"}' }] }
           } }
         }
       }
@@ -131,7 +132,7 @@ function createHarness() {
       require: localRequire, module: loadedModule, exports: loadedModule.exports,
       process: { env: { PULSE_SESSION_SECRET: 'synthetic-only-key', NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:9', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'synthetic-only', ANTHROPIC_API_KEY: 'synthetic-only', ...scenario.env } },
       console: { log() {}, info() {}, warn() {}, error() {} }, fetch: blockedFetch,
-      Request, Response, URL, TextEncoder, TextDecoder, crypto: webcrypto,
+      Request, Response, URL, TextEncoder, TextDecoder, Buffer, FormData, Blob, AbortSignal, crypto: webcrypto,
       btoa, atob, setTimeout, clearTimeout,
     })
     new vm.Script(code, { filename: file }).runInContext(context)

@@ -5,6 +5,7 @@ import { ButtonBase } from '@/components/ui/ButtonBase'
 import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import styles from './DataGridTable.module.css'
 
 export type DataTableSortDirection = 'asc' | 'desc'
 
@@ -56,6 +57,7 @@ export interface ResponsiveDataTableProps<Row, SortKey extends string> {
   getDetailRows?: (row: Row, index: number) => { key: string; cells: ReactNode[] }[]
   /** Opt-in inquiry grouping; other tables retain their existing row density. */
   groupedRows?: boolean
+  interactiveRows?: boolean
   ariaLabel?: string
   style?: CSSProperties
 }
@@ -127,6 +129,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   getRowStyle,
   getDetailRows,
   groupedRows = false,
+  interactiveRows = false,
   ariaLabel = 'Data table',
   style,
 }: ResponsiveDataTableProps<Row, SortKey>) {
@@ -146,6 +149,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
   return (
     <div
       role="table"
+      className={interactiveRows ? styles.interactive : undefined}
       aria-label={ariaLabel}
       style={{
         ...desktopTableStyle,
@@ -250,7 +254,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
             const rowBackground = customRowStyle?.background || (selected ? colors.surfaceMuted : colors.surface)
             const details = getDetailRows?.(row, index) || []
             return (
-              <div key={rowKey} role="rowgroup" style={groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity, background: rowBackground, paddingTop: spacing.xs, paddingBottom: spacing.xs } : undefined}>
+              <div key={rowKey} role="rowgroup" style={{ ...(interactiveRows ? { '--table-row-background': (customRowStyle as Record<string, unknown>)?.['--table-row-background'] || rowBackground, '--table-row-hover': colors.borderLight } : {}), ...(groupedRows ? { borderTop: index ? `1px solid ${colors.border}` : undefined, opacity: customRowStyle?.opacity, background: rowBackground, paddingTop: spacing.xs, paddingBottom: spacing.xs } : {}) } as CSSProperties}>
               <div
                 key={rowKey}
                 role="row"

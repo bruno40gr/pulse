@@ -24,7 +24,7 @@ export type PreviewInvoice = {
   lines: { enrollmentId: string; studentId: string; studentName: string; program: string; quantity: number; unitMinor: number; period?: string; sourceInvoiceId?: string; serviceStart?: string; serviceEnd?: string; pricingBasis?: string }[]
 }
 export type PreviewContact = { id: string; firstName: string; lastName: string; email: string; phone: string; birthday?: string; memberSince?: string }
-export type FamilyPreviewData = ReturnType<typeof createConnectedPreview> & { contacts?: PreviewContact[]; accounts: PreviewAccount[]; cards: PreviewCard[]; invoices: PreviewInvoice[]; billingArrangements?: BillingArrangement[]; billingDrafts?: { id: string; accountId: string; selections: BillingSelection[]; expiresAt: string }[] }
+export type FamilyPreviewData = ReturnType<typeof createConnectedPreview> & { demoSchool?: boolean; contacts?: PreviewContact[]; accounts: PreviewAccount[]; cards: PreviewCard[]; invoices: PreviewInvoice[]; billingArrangements?: BillingArrangement[]; billingDrafts?: { id: string; accountId: string; selections: BillingSelection[]; expiresAt: string }[] }
 export type FlexibleInvoiceRequest = { accountId: string; id: string; requestKey: string; selections: BillingSelection[]; payerId: string; billTo?: string; billingDetails?: string; date: string; due: string; proration: 'whole-month' | 'calendar-days'; arrangement?: BillingArrangement; reservationId?: string; expectedLines?: string; replacementInvoiceIds?: string[]; expectedReplacement?: string; fullBillingMonths?: boolean }
 export type FamilyAction =
   | ({ kind: 'flexible-invoice' } & FlexibleInvoiceRequest)
@@ -252,6 +252,10 @@ export function studentFamilyProjection(data: FamilyPreviewData, account: Previe
 }
 /** Explicit simulated guardian projection, including historical invoice ownership after deletion. */
 export function parentFamilyProjection(data: FamilyPreviewData, account: PreviewAccount): FamilyPreviewData {
+  if (data.demoSchool) {
+    const students = accountStudents(data, account)
+    return { ...data, students, accounts: [account], contacts: (data.contacts || []).filter(item => item.id === account.holderId), lessons: data.lessons.filter(lesson => students.some(student => student.enrollments.some(enrollment => enrollment.id === lesson.enrollmentId))), invoices: data.invoices.filter(invoice => invoice.accountId === account.id && invoice.payerId === account.holderId), cards: data.cards.filter(card => card.accountId === account.id && card.payerId === account.holderId) }
+  }
   const students = account.id === 'preview:kim' ? accountStudents(data, account).filter(student => ['preview:sophie', 'preview:ethan', ...(account.parentAddedStudentIds || [])].includes(student.id)) : []
   return { ...data, students,
     invoices: data.invoices.filter(invoice => account.id === 'preview:kim' && invoice.accountId === account.id && invoice.payerId === account.holderId && invoice.lines.every(line => students.some(student => student.id === line.studentId))),

@@ -28,6 +28,8 @@ export type StudioDraft = {
   permission: boolean
   featured: boolean
   publishedAt: string
+  publicationDate?: string
+  bodyImages?: { src: string; alt: string; caption?: string }[]
   includeLogo?: boolean
   eventTheme?: EventTheme | 'auto'
   posterLayout?: 'stage' | 'instruments' | 'portrait' | 'ensemble' | 'workshop'

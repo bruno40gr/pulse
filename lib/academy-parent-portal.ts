@@ -9,7 +9,7 @@ export function parentPortalProjection(data: FamilyPreviewData, account: Preview
   return {
     ...projected,
     contacts: previewContacts(data).filter(person => person.id === account.holderId),
-    accounts: account.id === 'preview:kim' ? [{ ...account, studentIds: [...studentIds], followUp: undefined, studentFollowUps: undefined }] : [],
+    accounts: (data.demoSchool || account.id === 'preview:kim') ? [{ ...account, studentIds: [...studentIds], followUp: undefined, studentFollowUps: undefined }] : [],
     students: projected.students.map(student => ({ ...student, notes: student.notes.filter(note => note.audience === 'family'), messages: [], family: [], enrollments: student.enrollments.map(enrollment => ({ ...enrollment, payerId: enrollment.payerId === account.holderId ? enrollment.payerId : '', paymentMethod: enrollment.payerId === account.holderId ? enrollment.paymentMethod : '' })) })),
     lessons: projected.lessons.filter(lesson => projected.students.some(student => student.enrollments.some(enrollment => enrollment.id === lesson.enrollmentId))),
   }
@@ -17,7 +17,7 @@ export function parentPortalProjection(data: FamilyPreviewData, account: Preview
 
 /** One-occurrence self-service only. Validate against full data for teacher conflicts. */
 export function applyParentScheduleAction(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, action: { kind: 'move' | 'book'; id: string; booking: NonNullable<PreviewMakeup['booking']> } | { kind: 'cancel-makeup'; id: string }) {
-  const account = data.accounts.find(item => item.id === accountId && item.id === 'preview:kim')
+  const account = data.accounts.find(item => item.id === accountId && (data.demoSchool || item.id === 'preview:kim'))
   if (!account) throw new Error('Schedule unavailable in this portal.')
   const visible = parentPortalProjection(data, account)
   const lessons = previewCalendarLessons(visible, state.items, { ...workspaceInitial, view: 'parent', accountId })
@@ -43,7 +43,7 @@ export function parentSharedNotes(data: FamilyPreviewData, account: PreviewAccou
 }
 
 export function applyParentNote(data: FamilyPreviewData, accountId: string, notes: Record<string, PreviewNote[]>, action: { studentId: string; text: string; id: string; edit?: boolean; links?: PreviewNote['links'] }): Record<string, PreviewNote[]> {
-  const account = data.accounts.find(item => item.id === accountId && item.id === 'preview:kim')
+  const account = data.accounts.find(item => item.id === accountId && (data.demoSchool || item.id === 'preview:kim'))
   if (!account || !parentPortalProjection(data, account).students.some(student => student.id === action.studentId)) throw new Error('Student notes unavailable.')
   if (!action.text.trim() || action.text.length > 12000) throw new Error('Enter a note of up to 12,000 characters.')
   const key = `${action.studentId}:notes`, entries = notes[key] || []
@@ -59,7 +59,7 @@ export function applyParentNote(data: FamilyPreviewData, accountId: string, note
 
 export function applyParentPortalAction(data: FamilyPreviewData, accountId: string, action: FamilyAction): FamilyPreviewData {
   const account = data.accounts.find(item => item.id === accountId)
-  if (!account || account.id !== 'preview:kim' || action.accountId !== account.id) throw new Error('Action unavailable in this portal.')
+  if (!account || (!data.demoSchool && account.id !== 'preview:kim') || action.accountId !== account.id) throw new Error('Action unavailable in this portal.')
   const visible = parentPortalProjection(data, account)
   switch (action.kind) {
     case 'child': {

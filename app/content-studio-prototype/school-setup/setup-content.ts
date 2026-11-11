@@ -33,7 +33,7 @@ export function validateTeacherExceptions(values: Record<string, string>): strin
   if (values.mealBreakMinutes && !['30', '45', '60'].includes(values.mealBreakMinutes)) return 'Choose a meal break of at least 30 minutes.'
   return null
 }
-export type SetupRoom = { id: string; name: string; capacity: string; serviceIds: string[]; allServices?: boolean }
+export type SetupRoom = { conferenceUrl?: string; id: string; name: string; capacity: string; serviceIds: string[]; allServices?: boolean }
 export type SetupMaterial = { id: string; name: string; cost: string; fileName?: string; fileUrl?: string; sourceUrl?: string; publisher?: string }
 export type SetupCurriculum = Record<string, string[]>
 export type SetupRecord = { id: string; values: Record<string, string>; rooms?: SetupRoom[]; curriculum?: SetupCurriculum }
@@ -46,7 +46,7 @@ export const setupAreas: SetupArea[] = [
   { id: 'plans', title: 'Plans & prices', singular: 'plan', fields: [f('kind', 'Purchase option', ['Subscription', 'Single lesson', 'Lesson pack', 'Prepaid term']), f('basis', 'Price calculation', ['Per scheduled lesson', 'Fixed amount']), { key: 'price', label: 'Price (USD)', type: 'number' }, f('cadence', 'Bill', ['Monthly', 'Weekly', 'Every two weeks']), f('first', 'First billing period', ['Remaining scheduled lessons', 'Full amount', 'Prorate by calendar days', 'Prorate by scheduled lessons']), { key: 'visits', label: 'Included lessons', type: 'number' }, { key: 'fee', label: 'Sign-up fee (USD)', type: 'number' }, { key: 'deposit', label: 'Deposit (USD)', type: 'number' }], defaults: { kind: 'Subscription', basis: 'Per scheduled lesson', price: '50', cadence: 'Monthly', first: 'Remaining scheduled lessons', visits: '10', fee: '0', deposit: '0' }, records: [{ id: 'monthly', values: { name: 'Monthly per lesson', kind: 'Subscription', basis: 'Per scheduled lesson', price: '50', cadence: 'Monthly', first: 'Remaining scheduled lessons', visits: '10', fee: '0', deposit: '0' } }, { id: 'flat', values: { name: 'Monthly fixed amount', kind: 'Subscription', basis: 'Fixed amount', price: '160', cadence: 'Monthly', first: 'Full amount', visits: '10', fee: '0', deposit: '0' } }] },
   { id: 'services', title: 'Services & programs', singular: 'service', fields: [f('name', 'Service name'), f('durations', 'Lesson lengths (minutes, comma-separated)'),], defaults: { name: '', durations: '30, 45, 60' }, records: [{ id: 'piano', values: { name: 'Piano', durations: '30, 45, 60', formats: '["private"]', levelIds: '["level1","level2","level3"]', scheduling: '["Recurring appointments"]' } }, { id: 'tiny', values: { name: 'Tiny Keys', durations: '45', formats: '["group"]', levelIds: '["level1","level2","level3"]', scheduling: '["Scheduled class series"]' } }] },
   { id: 'teachers', title: 'Teachers', singular: 'teacher', fields: [f('name', 'Teacher name'), f('service', 'Service'),  f('location', 'Location'), f('days', 'Working days (comma-separated)'), { key: 'from', label: 'Start time', type: 'time' }, { key: 'to', label: 'End time', type: 'time' }], defaults: { name: '', service: 'piano', levels: 'Beginner, Intermediate', location: 'studio', days: 'Monday, Tuesday', from: '14:00', to: '18:00' }, records: [{ id: 'jordan', values: { name: 'Jordan Vale', service: 'piano', levels: 'Beginner, Intermediate, Advanced', location: 'studio', days: 'Monday, Tuesday, Wednesday, Thursday', from: '14:00', to: '18:00' } }] },
-  { id: 'policies', title: 'Calendar & policies', singular: 'school policies', singleton: true, fields: [f('name', 'Policy name'), { key: 'notice', label: 'Cancellation notice (hours)', type: 'number' }, f('timely', 'With sufficient notice', ['Issue a makeup', 'No makeup']), f('late', 'Late cancellations', ['No makeup', 'Issue a makeup']), { key: 'expiry', label: 'Makeup expiry (months; 0 means no expiry)', type: 'number' }, { key: 'closure', label: 'Closure name', optional: true }, { key: 'start', label: 'Closed from', type: 'date', optional: true }, { key: 'end', label: 'Closed through', type: 'date', optional: true }], defaults: { name: 'School defaults', notice: '24', timely: 'Issue a makeup', late: 'No makeup', expiry: '6', closure: '', start: '', end: '' }, records: [{ id: 'policy', values: { name: 'School defaults', notice: '24', timely: 'Issue a makeup', late: 'No makeup', expiry: '6', closure: 'Winter break', start: '2026-12-24', end: '2027-01-01' } }] },
+  { id: 'policies', title: 'Policies', singular: 'school policies', singleton: true, fields: [f('name', 'Policy name'), { key: 'notice', label: 'Cancellation notice (hours)', type: 'number' }, f('timely', 'With sufficient notice', ['Issue a makeup', 'No makeup']), f('late', 'Late cancellations', ['No makeup', 'Issue a makeup']), { key: 'expiry', label: 'Makeup expiry (months; 0 means no expiry)', type: 'number' }, { key: 'closure', label: 'Closure name', optional: true }, { key: 'start', label: 'Closed from', type: 'date', optional: true }, { key: 'end', label: 'Closed through', type: 'date', optional: true }], defaults: { name: 'School defaults', notice: '24', timely: 'Issue a makeup', late: 'No makeup', expiry: '6', closure: '', start: '', end: '' }, records: [{ id: 'policy', values: { name: 'School defaults', notice: '24', timely: 'Issue a makeup', late: 'No makeup', expiry: '6', closure: 'Winter break', start: '2026-12-24', end: '2027-01-01' } }] },
 ]
 export type SetupExperience = 'new' | 'configured'
 export const levelIds = ['level1', 'level2', 'level3', 'level4', 'level5']
@@ -97,9 +97,9 @@ export function createSetupData(experience: SetupExperience = 'configured'): Rec
   }))]))
 }
 export function pricingName(values: Record<string, string>): string {
-  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(values.price) || 0)
+  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(values.price) || 0) + ' USD'
   const rates = durationRates(values)
-  const rateLabel = rates.map(rate => `${rate.minutes} min · ${rate.price ? `$${Number(rate.price).toFixed(2)}` : 'Price not set'}`).join(' / ')
+  const rateLabel = rates.map(rate => `${rate.minutes} min · ${rate.price ? `$${Number(rate.price).toFixed(2)} USD` : 'Price not set'}`).join(' / ')
   const label = values.kind === 'Subscription'
     ? `${values.cadence} subscription · ${rates.length ? `${rateLabel} per lesson` : `${amount}${values.basis === 'Per scheduled lesson' ? ' per lesson' : ' fixed'}`}`
     : values.kind === 'Single lesson' ? `Single lesson · ${amount}` : `${values.kind} · ${values.visits} lessons · ${amount}`
@@ -116,7 +116,7 @@ export function durationRates(values: Record<string, string>): DurationRate[] {
 }
 export function pricingSummary(values: Record<string, string>): string {
   const rates = durationRates(values)
-  return rates.length ? rates.map(rate => `${rate.minutes} min: ${rate.price ? `$${Number(rate.price).toFixed(2)}` : 'Price not set'}`).join(' · ') + ` · ${values.cadence}` : `$${Number(values.price).toFixed(2)} · ${values.basis} · ${values.cadence}`
+  return rates.length ? rates.map(rate => `${rate.minutes} min: ${rate.price ? `$${Number(rate.price).toFixed(2)} USD` : 'Price not set'}`).join(' · ') + ` · ${values.cadence}` : `$${Number(values.price).toFixed(2)} USD · ${values.basis} · ${values.cadence}`
 }
 export function pricingFields(values: Record<string, string>): SetupField[] {
   const subscription = values.kind === 'Subscription'
@@ -254,7 +254,7 @@ export function validateSetup(area: SetupArea, values: Record<string, string>): 
     const rates = durationRates(values)
     if (!rates.length || new Set(rates.map(rate => rate.minutes)).size !== rates.length || rates.some(rate => rate.minutes < 5 || rate.minutes > 480 || !/^\d+(\.\d{1,2})?$/.test(rate.price))) return 'Set a valid price for each lesson duration, with no duplicate durations.'
   }
-  for (const item of visibleFields(area, values)) {
+  for (const item of (area.id === 'policies' && values.timelyAction !== undefined ? [] : visibleFields(area, values))) {
     const value = values[item.key]?.trim() || ''
     if (!value && !item.optional) return `Enter ${item.label.toLowerCase()}.`
     if (value && item.options && !item.options.includes(value)) return `Choose ${item.label.toLowerCase()}.`
@@ -307,6 +307,10 @@ export function validateSetup(area: SetupArea, values: Record<string, string>): 
 }
 export function validateRooms(rooms: SetupRoom[], serviceIds: string[]): string | null {
   for (const [index, room] of rooms.entries()) {
+    if (room.conferenceUrl) {
+      try { if (new URL(room.conferenceUrl).protocol !== 'https:') return `Use an HTTPS online lesson link for room ${index + 1}.` }
+      catch { return `Enter a valid online lesson link for room ${index + 1}.` }
+    }
     if (!room.name.trim()) return `Enter a name for room ${index + 1}.`
     if (!/^\d+$/.test(room.capacity) || Number(room.capacity) < 1) return `Enter a positive capacity for room ${index + 1}.`
     if (!room.allServices && room.serviceIds.some(id => !serviceIds.includes(id))) return `Choose available services for room ${index + 1}.`

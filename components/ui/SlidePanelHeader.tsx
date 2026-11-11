@@ -7,6 +7,7 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { ProfileIdentity } from './ProfileIdentity'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { SlidePanelCloseContext } from './SlidePanelCloseContext'
 
 interface SlidePanelHeaderProps {
   title: string
@@ -42,6 +43,7 @@ export function SlidePanelHeader({
   headingLevel: Heading = 'h2',
 }: SlidePanelHeaderProps) {
   const titleId = useContext(DialogTitleContext)
+  const requestClose = useContext(SlidePanelCloseContext)
   const detectedMobile = useIsMobile()
   const isMobile = compact ?? detectedMobile
 
@@ -79,7 +81,7 @@ export function SlidePanelHeader({
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            onClose()
+            ;(requestClose || onClose)()
           }}
           aria-label="Close"
         />

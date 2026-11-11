@@ -31,8 +31,10 @@ export default function CurriculumSection({ levelNames, enabledLevels, materials
     if (scrollPosition.current !== null) { window.scrollTo({ top: scrollPosition.current, behavior: 'instant' }); scrollPosition.current = null }
   }, [material])
   const [error, setError] = useState('')
+  const currentNames = names || levelNames
+  const levelsDirty = JSON.stringify(currentNames) !== JSON.stringify(levelNames) || JSON.stringify([...enabled].sort()) !== JSON.stringify([...enabledLevels].sort())
   const money = (cost: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cost))
-  const cancel = () => { if (material) scrollPosition.current = window.scrollY; setNames(null); setMaterial(null); setError(''); onDirty(false) }
+  const cancel = () => { if (material) scrollPosition.current = window.scrollY; setNames(null); setEnabled([...enabledLevels]); setMaterial(null); setError(''); onDirty(false) }
   const editMaterial = (item?: SetupMaterial) => { scrollPosition.current = window.scrollY; setMaterial(item ? { ...item } : { id: '', name: '', cost: '0.00' }); setError(''); onDirty(false) }
   const upload = (file?: File) => {
     if (!file) return
@@ -61,38 +63,37 @@ export default function CurriculumSection({ levelNames, enabledLevels, materials
   </form>
   return <div className={styles.serviceSections}>
     <p className={styles.sectionDescription}>Set the level names used throughout your school and keep books and PDFs in one reusable library. Choose materials for each level when editing a service.</p>
-    <DenseSectionPanel title="Set up progression levels" headingLevel="h2" actions={names ? <div className={styles.headerActions}><Button type="button" size="sm" variant="secondary" onClick={cancel}>Cancel</Button><Button type="submit" form="curriculum-levels" size="sm">Save levels</Button></div> : <Button type="button" size="sm" variant="secondary" disabled={Boolean(material)} onClick={() => { setNames({ ...levelNames }); setEnabled([...enabledLevels]); setError('') }}><Pencil size={14} aria-hidden="true" />Edit levels</Button>}>
+    <DenseSectionPanel title="Set up progression levels" headingLevel="h2" actions={levelsDirty ? <Button type="submit" form="curriculum-levels" size="sm">Save changes</Button> : undefined}>
       <form id="curriculum-levels" noValidate onSubmit={event => {
         event.preventDefault()
-        if (!names) return
         if (!enabled.length) { setError('Enable at least one level.'); return }
-        if (enabled.some(id => !names[id]?.trim())) { setError('Enter a name for each enabled level.'); return }
-        onSave(Object.fromEntries(Object.entries(names).map(([key, value]) => [key, value.trim()])), materials, levelIds.filter(id => enabled.includes(id)))
-        cancel()
+        if (enabled.some(id => !currentNames[id]?.trim())) { setError('Enter a name for each enabled level.'); return }
+        onSave(Object.fromEntries(Object.entries(currentNames).map(([key, value]) => [key, value.trim()])), materials, levelIds.filter(id => enabled.includes(id)))
+        setNames(null); setEnabled(levelIds.filter(id => enabled.includes(id))); setError(''); onDirty(false)
       }}>
-        {names && error && <p role="alert" className={styles.error}>{error}</p>}
+        {!material && error && <p role="alert" className={styles.error}>{error}</p>}
         <ResponsiveDataTable rows={levelIds} getRowKey={id => id} minDesktopWidth={0} mobileBreakpoint={0} ariaLabel="Progression levels" emptyContent={null} columns={[
-          { id: 'level', header: 'Level', width: '120px', render: id => <Checkbox label={`Level ${levelIds.indexOf(id) + 1}`} disabled={!names} checked={(names ? enabled : enabledLevels).includes(id)} onChange={event => {
+          { id: 'level', header: 'Level', width: '120px', render: id => <Checkbox label={`Level ${levelIds.indexOf(id) + 1}`} disabled={Boolean(material)} checked={enabled.includes(id)} onChange={event => {
             const next = event.target.checked ? [...enabled, id] : enabled.filter(value => value !== id)
             setEnabled(next)
-            onDirty(JSON.stringify([...next].sort()) !== JSON.stringify([...enabledLevels].sort()) || JSON.stringify(names) !== JSON.stringify(levelNames))
+            onDirty(JSON.stringify([...next].sort()) !== JSON.stringify([...enabledLevels].sort()) || JSON.stringify(currentNames) !== JSON.stringify(levelNames))
           }} /> },
-          { id: 'name', header: 'Name', width: 'minmax(0, 1fr)', render: id => names ? <Input aria-label={`Level ${levelIds.indexOf(id) + 1} name`} disabled={!enabled.includes(id)} required={enabled.includes(id)} value={names[id]} onChange={event => {
-            const next = { ...names, [id]: event.target.value }
+          { id: 'name', header: 'Name', width: 'minmax(0, 1fr)', render: id => <Input aria-label={`Level ${levelIds.indexOf(id) + 1} name`} disabled={Boolean(material) || !enabled.includes(id)} required={enabled.includes(id)} value={currentNames[id]} onChange={event => {
+            const next = { ...currentNames, [id]: event.target.value }
             setNames(next)
             onDirty(JSON.stringify(next) !== JSON.stringify(levelNames) || JSON.stringify([...enabled].sort()) !== JSON.stringify([...enabledLevels].sort()))
-          }} /> : <span className={!enabledLevels.includes(id) ? styles.disabledLevel : undefined}>{levelNames[id]}</span> },
+          }} /> },
         ]} />
       </form>
     </DenseSectionPanel>
     <div>
-    <DenseSectionPanel title="Books & materials" headingLevel="h2" actions={<Button type="button" size="sm" variant="secondary" disabled={Boolean(names) || Boolean(material)} onClick={() => editMaterial()}><Plus size={14} aria-hidden="true" />Add material</Button>}>
+    <DenseSectionPanel title="Books & materials" headingLevel="h2" actions={<Button type="button" size="sm" variant="secondary" disabled={levelsDirty || Boolean(material)} onClick={() => editMaterial()}><Plus size={14} aria-hidden="true" />Add material</Button>}>
       <p className={styles.sectionDescription}>Add the books and PDFs your school uses here. They’ll be available to select for each level when editing a service. Parents will see the required materials and their costs in the parent portal. Assigned materials will be automatically added to the invoice when a student starts each progression level.</p>
       {material && !material.id && materialForm}
         {materials.length ? <ul className={styles.libraryList} aria-label="School material library">{materials.map(item => <li key={item.id} className={styles.libraryRow}>
           <div className={styles.materialLine}>
           <div><span className={styles.materialLabel}>{item.fileName ? <FileText size={17} aria-hidden="true" /> : <BookOpen size={17} aria-hidden="true" />}<span>{item.name}, <span className={styles.materialCost}>{money(item.cost)}</span></span></span>{item.publisher && <small className={styles.fileMetadata}>{item.publisher}</small>}</div>
-          <ControlButton type="button" kind="icon" disabled={Boolean(names) || Boolean(material)} aria-label={`Edit ${item.name}`} onClick={() => editMaterial(item)}><Pencil size={15} aria-hidden="true" /></ControlButton>
+          <ControlButton type="button" kind="icon" disabled={levelsDirty || Boolean(material)} aria-label={`Edit ${item.name}`} onClick={() => editMaterial(item)}><Pencil size={15} aria-hidden="true" /></ControlButton>
           </div>
           {material?.id === item.id && materialForm}
          </li>)}</ul> : !material && <EmptyState variant="embedded" density="compact" icon={<BookOpen size={28} aria-hidden="true" />} title="No materials yet" description="Add books or PDFs here to make them available in every service." />}

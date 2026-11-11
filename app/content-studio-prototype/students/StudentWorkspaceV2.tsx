@@ -4,7 +4,7 @@ import { familyActionConfirmation, useActionConfirmation } from './useActionConf
 
 import { ConfirmActionButton } from './ConfirmActionButton'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Mail, MessageSquare, Phone, Pencil } from 'lucide-react'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { Button, DenseSectionPanel, DetailField, PageHeader, SlidePanel, SlidePanelHeader, Tabs } from '@/components/ui'
@@ -30,15 +30,20 @@ import { bookPreviewMakeup, createScheduledMakeupPreview, recordPreviewAbsence }
 import styles from './StudentWorkspace.module.css'
 import v3Styles from './StudentWorkspaceV3.module.css'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
+import type { FamilyPreviewData } from '@/lib/academy-family-preview'
+import type { MakeupPreviewState } from '@/lib/academy-makeup-preview'
 import { CalendarWorkspace } from './CalendarWorkspace'
 import { MoveLesson } from './MoveLesson'
 import { ContactsTable } from './ContactsTable'
 import { expandPreviewCalendar, previewCalendarLessons, movePreviewLesson, reschedulePreviewSubscription, makeupPreviewNow, cancelPreviewReplacement, absenceEligible } from '@/lib/academy-makeup-preview'
 
-export default function StudentWorkspaceV2({ inlineTasks = false }: { inlineTasks?: boolean }) {
+export type WorkspaceContactsRenderer = (props: { data: ReturnType<typeof createFamilyPreview>; onOpen: (accountId: string, studentId?: string) => void }) => ReactNode
+
+export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts, initialData, initialMakeups, onDemoChange }: { inlineTasks?: boolean; renderContacts?: WorkspaceContactsRenderer; initialData?: FamilyPreviewData; initialMakeups?: MakeupPreviewState; onDemoChange?: (data: FamilyPreviewData, makeups: MakeupPreviewState) => void }) {
   const { confirm, confirmation } = useActionConfirmation()
-  const [data, setData] = useState(() => expandPreviewCalendar(createFamilyPreview(), '2027-02-03'))
-  const [makeups, setMakeups] = useState(createScheduledMakeupPreview)
+  const [data, setData] = useState(() => expandPreviewCalendar(initialData || createFamilyPreview(), '2027-02-03'))
+  const [makeups, setMakeups] = useState(initialMakeups || createScheduledMakeupPreview)
+  useEffect(() => { onDemoChange?.(data, makeups) }, [data, makeups, onDemoChange])
   const [lessonView, setLessonView] = useState<'list' | 'calendar'>('list')
   const [lessonWeek, setLessonWeek] = useState('2026-11-02')
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -109,11 +114,10 @@ export default function StudentWorkspaceV2({ inlineTasks = false }: { inlineTask
     setMakeupId(id)
   }
   function closeMakeup() { setMakeupId(null); if (makeupReturn.current) navigate(makeupReturn.current) }
-  function previewParent() { navigate({ ...workspaceInitial, accountId: 'preview:kim', view: 'parent' }) }
   const parent = location.view === 'parent', quick = location.view === 'quick'
   // Student routes retain their own presentation scope inside the account.
-  const account = data.accounts.find(item => location.accountId ? item.id === location.accountId : location.studentId ? item.studentIds.includes(location.studentId) : parent && item.id === 'preview:kim')
-  const invalid = location.view !== 'contacts' && (!account || (parent && account.id !== 'preview:kim') || Boolean(location.studentId && !account.studentIds.includes(location.studentId)) || Boolean(location.enrollmentId && !accountStudents(data, account).some(student => (!location.studentId || student.id === location.studentId) && student.enrollments.some(item => item.id === location.enrollmentId))))
+  const account = data.accounts.find(item => location.accountId ? item.id === location.accountId : location.studentId ? item.studentIds.includes(location.studentId) : parent && (data.demoSchool || item.id === 'preview:kim'))
+  const invalid = location.view !== 'contacts' && (!account || (parent && !data.demoSchool && account.id !== 'preview:kim') || Boolean(location.studentId && !account.studentIds.includes(location.studentId)) || Boolean(location.enrollmentId && !accountStudents(data, account).some(student => (!location.studentId || student.id === location.studentId) && student.enrollments.some(item => item.id === location.enrollmentId))))
   const visibleStudents = account && !invalid ? accountStudents(data, account) : []
   // Parent simulation keeps the explicit original allowlist. Newly added children require real access grants later.
   const parentData = parent && account && !invalid ? parentFamilyProjection(data, account) : null
@@ -164,7 +168,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false }: { inlineTask
   }
   const selectedMakeup = visibleMakeups.find(item => item.id === makeupId && !item.booking)
   const lessonContent = lesson && <LessonPreview onBack={() => setLessonId(null)} key={`${lesson.id}:${parent}`} lesson={lesson} parent={parent} absence={makeups.absences.find(item => item.lessonId === lesson.id)} onSchedule={scheduleMakeup} onCancel={grantLate => {
-    try { const next = recordPreviewAbsence(contentData, makeups, account!.id, lesson.id, grantLate, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm('Lesson absence recorded.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to record absence.' }
+    try { const next = recordPreviewAbsence(contentData, makeups, account!.id, lesson.id, grantLate, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm(next.state.items.length > makeups.items.length ? 'Lesson cancelled successfully. Added to the makeup bin.' : 'Lesson cancelled successfully. No makeup credit was added.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
   }} />
   const managementContent = intent && account && !parent && <WorkspaceManagement onRecurringSchedule={inlineTasks ? enrollmentId => {
     const item = scheduledClasses.find(item => item.enrollmentId === enrollmentId && !item.makeup && item.status === 'Scheduled' && `${item.date}T${item.time}:00-08:00` > makeupPreviewNow)
@@ -215,10 +219,9 @@ export default function StudentWorkspaceV2({ inlineTasks = false }: { inlineTask
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}`)
     navigate({ ...workspaceInitial, view: 'contacts' })
   }} />
-  return <div className={styles.root} style={{ padding: isMobile ? spacing.lg : spacing['3xl'], color: colors.text, fontFamily: typography.fontSans, background: colors.background, minHeight: '100dvh' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.lg }}><span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{inlineTasks ? 'V3 exploration · Wider panel + inline tasks' : 'V2 exploration · Quick reference + full workspace'}</span><a href="?prototype=v1" style={{ ...typography.bodySmall, color: colors.link }}>View original prototype</a></div>
+  return <div className={styles.root} style={{ padding: renderContacts ? 0 : isMobile ? spacing.lg : spacing['3xl'], color: colors.text, fontFamily: typography.fontSans, background: colors.background, minHeight: '100dvh' }}>
     {confirmation}
-    <ContactsTable data={data} search={search} onSearch={setSearch} onParent={previewParent} onOpen={(accountId, studentId) => navigate({ ...workspaceInitial, accountId, studentId: studentId || '', view: 'quick', section: 'profile' })} />
+    {renderContacts ? renderContacts({ data, onOpen: (accountId, studentId) => navigate({ ...workspaceInitial, accountId, studentId: studentId || '', view: 'quick', section: 'profile' }) }) : <ContactsTable data={data} search={search} onSearch={setSearch} onOpen={(accountId, studentId) => navigate({ ...workspaceInitial, accountId, studentId: studentId || '', view: 'quick', section: 'profile' })} />}
     {invalid && <DenseSectionPanel title="Profile unavailable"><Button onClick={closeWorkspace}>Return to contacts</Button></DenseSectionPanel>}
     {(inlineTasks ? location.view !== 'contacts' : quick && !workspaceOpen) && account && !invalid && <SlidePanel isOpen onClose={closeWorkspace} width={inlineTasks || intent?.kind === 'invoice' ? 'min(calc(75vw + 200px), 1160px)' : PROFILE_PANEL_WIDTH} fullScreen={isMobile} ariaLabel={inlineTasks ? 'Family workspace V3' : 'Account quick reference'}>
       <SlidePanelHeader profileTransition actions={communicationActive || inlineTasks ? undefined : <Button size="sm" onClick={() => openWorkspace('profile')}>View Account Details</Button>} title={profileTitle} titleSize={isMobile ? typography.sizeLg : typography.size2xl} subtitle={selectedStudent ? 'Student profile' : 'Account manager'} avatar={{ firstName: selectedStudent?.firstName || account.holderName.split(' ')[0], lastName: selectedStudent?.lastName || account.holderName.split(' ').slice(1).join(' '), size: isMobile ? 36 : 48 }} onBack={communicationActive ? closeCommunication : undefined} backLabel="Back to profile" onClose={closeWorkspace} />

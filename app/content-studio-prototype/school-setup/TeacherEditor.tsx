@@ -11,6 +11,7 @@ import { type SetupRecord, selection } from './setup-content'
 import styles from './teacher-editor.module.css'
 
 import TeacherSchedule from './TeacherSchedule'
+import TeacherPhoto from './TeacherPhoto'
 type Assignment = { serviceId: string; maxLevel: number }
 function parse<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T } catch { return fallback } }
 
@@ -23,6 +24,7 @@ export default function TeacherEditor({ values, services, locations, levels, onC
   const theme = { '--teacher-border': colors.border, '--teacher-muted': colors.textSecondary, '--teacher-accent': colors.link, '--teacher-surface': colors.surfaceMuted, '--teacher-radius': radius.sm, '--teacher-gap': spacing.lg, '--teacher-small': typography.sizeSm } as CSSProperties
   return <div style={theme} className={styles.editor}>
     <DenseSectionPanel title="Contact details" headingLevel="h2" contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
+    <TeacherPhoto value={values.photo || ''} onChange={photo => onChange({ ...values, photo })} />
     <FieldGrid>
       <Input label="Teacher name" required value={values.name} onChange={event => onChange({ ...values, name: event.target.value })} />
     </FieldGrid>

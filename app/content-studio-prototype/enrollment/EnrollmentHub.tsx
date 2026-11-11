@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button, EmptyState, Input, Notice, PageHeader, ResponsiveDataTable, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -25,6 +25,16 @@ export default function EnrollmentHub({ storageScope, tenantId, mock = false }: 
   const [leads, setLeads] = useState<EnrollmentLead[]>([])
   const [previous, setPrevious] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const startHandled = useRef(false)
+  useEffect(() => {
+    if (!ready || startHandled.current) return
+    startHandled.current = true
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('start') !== '1') return
+    setActive(newEnrollmentDraft(crypto.randomUUID(), new Date().toISOString()))
+    url.searchParams.delete('start')
+    window.history.replaceState(window.history.state, '', url)
+  }, [ready])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sourceError, setSourceError] = useState('')
@@ -101,11 +111,10 @@ export default function EnrollmentHub({ storageScope, tenantId, mock = false }: 
   ]
 
   return <div style={{ minHeight: '100vh', background: colors.background, color: colors.text, fontFamily: typography.fontSans }}>
-    <div style={{ padding: spacing.xl }}>
-      <Notice title={mock ? 'Mock enrollments' : 'Enrollment preview'}>{mock ? 'Fictional records · changes stay in this browser.' : 'Drafts are saved only in this browser for your account, not shared across devices or staff. Use fictional details in this preview. Proposed times are not reserved; no booking, payment or message is created.'}</Notice>
+    {(error || (!active && sourceError)) && <div style={{ padding: spacing.xl }}>
       {error && <Notice variant="error" style={{ marginTop: spacing.md }}>{error}</Notice>}
       {!active && sourceError && <Notice variant="warning" style={{ marginTop: spacing.md }}>{sourceError}</Notice>}
-    </div>
+    </div>}
     {active ? <StaffEnrollment key={active.id} initialRecord={active} onSaveAndClose={saveAndClose} onClose={() => { setActive(null); setError('') }} /> : <main style={{ padding: spacing['3xl'], minWidth: 0 }}>
       <PageHeader title="Enrollment" right={<Button disabled={!ready} onClick={() => open(newEnrollmentDraft(crypto.randomUUID(), new Date().toISOString()))}>Start new enrollment</Button>} />
       <div style={{ marginBottom: spacing.lg }}><Input type="search" aria-label="Search enrollments" placeholder="Search student, contact or instrument" value={search} onChange={event => setSearch(event.target.value)} /></div>

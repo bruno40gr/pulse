@@ -104,7 +104,7 @@ export function workspaceStudents(students: PreviewStudent[], view: WorkspaceLoc
 }
 
 export function workspaceOccurrences(data: ReturnType<typeof createStudentPreview>, location: WorkspaceLocation) {
-  const students = workspaceStudents(data.students, location.view, location.studentId)
+  const students = workspaceStudents(data.students, ('demoSchool' in data && data.demoSchool) ? 'staff' : location.view, location.studentId)
   return data.lessons.flatMap(lesson => {
     const student = students.find(person => person.enrollments.some(enrollment => enrollment.id === lesson.enrollmentId && enrollment.studentId === person.id))
     const enrollment = student?.enrollments.find(item => item.id === lesson.enrollmentId)

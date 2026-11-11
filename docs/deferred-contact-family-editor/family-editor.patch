@@ -1,0 +1,522 @@
+diff --git a/app/dashboard/contacts/page.tsx b/app/dashboard/contacts/page.tsx
+index 87babf3..be626e6 100644
+--- a/app/dashboard/contacts/page.tsx
++++ b/app/dashboard/contacts/page.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useContext } from 'react'
+ import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
++import PrototypeContactEditor from '@/components/contacts/PrototypeContactEditor'
+ import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+ import ContactBulkMessageModal from '@/components/inbox/ContactBulkMessageModal'
+ import MessageActions from '@/components/inbox/MessageActions'
+@@ -111,6 +112,8 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
+ export default function ContactsPage() {
+   const prototype = useContext(ContactPrototypeContext)
+   const [contacts, setContacts] = useState<Contact[]>([])
++  const prototypeBaseline = useRef<Contact[]>([])
++  const [prototypeEditing, setPrototypeEditing] = useState(false)
+   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
+   const [loading, setLoading] = useState(true)
+   const [query, setQuery] = useState('')
+@@ -149,6 +152,7 @@ export default function ContactsPage() {
+   const controlsAnchorRef = useRef<HTMLDivElement | null>(null)
+ 
+   const closeContactState = () => {
++    setPrototypeEditing(false)
+     setSelectedContact(null)
+     setSelectedAccount(null)
+     removeCurrentSearchParam('contact')
+@@ -248,10 +252,11 @@ export default function ContactsPage() {
+       fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()),
+     ]).then(([contactData, fieldData]) => {
+       setContacts(Array.isArray(contactData) ? contactData : [])
++      if (prototype) prototypeBaseline.current = Array.isArray(contactData) ? contactData : []
+       setTenantFields(Array.isArray(fieldData) ? fieldData : [])
+       setLoading(false)
+     })
+-  }, [tenantId])
++  }, [tenantId, prototype])
+ 
+   useEffect(() => {
+     if (loading) {
+@@ -586,6 +591,16 @@ export default function ContactsPage() {
+         }
+       />
+ 
++      {prototype && <div style={{ marginBottom: spacing.lg, display: 'flex', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
++        <Button variant="secondary" size="toolbar" onClick={() => {
++          setContacts(prototypeBaseline.current)
++          setSelectedContact(null)
++          setSelectedAccount(null)
++          setPrototypeEditing(false)
++          setSelectedIds(new Set())
++        }}>Reset preview changes</Button>
++      </div>}
++
+       <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
+             {!loading && (
+               <Button variant="secondary" size="toolbar"
+@@ -916,10 +931,21 @@ export default function ContactsPage() {
+         onClose={contactHistory.closePanel}
+         onOpenMember={(member, tab) => { setAccountPanelTab(tab); setSelectedContact(member) }}
+       />}
+-      {selectedContact && (
++      {selectedContact && prototype && prototypeEditing && <PrototypeContactEditor
++        contact={selectedContact}
++        people={contacts}
++        onClose={() => setPrototypeEditing(false)}
++        onSave={updated => {
++          setContacts(updated)
++          setSelectedContact(updated.find(person => person.id === selectedContact.id) || null)
++          setPrototypeEditing(false)
++        }}
++      />}
++      {selectedContact && !prototypeEditing && (
+         <ContactSlidePanel
+           key={selectedContact.id}
+           prototype={prototype}
++          onPrototypeEdit={() => setPrototypeEditing(true)}
+           contact={selectedContact}
+           initialPanelTab={accountPanelTab}
+           initialNotesTab={initialNotesTab}
+diff --git a/components/contacts/ContactSlidePanel.tsx b/components/contacts/ContactSlidePanel.tsx
+index c57fc56..f051da6 100644
+--- a/components/contacts/ContactSlidePanel.tsx
++++ b/components/contacts/ContactSlidePanel.tsx
+@@ -133,6 +133,7 @@ interface ContactSlidePanelProps {
+   onClose: () => void
+   onUpdated: (updated: Contact) => void
+   prototype?: boolean
++  onPrototypeEdit?: () => void
+   onCompose?: (contactIds: string[]) => void
+   onViewInstructor?: (personId: string) => void
+   initialNotesTab?: 'notes' | 'internal'
+@@ -151,7 +152,7 @@ const dividerStyle: React.CSSProperties = {
+   margin: '24px 0',
+ }
+ 
+-export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
++export default function ContactSlidePanel({ prototype = false, onPrototypeEdit, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+   const tenantId = getActiveTenantId()
+   const isMobile = useIsMobile()
+   const contextualCompose = useContext(ConversationComposeContext)
+@@ -325,6 +326,11 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
+   }
+ 
+   const patch = async (fields: Partial<Contact>, silent = false) => {
++    if (prototype) {
++      onUpdated({ ...contact, ...fields })
++      if (!silent) showToast('Preview changes saved locally')
++      return
++    }
+     setSaving(true)
+     try {
+       const updated = await fetch(`/api/contacts/${contact.id}`, {
+@@ -344,6 +350,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
+   }
+ 
+   const handleStartEditing = () => {
++    if (prototype && onPrototypeEdit) {
++      onPrototypeEdit()
++      return
++    }
+     const initial: Record<string, unknown> = {}
+     if (contact.first_name) initial.first_name = contact.first_name
+     if (contact.last_name) initial.last_name = contact.last_name
+diff --git a/components/contacts/PrototypeContactEditor.tsx b/components/contacts/PrototypeContactEditor.tsx
+new file mode 100644
+index 0000000..5a83f26
+--- /dev/null
++++ b/components/contacts/PrototypeContactEditor.tsx
+@@ -0,0 +1,96 @@
++'use client'
++
++import { useState } from 'react'
++import { Button, DenseSectionPanel, FieldGrid, Input, SectionTitle, Select, SlidePanel, SlidePanelHeader } from '@/components/ui'
++import { spacing, colors } from '@/lib/tokens'
++import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
++import { useIsMobile } from '@/lib/useMediaQuery'
++import { applyPrototypeContactEdit, type PrototypePerson } from '@/lib/contact-prototype-editing'
++
++export default function PrototypeContactEditor<T extends PrototypePerson>({ contact, people, onSave, onClose }: {
++  contact: T; people: T[]; onSave: (people: T[]) => void; onClose: () => void
++}) {
++  const [first, setFirst] = useState(contact.first_name)
++  const [last, setLast] = useState(contact.last_name)
++  const [phone, setPhone] = useState(contact.phone || '')
++  const [email, setEmail] = useState(contact.email || '')
++  const [account, setAccount] = useState(contact.account_id || '')
++  const [manager, setManager] = useState(contact.account_holder_person_id || '')
++  const [holders, setHolders] = useState(() => (contact.account_holders || []).flatMap(holder => holder.person_id ? [{ person_id: holder.person_id, relationship: holder.relationship || '' }] : []))
++  const [error, setError] = useState('')
++  const mobile = useIsMobile()
++  const local = people.filter(person => person.tenant_id === contact.tenant_id)
++  const adults = local.filter(person => !person.is_minor && person.custom_fields.is_minor !== true)
++  const familyIds = [...new Set(local.flatMap(person => person.account_id ? [person.account_id] : []))]
++  const managers = adults.filter(person => person.account_id === account || person.id === contact.id)
++  const name = (person: PrototypePerson) => `${person.first_name} ${person.last_name}`.trim()
++  const changeFamily = (value: string) => {
++    setAccount(value)
++    const members = local.filter(person => person.account_id === value)
++    const next = value === `prototype:family:${contact.id}` ? contact.id : members[0]?.account_holder_person_id || ''
++    setManager(next)
++    setHolders(next ? [{ person_id: next, relationship: '' }] : [])
++    setError('')
++  }
++  const save = () => {
++    try {
++      onSave(applyPrototypeContactEdit(people, contact.id, { first_name: first, last_name: last, phone, email,
++        account_id: account || null, manager_id: account ? manager : null, holders: account ? holders : [] }))
++    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save preview changes.') }
++  }
++  return <SlidePanel isOpen onClose={onClose} width={PROFILE_PANEL_WIDTH} fullScreen={mobile}>
++    <SlidePanelHeader title="Edit contact" onClose={onClose} actions={<>
++      <Button variant="secondary" onClick={onClose}>Cancel</Button>
++      <Button variant="primary" onClick={save}>Save</Button>
++    </>} />
++    <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing['2xl'] }}>
++      {error && <p role="alert" style={{ margin: 0, color: colors.error }}>{error}</p>}
++      <section>
++        <SectionTitle as="h3">Contact details</SectionTitle>
++        <FieldGrid>
++          <Input label="First name" value={first} onChange={event => setFirst(event.target.value)} />
++          <Input label="Last name" value={last} onChange={event => setLast(event.target.value)} />
++          <Input label="Phone" type="tel" value={phone} onChange={event => setPhone(event.target.value)} />
++          <Input label="Email" type="email" value={email} onChange={event => setEmail(event.target.value)} />
++        </FieldGrid>
++      </section>
++      <section>
++        <SectionTitle as="h3">Family</SectionTitle>
++        <FieldGrid columns={1}>
++          <Select label="Family" value={account} onChange={event => changeFamily(event.target.value)}>
++            <option value="">No family</option>
++            {familyIds.map(id => {
++              const member = local.find(person => person.account_id === id)!
++              return <option key={id} value={id}>{member.account_holder_name || member.family_name || 'Unresolved family'} ({local.filter(person => person.account_id === id).length} people)</option>
++            })}
++            {!familyIds.includes(`prototype:family:${contact.id}`) && adults.some(person => person.id === contact.id) && <option value={`prototype:family:${contact.id}`}>Create family</option>}
++          </Select>
++          {account && <Select label="Account manager" value={manager} onChange={event => {
++            const id = event.target.value; setManager(id)
++            if (id && !holders.some(holder => holder.person_id === id)) setHolders([...holders, { person_id: id, relationship: '' }])
++          }}>
++            <option value="">Choose an account manager</option>
++            {managers.map(person => <option key={person.id} value={person.id}>{name(person)}</option>)}
++          </Select>}
++        </FieldGrid>
++      </section>
++      {account && <section style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
++        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
++          <SectionTitle as="h3" style={{ marginBottom: 0 }}>Family contacts</SectionTitle>
++          <Button variant="secondary" size="toolbar" disabled={adults.every(person => holders.some(holder => holder.person_id === person.id))} onClick={() => {
++        const candidate = adults.find(person => !holders.some(holder => holder.person_id === person.id))
++        if (candidate) setHolders([...holders, { person_id: candidate.id, relationship: '' }])
++      }}>Add contact</Button>
++        </div>
++        {holders.map((holder, index) => <DenseSectionPanel key={index} headingLevel="h4" title={name(local.find(person => person.id === holder.person_id) || contact)} actions={holder.person_id !== manager ? <Button variant="ghost" size="sm" aria-label={`Remove family contact ${index + 1}`} onClick={() => setHolders(holders.filter((_, position) => position !== index))}>Remove</Button> : undefined}>
++          <FieldGrid columns={1}>
++            {holder.person_id !== manager && <Select label="Contact" aria-label={`Family contact ${index + 1}`} value={holder.person_id} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, person_id: event.target.value } : row))}>
++              {adults.filter(person => person.id === holder.person_id || !holders.some(row => row.person_id === person.id)).map(person => <option key={person.id} value={person.id}>{name(person)}</option>)}
++            </Select>}
++            <Input label="Relationship" aria-label={`Relationship for family contact ${index + 1}`} value={holder.relationship} onChange={event => setHolders(holders.map((row, position) => position === index ? { ...row, relationship: event.target.value } : row))} />
++          </FieldGrid>
++        </DenseSectionPanel>)}
++      </section>}
++    </div>
++  </SlidePanel>
++}
+\ No newline at end of file
+diff --git a/docs/contact-family-integration.md b/docs/contact-family-integration.md
+index c886c0c..79355a3 100644
+--- a/docs/contact-family-integration.md
++++ b/docs/contact-family-integration.md
+@@ -1,5 +1,42 @@
+ # Contacts family integration — release review
+ 
++## October 31 contact editing sandbox
++
++The editor uses product-facing copy: **Edit contact**, **Cancel**, **Save**,
++**Contact details**, **Family**, **Account manager**, and **Family contacts**.
++Implementation notes and safety explanations belong here, not throughout the
++form. Ordinary sections are unboxed; repeatable family contacts use shared
++entity panels with h4 headings and header actions. Existing internal `holders`
++fields remain compatibility data, not user-facing terminology.
++
++The fictional lab at `http://127.0.0.1:3218/dashboard/contacts` now supports
++opening a person, choosing **Edit contact**, and saving preview-only edits:
++
++- Edit names, phone and email; move one person to another existing family,
++  detach them as standalone, or start a new family with an adult contact.
++- Choose the destination family's account manager. This updates the family
++  heading and explicit holder references for its members, not just the edited row.
++- Add/remove holders and enter relationship labels per contact. The account
++  manager remains a holder; change the manager first to remove that holder.
++- Moving a manager away leaves their old family explicitly unresolved rather
++  than silently selecting a replacement. Siblings do not move automatically.
++- Save updates the in-memory list and profile. Cancel discards the draft.
++  **Reset preview changes**, page reload, or leaving/remounting Contacts restores
++  the fixtures. There is no persistence across navigation, identity merge,
++  whole-family move, payer editing, age/consent editing, or production write path.
++
++Only the isolated shell's explicit `ContactPrototypeContext` enables this editor.
++Normal application pages retain their existing editor. Prototype profile patches
++are local too; no PATCH request is issued. Family/holder changes do not grant
++messaging authority; SMS remains an in-memory simulation in this shell.
++
++Browser checks cover rename, family move, relationship retention, holder add/remove,
++standalone, account-manager changes, cancel, reload/reset and zero mutation requests
++at 1440/390px. Existing Leads and profile/SMS checks also pass at 1440/900/390px.
++Runner: `scripts/security/contact-prototype-editing-browser.cjs` (requires an
++installed Playwright module supplied through `PLAYWRIGHT_MODULE`). This is a
++working interaction prototype, not production relationship-management completion.
++
+ ## October 31 prototype messaging iteration — current handoff
+ 
+ Supersedes the status and validation sections below. This is fictional shell-data
+diff --git a/lib/contact-prototype-editing.ts b/lib/contact-prototype-editing.ts
+new file mode 100644
+index 0000000..c70bf4f
+--- /dev/null
++++ b/lib/contact-prototype-editing.ts
+@@ -0,0 +1,86 @@
++/** Fictional preview state only. No database, provider, storage or messaging grants. */
++export type PrototypePerson = {
++  id: string
++  tenant_id?: string
++  first_name: string
++  last_name: string
++  phone: string | null
++  email: string | null
++  date_of_birth?: string | null
++  account_id?: string | null
++  account_holder_person_id?: string | null
++  account_holder_name: string | null
++  account_holder_phone: string | null
++  account_holder_email: string | null
++  family_name: string | null
++  is_minor?: boolean
++  custom_fields: Record<string, unknown>
++  account_holders?: {
++    person_id?: string
++    name: string | null
++    phone: string | null
++    email: string | null
++    relationship: string | null
++    is_primary: boolean
++  }[]
++}
++
++export type PrototypeContactEdit = {
++  first_name: string
++  last_name: string
++  phone: string
++  email: string
++  account_id: string | null
++  manager_id: string | null
++  holders: { person_id: string; relationship: string }[]
++}
++
++export function applyPrototypeContactEdit<T extends PrototypePerson>(people: T[], id: string, edit: PrototypeContactEdit): T[] {
++  const subject = people.find(person => person.id === id)
++  if (!subject) throw new Error('Contact is no longer available.')
++  if (!edit.first_name.trim()) throw new Error('Enter a first name.')
++  const local = people.filter(person => person.tenant_id === subject.tenant_id)
++  const manager = local.find(person => person.id === edit.manager_id)
++  const destination = local.filter(person => person.account_id === edit.account_id && edit.account_id)
++  if (edit.account_id) {
++    if (!manager || manager.is_minor || manager.custom_fields.is_minor === true) throw new Error('Choose an adult account manager.')
++    if (manager.id !== id && manager.account_id !== edit.account_id) throw new Error('Choose a manager from the destination family.')
++    if (!destination.length && edit.account_id !== `prototype:family:${id}`) throw new Error('Choose an existing family or create a new one.')
++  }
++  const holderIds = new Set(edit.holders.map(holder => holder.person_id))
++  if (holderIds.size !== edit.holders.length) throw new Error('Each holder can appear only once.')
++  for (const holder of edit.holders) {
++    const person = local.find(candidate => candidate.id === holder.person_id)
++    if (!person || person.is_minor || person.custom_fields.is_minor === true) throw new Error('Choose an adult holder from this preview.')
++  }
++  const updated = people.map(person => person.id === id ? {
++    ...person, first_name: edit.first_name.trim(), last_name: edit.last_name.trim(),
++    phone: edit.phone.trim() || null, email: edit.email.trim() || null, account_id: edit.account_id,
++  } : { ...person })
++  const byId = new Map(updated.map(person => [person.id, person]))
++  const holderRow = (personId: string, relationship: string | null, primary: boolean) => {
++    const person = byId.get(personId)!
++    return { person_id: person.id, name: `${person.first_name} ${person.last_name}`.trim(), phone: person.phone, email: person.email, relationship, is_primary: primary }
++  }
++  return updated.map(person => {
++    if (person.tenant_id !== subject.tenant_id) return person
++    const inDestination = Boolean(edit.account_id && person.account_id === edit.account_id)
++    // A manager moved out of their old family leaves it explicitly unresolved.
++    const oldManagerMoved = person.id !== id && subject.account_id !== edit.account_id && person.account_holder_person_id === id
++    const managerId = inDestination ? edit.manager_id : oldManagerMoved || person.id === id ? null : person.account_holder_person_id
++    const currentManager = managerId ? byId.get(managerId) : undefined
++    let holders = (person.account_holders || []).filter(holder => !oldManagerMoved || holder.person_id !== id)
++    if (person.id === id) holders = edit.account_id ? edit.holders.map(holder => holderRow(holder.person_id, holder.relationship || null, holder.person_id === managerId)) : []
++    // Refresh explicit holder references after contact details change; never match names.
++    holders = holders.map(holder => holder.person_id && byId.has(holder.person_id)
++      ? holderRow(holder.person_id, holder.relationship, holder.person_id === managerId) : { ...holder, is_primary: false })
++    if (inDestination && managerId && !holders.some(holder => holder.person_id === managerId)) holders = [holderRow(managerId, null, true), ...holders]
++    return {
++      ...person, account_holder_person_id: managerId ?? null,
++      account_holder_name: currentManager ? `${currentManager.first_name} ${currentManager.last_name}`.trim() : null,
++      account_holder_phone: currentManager?.phone ?? null, account_holder_email: currentManager?.email ?? null,
++      family_name: currentManager ? `${currentManager.last_name || currentManager.first_name} family` : null,
++      account_holders: holders,
++    }
++  })
++}
+\ No newline at end of file
+diff --git a/scripts/security/contact-prototype-editing-browser.cjs b/scripts/security/contact-prototype-editing-browser.cjs
+new file mode 100644
+index 0000000..78f971b
+--- /dev/null
++++ b/scripts/security/contact-prototype-editing-browser.cjs
+@@ -0,0 +1,79 @@
++/* eslint-disable @typescript-eslint/no-require-imports -- Fictional lab; all mutations blocked. */
++const assert = require('node:assert/strict')
++const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
++;(async () => {
++  const browser = await chromium.launch()
++  try {
++    for (const width of [1440, 390]) {
++      const page = await browser.newPage({ viewport: { width, height: 1000 } })
++      page.setDefaultTimeout(8000)
++      const writes = [], errors = []
++      page.on('pageerror', error => errors.push(error.message))
++      await page.route('**/api/**', route => {
++        const request = route.request(), pathname = new URL(request.url()).pathname
++        if (request.method() === 'GET') return route.continue()
++        if (pathname === '/api/inbox/reconcile') return route.fulfill({ json: { skipped: true } })
++        if (pathname === '/api/contact-insights') return route.fulfill({ json: { insights: [] } })
++        writes.push(pathname)
++        return route.abort()
++      })
++      await page.goto('http://127.0.0.1:3218/dashboard/contacts')
++      const table = page.getByRole('table', { name: 'Contacts', exact: true })
++      await table.getByRole('button', { name: 'Sophie Kim', exact: true }).click()
++      await page.getByRole('button', { name: 'Edit contact', exact: true }).click()
++      const editor = page.getByRole('dialog', { name: 'Edit contact', exact: true })
++      await editor.getByLabel('First name', { exact: true }).fill('Sofia')
++      await editor.getByLabel('Family', { exact: true }).selectOption('fixture-smith')
++      await editor.getByLabel('Relationship for family contact 1', { exact: true }).fill('sibling')
++      await editor.getByRole('button', { name: 'Save', exact: true }).click()
++      await page.getByRole('heading', { name: 'Sofia Kim', exact: true }).waitFor()
++      await page.getByRole('button', { name: 'Close', exact: true }).click()
++      const family = table.getByRole('rowgroup').filter({ has: page.getByRole('button', { name: 'Jane Smith', exact: true }) })
++      assert.ok((await family.innerText()).includes('Sofia Kim'))
++      await table.getByRole('button', { name: 'Sofia Kim', exact: true }).click()
++      await page.getByRole('button', { name: 'Edit contact', exact: true }).click()
++      await editor.getByLabel('Relationship for family contact 1', { exact: true }).waitFor()
++      assert.equal(await editor.getByLabel('Relationship for family contact 1', { exact: true }).inputValue(), 'sibling')
++      await editor.getByRole('button', { name: 'Add contact', exact: true }).click()
++      await editor.getByLabel('Family contact 2', { exact: true }).selectOption('mock-jamie')
++      await editor.getByLabel('Relationship for family contact 2', { exact: true }).fill('aunt')
++      await editor.getByRole('button', { name: 'Save', exact: true }).click()
++      await page.getByRole('button', { name: 'Edit contact', exact: true }).click()
++      assert.equal(await editor.getByLabel('Family contact 2', { exact: true }).inputValue(), 'mock-jamie')
++      assert.equal(await editor.getByLabel('Relationship for family contact 2', { exact: true }).inputValue(), 'aunt')
++      await editor.getByRole('button', { name: 'Remove family contact 2', exact: true }).click()
++      assert.equal(await editor.getByLabel('Family contact 2', { exact: true }).count(), 0)
++      await page.screenshot({ path: `/tmp/pulse-contact-editor-${width}.png`, fullPage: true })
++      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
++      await editor.getByLabel('Family', { exact: true }).selectOption('')
++      await editor.getByRole('button', { name: 'Save', exact: true }).click()
++      await page.getByRole('button', { name: 'Close', exact: true }).click()
++      const standalone = table.getByRole('rowgroup').filter({ has: page.getByRole('button', { name: 'Sofia Kim', exact: true }) })
++      assert.equal(await standalone.getByRole('button', { name: 'Jane Smith', exact: true }).count(), 0)
++      await page.getByRole('button', { name: 'Reset preview changes', exact: true }).click()
++      await table.getByRole('button', { name: 'Sophie Kim', exact: true }).waitFor()
++      assert.equal(await table.getByRole('button', { name: 'Sofia Kim', exact: true }).count(), 0)
++      await table.getByRole('button', { name: 'Sophie Kim', exact: true }).click()
++      await page.getByRole('button', { name: 'Edit contact', exact: true }).click()
++      await editor.getByLabel('Account manager', { exact: true }).selectOption('mock-jamie')
++      await editor.getByRole('button', { name: 'Save', exact: true }).click()
++      await page.getByRole('button', { name: 'Close', exact: true }).click()
++      const kim = table.getByRole('rowgroup').filter({ has: page.getByRole('button', { name: 'Sophie Kim', exact: true }) })
++      assert.equal(await kim.getByRole('row').first().getByRole('button', { name: 'Jamie Kim', exact: true }).count(), 1)
++      await table.getByRole('button', { name: 'Sophie Kim', exact: true }).click()
++      await page.getByRole('button', { name: 'Edit contact', exact: true }).click()
++      await editor.getByLabel('First name', { exact: true }).fill('Unsaved')
++      await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
++      await page.getByRole('heading', { name: 'Sophie Kim', exact: true }).waitFor()
++      await page.reload()
++      await table.getByRole('button', { name: 'Sophie Kim', exact: true }).waitFor()
++      const restored = table.getByRole('rowgroup').filter({ has: page.getByRole('button', { name: 'Sophie Kim', exact: true }) })
++      assert.equal(await restored.getByRole('row').first().getByRole('button', { name: 'Sam Kim', exact: true }).count(), 1)
++      assert.deepEqual(writes, [])
++      assert.deepEqual(errors, [])
++      await page.screenshot({ path: `/tmp/pulse-editing-prototype-${width}.png`, fullPage: true })
++      console.log(`PASS ${width}px: rename, move family, holders/relationships, detach, manager change, cancel, reload/reset; zero mutation requests`)
++      await page.close()
++    }
++  } finally { await browser.close() }
++})().catch(error => { console.error(error); process.exitCode = 1 })
+\ No newline at end of file
+diff --git a/scripts/security/contact-prototype-editing.test.cjs b/scripts/security/contact-prototype-editing.test.cjs
+new file mode 100644
+index 0000000..920d29c
+--- /dev/null
++++ b/scripts/security/contact-prototype-editing.test.cjs
+@@ -0,0 +1,60 @@
++/* eslint-disable @typescript-eslint/no-require-imports -- Pure fictional state tests. */
++const { test } = require('node:test')
++const assert = require('node:assert/strict')
++const fs = require('node:fs')
++const path = require('node:path')
++const vm = require('node:vm')
++const ts = require('typescript')
++const moduleUnderTest = { exports: {} }
++const source = fs.readFileSync(path.resolve(__dirname, '../../lib/contact-prototype-editing.ts'), 'utf8')
++test('editor uses product labels, flat form sections and shared header actions', () => {
++  const editor = fs.readFileSync(path.resolve(__dirname, '../../components/contacts/PrototypeContactEditor.tsx'), 'utf8')
++  assert.match(editor, /title="Edit contact"/)
++  assert.match(editor, /<SectionTitle as="h3">Contact details/)
++  assert.match(editor, /Family contacts<\/SectionTitle>/)
++  assert.match(editor, /headingLevel="h4"/)
++  assert.doesNotMatch(editor, /Fictional data only|Save preview|Edit contact prototype|Moving this person|Relationship describes|Cancel editing|Add holder|label="Holder/)
++  assert.equal((editor.match(/<DenseSectionPanel/g) || []).length, 1, 'Only repeatable people use entity panels')
++})
++new vm.Script(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText).runInNewContext({ exports: moduleUnderTest.exports, module: moduleUnderTest })
++const { applyPrototypeContactEdit: apply } = moduleUnderTest.exports
++const person = (id, account, manager, extra = {}) => ({ id, tenant_id: 'fictional', first_name: id, last_name: 'Example', phone: null, email: null, account_id: account, account_holder_person_id: manager, account_holder_name: manager, account_holder_phone: null, account_holder_email: null, family_name: null, custom_fields: {}, ...extra })
++const people = () => [person('sam', 'kim', 'sam'), person('sophie', 'kim', 'sam', { is_minor: true }), person('jane', 'smith', 'jane'), person('noah', 'smith', 'jane')]
++const edit = (patch = {}) => ({ first_name: 'Sophie', last_name: 'Example', phone: '', email: '', account_id: 'smith', manager_id: 'jane', holders: [{ person_id: 'jane', relationship: 'sibling' }], ...patch })
++test('moving one person updates nesting and explicit holders without moving siblings or changing minor flags', () => {
++  const before = people(), after = apply(before, 'sophie', edit())
++  assert.equal(after[1].account_id, 'smith')
++  assert.equal(after[1].account_holder_name, 'jane Example')
++  assert.equal(after[1].account_holders[0].relationship, 'sibling')
++  assert.equal(after[1].is_minor, true)
++  assert.equal(after[0].account_id, 'kim')
++  assert.equal(before[1].account_id, 'kim')
++})
++test('standalone clears stale holder destinations and moving a manager leaves old family unresolved', () => {
++  const after = apply(people(), 'sam', edit({ account_id: null, manager_id: null, holders: [] }))
++  assert.equal(after[0].account_id, null)
++  assert.equal(after[1].account_holder_person_id, null)
++  assert.equal(after[1].account_holder_phone, null)
++})
++test('changing manager refreshes the whole destination family and keeps foreign tenants isolated', () => {
++  const before = [...people(), person('foreign', 'smith', 'jane', { tenant_id: 'other' })]
++  const after = apply(before, 'noah', edit({ manager_id: 'noah', first_name: 'Noah' }))
++  assert.equal(after[2].account_holder_person_id, 'noah')
++  assert.equal(after[4].account_holder_person_id, 'jane')
++})
++test('rejects minor managers, duplicate holders, missing people and foreign tenant holders', () => {
++  assert.throws(() => apply(people(), 'sophie', edit({ manager_id: 'sophie' })), /adult account manager/)
++  assert.throws(() => apply(people(), 'sophie', edit({ holders: [{ person_id: 'jane', relationship: '' }, { person_id: 'jane', relationship: '' }] })), /only once/)
++  assert.throws(() => apply(people(), 'missing', edit()), /no longer/)
++  assert.throws(() => apply([...people(), person('foreign', null, null, { tenant_id: 'other' })], 'sophie', edit({ holders: [{ person_id: 'foreign', relationship: '' }] })), /adult holder/)
++})
++test('a standalone adult can start a new family; contact edits refresh explicit holder destinations', () => {
++  const before = people()
++  const created = apply(before, 'sam', edit({ first_name: 'Samuel', phone: '(202) 555-0199', account_id: 'prototype:family:sam', manager_id: 'sam', holders: [] }))
++  assert.equal(created[0].account_id, 'prototype:family:sam')
++  assert.equal(created[0].account_holders[0].person_id, 'sam')
++  assert.equal(created[1].account_holder_person_id, null)
++  const renamed = apply(before, 'sam', edit({ first_name: 'Samuel', phone: '(202) 555-0199', account_id: 'kim', manager_id: 'sam', holders: [] }))
++  assert.equal(renamed[1].account_holder_name, 'Samuel Example')
++  assert.equal(renamed[1].account_holder_phone, '(202) 555-0199')
++})
+\ No newline at end of file

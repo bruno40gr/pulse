@@ -14,7 +14,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const controlId = id || generatedId
     const hintId = `${controlId}-hint`
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
+      <div data-labeled-field={label ? '' : undefined} className={styles.field} style={{ gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
         {label && (
           <label htmlFor={controlId} style={{ ...typography.label, color: colors.text }}>
             {label}

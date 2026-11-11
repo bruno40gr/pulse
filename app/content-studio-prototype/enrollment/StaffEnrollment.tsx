@@ -162,7 +162,7 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
   return <main className={styles.workspace} style={{ background: colors.background, color: colors.text, fontFamily: typography.fontSans }}>
     {!onSaveAndClose && <header className={styles.header}><span className={styles.brand}>odeon</span><span className={styles.demo}>Local preview · changes stay on this page</span></header>}
     <div className={styles.container}>
-      {onSaveAndClose ? <PageHeader title="Enroll a student" subtitle="Draft only · proposed times are not reserved." right={<Button type="button" variant="secondary" onClick={() => { if (!dirty && onClose) onClose(); else onSaveAndClose(draft, step, reviewedSteps) }}>{dirty ? 'Save & close' : 'Close'}</Button>} /> : <h1 ref={heading} tabIndex={-1}>{saved ? 'Enrollment saved' : 'Enroll a student'}</h1>}
+      {onSaveAndClose ? <PageHeader title="Enroll a student" right={<Button type="button" variant="secondary" onClick={() => { if (!dirty && onClose) onClose(); else onSaveAndClose(draft, step, reviewedSteps) }}>{dirty ? 'Save & close' : 'Close'}</Button>} /> : <h1 ref={heading} tabIndex={-1}>{saved ? 'Enrollment saved' : 'Enroll a student'}</h1>}
       {initialRecord?.preferences?.some(item => item.interest || item.availability?.preferredDays || item.availability?.preferredTimes) && <Notice title="From the inquiry">
         {initialRecord.preferences.map(item => <p key={item.studentId}>{item.name}: {[item.interest, item.availability?.preferredDays, item.availability?.preferredTimes, item.availability?.preferredDate, item.availability?.timeWindow].filter(Boolean).join(' · ') || 'No preferences recorded'}</p>)}
       </Notice>}

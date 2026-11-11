@@ -2,6 +2,7 @@ import type { FamilyPreviewData } from './academy-family-preview'
 import { availableScheduleTeachers, formatScheduleDate, overlap, scheduleTimes, shiftDate } from './academy-enrollment-schedule'
 import { workspaceOccurrences, type WorkspaceLocation } from './academy-student-preview'
 import { newLesson, type LessonChoice } from './academy-staff-enrollment'
+import { createOdeonDemo, demoHours, demoMinutes, demoServices } from './odeon-demo'
 
 export const makeupPreviewNow = '2026-11-03T12:00:00-08:00'
 export type PreviewMakeup = { id: string; lessonId: string; studentId: string; enrollmentId: string; date: string; duration: number; program: string; teacher: string; service: string; booking?: { date: string; time: string; teacher: string; program: string } }
@@ -134,6 +135,22 @@ export function recordPreviewAbsence(data: FamilyPreviewData, state: MakeupPrevi
 export function makeupSlots(data: FamilyPreviewData, state: MakeupPreviewState, makeup: PreviewMakeup, date: string, program: string, sameTeacher: boolean) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`)) || date <= makeupPreviewNow.slice(0, 10)) return []
   if (!['Private', 'Semi-private', 'Group'].includes(makeup.service)) return []
+  if (data.demoSchool) {
+    if (program !== makeup.program || date > '2027-04-01') return []
+    const day = new Date(`${date}T12:00:00Z`).getUTCDay(), hours = demoHours.find(item => item.day === day)
+    if (!hours) return []
+    const seed = createOdeonDemo(), service = demoServices.find(item => item.name === program)
+    if (!service) return []
+    const teachers = seed.teachers.filter(item => item.serviceIds.includes(service.id) && item.days.includes(day) && (!sameTeacher || item.name === makeup.teacher))
+    const enrollment = data.students.flatMap(student => student.enrollments).find(item => item.id === makeup.enrollmentId), room = data.lessons.find(item => item.enrollmentId === enrollment?.id)?.room
+    return Array.from({ length: Math.floor((demoMinutes(hours.to) - demoMinutes(hours.from)) / 15) }, (_, index) => demoMinutes(hours.from) + index * 15).filter(minute => minute + makeup.duration <= demoMinutes(hours.to)).flatMap(minute => {
+      const time = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
+      return teachers.filter(teacher => !data.lessons.some(lesson => {
+        const student = data.students.find(item => item.enrollments.some(value => value.id === lesson.enrollmentId)), other = student?.enrollments.find(item => item.id === lesson.enrollmentId)
+        return lesson.date === date && lesson.status === 'Scheduled' && other && (student?.id === makeup.studentId || (lesson.teacher || other.teacher) === teacher.name || lesson.room === room) && overlap(time, makeup.duration, lesson.time, other.duration)
+      }) && !state.items.some(item => item.booking?.date === date && (item.studentId === makeup.studentId || item.booking.teacher === teacher.name) && overlap(time, makeup.duration, item.booking.time, item.duration))).map(teacher => ({ date, time, teacher: teacher.name, program }))
+    })
+  }
   const choice: LessonChoice = { ...newLesson(makeup.id), studentId: makeup.studentId, instrument: program, duration: String(makeup.duration), service: makeup.service as LessonChoice['service'], frequency: 'À-la-carte' }
   return scheduleTimes.flatMap(time => availableScheduleTeachers(choice, date, time, null, []).filter(teacher => {
     if (sameTeacher && teacher.name !== makeup.teacher) return false

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import DashboardLayout from '@/app/dashboard/layout'
+import DashboardShell from '@/app/dashboard/DashboardShell'
 import ContactsPage, { type Contact } from '@/app/dashboard/contacts/page'
 import { ContactSampleContext } from '@/components/contacts/ContactPrototypeContext'
-import StaffPage from '@/app/dashboard/staff/page'
+import StaffView from '@/app/dashboard/staff/StaffView'
 import StudentWorkspaceV3 from '@/app/content-studio-prototype/students/StudentWorkspaceV3'
 import SchoolSetup from '@/app/content-studio-prototype/school-setup/SchoolSetup'
 import type { SetupRecord } from '@/app/content-studio-prototype/school-setup/setup-content'
@@ -42,14 +42,14 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   }, [seed, staffId, snapshot.data, sampleStaff])
   if (!ready) return null
   if (onboarding) return <SchoolSetup demo configuredData={setup} onConfiguredChange={onSetup} />
-  return <DashboardLayout sample>
+  return <DashboardShell sample>
     <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · Changes are not shared with other testers</div>
     {parent && <div style={{ padding: spacing.lg }}><Select label="Preview family" value={params.get('account') || snapshot.data.accounts[0].id} onChange={event => { window.location.href = `/odeon-demo?view=parent&account=${encodeURIComponent(event.target.value)}` }}>{snapshot.data.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</Select></div>}
     {staff ? <>
-      <StaffPage sampleStaff={sampleStaff} onOpenSample={setStaffId} />
+      <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} />} />}
-  </DashboardLayout>
+  </DashboardShell>
 }
 
 /** Published Contacts rows carry the account link the live table groups families by. */

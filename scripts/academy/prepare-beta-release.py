@@ -82,17 +82,10 @@ for copied_file in (target / 'beta-source').rglob('*'):
         body = body.replace(f"'{specifier}'", f"'@/beta-source/{specifier[2:]}'").replace(f'"{specifier}"', f'"@/beta-source/{specifier[2:]}"')
     copied_file.write_text(body)
 
-# Route modules must expose only Next-supported props, not reusable view props.
-for route, implementation in [
-    ('app/dashboard/staff/page.tsx', 'app/dashboard/staff/StaffView.tsx'),
-    ('app/dashboard/layout.tsx', 'app/dashboard/DashboardShell.tsx'),
-]:
-    source = target / 'beta-source' / route
-    destination = target / 'beta-source' / implementation
-    source.rename(destination)
-    for copied in (target / 'beta-source').rglob('*.tsx'):
-        text = copied.read_text().replace('@/beta-source/' + route.removesuffix('.tsx'), '@/beta-source/' + implementation.removesuffix('.tsx'))
-        copied.write_text(text)
+# Sandbox views are real modules now, so no route-module renaming is needed.
+for view in ['app/dashboard/contacts/ContactsView.tsx', 'app/dashboard/staff/StaffView.tsx', 'app/dashboard/DashboardShell.tsx']:
+    if not (root / view).is_file():
+        raise SystemExit(f'Missing sandbox view {view}')
 
 for route in ['page.tsx', 'school-setup/page.tsx']:
     destination = target / 'app/odeon-demo' / route

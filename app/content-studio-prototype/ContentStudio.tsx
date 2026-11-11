@@ -10,25 +10,41 @@ import { colors } from '@/lib/tokens'
 import { canonicalCommunityUrl } from '@/lib/community-posts'
 import { contentKinds, newStudioDraft, placements, publishErrors, studioSteps, studioStepErrors, safeCta, eventThemes, eventTreatment, eventTimes, posterLogoFilter, type StudioDraft } from '@/lib/content-studio-prototype'
 import LocationField from './LocationField'
+import { getActiveTenantId } from '@/lib/tenant'
 import styles from './studio.module.css'
 
 const icons = [CalendarDays, Clock, Megaphone, Newspaper, LinkIcon]
 const storageKey = 'pulse-content-studio-prototype-v1'
 
-export default function ContentStudio() {
+export default function ContentStudio({ connected = false }: { connected?: boolean }) {
   const [items, setItems] = useState<StudioDraft[]>([])
   const [draft, setDraft] = useState<StudioDraft | null>(null)
   const [step, setStep] = useState(0)
   const [ready, setReady] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [revision, setRevision] = useState(0)
+  const [tenant, setTenant] = useState('')
+  const enabledKinds = connected ? contentKinds.filter(type => type.kind !== 'social') : contentKinds
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState<string[]>([])
   useEffect(() => {
+    if (connected) {
+      const selected = new URLSearchParams(window.location.search).get('tenant') || getActiveTenantId()
+      setTenant(selected)
+      let cancelled = false
+      fetch(`/api/website-content?tenant=${selected}`, { cache: 'no-store' }).then(async response => {
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Content could not be loaded.')
+        if (!cancelled) { setItems(result.items); setRevision(result.revision); setReady(true) }
+      }).catch(error => { if (!cancelled) setErrors([error.message]) })
+      return () => { cancelled = true }
+    }
     try {
       const saved = JSON.parse(sessionStorage.getItem(storageKey) || '[]')
       if (Array.isArray(saved)) setItems(saved.filter(item => item && typeof item.id === 'string' && contentKinds.some(type => type.kind === item.kind)))
     } catch { /* An unavailable browser store starts an empty session. */ }
     setReady(true)
-  }, [])
+  }, [connected])
 
   const update = (changes: Partial<StudioDraft>) => {
     setDraft(current => current ? { ...current, ...changes } : null)
@@ -40,8 +56,24 @@ export default function ContentStudio() {
     try { sessionStorage.setItem(storageKey, JSON.stringify(next)) }
     catch { setMessage('Saved in memory only: browser storage is full or unavailable. Keep this tab open.') }
   }
+  const command = async (item: StudioDraft, action: string) => {
+    if (busy) return false
+    setBusy(true)
+    try {
+      const response = await fetch(`/api/website-content?tenant=${tenant}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item, action, revision }) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Content could not be saved.')
+      setItems(result.items); setRevision(result.revision)
+      setDraft(current => current?.id === item.id ? result.items.find((row: StudioDraft) => row.id === item.id) : current)
+      setErrors([])
+      setMessage(action === 'publish' ? 'Published. The website will show this version on its next page load.' : action === 'unpublish' || action === 'archive' ? 'Removed from the live website.' : 'Draft saved. Any previously published version is unchanged.')
+      return true
+    } catch (error) { setErrors([error instanceof Error ? error.message : 'Content could not be saved.']); return false }
+    finally { setBusy(false) }
+  }
   const save = (status: StudioDraft['status']) => {
     if (!draft) return
+    if (connected) { void command(draft, status === 'published' ? 'publish' : 'save'); return }
     if (status === 'published') {
       const problems = publishErrors(draft, items.filter(item => item.id !== draft.id && item.kind === 'social' && item.status === 'published' && item.featured).length)
       if (problems.length) { setErrors(problems); return }
@@ -52,7 +84,7 @@ export default function ContentStudio() {
     setDraft(saved)
     setErrors([])
   }
-  const upload = (event: ChangeEvent<HTMLInputElement>) => {
+  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 4 * 1024 * 1024) {
@@ -60,10 +92,45 @@ export default function ContentStudio() {
     }
     const targetId = draft?.id
     const isArtwork = draft?.artwork === 'upload' && !['article', 'social'].includes(draft.kind)
+    if (connected) {
+      setBusy(true)
+      try {
+        const response = await fetch(`/api/website-content/assets?tenant=${tenant}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Image upload failed.')
+        setDraft(current => current && current.id === targetId ? { ...current, ...(isArtwork ? { artworkImage: result.url } : { image: result.url }) } : current)
+        setErrors([])
+      } catch (error) { setErrors([error instanceof Error ? error.message : 'Image upload failed.']) }
+      finally { setBusy(false); event.target.value = '' }
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => setDraft(current => current && current.id === targetId ? { ...current, ...(isArtwork ? { artworkImage: String(reader.result) } : { image: String(reader.result) }) } : current)
     reader.onerror = () => setErrors(['The image could not be read. Please try another file.'])
     reader.readAsDataURL(file)
+  }
+  const importDrafts = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.size > 500000) { setErrors(['The import file is too large.']); return }
+    setBusy(true)
+    try {
+      const bundle = JSON.parse(await file.text())
+      if (bundle.version !== 1 || !Array.isArray(bundle.items) || bundle.items.length > 30) throw new Error('Choose a version 1 website-content export with at most 30 records.')
+      let nextRevision = revision
+      let imported = 0
+      for (const item of bundle.items) {
+        if (items.some(existing => existing.id === item.id)) continue
+        const response = await fetch(`/api/website-content?tenant=${tenant}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item, action: 'save', revision: nextRevision }) })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Import stopped. Previously saved records remain in the workspace.')
+        nextRevision = result.revision
+        setRevision(nextRevision); setItems(result.items); imported++
+      }
+      setMessage(`Imported ${imported} private drafts. Existing records were skipped. Review each draft before publishing.`)
+      setErrors([])
+    } catch (error) { setErrors([error instanceof Error ? error.message : 'Import failed.']) }
+    finally { setBusy(false); event.target.value = '' }
   }
   const field = (key: keyof StudioDraft, label: string, type = 'text', hint?: string) => <div><label htmlFor={`studio-${key}`}>{label}</label><Input id={`studio-${key}`} type={type} value={String(draft?.[key] ?? '')} onChange={event => update({ [key]: event.target.value })} hint={hint} /></div>
   const uploadReferences = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -78,8 +145,9 @@ export default function ContentStudio() {
   }
   const text = (key: 'summary' | 'body', label: string, rows = 3) => <div><label htmlFor={`studio-${key}`}>{label}</label><Textarea id={`studio-${key}`} rows={rows} value={draft?.[key] ?? ''} onChange={event => update({ [key]: event.target.value })} /></div>
   const banner = draft ? ['event', 'deadline', 'announcement'].includes(draft.kind) : false
-  const goHome = () => {
-    if (draft) persist([...items.filter(item => item.id !== draft.id), draft])
+  const goHome = async () => {
+    if (connected && draft && !await command(draft, 'save')) return
+    if (!connected && draft) persist([...items.filter(item => item.id !== draft.id), draft])
     setDraft(null)
     setStep(0)
     setErrors([])
@@ -94,18 +162,20 @@ export default function ContentStudio() {
     {draft?.kind === 'article' && field('credit', 'Photo / contributor credit (optional)')}
   </>
 
-  return <div className={styles.light}><main className={styles.shell}>
-    <div className={styles.notice}><strong>Prototype</strong> · Publishing is simulated.</div>
-    <PageHeader title={draft ? contentKinds.find(item => item.kind === draft.kind)!.label : 'Content Studio'} subtitle={draft ? undefined : 'What are you updating at Headliner?'} />
-    <div role="status" aria-live="polite">{message}</div>
+  return <div className={styles.light}><fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><main className={styles.shell}>
+    <div className={styles.notice}>{connected ? <><strong>Website Content</strong> · Drafts are private. Publishing updates the public website. Upload finished flyers; generated templates remain preview-only.</> : <><strong>Prototype</strong> · Publishing is simulated.</>}</div>
+    <PageHeader title={draft ? contentKinds.find(item => item.kind === draft.kind)!.label : connected ? 'Website Content' : 'Content Studio'} subtitle={draft ? undefined : 'What are you updating at Headliner?'} />
+    <div role="status" aria-live="polite">{busy ? 'Saving…' : message}</div>
+    {connected && !draft && !!errors.length && <ul role="alert" className={styles.errors}>{errors.map(error => <li key={error}>{error}</li>)}</ul>}
     {!draft ? <>
-      <div className={styles.choices}>{contentKinds.map((type, index) => {
-        const Icon = icons[index]
-        return <button className={styles.choice} key={type.kind} disabled={!ready} onClick={() => { setDraft(newStudioDraft(type.kind)); setStep(0); setErrors([]); setMessage('') }}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></button>
+      {connected && ready && <div><label htmlFor="studio-import">Import existing website content as private drafts</label><input id="studio-import" type="file" accept="application/json,.json" onChange={importDrafts} /></div>}
+      <div className={styles.choices}>{enabledKinds.map(type => {
+        const Icon = icons[contentKinds.findIndex(kind => kind.kind === type.kind)]
+        return <button className={styles.choice} key={type.kind} disabled={!ready || busy} onClick={() => { setDraft({ ...newStudioDraft(type.kind), ...(connected && type.kind !== 'article' ? { artwork: 'upload' as const } : {}) }); setStep(0); setErrors([]); setMessage('') }}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></button>
       })}</div>
       {!!items.length && <h2>Your workspace</h2>}
-      <ul className={styles.list}>{items.map(item => <li key={item.id}><div><strong>{item.title || 'Untitled draft'}</strong><span className={styles.small}>{item.kind} · {item.status === 'published' ? 'Published (simulation)' : item.status}</span></div><div className={styles.actions}><Button variant="secondary" size="sm" onClick={() => { setDraft(item); setStep(0); setErrors([]) }}>Open</Button><Button variant="ghost" size="sm" onClick={() => persist(items.map(row => row.id === item.id ? { ...row, status: row.status === 'archived' ? 'draft' : 'archived' } : row))}>{item.status === 'archived' ? 'Restore draft' : 'Archive'}</Button></div></li>)}</ul>
-      {!!items.length && <Button variant="ghost" onClick={() => { if (window.confirm('Clear all prototype drafts in this tab?')) persist([]) }}>Reset prototype workspace</Button>}
+      <ul className={styles.list}>{items.map(item => <li key={item.id}><div><strong>{item.title || 'Untitled draft'}</strong><span className={styles.small}>{item.kind} · {item.status === 'published' ? (connected ? 'Published' : 'Published (simulation)') : item.status}</span></div><div className={styles.actions}>{connected && (item as StudioDraft & { hasPublishedVersion?: boolean }).hasPublishedVersion && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void command(item, 'unpublish')}>Unpublish</Button>}<Button variant="secondary" size="sm" onClick={() => { setDraft(item); setStep(0); setErrors([]) }}>Open</Button><Button variant="ghost" size="sm" onClick={() => connected ? void command(item, item.status === 'archived' ? 'save' : 'archive') : persist(items.map(row => row.id === item.id ? { ...row, status: row.status === 'archived' ? 'draft' : 'archived' } : row))}>{item.status === 'archived' ? 'Restore draft' : 'Archive'}</Button></div></li>)}</ul>
+      {!connected && !!items.length && <Button variant="ghost" onClick={() => { if (window.confirm('Clear all prototype drafts in this tab?')) persist([]) }}>Reset prototype workspace</Button>}
     </> : <div className={styles.eventEditor}>
       <Button variant="ghost" size="sm" onClick={goHome}><ArrowLeft size={16} />Content Studio</Button>
       <ol className={styles.wizardSteps} aria-label="Content creation steps">{studioSteps(draft.kind).map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined} data-active={step === index}><span>{index + 1}</span>{label}</li>)}</ol>
@@ -115,19 +185,19 @@ export default function ContentStudio() {
         {draft.kind === 'event' && <><div className={styles.pair}>{field('date', 'Event date', 'date')}<div><label htmlFor="studio-time">Event time</label><select id="studio-time" className={styles.select} value={draft.time} onChange={event => update({ time: event.target.value })}><option value="">Select time</option>{draft.time && !eventTimes.some(option => option.value === draft.time) && <option value={draft.time} disabled>{draft.time} — choose a new time</option>}{eventTimes.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div><LocationField value={draft.location} onChange={location => update({ location })} /></>}
         {draft.kind === 'deadline' && field('date', 'Deadline date', 'date')}
         {draft.kind === 'announcement' && field('expires', 'Expiration (optional)', 'date')}
-        {draft.kind === 'article' && <>{field('category', 'Editorial label (optional)')}{text('body', 'Full story', 10)}{field('ctaLabel', 'Link text (optional)')}{field('ctaUrl', 'Destination URL', 'url')}</>}
+        {draft.kind === 'article' && <>{field('category', 'Editorial label (optional)')}{connected && field('publicationDate', 'Editorial publication date (optional)', 'date')}{text('body', 'Full story', 10)}{field('ctaLabel', 'Link text (optional)')}{field('ctaUrl', 'Destination URL', 'url')}{draft.bodyImages?.map((image, index) => <div key={image.src}><p>Additional article image: {image.alt}</p><Button variant="ghost" onClick={() => update({ bodyImages: draft.bodyImages?.filter((_, position) => position !== index) })}>Remove additional image</Button></div>)}</>}
         {banner && field('ctaLabel', 'Banner CTA (optional)')}
         {draft.kind === 'social' && <>{field('socialUrl', 'Original Instagram / TikTok post URL', 'url')}<label><input type="checkbox" checked={draft.permission} onChange={event => update({ permission: event.target.checked })} /> Permission confirmed</label><label><input type="checkbox" checked={draft.featured} onChange={event => update({ featured: event.target.checked })} /> Feature on homepage</label></>}
       </section>}
       {step === 1 && <div className={styles.workspace}>
         <section className={`${styles.panel} ${styles.fields}`} aria-label="Content design">
-          {banner && <div className={styles.actions}>{(['template', 'upload'] as const).map(value => <Button key={value} variant={draft.artwork === value ? 'primary' : 'secondary'} aria-pressed={draft.artwork === value} onClick={() => update({ artwork: value })}>{value === 'template' ? 'Use Template' : 'Upload artwork'}</Button>)}</div>}
+          {banner && !connected && <div className={styles.actions}>{(['template', 'upload'] as const).map(value => <Button key={value} variant={draft.artwork === value ? 'primary' : 'secondary'} aria-pressed={draft.artwork === value} onClick={() => update({ artwork: value })}>{value === 'template' ? 'Use Template' : 'Upload artwork'}</Button>)}</div>}
           {banner && draft.artwork === 'upload' ? <><div className={styles.upload}><span>{(draft.artworkImage ?? draft.image) ? 'Replace artwork' : 'Upload artwork'}</span><input aria-label="Upload artwork" id="studio-image" type="file" accept="image/jpeg,image/png,image/webp" onChange={upload} /></div>{(draft.artworkImage ?? draft.image) && <><div><label htmlFor="studio-artworkAlt">Image description</label><Input id="studio-artworkAlt" value={draft.artworkAlt ?? draft.imageAlt} onChange={event => update({ artworkAlt: event.target.value })} /></div><Button variant="ghost" onClick={() => update({ artworkImage: '', artworkAlt: '' })}>Remove artwork</Button></>}</> : <>
             {banner && <><label><input type="checkbox" checked={draft.includeLogo !== false} onChange={event => update({ includeLogo: event.target.checked })} /> Include Logo</label><div><label>Design</label><div className={styles.designPicker}>{eventThemes.map(theme => <button type="button" key={theme.id} aria-label={`Choose ${theme.label} design`} aria-pressed={eventTreatment(draft).id === theme.id} onClick={() => update({ designId: theme.id, posterLayout: undefined })}><div className={styles.designThumbnail} style={{ background: theme.background, color: theme.foreground }}><strong>{theme.label}</strong>{theme.layout === 'workshop' ? <NotebookPen /> : theme.layout === 'portrait' ? <Mic /> : <Guitar />}</div><span>{theme.label}</span></button>)}</div></div></>}
             {imageFields}
             {banner && imageLayoutControls}
           </>}
-          {references}
+          {!connected && references}
         </section>
         <aside className={styles.preview} aria-label="Live preview"><h2>Preview</h2><ContentPreview draft={draft} mode={draft.kind === 'article' ? 'story' : 'digital'} /></aside>
       </div>}
@@ -136,7 +206,7 @@ export default function ContentStudio() {
       <footer className={styles.wizardFooter}><Button variant="secondary" onClick={() => { setErrors([]); if (step > 0) setStep(step - 1); else goHome() }}>Back</Button><div className={styles.footerForward}><Button variant="ghost" onClick={() => save('draft')}>Save draft</Button>{step === 2 ? <>{banner && <Button variant="secondary" onClick={() => window.print()}>Print</Button>}<Button onClick={() => save('published')}>Publish to Website</Button></> : <Button onClick={() => { const problems = studioStepErrors(draft, step); if (problems.length) setErrors(problems); else { setErrors([]); setStep(step + 1) } }}>Next</Button>}</div></footer>
     </div>}
 
-  </main></div>
+  </main></fieldset></div>
 }
 
 function ContentPreview({ draft, mode }: { draft: StudioDraft; mode: string }) {

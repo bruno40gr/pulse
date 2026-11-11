@@ -1005,9 +1005,10 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 function ContactModuleEmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 320, padding: spacing.xl, background: colors.background }}>
-      <div style={{ width: '100%', maxWidth: 520, border: `1px solid ${colors.border}`, borderRadius: radius.xl, background: colors.surface, boxShadow: 'none' }}>
+      <div style={{ width: '100%', maxWidth: 520 }}>
         <EmptyState
-          icon={<span style={{ display: 'inline-flex', color: colors.teal }}>{icon}</span>}
+          variant="panel"
+          icon={icon}
           title={title}
           description={description}
         />

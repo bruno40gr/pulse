@@ -14,7 +14,7 @@ export function Input({ label, hint, error, style, id, className, 'aria-describe
   const controlId = id || generatedId
   const messageId = `${controlId}-message`
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
+    <div data-labeled-field={label ? '' : undefined} className={styles.field} style={{ gap: spacing.xs, width: '100%', minWidth: 0, maxWidth: '100%' }}>
       {label && (
         <label htmlFor={controlId} style={{ ...typography.label, color: colors.text }}>
           {label}

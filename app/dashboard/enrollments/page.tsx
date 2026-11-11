@@ -1,0 +1,1 @@
+export { default, metadata } from '@/app/content-studio-prototype/enrollment/page'

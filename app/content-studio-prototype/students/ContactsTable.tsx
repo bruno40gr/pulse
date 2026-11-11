@@ -6,10 +6,11 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { accountStudents, type FamilyPreviewData } from '@/lib/academy-family-preview'
 import { previewStudentName } from '@/lib/academy-student-preview'
 import { colors, spacing, typography } from '@/lib/tokens'
+import { Plus } from 'lucide-react'
 
 type ContactRow = { id: string; accountId: string; name: string; child: boolean; email: string; programs: string; instructors: string; status: string }
 
-export function ContactsTable({ data, search, onSearch, onOpen, onParent }: { data: FamilyPreviewData; search: string; onSearch: (value: string) => void; onOpen: (accountId: string, studentId?: string) => void; onParent: () => void }) {
+export function ContactsTable({ data, search, onSearch, onOpen }: { data: FamilyPreviewData; search: string; onSearch: (value: string) => void; onOpen: (accountId: string, studentId?: string) => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const rows: ContactRow[] = data.accounts.flatMap(account => {
     const students = accountStudents(data, account)
@@ -23,7 +24,7 @@ export function ContactsTable({ data, search, onSearch, onOpen, onParent }: { da
     { id: 'instructor', header: 'Instructor', width: 'minmax(180px, 1fr)', render: row => row.instructors || '—' },
   ]
   return <>
-    <PageHeader title="Contacts" right={<Button variant="secondary" onClick={onParent}>Preview parent portal</Button>} />
+    <PageHeader title="Contacts" right={<Button onClick={() => { const url = new URL('/dashboard/enrollments', window.location.origin); url.searchParams.set('start', '1'); const tenant = new URLSearchParams(window.location.search).get('tenant'); if (tenant) url.searchParams.set('tenant', tenant); window.location.assign(url.pathname + url.search) }}><Plus size={16} aria-hidden="true" />Enroll contact</Button>} />
     <div style={{ marginBottom: spacing.lg, maxWidth: 420 }}><Input type="search" aria-label="Search contacts" placeholder="Search contacts" value={search} onChange={event => onSearch(event.target.value)} /></div>
     <ResponsiveDataTable rows={rows} columns={columns} getRowKey={row => row.id} minDesktopWidth={1100} ariaLabel="Contacts" emptyContent="No contacts found." selection={{ selectedKeys: selected, allSelected: rows.length > 0 && rows.every(row => selected.has(row.id)), selectAllLabel: 'Select all contacts', getRowLabel: row => row.name, onToggle: row => setSelected(current => { const next = new Set(current); if (next.has(row.id)) next.delete(row.id); else next.add(row.id); return next }), onToggleAll: () => setSelected(rows.every(row => selected.has(row.id)) ? new Set() : new Set(rows.map(row => row.id))) }} onRowClick={row => onOpen(row.accountId, row.child ? row.id : undefined)} />
   </>

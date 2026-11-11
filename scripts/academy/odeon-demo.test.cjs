@@ -105,10 +105,11 @@ test('onboarding matches shared teachers, services, prices and discount rules', 
   assert.equal(discounts.evaluateDiscount(staff, { staffMember: 'No' }), 'not-eligible')
   assert.equal(discounts.evaluateDiscount(staff, {}), 'missing-data')
 })
-test('public auth bypass is restricted to exact sandbox pages', () => {
+test('beta sandbox routes require the existing account-administrator gate', () => {
   const middleware = fs.readFileSync(path.resolve(__dirname, '../../middleware.ts'), 'utf8')
-  assert.match(middleware, /pathname === '\/odeon-demo' \|\| pathname === '\/odeon-demo\/school-setup'/)
-  assert.doesNotMatch(middleware, /pathname\.startsWith\('\/odeon-demo/)
+  assert.match(middleware, /const isBetaPath/)
+  assert.match(middleware, /if \(isBetaPath \|\|/)
+  assert.match(middleware, /await requireAccountAdministrator\(request, tenantId\)/)
   assert.match(middleware, /Pulse access required/)
 })
 test('app adapter supplies real workspaces with all families, billing and original makeup lessons', () => {

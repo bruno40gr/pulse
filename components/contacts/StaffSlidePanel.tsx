@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { Badge, Button, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, SectionTitle, NotesSection } from '@/components/ui'
 import { colors, typography, spacing } from '@/lib/tokens'
 import { getActiveTenantId, shouldUseDemoPhotos, getDemoAvatarUrl } from '@/lib/tenant'
+import { useIsMobile } from '@/lib/useMediaQuery'
 
 interface StaffStudent {
   enrollment_id: string
@@ -22,7 +23,7 @@ interface StaffStudent {
   lesson_time: string | null
 }
 
-interface StaffMember {
+export interface StaffMember {
   id: string
   role: string
   is_active: boolean
@@ -35,18 +36,21 @@ interface StaffMember {
 }
 
 interface StaffSlidePanelProps {
+  sampleStaff?: StaffMember
   staffId: string
   onClose: () => void
   onViewStudent?: (personId: string) => void
 }
 
-export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: StaffSlidePanelProps) {
-  const [staff, setStaff] = useState<StaffMember | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function StaffSlidePanel({ staffId, onClose, onViewStudent, sampleStaff }: StaffSlidePanelProps) {
+  const [staff, setStaff] = useState<StaffMember | null>(sampleStaff || null)
+  const [loading, setLoading] = useState(!sampleStaff)
   const [error, setError] = useState<string | null>(null)
   const tenantId = getActiveTenantId()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
+    if (sampleStaff) { setStaff(sampleStaff); setLoading(false); return }
     fetch(`/api/staff/${staffId}?tenant=${tenantId}`)
       .then(async response => {
         const data = await response.json()
@@ -63,7 +67,7 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
         setError(fetchError instanceof Error ? fetchError.message : 'Could not load staff member')
         setLoading(false)
       })
-  }, [staffId, tenantId])
+  }, [staffId, tenantId, sampleStaff])
 
   const displayPhone = (phone: string | null) => {
     if (!phone) return null
@@ -148,7 +152,7 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
         onClose={onClose}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 480px', flex: 1, overflow: 'hidden', background: colors.surface }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 480px)', flex: 1, overflow: isMobile ? 'auto' : 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>
           {/* Contact info */}

@@ -14,6 +14,11 @@ export async function middleware(request: NextRequest) {
     ?.split(':')[0]
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
+  // The feed verifies a server reader token. Assets verify a live published reference.
+  if (request.method === 'GET' && (pathname === '/api/website-content/public' || pathname === '/api/website-content/public/assets')) return NextResponse.next({ request })
+  // Beta is sample data, but still requires a real owner/admin membership.
+  const isBetaPath = pathname === '/beta' || pathname.startsWith('/beta/')
+    || pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/')
   // Static, non-personal fallback avatar must also load through image optimization.
   if (pathname === '/avatars/staff-default.svg' || /^\/avatars\/staging-(owner|admin|staff|assistant|tester)\.svg$/.test(pathname)) return NextResponse.next({ request })
   // Twilio cannot present a Pulse session. These handlers authenticate requests
@@ -113,11 +118,12 @@ export async function middleware(request: NextRequest) {
 
   if (!isPublicPath && !isAuthorized) {
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('next', pathname)
+    loginUrl.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
+  if (isBetaPath || pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
+    || pathname === '/dashboard/website-content' || pathname.startsWith('/dashboard/website-content/')
     || pathname === '/content-studio-prototype' || pathname.startsWith('/content-studio-prototype/')) {
     const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
     const designAccess = await requireAccountAdministrator(request, tenantId)
@@ -132,6 +138,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/leads', request.url))
   }
 
+  if (isBetaPath) {
+    supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    supabaseResponse.headers.set('Cache-Control', 'private, no-store')
+  }
   return supabaseResponse
 }
 

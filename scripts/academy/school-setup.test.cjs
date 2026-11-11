@@ -5,8 +5,15 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 const ts = require('typescript')
 const domain = {}
-vm.runInNewContext(ts.transpileModule(fs.readFileSync(require('node:path').resolve(__dirname, '../../app/content-studio-prototype/school-setup/setup-content.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { exports: domain })
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(require('node:path').resolve(__dirname, '../../app/content-studio-prototype/school-setup/setup-content.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { exports: domain, URL })
 const area = id => domain.setupAreas.find(item => item.id === id)
+test('room conference URLs must be HTTPS and stay optional', () => {
+ const room = { id: 'room', name: 'Piano', capacity: '1', serviceIds: [], allServices: true }
+ assert.equal(domain.validateRooms([room], []), null)
+ assert.equal(domain.validateRooms([{ ...room, conferenceUrl: 'https://example.invalid/room' }], []), null)
+ assert.ok(domain.validateRooms([{ ...room, conferenceUrl: 'javascript:alert(1)' }], []))
+ assert.ok(domain.validateRooms([{ ...room, conferenceUrl: 'not a URL' }], []))
+})
 test('unnamed time off and sick leave block availability without changing the weekly schedule', () => {
  const base = [{ id: 'mon', day: 0, from: 720, to: 1080 }]
  const off = { id: 'sick', start: '2026-11-09', end: '2026-11-09', allDay: true, from: 720, to: 780, sickLeave: true }
@@ -62,8 +69,10 @@ test('dated schedule and separate rest/meal preferences validate', () => {
 })
 test('duration prices are explicit, validated and included without first-period naming', () => {
  const values = domain.normalizePricing({ ...area('plans').defaults, durationPrices: JSON.stringify([{ minutes: 30, price: '40' }, { minutes: 45, price: '55' }, { minutes: 60, price: '75' }]) })
- assert.match(values.name, /30 min · \$40.00/)
- assert.match(values.name, /60 min · \$75.00/)
+ assert.match(values.name, /30 min · \$40.00 USD/)
+ assert.match(values.name, /60 min · \$75.00 USD/)
+ assert.match(domain.pricingSummary(values), /30 min: \$40.00 USD/)
+ assert.match(domain.pricingName({ kind: 'Single lesson', price: '50' }), /\$50.00 USD/)
  assert.doesNotMatch(values.name, /Remaining scheduled/)
  assert.equal(domain.validateSetup(area('plans'), values), null)
  assert.ok(domain.validateSetup(area('plans'), { ...values, durationPrices: '[{"minutes":60,"price":""}]' }))
@@ -125,7 +134,7 @@ test('pricing fields progressively disclose valid billing options and generate n
  assert.ok(domain.setupAreas.indexOf(area('plans')) < domain.setupAreas.indexOf(area('services')))
  assert.equal(area('plans').fields.some(field => ['name', 'discount'].includes(field.key)), false)
  const subscription = domain.normalizePricing(area('plans').defaults)
- assert.equal(subscription.name, 'Monthly subscription · $50.00 per lesson')
+ assert.equal(subscription.name, 'Monthly subscription · $50.00 USD per lesson')
  assert.equal(domain.pricingFields(subscription).find(field => field.key === 'cadence').options.includes('Once'), false)
  const fixed = domain.normalizePricing({ ...subscription, basis: 'Fixed amount' })
  assert.equal(fixed.first, 'Full amount')

@@ -53,7 +53,7 @@ export default function ServiceEditor({ values, levelNames, enabledLevels = leve
   return <div className={styles.serviceSections}>
     <section aria-label="Service details">
       <SectionTitle>Service name</SectionTitle>
-      <FieldGrid columns={1}><Input aria-label="Service name" required value={values.name} onChange={event => onValue('name', event.target.value)} /></FieldGrid>
+      <FieldGrid columns={1}><Input label="Service name" required value={values.name} onChange={event => onValue('name', event.target.value)} /></FieldGrid>
     </section>
     <ServiceImageSection name={values.name} value={values.image || ''} onChange={value => onValue('image', value)} />
     <div className={styles.serviceSettings}>

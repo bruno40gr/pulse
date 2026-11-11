@@ -137,7 +137,7 @@ export default function StudentWorkspace() {
   }
   const selectedMakeup = visibleMakeups.find(item => item.id === makeupId && !item.booking)
   const lessonContent = lesson && <LessonPreview onBack={() => setLessonId(null)} key={`${lesson.id}:${parent}`} lesson={lesson} parent={parent} absence={makeups.absences.find(item => item.lessonId === lesson.id)} onSchedule={scheduleMakeup} onCancel={grantLate => {
-    try { const next = recordPreviewAbsence(contentData, makeups, account!.id, lesson.id, grantLate, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm('Lesson absence recorded.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to record absence.' }
+    try { const next = recordPreviewAbsence(contentData, makeups, account!.id, lesson.id, grantLate, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm(next.state.items.length > makeups.items.length ? 'Lesson cancelled successfully. Added to the makeup bin.' : 'Lesson cancelled successfully. No makeup credit was added.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
   }} />
   const managementContent = intent && account && !parent && <WorkspaceManagement key={`${account.id}:${intent.kind}:${intent.enrollmentId || ''}`} data={contentData} account={account} studentId={location.studentId} intent={intent} onApply={apply} onClose={() => setIntent(null)} />
 
@@ -156,7 +156,7 @@ export default function StudentWorkspace() {
   return <div className={styles.root} style={{ padding: isMobile ? spacing.lg : spacing['3xl'], color: colors.text, fontFamily: typography.fontSans, background: colors.background, minHeight: '100dvh' }}>
     {confirmation}
     <div hidden={Boolean(!(location.view === 'contacts' || quick) || intent || movingLesson || cancellingReplacement || calendarOpen || selectedMakeup)}>
-    <ContactsTable data={data} search={search} onSearch={setSearch} onParent={previewParent} onOpen={(accountId, studentId) => studentId ? navigate({ ...workspaceInitial, accountId, studentId, view: 'quick' }) : openAccount(accountId)} /></div>
+    <ContactsTable data={data} search={search} onSearch={setSearch} onOpen={(accountId, studentId) => studentId ? navigate({ ...workspaceInitial, accountId, studentId, view: 'quick' }) : openAccount(accountId)} /></div>
     {movingLesson && account ? <MoveLesson profileSubtitle={selectedStudent ? 'Student profile' : 'Account manager'} accountName={profileTitle} key={movingLesson.id} item={movingLesson} data={familyData} state={makeups} onBack={() => setMoveId(null)} onMove={booking => {
       try { const next = movePreviewLesson(data, makeups, account.id, movingLesson.id, booking); setData(next.data); setMakeups(next.state); setMoveId(null); confirm('Lesson rescheduled. The recurring subscription is unchanged.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to move lesson.' }
     }} /> : cancellingReplacement && account ? <>

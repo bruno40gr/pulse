@@ -43,3 +43,5 @@ export {
   type ResponsiveDataTableProps,
 } from './DataGridTable'
 export { Tabs } from './Tabs'
+export { Checkbox } from './Checkbox'
+export { SearchSelect, type SearchSelectOption } from './SearchSelect'
