@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/app/dashboard/layout'
 import ContactsPage, { type Contact } from '@/app/dashboard/contacts/page'
+import { ContactSampleContext } from '@/components/contacts/ContactPrototypeContext'
 import StaffPage from '@/app/dashboard/staff/page'
 import StudentWorkspaceV3 from '@/app/content-studio-prototype/students/StudentWorkspaceV3'
 import SchoolSetup from '@/app/content-studio-prototype/school-setup/SchoolSetup'
@@ -42,7 +43,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   if (!ready) return null
   if (onboarding) return <SchoolSetup demo configuredData={setup} onConfiguredChange={onSetup} />
   return <DashboardLayout sample>
-    <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Sample school · Fictional records only · No real payments or messages</div>
+    <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · Changes are not shared with other testers</div>
     {parent && <div style={{ padding: spacing.lg }}><Select label="Preview family" value={params.get('account') || snapshot.data.accounts[0].id} onChange={event => { window.location.href = `/odeon-demo?view=parent&account=${encodeURIComponent(event.target.value)}` }}>{snapshot.data.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</Select></div>}
     {staff ? <>
       <StaffPage sampleStaff={sampleStaff} onOpenSample={setStaffId} />
@@ -51,10 +52,26 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   </DashboardLayout>
 }
 
+/** Published Contacts rows carry the account link the live table groups families by. */
+type SandboxContact = Contact & {
+  account_id: string | null
+  account_holder_person_id: string | null
+  account_holders: { person_id: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
+  is_student: boolean
+  student_id: string | null
+}
+
 function SampleContacts({ data, onOpen }: { data: FamilyPreviewData; onOpen: (accountId: string, studentId?: string) => void }) {
-  const contacts = useMemo((): Contact[] => previewContacts(data).map(contact => {
+  const contacts = useMemo((): SandboxContact[] => previewContacts(data).map(contact => {
     const student = data.students.find(item => item.id === contact.id), account = data.accounts.find(item => item.holderId === contact.id || item.studentIds.includes(contact.id))
-    return { id: contact.id, first_name: contact.firstName, last_name: contact.lastName, email: contact.email || null, phone: contact.phone || null, client_status: 'Member', opted_out: false, last_attended: '2026-10-31', notes: null, family_name: account?.name || null, account_holder_name: account?.holderName || null, account_holder_email: account?.email || null, account_holder_phone: '(202) 555-0100', custom_fields: { program: student?.enrollments.map(item => item.program) || [], instructor: student?.enrollments.map(item => item.teacher) || [], service: student?.enrollments.map(item => item.service) || [] } }
+    const isStudent = Boolean(student) && contact.id !== account?.holderId
+    return { id: contact.id, first_name: contact.firstName, last_name: contact.lastName, email: contact.email || null, phone: contact.phone || null, client_status: 'Member', opted_out: false, last_attended: '2026-10-31', notes: null, family_name: account?.name || null, account_holder_name: account?.holderName || null, account_holder_email: account?.email || null, account_holder_phone: '(202) 555-0100', custom_fields: { program: student?.enrollments.map(item => item.program) || [], instructor: student?.enrollments.map(item => item.teacher) || [], service: student?.enrollments.map(item => item.service) || [] }, account_id: account?.id || null, account_holder_person_id: isStudent ? account?.holderId || null : null, account_holders: isStudent && account ? [{ person_id: account.holderId, name: account.holderName, phone: '(202) 555-0100', email: account.email, relationship: 'Parent', is_primary: true }] : [], is_student: isStudent, student_id: isStudent ? contact.id : null }
   }), [data])
-  return <ContactsPage sampleContacts={contacts} filtersEnabled={false} contactViews={{ families: data.accounts.map(account => ({ contactId: account.holderId, studentIds: account.studentIds })), studentIds: data.students.map(student => student.id) }} onOpenContact={id => { const account = data.accounts.find(item => item.holderId === id || item.studentIds.includes(id)); if (!account) return false; onOpen(account.id, id === account.holderId ? undefined : id); return true }} />
+  const onOpenContact = useCallback((id: string) => {
+    const account = data.accounts.find(item => item.holderId === id || item.studentIds.includes(id))
+    if (!account) return false
+    onOpen(account.id, id === account.holderId ? undefined : id)
+    return true
+  }, [data, onOpen])
+  return <ContactSampleContext.Provider value={{ contacts, onOpen: onOpenContact }}><ContactsPage /></ContactSampleContext.Provider>
 }

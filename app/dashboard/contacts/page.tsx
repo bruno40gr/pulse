@@ -8,21 +8,22 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useContext } from 'react'
+import { ContactNameOpenContext, ContactSampleContext } from '@/components/contacts/ContactPrototypeContext'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/lib/tenant'
-import { SlidersHorizontal, X, House, RefreshCw, Sparkles } from 'lucide-react'
+import { ChevronDown, SlidersHorizontal, X, House, RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import CSVImporter from '@/components/contacts/CSVImporter'
 import BulkEditPanel from '@/components/contacts/BulkEditPanel'
-import { Button, Badge, Avatar, SlidePanel, PageHeader, FieldLabel, ResponsiveDataTable, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, Avatar, Input, Select, SlidePanel, PageHeader, FieldLabel, ResponsiveDataTable, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 
-interface Contact {
+export interface Contact {
   id: string
   first_name: string
   last_name: string
@@ -95,17 +96,27 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
   return compactCount ? `${compactCount} · ${normalized}` : normalized
 }
 
-export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[]>([])
+export type ContactViews = { families: { contactId: string; studentIds: string[] }[]; studentIds: string[] }
+
+export default function ContactsPage({ onOpenContact: providedOpenContact, contactViews, filtersInitiallyVisible = false, filtersEnabled = true, sampleContacts: providedSampleContacts }: { onOpenContact?: (contactId: string) => boolean; contactViews?: ContactViews; filtersInitiallyVisible?: boolean; filtersEnabled?: boolean; sampleContacts?: Contact[] } = {}) {
+  // The sandbox renders this page through ContactSampleContext so the published
+  // Contacts UI can be reused without props and without operational reads.
+  const sampleContext = useContext(ContactSampleContext)
+  const contextOpenContact = useContext(ContactNameOpenContext)
+  const sampleContacts = providedSampleContacts ?? sampleContext.contacts
+  const onOpenContact = sampleContext.onOpen ?? providedOpenContact ?? contextOpenContact
+  const [contacts, setContacts] = useState<Contact[]>(sampleContacts || [])
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!sampleContacts)
   const [query, setQuery] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [filterExplanation, setFilterExplanation] = useState('')
   const [searchError, setSearchError] = useState('')
   const [displayIds, setDisplayIds] = useState<string[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(filtersInitiallyVisible)
+  const [contactView, setContactView] = useState<'families' | 'students'>('students')
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({})
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
@@ -147,13 +158,29 @@ export default function ContactsPage() {
   const standardFiltered = contacts.filter(c => {
     for (const [key, val] of Object.entries(appliedFilters)) {
       if (!val) continue
-      if (key === 'client_status' && c.client_status !== val) return false
-      if (c.custom_fields?.[key] !== val) return false
+      if (key === 'client_status') {
+        if (c.client_status.toLowerCase() !== val.toLowerCase()) return false
+      } else if (key === 'name') {
+        if (!`${c.first_name} ${c.last_name} ${c.account_holder_name || ''}`.toLowerCase().includes(val.toLowerCase())) return false
+      } else if (key === 'email') {
+        if (!`${c.email || ''} ${c.account_holder_email || ''}`.toLowerCase().includes(val.toLowerCase())) return false
+      } else if (key === 'last_active') {
+        if (!c.last_attended || Date.now() - new Date(c.last_attended).getTime() > Number(val) * 86400000) return false
+      } else if (key === 'funding') {
+        if (Boolean(c.funded) !== (val === 'funded')) return false
+      } else {
+        const value = c.custom_fields?.[key]
+        if (Array.isArray(value) ? !value.includes(val) : value !== val) return false
+      }
     }
     return true
   })
 
-  const displayed = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const matchingContacts = displayIds !== null ? standardFiltered.filter(c => displayIds.includes(c.id)) : standardFiltered
+  const matchingIds = new Set(matchingContacts.map(contact => contact.id))
+  const displayed = !contactViews ? matchingContacts : contactView === 'students'
+    ? matchingContacts.filter(contact => contactViews.studentIds.includes(contact.id))
+    : contacts.filter(contact => contactViews.families.some(family => family.contactId === contact.id && [family.contactId, ...family.studentIds].some(id => matchingIds.has(id))))
   const sortedDisplayed = [...displayed].sort((left, right) => {
     const direction = contactSort.direction === 'asc' ? 1 : -1
     const text = (value: string | null | undefined) => value || ''
@@ -185,6 +212,7 @@ export default function ContactsPage() {
   }, [tenantId])
 
   useEffect(() => {
+    if (sampleContacts) return
     const params = new URLSearchParams(window.location.search)
     const contactId = params.get('contact')
     if (!contactId || selectedContact) return
@@ -197,9 +225,10 @@ export default function ContactsPage() {
         }
       })
       .catch(() => {})
-  }, [selectedContact, tenantId])
+  }, [selectedContact, tenantId, sampleContacts])
 
   const handleSync = async () => {
+    if (sampleContacts) return
     const syncMethod = localStorage.getItem(`pulse_sync_method_${tenantId}`)
     if (syncMethod === 'csv') {
       setIsImporterOpen(true)
@@ -220,6 +249,7 @@ export default function ContactsPage() {
   }
 
   useEffect(() => {
+    if (sampleContacts) { setContacts(sampleContacts); setLoading(false); return }
     Promise.all([
       fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()),
       fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()),
@@ -228,7 +258,7 @@ export default function ContactsPage() {
       setTenantFields(Array.isArray(fieldData) ? fieldData : [])
       setLoading(false)
     })
-  }, [tenantId])
+  }, [tenantId, sampleContacts])
 
   useEffect(() => {
     if (loading) {
@@ -265,6 +295,7 @@ export default function ContactsPage() {
   }, [loading, displayed.length])
 
   useEffect(() => {
+    if (sampleContacts) return
     fetch(`/api/tenant/sync-status?tenant=${tenantId}`)
       .then(r => r.json())
       .then((data: SyncStatusResponse) => {
@@ -278,7 +309,7 @@ export default function ContactsPage() {
         // Don't show banner for tenants that have never synced
       })
       .catch(() => {})
-  }, [tenantId])
+  }, [tenantId, sampleContacts])
 
   // Cycle placeholder prompts
   useEffect(() => {
@@ -317,6 +348,11 @@ export default function ContactsPage() {
   }, [])
 
   const handleSearch = async () => {
+    if (sampleContacts) {
+      const text = query.trim().toLowerCase()
+      setDisplayIds(text ? contacts.filter(contact => JSON.stringify(contact).toLowerCase().includes(text)).map(contact => contact.id) : null)
+      setFilterExplanation(''); setSearchError(''); return
+    }
     if (!query.trim()) {
       setDisplayIds(null)
       setFilterExplanation('')
@@ -397,6 +433,7 @@ export default function ContactsPage() {
 
   const handleNameClick = async (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenContact?.(contact.id)) return
     if (contact.staff_id) {
       const response = await fetch(`/api/contacts/${contact.id}?tenant=${tenantId}`)
       const detailedContact = await response.json()
@@ -419,6 +456,7 @@ export default function ContactsPage() {
   }
 
   const openComposePanel = (channel: 'sms' | 'email' = 'sms') => {
+    if (sampleContacts) return
     setComposeChannel(channel)
     if (selectedIds.size === 0) return
 
@@ -433,6 +471,7 @@ export default function ContactsPage() {
   }
 
   const handleAddContact = async () => {
+    if (sampleContacts) return
     if (!newContact.first_name.trim() || !newContact.last_name.trim()) return
     setSavingContact(true)
     try {
@@ -471,8 +510,6 @@ export default function ContactsPage() {
     }
   })
   filterOptions['client_status'] = ['active', 'inactive', 'member']
-
-  const sel = { border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.sm}`, fontSize: typography.sizeBase, background: colors.surface, outline: 'none', fontFamily: typography.fontSans, cursor: 'pointer' }
 
   const addInputStyle: React.CSSProperties = { border: `1px solid ${colors.border}`, borderRadius: radius.sm, padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, outline: 'none', width: '100%', boxSizing: 'border-box' }
 
@@ -563,22 +600,28 @@ export default function ContactsPage() {
     },
   ]
 
+  const tableColumns = contactViews ? [
+    contactColumns.find(column => column.id === 'status')!,
+    contactColumns.find(column => column.id === 'name')!,
+    { id: 'phone', header: 'Phone', width: 'minmax(160px, 1fr)', render: (contact: Contact) => contact.phone ? formatPhoneNumber(contact.phone) : '' },
+    { id: 'email', header: 'Email', width: 'minmax(220px, 1.5fr)', render: (contact: Contact) => contact.email || '' },
+    contactColumns.find(column => column.id === 'funded')!,
+    { ...contactColumns.find(column => column.id === 'instructor')!, render: (contact: Contact) => contact.instructor?.name || (Array.isArray(contact.custom_fields.instructor) ? contact.custom_fields.instructor.join(', ') : '') },
+  ] : contactColumns
+  const visibleColumns = tableColumns.filter(column => !hiddenColumns.includes(column.id)).map(column => ({ ...column, render: (contact: Contact, index: number) => <div style={{ minHeight: 40, display: 'flex', alignItems: 'center', minWidth: 0 }}>{column.id === 'status' && contactViews && contactView === 'families' && contactViews.families.some(family => family.contactId === contact.id) ? null : column.render(contact, index)}</div> }))
+  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
+
   return (
     <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Header */}
       <PageHeader
         title="Contacts"
-        subtitle={loading ? 'Loading...' : `${contacts.length} students`}
         right={
-          <MessageActions disabled={selectedIds.size === 0} onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
-        }
-      />
-
-      <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.lg }}>
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
             {!loading && (
               <Button variant="secondary"
                 onClick={handleSync}
-                disabled={syncing}
+                disabled={syncing || Boolean(sampleContacts)}
                 style={{ whiteSpace: 'nowrap' }}
               >
                 {syncing ? (
@@ -593,9 +636,12 @@ export default function ContactsPage() {
                 )}
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
-            <Button variant="secondary" onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
+            <Button variant="secondary" disabled={Boolean(sampleContacts)} onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
+            <Button variant="secondary" disabled={Boolean(sampleContacts)} onClick={() => setIsAddOpen(true)}>+ Add contact</Button>
+            <Button disabled={Boolean(sampleContacts)} onClick={() => { const url = new URL('/dashboard/enrollments', window.location.origin); url.searchParams.set('start', '1'); url.searchParams.set('tenant', tenantId); window.location.assign(url.pathname + url.search) }}>+ Enroll contact</Button>
           </div>
+        }
+      />
 
       {/* Stale data banner */}
       {showStaleBanner && !bannerDismissed && (
@@ -655,14 +701,21 @@ export default function ContactsPage() {
           </Button>
         </div>
         <Button variant="secondary"
-          onClick={() => setShowFilters(!showFilters)}
+          disabled={!filtersEnabled}
+          title={!filtersEnabled ? 'Filtering is not included in this UX prototype' : undefined}
+          onClick={() => { setFilters(appliedFilters); setShowFilters(true) }}
+          aria-expanded={showFilters}
 
         >
-          <SlidersHorizontal size={14} /> Filters
+          <SlidersHorizontal size={14} /> Filters {activeFilterCount > 0 && <Badge size="sm" variant="info">{activeFilterCount}</Badge>}
         </Button>
-        <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
+        {contactViews && <div role="group" aria-label="Contact view" style={{ display: 'flex', padding: spacing.xs, border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surfaceMuted }}>
+          {(['students', 'families'] as const).map(view => <ControlButton key={view} kind="toggle" selected={contactView === view} aria-pressed={contactView === view} style={{ minHeight: 40, ...(contactView === view ? { background: colors.surface, boxShadow: '0 1px 3px #0001' } : {}) }} onClick={() => { setContactView(view); setSelectedIds(new Set()); setLastSelectedIndex(-1) }}>View {view}</ControlButton>)}
+        </div>}
+        <details style={{ position: 'relative' }}><summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', gap: spacing.sm, alignItems: 'center', padding: `${spacing.sm} ${spacing.md}`, minHeight: 44, boxSizing: 'border-box', border: `1px solid ${colors.border}`, borderRadius: radius.md }}>Table Preferences <ChevronDown size={16} /></summary><div role="group" aria-label="Visible columns" style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, minWidth: 180 }}>{tableColumns.map(column => <label key={column.id} style={{ display: 'flex', gap: spacing.sm, padding: spacing.sm }}><input type="checkbox" checked={!hiddenColumns.includes(column.id)} disabled={column.id === 'name'} onChange={() => setHiddenColumns(current => current.includes(column.id) ? current.filter(id => id !== column.id) : [...current, column.id])} />{column.header}</label>)}</div></details>
+        {selectedIds.size > 0 && <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2 || Boolean(sampleContacts)}>
           Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-        </Button>
+        </Button>}
       </div>
 
       {searchError && (
@@ -708,34 +761,26 @@ export default function ContactsPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
             <MessageActions onSms={() => openComposePanel('sms')} onEmail={() => openComposePanel('email')} />
-            <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2}>
+            <Button variant="secondary" onClick={() => setIsBulkEditOpen(true)} disabled={selectedIds.size < 2 || Boolean(sampleContacts)}>
               Edit Contacts{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
             </Button>
           </div>
         </div>
       )}
 
-      {/* Filter dropdowns — collapsible */}
-      {showFilters && (
-        <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md, padding: `${spacing.sm} ${spacing.md}`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md }}>
-          {tenantFields.map(f => (
-            filterOptions[f.field_key]?.length ? (
-              <select key={f.field_key} value={filters[f.field_key] || ''} onChange={e => setFilters(prev => ({ ...prev, [f.field_key]: e.target.value }))} style={sel}>
-                <option value="">{f.field_label}</option>
-                {filterOptions[f.field_key].map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : null
-          ))}
-          <select value={filters['client_status'] || ''} onChange={e => setFilters(prev => ({ ...prev, client_status: e.target.value }))} style={sel}>
-            <option value="">Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="member">Member</option>
-          </select>
-          <Button variant="primary" size="sm" onClick={() => { setAppliedFilters(filters); setDisplayIds(null); setFilterExplanation('') }}>Apply</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setFilters({}); setAppliedFilters({}); setDisplayIds(null) }}>Clear</Button>
-        </div>
-      )}
+      <SlidePanel isOpen={filtersEnabled && showFilters} onClose={() => setShowFilters(false)} width="min(100vw, 440px)" fullScreen={isMobile} ariaLabel="Filters">
+        <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />
+        <form id="contact-filters" onSubmit={event => { event.preventDefault(); setAppliedFilters(filters); setDisplayIds(null); setFilterExplanation(''); setSelectedIds(new Set()); setShowFilters(false) }} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing.xl }}>
+          <Input label="Name" placeholder="Student or account-holder name" value={filters.name || ''} onChange={event => setFilters(current => ({ ...current, name: event.target.value }))} />
+          <Select label="Status" value={filters.client_status || ''} onChange={event => setFilters(current => ({ ...current, client_status: event.target.value }))}><option value="">All contacts</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="member">Member</option></Select>
+          <Input label="Email" placeholder="Contains email address" value={filters.email || ''} onChange={event => setFilters(current => ({ ...current, email: event.target.value }))} />
+          <Select label="Last active" hint="Based on the last attended date." value={filters.last_active || ''} onChange={event => setFilters(current => ({ ...current, last_active: event.target.value }))}><option value="">Any time</option><option value="7">Within 7 days</option><option value="30">Within 30 days</option><option value="90">Within 90 days</option></Select>
+          {['instructor', 'program', 'service'].map(key => <Select key={key} label={key === 'service' ? 'Service / class' : key === 'instructor' ? 'Instructor' : 'Program'} value={filters[key] || ''} onChange={event => setFilters(current => ({ ...current, [key]: event.target.value }))}><option value="">{key === 'service' ? 'Any service or class' : `Any ${key}`}</option>{(filterOptions[key] || []).map(option => <option key={option} value={option}>{option}</option>)}</Select>)}
+          <Select label="Funding" value={filters.funding || ''} onChange={event => setFilters(current => ({ ...current, funding: event.target.value }))}><option value="">Any</option><option value="funded">Funded</option><option value="not-funded">Not funded</option></Select>
+          {tenantFields.filter(field => !['instructor', 'program', 'service'].includes(field.field_key) && filterOptions[field.field_key]?.length).map(field => <Select key={field.field_key} label={field.field_label} value={filters[field.field_key] || ''} onChange={event => setFilters(current => ({ ...current, [field.field_key]: event.target.value }))}><option value="">Any</option>{filterOptions[field.field_key].map(option => <option key={option} value={option}>{option}</option>)}</Select>)}
+        </form>
+        <div style={{ padding: spacing.lg, display: 'flex', gap: spacing.sm, borderTop: `1px solid ${colors.border}`, flexShrink: 0 }}><Button type="submit" form="contact-filters">Submit search</Button><Button variant="secondary" onClick={() => { setFilters({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation(''); setSelectedIds(new Set()) }}>Clear filters</Button></div>
+      </SlidePanel>
 
       {/* Active filter summary */}
       {filterExplanation && (
@@ -801,7 +846,7 @@ export default function ContactsPage() {
           <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
             {selectedIds.size > 0
               ? `${selectedIds.size} out of ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'} selected`
-              : `Viewing ${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
+              : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}
           </p>
           {visibleContacts.length > 0 && visibleContacts.length < displayed.length && (
             <p style={{ color: colors.textMuted, fontSize: typography.sizeSm, margin: 0, fontFamily: typography.fontSans }}>
@@ -825,7 +870,15 @@ export default function ContactsPage() {
       {!aiLoading && (
         <ResponsiveDataTable
           rows={visibleContacts}
-          columns={contactColumns}
+          columns={visibleColumns}
+          interactiveRows={Boolean(contactViews)}
+          getDetailRows={contactViews && contactView === 'families' ? contact => {
+            const family = contactViews.families.find(item => item.contactId === contact.id)
+            return (family?.studentIds || []).filter(id => id !== contact.id).flatMap(id => {
+              const child = contacts.find(item => item.id === id)
+              return child ? [{ key: child.id, cells: visibleColumns.map(column => <div key={column.id} style={{ minHeight: 40, display: 'flex', alignItems: 'center', paddingLeft: column.id === 'name' ? spacing.lg : 0 }}>{tableColumns.find(item => item.id === column.id)!.render(child, 0)}</div>) }] : []
+            })
+          } : undefined}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={setContactSort}
@@ -843,7 +896,7 @@ export default function ContactsPage() {
           emptyContent="No contacts found."
           minDesktopWidth={1100}
           onRowClick={(contact, index, event) => handleRowClick(contact, index, event)}
-          getRowStyle={(contact) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface })}
+          getRowStyle={(contact, index) => ({ background: selectedIds.has(contact.id) ? colors.surfaceMuted : colors.surface, ...(contactViews ? { '--table-row-background': index % 2 ? colors.surfaceMuted : colors.surface, '--table-row-hover': colors.borderLight } : {}) })}
           ariaLabel="Contacts"
         />
       )}

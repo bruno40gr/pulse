@@ -157,8 +157,20 @@ Any later push to `main` builds without the overlay and re-takes
 `app.headlinerma.com`, removing the pill; rebuild and redeploy this artifact after
 such a release, or fold the overlay into `main` to make it permanent.
 
-Contacts adapters remain artifact-authoritative: the published page accepts
-`ContactSampleContext`, while the integration branch ships its own
-`ContactsView` with `sampleContacts` props. A rebuild therefore substitutes that
-equivalent official table; reconcile the two before treating a rebuild as a
-byte-for-byte replacement.
+Contacts now render the published page, not a release-branch copy. The builder
+declares `app/dashboard/contacts/page` and
+`components/contacts/ContactPrototypeContext` as `PUBLISHED`: when a sandbox
+import resolves to one of them the module is referenced in place and the base
+archive serves it, so `DemoWorkspace` renders the same `ContactsPage` the live
+dashboard renders (striped rows, shared hover overlay, no member indentation,
+family/student views) and shares one React context instance with it. The sandbox
+feeds fiction through `ContactSampleContext` and routes name clicks back into
+`StudentWorkspaceV3`, so no live slide panel opens and no operational call runs.
+Imports are rewritten per specifier, so any other module still mirrors into
+`beta-source` as before.
+
+Deployment `dpl_27zHCNr7xJu33XtwV5QdeozYmD3Y` is Ready, aliased to
+`app.headlinerma.com`, and carries `import ContactsPage from
+'@/app/dashboard/contacts/page'` in the deployed `beta-source` with no
+`beta-source/app/dashboard/contacts` copy. `scripts/security/beta-official-contacts-browser.cjs`
+passes at 1440 and 390 on that build.

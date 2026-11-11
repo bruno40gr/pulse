@@ -27,7 +27,21 @@ if archive.wait() != 0:
 
 # Copy only the academy dependency closure, under its own alias namespace.
 seen = set()
+# '@/' specifiers copied under beta-source; relative imports mirror with their file.
+copied = set()
 imports = re.compile(r'''(?:from\s*|import\s*|import\s*\()\s*['"]([^'"]+)['"]''')
+
+# Modules the published archive already provides. The sandbox consumes the live
+# implementation (and must share its React contexts with the page it renders),
+# so these are referenced in place rather than copied into beta-source.
+PUBLISHED = {
+    'app/dashboard/contacts/page',
+    'components/contacts/ContactPrototypeContext',
+}
+published_files = {specifier: next((target / f'{specifier}{suffix}' for suffix in ['.tsx', '.ts', '/index.tsx', '/index.ts'] if (target / f'{specifier}{suffix}').is_file()), None) for specifier in PUBLISHED}
+missing = [specifier for specifier, path in published_files.items() if path is None]
+if missing:
+    raise SystemExit(f'Published modules missing from base: {sorted(missing)}')
 
 def copy_source(path):
     path = path.resolve()
@@ -44,20 +58,32 @@ def copy_source(path):
     for specifier in imports.findall(text):
         if not specifier.startswith(('@/', '.')):
             continue
+        if specifier.startswith('@/') and specifier[2:] in PUBLISHED:
+            continue
         dependency = root / specifier[2:] if specifier.startswith('@/') else path.parent / specifier
         candidates = [dependency, *[Path(str(dependency) + suffix) for suffix in ['.ts', '.tsx', '.css', '.json', '/index.ts', '/index.tsx']]]
         resolved = next((candidate for candidate in candidates if candidate.is_file()), None)
         if resolved is None:
             raise RuntimeError(f'Missing dependency {specifier} in {relative}')
         copy_source(resolved)
-    destination.write_text(text.replace("'@/", "'@/beta-source/").replace('"@/', '"@/beta-source/'))
+        if specifier.startswith('@/'):
+            copied.add(specifier)
+    destination.write_text(text)
 
 for entry in ['app/odeon-demo/DemoWorkspace.tsx']:
     copy_source(root / entry)
 
+# Rewrite only the specifiers that actually moved, so published imports stay live.
+for copied_file in (target / 'beta-source').rglob('*'):
+    if copied_file.suffix not in ['.ts', '.tsx']:
+        continue
+    body = copied_file.read_text()
+    for specifier in copied:
+        body = body.replace(f"'{specifier}'", f"'@/beta-source/{specifier[2:]}'").replace(f'"{specifier}"', f'"@/beta-source/{specifier[2:]}"')
+    copied_file.write_text(body)
+
 # Route modules must expose only Next-supported props, not reusable view props.
 for route, implementation in [
-    ('app/dashboard/contacts/page.tsx', 'app/dashboard/contacts/ContactsView.tsx'),
     ('app/dashboard/staff/page.tsx', 'app/dashboard/staff/StaffView.tsx'),
     ('app/dashboard/layout.tsx', 'app/dashboard/DashboardShell.tsx'),
 ]:
