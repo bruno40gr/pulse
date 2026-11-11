@@ -6,7 +6,7 @@ const path = require('node:path')
 const read = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
 
 test('settings descriptions use available width and access tabs follow all other settings', () => {
-  const settings = read('app/dashboard/settings/page.tsx')
+  const settings = read('app/dashboard/settings/SettingsClient.tsx')
   const description = settings.slice(settings.indexOf('const sectionSubS:'), settings.indexOf('const tabs:'))
   assert.doesNotMatch(description, /maxWidth/)
   const tabs = settings.slice(settings.indexOf('const tabs:'), settings.indexOf('return ('))

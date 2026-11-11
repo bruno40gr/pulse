@@ -152,7 +152,7 @@ test('lead/contact drawers share width and skeleton; sidebar returns to conversa
     assert.match(source, /width=\{PROFILE_PANEL_WIDTH\}/)
     assert.match(source, /<ProfilePanelSkeleton/)
   }
-  assert.match(fs.readFileSync(path.join(root, 'app/dashboard/layout.tsx'), 'utf8'), /dispatchEvent\(new CustomEvent\(CONVERSATIONS_HOME_EVENT\)\)/)
+  assert.match(fs.readFileSync(path.join(root, 'components/layout/WorkAreaNavigation.tsx'), 'utf8'), /dispatchEvent\(new CustomEvent\(CONVERSATIONS_HOME_EVENT\)\)/)
 })
 test('history workspaces retain 30/70 while SMS composing gives the writing area equal space', () => {
   const sms = fs.readFileSync(path.join(root, 'components/inbox/PrototypeSmsConversation.tsx'), 'utf8')

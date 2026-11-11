@@ -70,6 +70,6 @@ test('all people table entry points use the same PersonName component, not link-
 })
 
 test('account settings omit the shared staff access message', () => {
-  const source = fs.readFileSync(path.join(root, 'app/dashboard/settings/page.tsx'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'app/dashboard/settings/SettingsClient.tsx'), 'utf8')
   assert.ok(!source.includes('You are currently signed in through the shared staff access flow.'))
 })

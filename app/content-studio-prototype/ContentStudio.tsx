@@ -18,12 +18,13 @@ import { contentKinds, newStudioDraft, placements, publishErrors, studioSteps, s
 import LocationField from './LocationField'
 import ArticlePolishField from './ArticlePolishField'
 import { getActiveTenantId } from '@/lib/tenant'
+import { websiteViews, type WebsiteViewKind } from '@/lib/work-area-navigation'
 import styles from './studio.module.css'
 
 const icons = [CalendarDays, Clock, Megaphone, Newspaper, LinkIcon]
 const storageKey = 'pulse-content-studio-prototype-v1'
 
-export default function ContentStudio({ connected = false }: { connected?: boolean }) {
+export default function ContentStudio({ connected = false, contentKind }: { connected?: boolean; contentKind?: WebsiteViewKind }) {
   const [items, setItems] = useState<StudioDraft[]>([])
   const [draft, setDraft] = useState<StudioDraft | null>(null)
   const [step, setStep] = useState(0)
@@ -35,6 +36,37 @@ export default function ContentStudio({ connected = false }: { connected?: boole
   const enabledKinds = connected ? contentKinds.filter(type => type.kind !== 'social') : contentKinds
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState<string[]>([])
+  const activeView = websiteViews.find(view => view.kind === contentKind)
+  const visibleItems = contentKind ? items.filter(item => item.kind === contentKind) : items
+  const recoveryKey = `pulse:website-editor:${tenant}:${contentKind || 'all'}`
+  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(items.find(item => item.id === draft.id))
+
+  // Keep an interrupted editor recoverable when sidebar routes unmount it.
+  useEffect(() => {
+    if (!connected || !ready || !tenant) return
+    try {
+      if (draft) sessionStorage.setItem(recoveryKey, JSON.stringify({ draft, step }))
+      else sessionStorage.removeItem(recoveryKey)
+    } catch { /* The navigation guard still protects unsaved edits when storage is unavailable. */ }
+  }, [connected, ready, tenant, recoveryKey, draft, step])
+
+  useEffect(() => {
+    if (!connected || !dirty) return
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    const leave = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const anchor = (event.target as Element).closest('a[href]')
+      if (!anchor || anchor.getAttribute('target') === '_blank') return
+      const href = (anchor as HTMLAnchorElement).href
+      if (href === window.location.href) return
+      if (!window.confirm('Leave this editor? Your changes have not been saved to the website. A recovery copy is kept in this tab when browser storage is available.')) {
+        event.preventDefault(); event.stopPropagation()
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    document.addEventListener('click', leave, true)
+    return () => { window.removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', leave, true) }
+  }, [connected, dirty])
   useEffect(() => {
     if (connected) {
       const selected = new URLSearchParams(window.location.search).get('tenant') || getActiveTenantId()
@@ -43,7 +75,17 @@ export default function ContentStudio({ connected = false }: { connected?: boole
       fetch(`/api/website-content?tenant=${selected}`, { cache: 'no-store' }).then(async response => {
         const result = await response.json()
         if (!response.ok) throw new Error(result.error || 'Content could not be loaded.')
-        if (!cancelled) { setItems(result.items); setRevision(result.revision); setReady(true) }
+        if (!cancelled) {
+          setItems(result.items); setRevision(result.revision)
+          try {
+            const recovered = JSON.parse(sessionStorage.getItem(`pulse:website-editor:${selected}:${contentKind || 'all'}`) || 'null')
+            if (recovered?.draft && typeof recovered.draft.id === 'string' && contentKinds.some(type => type.kind === recovered.draft.kind && type.kind !== 'social') && (!contentKind || recovered.draft.kind === contentKind)) {
+              setDraft(recovered.draft); setStep(Number.isInteger(recovered.step) && recovered.step >= 0 && recovered.step <= 2 ? recovered.step : 0)
+              setMessage('Restored your editor from this tab. Review it before saving or publishing.')
+            }
+          } catch { /* Ignore invalid or unavailable recovery data. */ }
+          setReady(true)
+        }
       }).catch(error => { if (!cancelled) setErrors([error.message]) })
       return () => { cancelled = true }
     }
@@ -52,7 +94,7 @@ export default function ContentStudio({ connected = false }: { connected?: boole
       if (Array.isArray(saved)) setItems(saved.filter(item => item && typeof item.id === 'string' && contentKinds.some(type => type.kind === item.kind)))
     } catch { /* An unavailable browser store starts an empty session. */ }
     setReady(true)
-  }, [connected])
+  }, [connected, contentKind])
 
   const update = (changes: Partial<StudioDraft>) => {
     setDraft(current => current ? { ...current, ...changes } : null)
@@ -140,6 +182,10 @@ export default function ContentStudio({ connected = false }: { connected?: boole
     setStep(0)
     setErrors([])
   }
+  const startDraft = (kind: StudioDraft['kind']) => {
+    setDraft({ ...newStudioDraft(kind), ...(connected && kind !== 'article' ? { artwork: 'upload' as const } : {}) })
+    setStep(0); setErrors([]); setMessage('')
+  }
   const imageLayoutControls = draft?.image ? <fieldset className={styles.imageOptions}><legend>Photo placement</legend>{(['separate', 'overlay'] as const).map(value => <label key={value}><input type="radio" name="image-layout" value={value} checked={(draft.imageLayout || 'separate') === value} onChange={() => update({ imageLayout: value })} />{value === 'separate' ? 'Separate' : 'Overlay'}</label>)}</fieldset> : null
   const references = <div><label htmlFor="studio-references">Style references</label><div className={styles.upload}><span>Upload references</span><input id="studio-references" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={uploadReferences} /></div><div className={styles.referenceGrid}>{draft?.styleReferences?.map((reference, index) => <div key={`${reference.name}-${index}`}>
     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -174,16 +220,18 @@ export default function ContentStudio({ connected = false }: { connected?: boole
 
   return <div className={styles.light}><fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><main className={styles.shell}>
     <div className={styles.notice}>{connected ? <><strong>Website Content</strong> · Drafts are private. Publishing updates the public website. Upload finished flyers; generated templates remain preview-only.</> : <><strong>Prototype</strong> · Publishing is simulated.</>}</div>
-    <PageHeader title={draft ? contentKinds.find(item => item.kind === draft.kind)!.label : connected ? 'Website Content' : 'Content Studio'} subtitle={draft ? undefined : 'What are you updating at Headliner?'} />
+    <PageHeader title={draft ? contentKinds.find(item => item.kind === draft.kind)!.label : connected ? activeView?.label || 'All content' : 'Content Studio'} subtitle={draft ? undefined : connected ? activeView ? `Manage your website ${activeView.label.toLowerCase()}. Drafts stay private until you publish.` : 'All your website content in one place. Choose a content type in the sidebar to create something new.' : 'What are you updating at Headliner?'} right={connected && !draft && activeView ? <Button disabled={!ready || busy} onClick={() => startDraft(activeView.kind)}>Create {activeView.singular}</Button> : undefined} />
     <div role="status" aria-live="polite">{busy ? 'Saving…' : message}</div>
     {connected && !draft && !!errors.length && <ul role="alert" className={styles.errors}>{errors.map(error => <li key={error}>{error}</li>)}</ul>}
     {!draft ? <>
-      <div className={styles.choices}>{enabledKinds.map(type => {
+      {!connected && <div className={styles.choices}>{enabledKinds.map(type => {
         const Icon = icons[contentKinds.findIndex(kind => kind.kind === type.kind)]
-        return <button className={styles.choice} key={type.kind} disabled={!ready || busy} onClick={() => { setDraft({ ...newStudioDraft(type.kind), ...(connected && type.kind !== 'article' ? { artwork: 'upload' as const } : {}) }); setStep(0); setErrors([]); setMessage('') }}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></button>
-      })}</div>
-      {!!items.length && <SectionTitle as="h2">Your Content</SectionTitle>}
-      <ul className={styles.list}>{items.map(item => {
+        return <button className={styles.choice} key={type.kind} disabled={!ready || busy} onClick={() => startDraft(type.kind)}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></button>
+      })}</div>}
+      {connected && !ready && !errors.length && <p role="status">Loading content…</p>}
+      {connected && ready && !visibleItems.length && <p>No {activeView?.label.toLowerCase() || 'content'} yet.{activeView ? ` Create your first ${activeView.singular} to get started.` : ' Choose a content type in the sidebar to get started.'}</p>}
+      {!!visibleItems.length && <SectionTitle as="h2">Your Content</SectionTitle>}
+      <ul className={styles.list}>{visibleItems.map(item => {
         const preview = item.kind === 'article' || item.kind === 'social' ? item.image : item.artworkImage || item.image
         return <li key={item.id}><DenseSectionPanel title={item.title || 'Untitled draft'} actions={<div className={styles.contentActions}>{connected && item.hasPublishedVersion && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void command(item, 'unpublish')}>Remove from website</Button>}<Button variant="secondary" size="sm" onClick={() => { setDraft(item); setStep(0); setErrors([]) }}>Open</Button><Button variant="ghost" size="sm" onClick={() => connected ? void command(item, item.status === 'archived' ? 'save' : 'archive') : persist(items.map(row => row.id === item.id ? { ...row, status: row.status === 'archived' ? 'draft' : 'archived' } : row))}>{item.status === 'archived' ? 'Restore draft' : 'Archive'}</Button></div>}><div className={styles.contentSummary}>
           {/* eslint-disable-next-line @next/next/no-img-element -- Authenticated and browser-local image URLs. */}

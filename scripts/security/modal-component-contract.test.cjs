@@ -49,7 +49,7 @@ test('shared modal header has consistent padding, minimum height, full width and
 })
 
 test('Settings separates staff roles from permission editing and uses the shared responsive table', () => {
-  const settings = source('app/dashboard/settings/page.tsx')
+  const settings = source('app/dashboard/settings/SettingsClient.tsx')
   const access = source('components/access/AccessManagementClient.tsx')
   assert.match(settings, /label: 'Roles'/)
   assert.match(settings, /label: 'Permissions'/)

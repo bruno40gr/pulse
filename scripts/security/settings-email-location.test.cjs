@@ -9,7 +9,7 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 
 const root = path.resolve(__dirname, '../..')
-const source = fs.readFileSync(path.join(root, 'app/dashboard/settings/page.tsx'), 'utf8')
+const source = fs.readFileSync(path.join(__dirname, '../../app/dashboard/settings/SettingsClient.tsx'), 'utf8')
 const owner = { canManageRoles: true, canManageIntegrations: true, canManageBrand: true, canAccessDesignSystem: false, canUpdateCredentials: false, email: 'owner@example.com' }
 
 function render(tab, context = owner, runtime = {}) {
@@ -45,9 +45,9 @@ function render(tab, context = owner, runtime = {}) {
   return renderToStaticMarkup(React.createElement(loaded.exports.default))
 }
 
-test('Account precedes Integrations and groups all email panels in their existing order', () => {
+test('Account groups all email panels in their existing order; navigation lives in the sidebar', () => {
   const html = render('account')
-  assert.ok(html.indexOf('>Account settings<') < html.indexOf('>Integrations<'))
+  assert.ok(!html.includes('>Integrations<'))
   const panels = [...html.matchAll(/data-panel="([^"]+)"/g)].map(match => match[1])
   assert.deepEqual(panels, ['GmailConnections', 'EmailSignatureSettings', 'OrganisationEmailSettings'])
   assert.ok(!html.includes('data-panel="PersonalEmailSignoff"'))

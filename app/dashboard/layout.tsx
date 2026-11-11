@@ -3,68 +3,32 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import TenantBrand from '@/components/layout/TenantBrand'
 import LogoutButton from '@/components/layout/LogoutButton'
 import IdentityProvider from '@/components/layout/IdentityProvider'
+import WorkAreaNavigation from '@/components/layout/WorkAreaNavigation'
+import type { NavigationAccess } from '@/lib/work-area-navigation'
 import DemoBanner from '@/components/ui/DemoBanner'
 import { ClaimReminderModal } from '@/components/account/ClaimReminderModal'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { colors, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
-import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
 import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 import { startVisiblePolling } from '@/lib/visible-polling'
+import { useDialogLayer } from '@/lib/useDialogLayer'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
-
-const NAV_GROUPS = [
-  {
-    label: 'Operations',
-    links: [
-      { href: '/dashboard', label: 'Dashboard' },
-      { href: '/dashboard/leads', label: 'Leads' },
-      { href: '/dashboard/rsvps', label: 'Event RSVPs' },
-      { href: '/dashboard/notes', label: 'Notes' },
-      { href: '/dashboard/contacts', label: 'Contacts' },
-      { href: '/dashboard/inbox', label: 'Communications' },
-      { href: '/dashboard/history', label: 'Campaigns' },
-      { href: '/dashboard/staff', label: 'Staff' },
-      { href: '/dashboard/community', label: 'Community posts' },
-      { href: '/dashboard/website-content', label: 'Website Content' },
-    ],
-  },
-  {
-    label: 'Funding',
-    links: [
-      { href: '/dashboard/funding/students', label: 'Funded Students' },
-      { href: '/dashboard/funding/programs', label: 'Funding Programs' },
-    ],
-  },
-]
-
-const navLinkStyle: React.CSSProperties = {
-  display: 'block',
-  padding: '9px 12px',
-  borderRadius: radius.lg,
-  color: colors.textMuted,
-  textDecoration: 'none',
-  fontSize: typography.sizeMd,
-  marginBottom: '2px',
-}
-
-function isNavLinkActive(href: string, pathname: string) {
-  if (href === '/dashboard') return pathname === '/dashboard'
-  return pathname === href || pathname.startsWith(`${href}/`)
-}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
+  const closeMenu = () => setMenuOpen(false)
+  const drawer = useDialogLayer(isMobile && menuOpen, closeMenu)
 
   // Mounts after login (including personal-auth redirects); entering Conversations
   // also checks. The server shares one five-minute throttle across all staff.
@@ -86,14 +50,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [])
 
-  const closeMenu = () => setMenuOpen(false)
-
   return (
     <IdentityProvider>
     <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
       {!isMobile && (
-        <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh' }}>
+        <aside style={{ width: '252px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100dvh', zIndex: 35 }}>
           <SidebarBody onNavigate={closeMenu} />
         </aside>
       )}
@@ -101,7 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Mobile top bar */}
       {isMobile && (
         <header style={{ position: 'fixed', top: 0, left: 0, right: 0, minHeight: '72px', background: colors.action, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 16px', boxSizing: 'border-box', zIndex: 30 }}>
-          <ControlButton kind="icon" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" >
+          <ControlButton kind="icon" inverse type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen} >
             <Menu size={22} />
           </ControlButton>
           <div style={{ flex: '0 1 110px', minWidth: 0 }}><TenantBrand height={28} maxWidth="100%" width="100%" /></div>
@@ -110,21 +72,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Mobile drawer */}
-      {isMobile && menuOpen && (
-        <>
+      {isMobile && menuOpen && drawer.mounted && createPortal(
+        <div ref={drawer.rootRef}>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} onClick={closeMenu} />
-          <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 'min(280px, 85vw)', background: colors.action, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <div ref={drawer.dialogRef} role="dialog" aria-modal="true" aria-label="School navigation" tabIndex={-1} style={{ position: 'fixed', top: 0, left: 0, height: '100dvh', width: 'min(280px, 85vw)', background: colors.action, zIndex: 50, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <TenantBrand height={32} maxWidth="70%" width="70%" />
-              <ControlButton kind="close" type="button" onClick={closeMenu} aria-label="Close menu"  />
+              <ControlButton kind="close" inverse type="button" onClick={closeMenu} aria-label="Close menu"  />
             </div>
             <SidebarBody onNavigate={closeMenu} showBrand={false} />
           </div>
-        </>
+        </div>, document.body,
       )}
 
       {/* Main content */}
-      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
+      <main style={{ marginLeft: isMobile ? 0 : '252px', paddingTop: isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 252px)', background: colors.background, color: colors.text }}>
         <DemoBanner />
         {children}
       </main>
@@ -135,15 +97,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 }
 
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
-  const pathname = usePathname()
-  const [canPublishWebsite, setCanPublishWebsite] = useState(false)
+  const [navigationAccess, setNavigationAccess] = useState<NavigationAccess>({})
   const [conversationCount, setConversationCount] = useState(0)
   const [leadCount, setLeadCount] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
     fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })
-      .then(async response => { if (response.ok) { const data = await response.json(); setCanPublishWebsite(['owner', 'admin'].includes(data.roleKey)) } })
+      .then(async response => { if (response.ok) setNavigationAccess(await response.json()) })
       .catch(() => {})
     return () => controller.abort()
   }, [])
@@ -221,62 +182,8 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       <div style={{ padding: '12px 8px 0' }}>
         <NotificationBell inverse variant="user" onNavigate={onNavigate} />
       </div>
-      <nav style={{ flex: 1, padding: '12px 8px' }}>
-        {NAV_GROUPS.map(group => (
-          <div key={group.label} style={{ marginTop: spacing.md }}>
-            <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
-            {group.links.filter(link => link.href !== '/dashboard/website-content' || canPublishWebsite).map(({ href, label }) => {
-              const active = isNavLinkActive(href, pathname)
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={event => {
-                    if (href === '/dashboard/inbox' && pathname === href && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-                      event.preventDefault()
-                      window.dispatchEvent(new CustomEvent(CONVERSATIONS_HOME_EVENT))
-                    }
-                    onNavigate?.()
-                  }}
-                  style={{
-                    ...navLinkStyle,
-                    ...(active
-                      ? { background: 'rgba(255,255,255,0.08)', color: colors.surface, fontWeight: typography.weightSemibold }
-                      : {}),
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>{label}</span>
-                    {href === '/dashboard/leads' && leadCount > 0 && (
-                      <span aria-label={`${leadCount} new leads`} title={`${leadCount} new leads`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
-                        {leadCount}
-                      </span>
-                    )}
-                    {href === '/dashboard/inbox' && conversationCount > 0 && (
-                      <span aria-label={`${conversationCount} unread messages`} title={`${conversationCount} unread messages`} style={{ minWidth: 19, height: 19, padding: '0 5px', borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: 10, fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
-                        {conversationCount}
-                      </span>
-                    )}
-                  </span>
-                </Link>
-              )
-            })}
-          </div>
-        ))}
-      </nav>
-      <div style={{ padding: '12px 8px 12px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link
-          href="/dashboard/settings"
-          onClick={onNavigate}
-          style={{
-            ...navLinkStyle,
-            ...(isNavLinkActive('/dashboard/settings', pathname)
-              ? { background: 'rgba(255,255,255,0.08)', color: colors.surface, fontWeight: typography.weightSemibold }
-              : {}),
-          }}
-        >
-          Settings
-        </Link>
+      <WorkAreaNavigation access={navigationAccess} leadCount={leadCount} conversationCount={conversationCount} onNavigate={onNavigate} />
+      <div style={{ padding: '0 8px 12px' }}>
         <LogoutButton onLogout={onNavigate} />
       </div>
     </>
