@@ -118,10 +118,18 @@ Do not equate synthetic middleware cases or local-preview checks with those gate
 
 ## Beta polish release — November 10, 2026
 
-`scripts/academy/prepare-beta-release.py` now exports published `main` at
-`6f6446c`, so a rebuild contains the membership-login repair and the Beta gate
-instead of re-adding them. Both patches are idempotent: a rebuild from a
+`scripts/academy/prepare-beta-release.py` exports published `main` at
+`BASE_COMMIT` (now `f48fd3a`, the Website Content publishing release), so a
+rebuild contains the membership-login repair, the Beta gate and every published
+feature instead of replacing them. Both patches are idempotent: a rebuild from a
 checkpoint that already carries the gate leaves it alone.
+
+Bump `BASE_COMMIT` — or pass `--base <sha>` — to the current `main` HEAD before
+every rebuild. The Beta pill is a state read from `/api/account/me`, so the
+builder anchors that state on the sidebar's own `conversationCount` declaration
+and fails loudly if the anchor is missing; anchoring on the neighbouring
+`usePathname()` line silently produced a build without `canAccessBeta`, which
+made the pill vanish.
 
 Changes in this release:
 
@@ -136,12 +144,18 @@ Changes in this release:
 - School Setup → Calendar sits on the same white panel as other sections.
 
 Artifact: `headliner-beta-polish-20261110`. Deployment
-`dpl_Cv7tZYvj2whfx4GtmFZWu7PJo1Nu` is Ready and was promoted to
-`app.headlinerma.com`. Verified: artifact TypeScript, targeted lint, 28
-setup/security tests, and the Beta browser check at 1440 and 390 (official
-Contacts table, stripes/hover, no indent, V3 panel, Headliner logo, red exits,
-three destinations, tenant preserved, no operational API calls). The known
+`dpl_CQJKG6s7D9NEh6B9WH3YgDqcLrSj` is Ready, carries `alias: app.headlinerma.com`
+with `aliasAssigned: true`, and is the newest production deployment — it replaces
+the plain `main` build `dpl_MjTnF7ejtLxBThwg6B41ALSirpoz` that had taken the
+domain after the Website Content release. Verified: artifact TypeScript, targeted
+lint, 28 setup/security tests, and the Beta browser check at 1440 and 390
+(official Contacts table, stripes/hover, no indent, V3 panel, Headliner logo, red
+exits, three destinations, tenant preserved, no operational API calls). The known
 lead-panel "Undo" copy assertion still fails on the unchanged baseline.
+
+Any later push to `main` builds without the overlay and re-takes
+`app.headlinerma.com`, removing the pill; rebuild and redeploy this artifact after
+such a release, or fold the overlay into `main` to make it permanent.
 
 Contacts adapters remain artifact-authoritative: the published page accepts
 `ContactSampleContext`, while the integration branch ships its own

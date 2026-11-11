@@ -6,15 +6,20 @@ import re
 import shutil
 import subprocess
 
+# Published main commit the artifact is layered on. Bump this whenever the
+# published site advances so the Beta build never rolls production back.
+BASE_COMMIT = 'f48fd3a'
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True)
+parser.add_argument('--base', default=BASE_COMMIT, help='Commit of the published app to layer the Beta build on')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 target = Path(args.output).resolve()
 if target.exists():
     raise SystemExit('Output must be a new directory')
 target.mkdir(parents=True)
-archive = subprocess.Popen(['git', '-C', str(root), 'archive', '6f6446c'], stdout=subprocess.PIPE)
+archive = subprocess.Popen(['git', '-C', str(root), 'archive', args.base], stdout=subprocess.PIPE)
 subprocess.run(['tar', '-x', '-C', str(target)], stdin=archive.stdout, check=True)
 archive.stdout.close()
 if archive.wait() != 0:
@@ -72,7 +77,20 @@ for route in ['page.tsx', 'school-setup/page.tsx']:
 layout = target / 'app/dashboard/layout.tsx'
 text = layout.read_text()
 if 'canAccessBeta' not in text:
-    text = text.replace("  const pathname = usePathname()\n  const [conversationCount", "  const [canAccessBeta, setCanAccessBeta] = useState(false)\n  useEffect(() => {\n    const controller = new AbortController()\n    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })\n      .then(async response => { if (response.ok) { const data = await response.json(); setCanAccessBeta(['owner', 'admin'].includes(data.roleKey)) } }).catch(() => {})\n    return () => controller.abort()\n  }, [])\n  const pathname = usePathname()\n  const [conversationCount")
+    beta_gate = (
+        "  const [canAccessBeta, setCanAccessBeta] = useState(false)\n"
+        "  useEffect(() => {\n"
+        "    const controller = new AbortController()\n"
+        "    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })\n"
+        "      .then(async response => { if (response.ok) { const data = await response.json(); setCanAccessBeta(['owner', 'admin'].includes(data.roleKey)) } }).catch(() => {})\n"
+        "    return () => controller.abort()\n"
+        "  }, [])\n"
+    )
+    # Anchor on the sidebar's own state block so unrelated layout changes cannot break the patch.
+    gate_anchor = "  const [conversationCount, setConversationCount] = useState(0)\n"
+    if gate_anchor not in text:
+        raise SystemExit('Beta role gate anchor missing')
+    text = text.replace(gate_anchor, beta_gate + gate_anchor, 1)
 text = text.replace('href={href}', "href={href.startsWith('/odeon-demo') ? `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(getActiveTenantId())}` : href}")
 beta_entry = """        {canAccessBeta && (
           <div style={{ padding: '0 4px', marginBottom: spacing.sm }}>
@@ -108,7 +126,7 @@ if "BETA academy preview" not in text:
     text = text.replace(footer_start, footer_start + beta_entry, 1)
 text = text.replace("position: 'fixed', top: 0, left: 0, height: '100vh' }}", "position: 'fixed', top: 0, left: 0, height: '100vh', overflow: 'hidden' }}")
 text = text.replace("<nav style={{ flex: 1, padding: '12px 8px' }}>", "<nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>")
-if "BETA academy preview" not in text or "{NAV_GROUPS.filter" in text:
+if "BETA academy preview" not in text or "const [canAccessBeta" not in text or "{NAV_GROUPS.filter" in text:
     raise SystemExit('Beta navigation patch failed')
 layout.write_text(text)
 
@@ -132,6 +150,6 @@ for folder in ['images/services']:
     if source.exists():
         shutil.copytree(source, target / 'public' / folder, dirs_exist_ok=True)
 
-manifest = {'base': '6f6446c', 'academyFiles': sorted(str(path.relative_to(root)) for path in seen), 'liveChanges': ['app/dashboard/layout.tsx', 'middleware.ts'], 'excluded': ['unrelated dirty files', 'preview host', 'environment files', 'migrations']}
+manifest = {'base': args.base, 'academyFiles': sorted(str(path.relative_to(root)) for path in seen), 'liveChanges': ['app/dashboard/layout.tsx', 'middleware.ts'], 'excluded': ['unrelated dirty files', 'preview host', 'environment files', 'migrations']}
 (target / 'beta-release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print(f'Prepared {target}: {len(seen)} isolated academy dependencies')
