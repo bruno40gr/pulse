@@ -1,5 +1,32 @@
 # Article AI Polish — revised local update, November 10, 2026
 
+- Production activation, November 10–11, 2026:
+  - Applied `202611090001_website_content.sql` to production
+    (`jbrntsxmibfldocsuslt`) inside a transaction; recorded version
+    `20261110234542` in `supabase_migrations`. Verified 4 tables, RLS on all 4,
+    2 functions and `service_role` grants.
+  - Imported the same 6 records with the production owner membership as actor
+    (`website_content_command`, save then publish), revision 0 → 12. Verified via
+    SQL and the live feed: 6 items, all published.
+  - Set Vercel Production variables on project `pulse`:
+    `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`,
+    `WEBSITE_CONTENT_TENANT_ID`, `WEBSITE_CONTENT_READ_TOKEN` (new 64-hex secret,
+    stored 0600 at `/Users/brunowong/pulse-backups/website-content-prod-20261111/`).
+  - Redeployed. `https://app.headlinerma.com/api/website-content/public` returns
+    401 without the token and the 6 published records with it.
+  - Set `WEBSITE_CONTENT_API_URL` and the same token on Vercel project
+    `headliner-app`, then deployed the website feed consumer. Live checks:
+    homepage, all three article URLs and sitemap return 200; the calendar renders
+    the current month (November 2026), confirming the live feed path rather than
+    the fixed-date local fallback.
+  - First two remote builds failed inside `next/font` fetching Baloo 2; a retry
+    succeeded. No font or layout changes were made. A local prebuilt deploy is not
+    possible because Vercel returns `[SENSITIVE]` for pulled secret values.
+  - Outstanding: authenticated editor rehearsal (upload, publish, unpublish) in
+    production; the old synthetic test article exists only in staging; the
+    past-dated Halloween event is a notice, so production has no upcoming calendar
+    events.
+
 - Photo actions moved into the uploaded-image card (Replace photo / Remove photo);
   previously Remove stretched across the form and read like body text. Verified
   at 390px and 1440px.
