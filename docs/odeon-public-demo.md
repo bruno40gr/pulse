@@ -174,3 +174,33 @@ Deployment `dpl_27zHCNr7xJu33XtwV5QdeozYmD3Y` is Ready, aliased to
 '@/app/dashboard/contacts/page'` in the deployed `beta-source` with no
 `beta-source/app/dashboard/contacts` copy. `scripts/security/beta-official-contacts-browser.cjs`
 passes at 1440 and 390 on that build.
+
+## Branch build repair — November 10, 2026
+
+The `integration/odeon-release-20261030` preview build failed with seven webpack
+"Module not found" errors. Two independent causes:
+
+1. **Untracked modules.** `AgreementsPanel.tsx`, `PolicyEditor.tsx`,
+   `RoomTable.tsx`, `TeacherPhoto.tsx`, `policy-content.ts`, `components/ui/SearchSelect.tsx`,
+   `components/ui/Switch.tsx`, `components/ui/DataGridTable.module.css`, the
+   website-content modules and the academy tests were never committed. The
+   artifact never saw the problem because the builder copies from the working
+   tree, but a git build of the branch could not resolve them. All of it is now
+   tracked in `531d82b`.
+2. **Route modules with props.** `app/dashboard/contacts/page.tsx`,
+   `app/dashboard/staff/page.tsx` and `app/dashboard/layout.tsx` accepted
+   sandbox props, which Next rejects at route validation (`PageProps`). The
+   implementations moved to `ContactsView.tsx`, `StaffView.tsx` and
+   `DashboardShell.tsx`; the routes are now prop-free and `DemoWorkspace`
+   imports the views directly, so the builder no longer renames anything.
+
+`previews/published-app` is a standalone mirror app with its own tsconfig; it is
+excluded from the root tsconfig so the stale copy cannot fail the branch build.
+
+Verified: `npx tsc --noEmit` on the branch exits 0; preview deployment
+`dpl_CjhAXFvonJBYEuYJma9ygfMoZbF5` is READY with zero errors in its build log;
+the rebuilt artifact passes `beta-official-contacts-browser.cjs` at 1440 and 390;
+production deployment `dpl_D6juGHa2DogoqUKsUdAxjr3zDN3c` is Ready and aliased to
+`app.headlinerma.com`. A local `next build` still fails locally on `next/font`
+because this sandbox cannot reach Google Fonts; Vercel builds the same source
+without that error.
