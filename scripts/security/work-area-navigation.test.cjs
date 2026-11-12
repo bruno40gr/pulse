@@ -1,8 +1,22 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Existing synthetic test harness. */
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const { createHarness } = require('./synthetic-harness.cjs')
 const load = () => createHarness().load('lib/work-area-navigation.ts')
+
+test('live sidebar removes Jump to search and its shortcut without removing area navigation', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../components/layout/WorkAreaNavigation.tsx'), 'utf8')
+  const css = fs.readFileSync(path.join(__dirname, '../../components/layout/WorkAreaNavigation.module.css'), 'utf8')
+  assert.doesNotMatch(source, /Jump to|searchOpen|setSearchOpen|searchResults|Search all work areas|event\.key\.toLowerCase\(\) === 'k'|<Modal/)
+  assert.doesNotMatch(source, /styles\.label|>Work area</)
+  assert.doesNotMatch(css, /\.label\s*\{/)
+  assert.match(source, /aria-expanded=\{open\} aria-controls="work-area-options"/)
+  assert.match(source, /aria-label="Choose a work area"/)
+  assert.match(source, /event\.key === 'Escape'/)
+  assert.match(source, /rememberedAreaHref/)
+})
 
 test('Beta access is restricted to owner and admin roles', () => {
   const { canAccessBeta } = load()
