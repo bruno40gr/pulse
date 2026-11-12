@@ -193,7 +193,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming()
+  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming(request)
 
   try {
     // Viewing needs the verified tenant/member, not staff display-name enrichment.

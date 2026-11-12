@@ -11,16 +11,17 @@ export async function findLoginMembership(authUserId: string, tenantId?: string)
   if (membership) return membership
 
   const { data: link, error: linkError } = await supabaseAdmin
-    .from('membership_login_links').select('membership_id').eq('auth_user_id', authUserId)
+    .from('membership_login_links').select(`membership_id, tenant_memberships(${membershipColumns})`).eq('auth_user_id', authUserId)
     .is('revoked_at', null).maybeSingle()
   if (linkError) throw linkError
   if (!link) return null
 
-  let linked = supabaseAdmin.from('tenant_memberships').select(membershipColumns).eq('id', link.membership_id)
-  if (tenantId) linked = linked.eq('tenant_id', tenantId)
-  const { data, error: membershipError } = await linked.maybeSingle()
-  if (membershipError) throw membershipError
-  return data
+  const joined = link.tenant_memberships
+  const membershipRows = Array.isArray(joined) ? joined : joined ? [joined] : []
+  if (membershipRows.length !== 1) throw new Error('Linked membership could not be verified.')
+  const linked = membershipRows[0]
+  if (linked.id !== link.membership_id) throw new Error('Linked membership does not match.')
+  return tenantId && linked.tenant_id !== tenantId ? null : linked
 }
 
 /** Membership has already been resolved from this validated Auth identity. */

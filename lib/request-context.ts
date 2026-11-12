@@ -23,6 +23,26 @@ export type RequestContextResult =
   | { ok: true; context: MembershipRequestContext }
   | { ok: false; status: number; error: string }
 
+// Diagnostics are attached to this Request only, never an identity/session cache.
+const accessTimings = new WeakMap<Request, Record<string, number>>()
+
+export function getRequestAccessTimings(request: Request): Readonly<Record<string, number>> {
+  return { ...accessTimings.get(request) }
+}
+
+async function measureAccess<T>(request: Request | undefined, stage: string, work: () => PromiseLike<T>): Promise<T> {
+  const startedAt = Date.now()
+  try {
+    return await work()
+  } finally {
+    if (request) {
+      let timings = accessTimings.get(request)
+      if (!timings) { timings = {}; accessTimings.set(request, timings) }
+      timings[stage] = (timings[stage] || 0) + Date.now() - startedAt
+    }
+  }
+}
+
 function requestCookies(request: Request) {
   const cookieHeader = request.headers.get('cookie') || ''
   return cookieHeader
@@ -56,6 +76,7 @@ async function loadMembershipContext(input: {
   authUserId: string | null
   legacyActor: PulseActor | null
   selectedMembership?: Awaited<ReturnType<typeof findLoginMembership>>
+  request?: Request
 }): Promise<RequestContextResult> {
   const membershipQuery = supabaseAdmin
     .from('tenant_memberships')
@@ -65,8 +86,8 @@ async function loadMembershipContext(input: {
   const { data: membership, error: membershipError } = input.selectedMembership
     ? { data: input.selectedMembership, error: null }
     : input.authUserId
-      ? { data: await findLoginMembership(input.authUserId, input.tenantId), error: null }
-      : await membershipQuery.eq('person_id', input.legacyActor!.personId).maybeSingle()
+      ? { data: await measureAccess(input.request, 'access_membership', () => findLoginMembership(input.authUserId!, input.tenantId)), error: null }
+      : await measureAccess(input.request, 'access_membership', () => membershipQuery.eq('person_id', input.legacyActor!.personId).maybeSingle())
   if (membershipError) throw membershipError
   if (!membership) return { ok: false, status: 403, error: 'A staff membership is required for this account.' }
   const allowedStatuses = input.authSource === 'supabase' ? ['active'] : ['unclaimed', 'invited', 'active']
@@ -79,12 +100,12 @@ async function loadMembershipContext(input: {
 
   // The FK-backed nested select resolves the role and its permission keys in one
   // database round trip. A join/query failure must deny access, never skip checks.
-  const { data: role, error: roleError } = await supabaseAdmin
+  const { data: role, error: roleError } = await measureAccess(input.request, 'access_role', () => supabaseAdmin
     .from('roles')
     .select('id, key, role_permissions(permission_id, permissions(key))')
     .eq('id', membership.role_id)
     .eq('tenant_id', input.tenantId)
-    .maybeSingle()
+    .maybeSingle())
   if (roleError) throw roleError
   if (!role) return { ok: false, status: 403, error: 'This staff account does not have a valid role.' }
 
@@ -133,7 +154,7 @@ async function resolveMembershipRequestContextUncached(
   request: Request,
   tenantId?: string,
 ): Promise<RequestContextResult> {
-  const legacyActor = await getRequestActor(request)
+  const legacyActor = await measureAccess(request, 'access_session', () => getRequestActor(request))
   if (legacyActor && getAccessScope(legacyActor).kind === 'demo') {
     return { ok: false, status: 403, error: 'Staff account access is required.' }
   }
@@ -151,10 +172,10 @@ async function resolveMembershipRequestContextUncached(
         ? query.eq('auth_user_id', input.authUserId).eq('status', 'active')
         : query.eq('person_id', input.legacyActor!.personId)
           .eq('legacy_access_enabled', true).in('status', ['unclaimed', 'invited', 'active'])
-      const { data, error } = await query.limit(2)
+      const { data, error } = await measureAccess(request, 'access_selection', () => query.limit(2))
       if (error) throw error
       if (!data?.length && input.authUserId) {
-        const membership = await findLoginMembership(input.authUserId)
+        const membership = await measureAccess(request, 'access_linked_login', () => findLoginMembership(input.authUserId!))
         if (!membership || membership.status !== 'active') return { ok: false, status: 403, error: 'An active staff membership is required.' }
         selectedTenant = membership.tenant_id
         selectedMembership = membership
@@ -165,7 +186,7 @@ async function resolveMembershipRequestContextUncached(
         selectedMembership = data[0]
       }
     }
-    return loadMembershipContext({ tenantId: selectedTenant!, ...input, selectedMembership })
+    return loadMembershipContext({ tenantId: selectedTenant!, ...input, selectedMembership, request })
   }
 
   const legacyResult = legacyActor
@@ -173,7 +194,7 @@ async function resolveMembershipRequestContextUncached(
     : null
   if (legacyResult?.ok) return legacyResult
 
-  const authUserId = await getSupabaseAuthUserId(request)
+  const authUserId = await measureAccess(request, 'access_auth_user', () => getSupabaseAuthUserId(request))
   if (!authUserId) return legacyResult || { ok: false, status: 401, error: 'Sign in is required.' }
   return resolveIdentity({ authSource: 'supabase', authUserId, legacyActor: null })
 }

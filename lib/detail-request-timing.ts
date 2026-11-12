@@ -1,7 +1,8 @@
 import { createRequestLogContext, getDurationMs } from './request-runtime'
+import { getRequestAccessTimings } from './request-context'
 
 /** Per-request diagnostics only. Stage names must be static, never user data. */
-export function createDetailRequestTiming() {
+export function createDetailRequestTiming(request?: Request) {
   const requestLog = createRequestLogContext()
   const timings: Record<string, number> = {}
   return {
@@ -13,6 +14,7 @@ export function createDetailRequestTiming() {
         return await work()
       } finally {
         timings[name] = getDurationMs(startedAt)
+        if (name === 'access' && request) Object.assign(timings, getRequestAccessTimings(request))
       }
     },
     responseHeaders() {

@@ -35,6 +35,10 @@ for (const legacy of [false, true]) test(`lead GET avoids viewer enrichment and 
   assert.equal(h.getQueries().filter(q => q.table === 'people').length, 1, 'Only note-author lookup remains')
   assert.equal(h.getQueries().filter(q => ['role_permissions', 'permissions'].includes(q.table)).length, 0, 'Role query embeds permission keys')
   assert.equal(h.getWrites().length, 0)
+  const timings = response.headers.get('server-timing')
+  for (const stage of ['access_session', 'access_selection', 'access_role', ...(legacy ? [] : ['access_auth_user'])]) {
+    assert.match(timings, new RegExp(`${stage};dur=\\d+`))
+  }
 })
 
 test('explicit linked login still resolves with one linked membership read', async () => {
@@ -43,7 +47,7 @@ test('explicit linked login still resolves with one linked membership read', asy
   assert.equal(result.ok, true)
   assert.equal(result.context.membershipId, 'membership')
   assert.equal(h.getQueries().filter(q => q.table === 'membership_login_links').length, 1)
-  assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 3, 'Selection, primary login, linked member; no reload')
+  assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 2, 'Selection and primary login; linked membership is embedded')
 })
 
 for (const options of [{ status: 'suspended' }, { roleTenant: DEMO }]) test(`optimized access denies invalid membership/role ${JSON.stringify(options)}`, async () => {
@@ -71,6 +75,8 @@ test('authorization reuse never crosses Request objects or tenant selections', a
   assert.equal((await resolve(request, DEMO)).ok, false)
   h.setScenario(scenario({ status: 'suspended' }))
   assert.equal((await resolve(new Request(request), HEAD)).ok, false)
+  const getTimings = h.load('lib/request-context.ts').getRequestAccessTimings
+  assert.deepEqual(Object.keys(getTimings(new Request(request))), [], 'Timing data never leaks across requests')
 })
 
 test('missing embedded permission fails closed instead of granting partial access', async () => {

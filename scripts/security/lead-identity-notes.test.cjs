@@ -73,7 +73,7 @@ test('detail timing does not bypass access or query lead data when signed out', 
     { params: Promise.resolve({ id: 'older' }) },
   )
   assert.equal(response.status, 401)
-  assert.match(response.headers.get('server-timing'), /^access;dur=\d+, total;dur=\d+$/)
+  assert.match(response.headers.get('server-timing'), /^access;dur=\d+, access_session;dur=\d+, access_auth_user;dur=\d+, total;dur=\d+$/)
   assert.equal(response.headers.get('cache-control'), 'private, no-store')
   assert.equal(h.getQueries().some(query => ['lead_intakes', 'lead_events', 'job_applications'].includes(query.table)), false)
 })

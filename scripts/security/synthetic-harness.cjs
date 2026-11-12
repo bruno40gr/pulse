@@ -58,6 +58,10 @@ function createHarness() {
             }
           }
           if (limit !== undefined) data = data.slice(0, limit)
+          if (table === 'membership_login_links' && filters.some(([method, columns]) => method === 'select' && columns.includes('tenant_memberships('))) {
+            if (scenario.errors?.tenant_memberships) return { data: null, error: scenario.errors.tenant_memberships }
+            data = data.map(link => ({ ...link, tenant_memberships: (scenario.fixtures?.tenant_memberships || []).find(member => member.id === link.membership_id) || null }))
+          }
           // Emulate the FK-backed role -> mappings -> permission-key projection.
           // Keep failure injection effective for each table embedded in the query.
           if (table === 'roles' && filters.some(([method, columns]) => method === 'select' && columns.includes('role_permissions('))) {

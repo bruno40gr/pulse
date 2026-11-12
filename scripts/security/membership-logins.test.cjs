@@ -40,6 +40,21 @@ test('secondary login resolves tenant when omitted', async () => {
   assert.equal(result.ok, true)
   assert.equal(result.context.tenantId, HEAD)
 })
+test('secondary login embeds membership without a separate linked membership query', async () => {
+  const h = setup()
+  const result = await h.load('lib/request-context.ts').requireAccountAdministrator(request(), HEAD)
+  assert.equal(result.ok, true)
+  assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 1)
+  assert.equal(h.getQueries().filter(q => q.table === 'membership_login_links').length, 1)
+})
+test('malformed linked membership fails closed', async () => {
+  const h = createHarness()
+  h.setScenario({ authUser: { id: 'secondary' }, queryResult: ({ table }) => table === 'membership_login_links'
+    ? { data: { membership_id: 'expected', tenant_memberships: { id: 'wrong', tenant_id: HEAD, status: 'active' } }, error: null } : null })
+  const result = await h.load('lib/tenant-request.ts').authorizeTenantRequest(request())
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 503)
+})
 test('staff secondary login does not gain admin privileges', async () => {
   const h = setup({ role: 'staff' })
   assert.equal((await h.load('lib/request-context.ts').requireAccountAdministrator(request(), HEAD)).status, 403)

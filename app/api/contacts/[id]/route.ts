@@ -106,7 +106,7 @@ async function getActiveInstructorStudents(instructorPersonId: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming()
+  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming(request)
   const { id } = await params
 
   const tryFetch = async (useNewJoins: boolean) => {

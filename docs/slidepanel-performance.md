@@ -120,3 +120,21 @@ latency from the existing handler stages. Production benefit remains unmeasured.
 
 This release is based on `6ea198a` and preserves its Contacts client filter/model
 and UI changes. Pending account/list/dashboard optimizations remain excluded.
+
+## Access sub-stage diagnostics
+
+After the middleware change, three production lead requests still spent
+1,081–1,485 ms in the handler, with 651–1,141 ms resolving access. Their
+middleware checks took 242–261 ms. The remaining issue is not solved.
+
+Detail timings now include request-local `access_session`, `access_auth_user`,
+`access_selection`, `access_membership`, `access_linked_login`, and `access_role`
+when those stages execute. These are nested within `access`, not additional
+independent durations to sum. No identities, cookies or tokens are logged by
+the sub-stage diagnostics, and they introduce no database requests.
+
+Explicit linked-login resolution embeds the FK-backed membership in its link
+query, removing its final separate membership read. Primary-login precedence,
+revocation, membership ID, tenant, status and role validation remain enforced.
+The query shape was verified read-only; production benefit for the reported
+interaction remains unmeasured and that interaction's identity path is unknown.
