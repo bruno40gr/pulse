@@ -3,6 +3,25 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness } = require('./synthetic-harness.cjs')
 const { matchesContactFilters, DEFAULT_CONTACT_FILTERS } = createHarness().load('lib/contact-filters.ts')
+const { CONTACT_CLIENT_TYPES } = createHarness().load('lib/contact-client-types.ts')
+const { SERVICE_TYPE_OPTIONS } = createHarness().load('lib/lead-value.ts')
+test('Contacts filters place client type immediately above funding and omit imported status choices', () => {
+  const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../app/dashboard/contacts/page.tsx'), 'utf8')
+  const filters = source.slice(source.indexOf('<SlidePanel isOpen={showFilters}'))
+  assert.ok(filters.indexOf('label="Service / class"') < filters.indexOf('>Client type</legend>'))
+  assert.ok(filters.indexOf('>Client type</legend>') < filters.indexOf('label="Funding"'))
+  assert.ok(!filters.includes('label="Status"'))
+  assert.ok(!source.includes('const statusOptions ='))
+})
+test('client types reuse the lead intake service catalog plus lessons', () => {
+  assert.deepEqual(Array.from(CONTACT_CLIENT_TYPES), ['Lessons', ...Array.from(SERVICE_TYPE_OPTIONS, option => option.label)])
+  assert.ok(!CONTACT_CLIENT_TYPES.includes('Event attendee'))
+})
+test('earlier prototype labels match the intake catalog without rewriting data', () => {
+  for (const [oldLabel, currentLabel] of [['Studio recording', 'Recording studio'], ['Rehearsal space', 'Rehearsal room'], ['Birthday party', 'Private events & parties']]) {
+    assert.equal(matchesContactFilters({ custom_fields: { client_types: [oldLabel] } }, { client_types: currentLabel }), true)
+  }
+})
 const now = Date.parse('2026-11-03T12:00:00Z')
 const student = { id: 'kid', first_name: 'Ethan', last_name: 'Kim', is_student: true, client_status: 'active',
   is_minor: true, email: 'child@example.invalid', account_holder_name: 'Sam Kim', account_holder_email: 'sam@example.invalid',

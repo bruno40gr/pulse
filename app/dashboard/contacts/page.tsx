@@ -403,8 +403,6 @@ export default function ContactsPage() {
   ])].sort((a, b) => a.localeCompare(b))
   const programOptions = optionsFor(['program', 'instrument'])
   const serviceOptions = optionsFor(['service_type', 'session_name', 'appointment_class_name'])
-  const statusOptions = [...new Set(['active', 'inactive', 'member', ...contacts.map(contact => contact.client_status)])]
-    .filter(Boolean).map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))
   const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
   const instructors = [...new Map(contacts.flatMap(contact => contact.instructor?.person_id && contact.instructor.name
     ? [[contact.instructor.person_id, contact.instructor.name] as const] : [])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
@@ -820,22 +818,7 @@ export default function ContactsPage() {
         <form onSubmit={event => { event.preventDefault(); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing.lg} ${spacing['2xl']}` }}>
             <FieldGrid columns={1}>
-              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-                <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>
-                {CONTACT_CLIENT_TYPES.map(type => <label key={type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 32, ...typography.bodySmall }}>
-                  <input type="checkbox" style={{ accentColor: colors.link }}
-                    checked={(filterDraft.client_types || '').split('|').includes(type)}
-                    onChange={event => {
-                      const selected = (filterDraft.client_types || '').split('|').filter(Boolean)
-                      updateFilterDraft('client_types', (event.target.checked ? [...selected, type] : selected.filter(value => value !== type)).join('|'))
-                    }} />{type}
-                </label>)}
-              </fieldset>
               <Input label="Name" placeholder="Student or account-holder name" value={filterDraft.name || ''} onChange={event => updateFilterDraft('name', event.target.value)} />
-              <Select controlSize="compact" label="Status" value={filterDraft.client_status || ''} onChange={event => updateFilterDraft('client_status', event.target.value)}>
-                <option value="">All contacts</option>
-                {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </Select>
               <Input label="Email" placeholder="Contains email address" value={filterDraft.email || ''} onChange={event => updateFilterDraft('email', event.target.value)} />
               <Select controlSize="compact" label="Last active" hint="Based on the last attended date." value={filterDraft.last_active || ''} onChange={event => updateFilterDraft('last_active', event.target.value)}>
                 <option value="">Any time</option>
@@ -851,6 +834,17 @@ export default function ContactsPage() {
               <Select controlSize="compact" label="Service / class" value={filterDraft.service_class || ''} onChange={event => updateFilterDraft('service_class', event.target.value)}>
                 <option value="">Any service or class</option>{serviceOptions.map(value => <option key={value} value={value}>{value}</option>)}
               </Select>
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>
+                {CONTACT_CLIENT_TYPES.map(type => <label key={type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 32, ...typography.bodySmall }}>
+                  <input type="checkbox" style={{ accentColor: colors.link }}
+                    checked={(filterDraft.client_types || '').split('|').includes(type)}
+                    onChange={event => {
+                      const selected = (filterDraft.client_types || '').split('|').filter(Boolean)
+                      updateFilterDraft('client_types', (event.target.checked ? [...selected, type] : selected.filter(value => value !== type)).join('|'))
+                    }} />{type}
+                </label>)}
+              </fieldset>
               <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
                 <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
               </Select>
