@@ -1,4 +1,5 @@
 import { contactDestination, type ContactPresentation } from './contact-presentation'
+import { matchesClientTypes } from './contact-client-types'
 
 export const DEFAULT_CONTACT_FILTERS: Record<string, string> = { active_only: 'true' }
 
@@ -15,6 +16,9 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
   for (const [key, value] of Object.entries(filters)) {
     if (!value) continue
     switch (key) {
+      case 'client_types':
+        if (!matchesClientTypes(contact.custom_fields?.client_types, value)) return false
+        break
       case 'name':
         if (!contains(`${contact.first_name} ${contact.last_name}`, value) && !contains(contact.account_holder_name, value)) return false
         break

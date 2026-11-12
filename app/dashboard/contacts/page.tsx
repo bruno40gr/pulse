@@ -8,6 +8,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { tableRowSelection, type SelectionModifiers } from '@/lib/table-row-selection'
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { CONTACT_CLIENT_TYPES } from '@/lib/contact-client-types'
 import { PersonName } from '@/components/ui/PersonName'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -819,6 +820,17 @@ export default function ContactsPage() {
         <form onSubmit={event => { event.preventDefault(); setAppliedFilters(filterDraft); setDisplayIds(null); setFilterExplanation(''); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: `${spacing.lg} ${spacing['2xl']}` }}>
             <FieldGrid columns={1}>
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>
+                {CONTACT_CLIENT_TYPES.map(type => <label key={type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 32, ...typography.bodySmall }}>
+                  <input type="checkbox" style={{ accentColor: colors.link }}
+                    checked={(filterDraft.client_types || '').split('|').includes(type)}
+                    onChange={event => {
+                      const selected = (filterDraft.client_types || '').split('|').filter(Boolean)
+                      updateFilterDraft('client_types', (event.target.checked ? [...selected, type] : selected.filter(value => value !== type)).join('|'))
+                    }} />{type}
+                </label>)}
+              </fieldset>
               <Input label="Name" placeholder="Student or account-holder name" value={filterDraft.name || ''} onChange={event => updateFilterDraft('name', event.target.value)} />
               <Select controlSize="compact" label="Status" value={filterDraft.client_status || ''} onChange={event => updateFilterDraft('client_status', event.target.value)}>
                 <option value="">All contacts</option>

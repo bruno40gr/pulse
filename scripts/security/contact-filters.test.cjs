@@ -8,6 +8,22 @@ const student = { id: 'kid', first_name: 'Ethan', last_name: 'Kim', is_student: 
   is_minor: true, email: 'child@example.invalid', account_holder_name: 'Sam Kim', account_holder_email: 'sam@example.invalid',
   account_holder_phone: '2025550101', last_attended: '2026-11-01T12:00:00Z', funded: true,
   instructor: { person_id: 'teacher', name: 'Teacher' }, custom_fields: { program: 'Piano' } }
+test('client type matches any selected relationship on one contact, combined with other conditions', () => {
+  const contact = { ...student, custom_fields: { ...student.custom_fields, client_types: ['Lessons', 'Studio recording'] } }
+  assert.equal(matchesContactFilters(contact, { client_types: 'Lessons' }), true)
+  assert.equal(matchesContactFilters(contact, { client_types: 'Birthday party|Studio recording' }), true)
+  assert.equal(matchesContactFilters(contact, { client_types: 'Rehearsal space' }), false)
+  assert.equal(matchesContactFilters(contact, { client_types: 'Studio recording', program: 'Piano' }), true)
+  assert.equal(matchesContactFilters(contact, { client_types: 'Studio recording', program: 'Drums' }), false)
+  assert.equal(matchesContactFilters({ ...contact, is_student: false }, { client_types: 'Studio recording' }), true)
+})
+test('missing or malformed client types never match a selected type; clearing the filter includes them', () => {
+  for (const client_types of [undefined, null, '', 'Studio recording', {}, []]) {
+    const contact = { ...student, custom_fields: { client_types } }
+    assert.equal(matchesContactFilters(contact, { client_types: 'Studio recording' }), false)
+    assert.equal(matchesContactFilters(contact, { client_types: '' }), true)
+  }
+})
 test('default filter includes only active recorded students', () => {
   assert.equal(matchesContactFilters(student, DEFAULT_CONTACT_FILTERS, now), true)
   assert.equal(matchesContactFilters({ ...student, is_student: false }, DEFAULT_CONTACT_FILTERS, now), false)
