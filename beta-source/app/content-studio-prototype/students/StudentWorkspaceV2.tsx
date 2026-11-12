@@ -33,6 +33,8 @@ import { PROFILE_PANEL_WIDTH } from '@/beta-source/lib/conversation-display'
 import type { FamilyPreviewData } from '@/beta-source/lib/academy-family-preview'
 import type { MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import { CalendarWorkspace } from './CalendarWorkspace'
+import { FamilyReschedule } from './FamilyReschedule'
+import { commitFamilyMoves } from '@/beta-source/lib/family-reschedule'
 import { MoveLesson } from './MoveLesson'
 import { ContactsTable } from './ContactsTable'
 import { expandPreviewCalendar, previewCalendarLessons, movePreviewLesson, reschedulePreviewSubscription, makeupPreviewNow, cancelPreviewReplacement, absenceEligible } from '@/beta-source/lib/academy-makeup-preview'
@@ -48,6 +50,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   const [lessonWeek, setLessonWeek] = useState('2026-11-02')
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarDate] = useState<string | undefined>()
+  const [together, setTogether] = useState<string[]>([])
   const [moveId, setMoveId] = useState<string | null>(null)
   const [recurringMove, setRecurringMove] = useState(false)
   const [replacementCancelId, setReplacementCancelId] = useState<string | null>(null)
@@ -77,19 +80,19 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   const panelContent = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     if (inlineTasks) panelContent.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-  }, [inlineTasks, location.section, lessonView, moveId, makeupId, lessonId, replacementCancelId, intent, calendarOpen, familyCanvas])
+  }, [inlineTasks, location.section, lessonView, moveId, makeupId, lessonId, replacementCancelId, intent, calendarOpen, familyCanvas, together])
   const sectionNavigation = useRef<HTMLDivElement>(null)
   useEffect(() => { if (inlineTasks) sectionNavigation.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [inlineTasks, location.section])
   const panelReturn = useRef<WorkspaceLocation | null>(null)
   useEffect(() => {
-    const restore = () => { setFamilyCanvas(null); setLocation(workspaceLocationFromSearch(window.location.search)); setLessonId(null); setIntent(null); setMakeupId(null); setCalendarOpen(false); setMoveId(null); setReplacementCancelId(null) }
+    const restore = () => { setTogether([]); setFamilyCanvas(null); setLocation(workspaceLocationFromSearch(window.location.search)); setLessonId(null); setIntent(null); setMakeupId(null); setCalendarOpen(false); setMoveId(null); setReplacementCancelId(null) }
     restore(); setReady(true)
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
   }, [])
   function navigate(next: WorkspaceLocation) {
     window.history.pushState({ ...window.history.state }, '', `${window.location.pathname}${workspaceLocationSearch(next, window.location.search)}`)
-    setFamilyCanvas(null); setLocation(next); setLessonId(null); setIntent(null); setCalendarOpen(false); setMoveId(null); setRecurringMove(false); setMakeupId(null); setReplacementCancelId(null); setBookedDate(null)
+    setTogether([]); setFamilyCanvas(null); setLocation(next); setLessonId(null); setIntent(null); setCalendarOpen(false); setMoveId(null); setRecurringMove(false); setMakeupId(null); setReplacementCancelId(null); setBookedDate(null)
   }
   function update(patch: Partial<WorkspaceLocation>) {
     const section = patch.section || location.section
@@ -186,13 +189,13 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
     if (section === 'payment-methods') return paymentMethodsContent
     return account && !invalid ? <WorkspaceSections onFamilyGroup={setFamilyCanvas} followUpOnly={presentation === 'follow-up'} onPaymentMethods={openPaymentMethods} lessonView={lessonView} onLessonView={setLessonView} lessonWeek={lessonWeek} onLessonWeek={setLessonWeek} hideSubscriptions={presentation === 'details'} subscriptionsOnly={presentation === 'subscriptions'} onCancelLesson={id => {
       try { const next = recordPreviewAbsence(contentData, makeups, account.id, id, false, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm('Lesson cancelled.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
-    }} previewV2 previewV3={inlineTasks} noteAudience={quick ? undefined : 'notes'} onEnsure={through => setData(current => expandPreviewCalendar(current, through))} onCalendar={() => { if (quick) panelReturn.current = location; setCalendarOpen(true) }} data={contentData} account={account} location={{ ...scopedLocation, section }} students={projectedStudents} occurrences={occurrences} requests={requests} notes={notes} drafts={drafts} channel={channel} onCommunicationBack={closeCommunication} onDraft={(key, value) => setDrafts(current => ({ ...current, [key]: value }))} onAddNote={addNote} onEditNote={(subject, kind, noteId, text) => { const key = `${subject}:${kind}`; const entry = notes[key]?.find(note => note.id === noteId); if (!entry || entry.actor_id !== previewNoteActorId || !text.trim()) return false; setNotes(current => ({ ...current, [key]: current[key].map(note => note.id === noteId ? editPreviewNote(note, previewNoteActorId, text) : note) })); return true }} onCompleteNote={completeNote} onNavigate={patch => update({ accountId: account.id, ...patch })} onLesson={openLesson} onMove={id => { setRecurringMove(false); if (inlineTasks) { setLessonView('calendar'); const item = scheduledClasses.find(item => item.id === id); if (item) setLessonWeek(weekStart(item.date)) } if (quick) panelReturn.current = location; setMoveId(id) }} onManage={manage} onApply={apply} makeups={visibleMakeups} onMakeup={scheduleMakeup} /> : null
+    }} previewV2 previewV3={inlineTasks} noteAudience={quick ? undefined : 'notes'} onEnsure={through => setData(current => expandPreviewCalendar(current, through))} onCalendar={() => { if (quick) panelReturn.current = location; setCalendarOpen(true) }} data={contentData} account={account} location={{ ...scopedLocation, section }} students={projectedStudents} occurrences={occurrences} requests={requests} notes={notes} drafts={drafts} channel={channel} onCommunicationBack={closeCommunication} onDraft={(key, value) => setDrafts(current => ({ ...current, [key]: value }))} onAddNote={addNote} onEditNote={(subject, kind, noteId, text) => { const key = `${subject}:${kind}`; const entry = notes[key]?.find(note => note.id === noteId); if (!entry || entry.actor_id !== previewNoteActorId || !text.trim()) return false; setNotes(current => ({ ...current, [key]: current[key].map(note => note.id === noteId ? editPreviewNote(note, previewNoteActorId, text) : note) })); return true }} onCompleteNote={completeNote} onNavigate={patch => update({ accountId: account.id, ...patch })} onLesson={openLesson} onRescheduleTogether={inlineTasks ? ids => { setTogether(ids); setMoveId(null) } : undefined} onMove={id => { setRecurringMove(false); if (inlineTasks) { setLessonView('calendar'); const item = scheduledClasses.find(item => item.id === id); if (item) setLessonWeek(weekStart(item.date)) } if (quick) panelReturn.current = location; setMoveId(id) }} onManage={manage} onApply={apply} makeups={visibleMakeups} onMakeup={scheduleMakeup} /> : null
   }
   const activeContact = account ? previewContacts(contentData).find(person => person.id === (selectedStudent?.id || account.holderId)) : undefined
   const content = renderSection(location.section)
   const workspaceOpen = Boolean(account && !invalid && (location.view === 'staff' || parent || intent || calendarOpen || selectedMakeup || movingLesson || cancellingReplacement))
   const accountTaskActive = !communicationActive && Boolean(movingLesson || (calendarOpen && !lessonId) || intent || selectedMakeup) && !cancellingReplacement
-  const workspaceContent = familyCanvas === 'edit' && account ? <AccountEditor key={selectedStudent?.id || account.id} contactId={selectedStudent && selectedStudent.id !== account.holderId ? selectedStudent.id : undefined} data={contentData} account={account} onApply={apply} onBack={() => setFamilyCanvas(null)} /> : familyCanvas && familyCanvas !== 'edit' && account ? <ParentFamilyGroup key={familyCanvas} canvas={familyCanvas} onBack={() => setFamilyCanvas(null)} account={account} students={projectedStudents.filter(student => student.id !== account.holderId)} onApply={apply} /> : communicationActive ? content : movingLesson && account ? <MoveLesson recurring={recurringMove} onRecurring={inlineTasks && !movingLesson.makeup ? booking => {
+  const workspaceContent = together.length && account ? <FamilyReschedule items={scheduledClasses.filter(item => together.includes(item.id))} data={data} state={makeups} accountName={profileTitle} week={lessonWeek} onWeek={week => { setLessonWeek(week); setData(current => expandPreviewCalendar(current, shiftDate(week, 6))) }} onBack={() => setTogether([])} onConfirm={moves => { try { const next = commitFamilyMoves(data, makeups, account.id, moves); setData(next.data); setMakeups(next.state); setTogether([]); setLessonView('calendar'); confirm(`${Object.keys(moves).length} lesson changes saved.`); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to reschedule lessons.' } }} /> : familyCanvas === 'edit' && account ? <AccountEditor key={selectedStudent?.id || account.id} contactId={selectedStudent && selectedStudent.id !== account.holderId ? selectedStudent.id : undefined} data={contentData} account={account} onApply={apply} onBack={() => setFamilyCanvas(null)} /> : familyCanvas && familyCanvas !== 'edit' && account ? <ParentFamilyGroup key={familyCanvas} canvas={familyCanvas} onBack={() => setFamilyCanvas(null)} account={account} students={projectedStudents.filter(student => student.id !== account.holderId)} onApply={apply} /> : communicationActive ? content : movingLesson && account ? <MoveLesson recurring={recurringMove} onRecurring={inlineTasks && !movingLesson.makeup ? booking => {
       try { setData(reschedulePreviewSubscription(data, makeups, account.id, movingLesson.id, booking)); setMoveId(null); setRecurringMove(false); setIntent(null); confirm('Subscription schedule updated. Upcoming regular lessons have been rescheduled.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to change recurring schedule.' }
     } : undefined} profileSubtitle={selectedStudent ? 'Student profile' : 'Account manager'} accountName={profileTitle} key={movingLesson.id} onWeek={inlineTasks ? week => { setLessonWeek(week); setData(current => expandPreviewCalendar(current, shiftDate(week, 6))) } : undefined} initialDate={inlineTasks ? lessonWeek : undefined} item={movingLesson} data={data} state={makeups} onBack={() => recurringMove ? (setMoveId(null), setRecurringMove(false)) : panelReturn.current ? backToPanel() : setMoveId(null)} onMove={booking => {
       try { const next = movePreviewLesson(data, makeups, account.id, movingLesson.id, booking); setData(next.data); setMakeups(next.state); setMoveId(null); confirm('Lesson rescheduled. The recurring subscription is unchanged.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to move lesson.' }
@@ -235,7 +238,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
       </SlidePanelActionBar>
       <div ref={sectionNavigation} className={styles.panelNavigation}>{inlineTasks ? sectionTabs : panelTabs}</div></>}
       <div ref={panelContent} data-workspace-content="" className={[styles.panelContent, inlineTasks ? v3Styles.content : '', communicationActive ? styles.communicationContent : ''].filter(Boolean).join(' ')} style={{ background: colors.surfaceMuted }}>
-        {inlineTasks && (familyCanvas || communicationActive || movingLesson || cancellingReplacement || calendarOpen || intent || selectedMakeup) ? workspaceContent : lesson ? lessonContent : location.section === 'profile' ? <div className={styles.quickReferenceLayout}>
+        {inlineTasks && (together.length || familyCanvas || communicationActive || movingLesson || cancellingReplacement || calendarOpen || intent || selectedMakeup) ? workspaceContent : lesson ? lessonContent : location.section === 'profile' ? <div className={styles.quickReferenceLayout}>
           <div className={styles.stack} style={{ gap: spacing.lg }}>
           {renderSection('profile', 'details')}
           {inlineTasks && selectedStudent && renderSection('profile', 'subscriptions')}

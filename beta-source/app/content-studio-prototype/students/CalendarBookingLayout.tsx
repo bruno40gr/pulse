@@ -9,11 +9,11 @@ import { CalendarLegend } from './CalendarLegend'
 import styles from './CalendarBookingLayout.module.css'
 
 /** The calendar owns the first column; changing controls never changes its top edge. */
-export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar }: {
+export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar, hideConfirm = false }: {
   children: ReactNode; moving?: boolean; booking?: boolean; makeup: PreviewMakeup; program: string
   sameTeacher: boolean; onSameTeacher: (same: boolean) => void; teacher: string; onTeacher: (teacher: string) => void
   selected: NonNullable<PreviewMakeup['booking']> | null; onConfirm: () => void; error: string
-  sidebar?: ReactNode; studentName?: string
+  hideConfirm?: boolean; sidebar?: ReactNode; studentName?: string
 }) {
   const teachers = scheduleTeachers.filter(item => (item.instruments as readonly string[]).includes(program))
   const slotLabel = (date: string, time: string) => `${formatScheduleDate(date, { weekday: 'short', month: 'short', day: 'numeric' })}, ${formatScheduleTime(time)}`
@@ -35,7 +35,7 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
       </fieldset>}
       {!moving && !booking && selected && <p className={styles.summary} aria-live="polite">{formatScheduleDate(selected.date)} · {formatScheduleTime(selected.time)}<br />{selected.teacher}</p>}
       {error && <p role="alert">{error}</p>}
-      <div className={moving || booking ? styles.moveAction : undefined}><ConfirmActionButton loadingLabel={moving ? 'Rescheduling lesson' : 'Booking makeup'} disabled={!selected} onClick={onConfirm}>{moving ? 'Reschedule lesson' : 'Book makeup'}</ConfirmActionButton></div>
+      {!hideConfirm && <div className={moving || booking ? styles.moveAction : undefined}><ConfirmActionButton loadingLabel={moving ? 'Rescheduling lesson' : 'Booking makeup'} disabled={!selected} onClick={onConfirm}>{moving ? 'Reschedule lesson' : 'Book makeup'}</ConfirmActionButton></div>}
     </aside>
   </div>
 }

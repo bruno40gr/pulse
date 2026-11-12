@@ -63,6 +63,7 @@ export type WorkspaceSectionProps = {
   onNavigate: (patch: Partial<WorkspaceLocation>) => void; onLesson: (id: string) => void
   onCalendar: () => void
   onEnsure: (through: string) => void
+  onRescheduleTogether?: (ids: string[]) => void
   onMove: (id: string) => void
   onPaymentMethods: () => void
   onManage: (intent: ManagementIntent) => void
