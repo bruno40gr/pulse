@@ -7,6 +7,7 @@ import { DEFAULT_TENANT } from '@/lib/tenant'
 import { findLoginMembership } from '@/lib/membership-logins'
 
 export async function middleware(request: NextRequest) {
+  const startedAt = Date.now()
   const host = (
     request.headers.get('x-forwarded-host') ||
     request.headers.get('host') ||
@@ -63,31 +64,38 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const legacySession = await readAccessSession(request.cookies.get(ACCESS_COOKIE_NAME)?.value)
-  const { data: authData } = await supabase.auth.getUser()
-  const authUserId = authData.user?.id || null
-
-  let personalMembership: { tenant_id: string } | null = null
-  if (authUserId) {
-    const membership = await findLoginMembership(authUserId)
-    personalMembership = membership?.status === 'active' ? membership : null
-  }
-
-  let legacyAuthorized = false
-  if (legacySession) {
-    const scope = getAccessScope(legacySession.actor)
-    if (scope.kind === 'demo') {
-      legacyAuthorized = true
-    } else {
-      const { data } = await supabaseAdmin
-        .from('tenant_memberships')
-        .select('id')
-        .eq('person_id', legacySession.actor.personId)
-        .eq('legacy_access_enabled', true)
-        .in('status', ['unclaimed', 'invited', 'active'])
-        .maybeSingle()
-      legacyAuthorized = Boolean(data)
+  // These identity paths are independent. Run both complete checks concurrently;
+  // do not cache either identity, skip status checks, or add database requests.
+  const personalAccess = (async () => {
+    const { data: authData } = await supabase.auth.getUser()
+    if (!authData.user?.id) return null
+    const membership = await findLoginMembership(authData.user.id)
+    return membership?.status === 'active' ? membership : null
+  })()
+  const legacyAccess = (async () => {
+    const legacySession = await readAccessSession(request.cookies.get(ACCESS_COOKIE_NAME)?.value)
+    let legacyAuthorized = false
+    if (legacySession) {
+      const scope = getAccessScope(legacySession.actor)
+      if (scope.kind === 'demo') {
+        legacyAuthorized = true
+      } else {
+        const { data } = await supabaseAdmin
+          .from('tenant_memberships')
+          .select('id')
+          .eq('person_id', legacySession.actor.personId)
+          .eq('legacy_access_enabled', true)
+          .in('status', ['unclaimed', 'invited', 'active'])
+          .maybeSingle()
+        legacyAuthorized = Boolean(data)
+      }
     }
+    return { legacySession, legacyAuthorized }
+  })()
+  const [personalMembership, { legacySession, legacyAuthorized }] = await Promise.all([personalAccess, legacyAccess])
+
+  if (request.method === 'GET' && /^\/api\/(leads|contacts)\/[^/]+$/.test(pathname)) {
+    console.info('[slidepanel][middleware]', { pathname, durationMs: Date.now() - startedAt })
   }
 
   const isAuthorized = legacyAuthorized || Boolean(personalMembership)

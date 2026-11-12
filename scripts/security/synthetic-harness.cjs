@@ -87,7 +87,10 @@ function createHarness() {
         })
         return builder
       },
-      auth: { getUser: async () => ({ data: { user: scenario.authUser || null }, error: null }) },
+      auth: { getUser: async () => {
+        await scenario.beforeGetUser?.()
+        return { data: { user: scenario.authUser || null }, error: null }
+      } },
     }
   }
   const primary = client('primary')

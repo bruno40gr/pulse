@@ -101,3 +101,22 @@ guards discard late results after close or selection changes.
 The intercepted local browser check held the detail response open and measured
 73 ms to preview, one GET per opening, no writes and no late-response reopening.
 This is a local UI measurement, not evidence of improved production server time.
+
+## Preview rollback and middleware concurrency
+
+The read-only preview was rejected because it introduced a distracting interim
+screen without making the complete panel usable sooner. It has been removed;
+the existing loading skeleton and close control remain until detail is available.
+The latest production handler measurements were 935–1,050 ms, with 689–782 ms
+in access resolution. These numbers still do not establish acceptable end-to-end
+latency.
+
+Middleware now runs its independent personal and legacy identity checks
+concurrently, with the same status, legacy eligibility, tenant and demo rules.
+It still awaits both checks and does not trust forwarded identity headers or
+cache authorization between requests. No database calls are added. Detail GETs
+emit a narrow `[slidepanel][middleware]` duration log to separate middleware
+latency from the existing handler stages. Production benefit remains unmeasured.
+
+This release is based on `6ea198a` and preserves its Contacts client filter/model
+and UI changes. Pending account/list/dashboard optimizations remain excluded.
