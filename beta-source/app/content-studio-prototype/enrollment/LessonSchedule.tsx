@@ -12,7 +12,7 @@ import { placeCalendarBlocks as placeBlocks } from '@/beta-source/lib/academy-ca
 import styles from './enrollment.module.css'
 
 type CalendarBlock = {
-  id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean
+  id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean; blocksAvailability?: boolean
   teachers?: readonly { name: string }[]
 }
 
@@ -24,7 +24,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   initialDate?: string
   teacherPreference?: string
   compactCopy?: boolean
-  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string }[]
+  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string; blocksAvailability?: boolean }[]
   replacementMode?: boolean
   chooseTeacherOnClick?: boolean
   detailedReplacementSlots?: boolean
@@ -47,7 +47,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
     }
   }, [choice])
   const dates = referenceLessons.some(item => item.date === shiftDate(week, 6)) ? Array.from({ length: 7 }, (_, index) => shiftDate(week, index)) : weekDates(week)
-  const family = [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
+  const family = replacementMode ? [] : [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
 
   const name = (id?: string) => { const person = students.find(item => item.id === id) || (student?.id === id ? student : null); return person ? `${person.firstName} ${person.lastName}` : 'Student' }
   const availableTeachers = (date: string, time: string) => availability ? availability(date, time) : availableScheduleTeachers(lesson, date, time, student, lessons)
@@ -67,7 +67,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
           ]
           const open: CalendarBlock[] = []
           for (const time of scheduleTimes) {
-            if ([...booked, ...open].some(item => overlap(time, Number(lesson.duration), item.time, item.duration))) continue
+            if ([...booked, ...open].some(item => item.blocksAvailability !== false && overlap(time, Number(lesson.duration), item.time, item.duration))) continue
             const available = availableTeachers(date, time).filter(matchesPreference)
             if (available.length) open.push({ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available })
           }

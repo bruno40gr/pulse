@@ -4,7 +4,7 @@ import styles from '../enrollment/enrollment.module.css'
 /** Shared, vertically centered calendar color key. */
 export function CalendarLegend({ moving = false }: { moving?: boolean }) {
   return <div aria-label="Calendar colors" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', fontSize: 12 }}>
-    {moving && <span className={styles.bookedSlot} style={legendItem}>Original lesson</span>}
+    <span className={styles.bookedSlot} style={legendItem}>{moving ? 'Family / original lessons' : 'Family lessons'}</span>
     <span className={`${styles.openSlot} ${styles.availableLegend}`} style={legendItem}>Available time</span>
     <span className={styles.replacementSlot} style={legendItem}>Selected replacement</span>
   </div>

@@ -21,8 +21,10 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
     <div className={styles.calendar}>{children}<CalendarLegend moving={moving} /></div>
     <aside className={styles.controls} aria-label="Booking controls">
       {sidebar}
+      <p className={styles.summary}>Family calendar · All children’s lessons and booked makeups stay visible. Sibling lessons may overlap when a suitable teacher is available.</p>
       {(moving || booking) && <SurfacePanel appearance="flat"><section aria-label={moving ? 'Move summary' : 'Makeup summary'} className={styles.moveSummary} aria-live="polite">
-        {booking && studentName && <p>{studentName}</p>}
+        {studentName && <p>{studentName}</p>}
+        <p>{moving ? 'Original lesson' : 'Makeup credit'}: {program} · {formatScheduleDate(makeup.date)} · {makeup.teacher}</p>
         <p>{moving ? 'Reschedule to:' : 'Schedule makeup to:'}</p>
         {selected ? <><div className={styles.destination}><p>{program}</p><p>{selected.teacher}</p><p>{slotLabel(selected.date, selected.time)}</p></div>{selected.teacher !== makeup.teacher && <StatusBadge status="pending" label="Teacher change" />}</> : <p className={styles.emptySelection}>Select a lesson time</p>}
       </section></SurfacePanel>}

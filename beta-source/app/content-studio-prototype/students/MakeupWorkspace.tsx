@@ -13,8 +13,9 @@ import { previewStudentName } from '@/beta-source/lib/academy-student-preview'
 import { CalendarBookingLayout } from './CalendarBookingLayout'
 import LessonSchedule from '../enrollment/LessonSchedule'
 import { spacing, typography } from '@/beta-source/lib/tokens'
+import { familyBookingReferences } from '@/beta-source/lib/family-booking-calendar'
 
-export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountName, profileSubtitle, availableSlots, sidebar }: { sidebar?: ReactNode; availableSlots?: (date: string) => ReturnType<typeof makeupSlots>; accountName?: string; profileSubtitle?: string; data: FamilyPreviewData; state: MakeupPreviewState; makeup: PreviewMakeup; onBack: () => void; onBook: (booking: NonNullable<PreviewMakeup['booking']>) => string | null }) {
+export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountName, profileSubtitle, availableSlots, sidebar, initialDate, onWeek }: { initialDate?: string; onWeek?: (week: string) => void; sidebar?: ReactNode; availableSlots?: (date: string) => ReturnType<typeof makeupSlots>; accountName?: string; profileSubtitle?: string; data: FamilyPreviewData; state: MakeupPreviewState; makeup: PreviewMakeup; onBack: () => void; onBook: (booking: NonNullable<PreviewMakeup['booking']>) => string | null }) {
   const inline = useContext(InlineWorkspaceContext)
   const [program, setProgram] = useState(makeup.program)
   const [sameTeacher, setSameTeacher] = useState(true)
@@ -31,7 +32,7 @@ export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountNa
   }
   if (inline) return <AccountWorkspace profileSubtitle={profileSubtitle} title={`Schedule ${makeup.program} makeup · ${makeup.duration} min`} accountName={accountName || previewStudentName(student)} onBack={onBack}>
     <CalendarBookingLayout booking studentName={previewStudentName(student)} sidebar={sidebar} makeup={makeup} program={program} sameTeacher={sameTeacher} onSameTeacher={value => { setSameTeacher(value); setSelected(null); setError('') }} teacher={teacher} onTeacher={value => { setTeacher(value); setSelected(null); setError('') }} selected={selected} onConfirm={() => { if (selected) setError(onBook(selected) || '') }} error={error}>
-      <LessonSchedule toolbarActions={<label className={bookingStyles.checkbox}><input type="checkbox" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setTeacher(''); setSelected(null); setError('') }} />Same teacher</label>} detailedReplacementSlots chooseTeacherOnClick={!sameTeacher} lesson={lesson} lessons={selected ? [lesson] : []} replacementMode student={person} manager={null} initialDate="2026-11-09" compactCopy teacherPreference={sameTeacher ? makeup.teacher : teacher} availability={availability} onChange={patch => { const next = { ...lesson, ...patch }; setSelected(next.start && next.time && next.teacher ? { date: next.start, time: next.time, teacher: next.teacher, program } : null); setError('') }} />
+      <LessonSchedule referenceLessons={familyBookingReferences(data, state, student.id)} onWeek={onWeek} toolbarActions={<label className={bookingStyles.checkbox}><input type="checkbox" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setTeacher(''); setSelected(null); setError('') }} />Same teacher</label>} detailedReplacementSlots chooseTeacherOnClick={!sameTeacher} lesson={lesson} lessons={selected ? [lesson] : []} replacementMode student={person} manager={null} initialDate={initialDate || "2026-11-09"} compactCopy teacherPreference={sameTeacher ? makeup.teacher : teacher} availability={availability} onChange={patch => { const next = { ...lesson, ...patch }; setSelected(next.start && next.time && next.teacher ? { date: next.start, time: next.time, teacher: next.teacher, program } : null); setError('') }} />
     </CalendarBookingLayout>
   </AccountWorkspace>
   return <AccountWorkspace profileSubtitle={profileSubtitle} title="Schedule makeup" accountName={accountName || previewStudentName(student)} onBack={onBack}>
@@ -48,7 +49,7 @@ export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountNa
       {error && <div role="alert" style={typography.bodySmall}>{error}</div>}
     </aside>
     <div className={styles.calendarTaskCanvas}>
-      <LessonSchedule key={`${program}:${sameTeacher}`} lesson={lesson} lessons={selected ? [lesson] : []} student={person} manager={null} initialDate="2026-11-09" compactCopy availability={availability} onChange={patch => { const next = { ...lesson, ...patch }; if (!next.start || !next.time || !next.teacher) setSelected(null); else setSelected({ date: next.start, time: next.time, teacher: next.teacher, program }); setError('') }} />
+      <LessonSchedule key={`${program}:${sameTeacher}`} lesson={lesson} lessons={selected ? [lesson] : []} student={person} manager={null} initialDate={initialDate || "2026-11-09"} compactCopy availability={availability} onChange={patch => { const next = { ...lesson, ...patch }; if (!next.start || !next.time || !next.teacher) setSelected(null); else setSelected({ date: next.start, time: next.time, teacher: next.teacher, program }); setError('') }} />
     </div>
     </div>
   </AccountWorkspace>
