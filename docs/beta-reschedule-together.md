@@ -6,7 +6,12 @@ selection. No bulk action is shown without a selection. The planner keeps each
 selected lesson in a focusable card and shows compatible availability for the
 focused lesson on the family calendar.
 
-Selection is not a commitment to move. Each card shows Unchanged or an explicit
+Selection is not a commitment to move.
+The selected-lesson actions appear at the right of the week toolbar, with
+Reschedule together at the far right, aligned with the week picker on desktop.
+The toolbar wraps on narrow screens without horizontal overflow.
+
+Each card shows Unchanged or an explicit
 original-to-proposed summary, with Undo change. Confirmation counts only proposed
 changes. Existing single-lesson actions and makeup booking remain available.
 This release changes individual occurrences, not recurring subscription schedules.
