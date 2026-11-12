@@ -3,7 +3,7 @@ import { LESSON_LEAD_TYPES } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { resolveRequestTenant } from '@/lib/tenant-access'
-import { requirePermission } from '@/lib/request-context'
+import { requireOwner, requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getLeadOpportunityValue, OPEN_LEAD_STATUSES, WON_STATUS } from '@/lib/lead-value'
 
@@ -492,7 +492,7 @@ export async function DELETE(request: Request) {
 
   try {
     const tenantId = new URL(request.url).searchParams.get('tenant') || DEFAULT_TENANT_ID
-    const permission = await requirePermission(request, tenantId, PERMISSIONS.leadsDelete)
+    const permission = await requireOwner(request, tenantId)
     if (!permission.ok) {
       return NextResponse.json(
         { error: permission.error, requestId: requestLog.requestId },

@@ -1,4 +1,6 @@
 'use client'
+import { LeadFollowUpCell } from './LeadFollowUpCell'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
@@ -6,6 +8,7 @@ import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { TablePersonName } from '@/components/ui/TablePersonName'
+import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import { RichDataTable } from '@/components/ui/RichDataTable'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle, type TablePersonView } from '@/components/ui/TablePersonViewToggle'
@@ -18,7 +21,10 @@ import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatPhoneNumber } from '@/lib/phone'
 import { useIsMobile } from '@/lib/useMediaQuery'
-import ComposePanel from '@/components/campaigns/ComposePanel'
+import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+import { LeadBulkFollowUpPanel, type BulkFollowUpTarget } from './LeadBulkFollowUpPanel'
+import type { FollowUpPatch } from '@/lib/lead-bulk-follow-up'
+import { getActiveTenantId } from '@/lib/tenant'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LeadInlineEditor } from './LeadInlineEditor'
@@ -43,7 +49,6 @@ import { LEAD_TABLE_SCHEMA } from '@/lib/lead-table-preferences'
 type LeadTabKey = 'lesson_inquiry' | 'service_inquiry' | 'job_application' | 'winback' | 'enrolled' | 'lost'
 type LeadDetailPanelTabKey = 'details' | 'notes_activity'
 type LeadSortKey = 'status' | 'name' | 'followUp' | 'program' | 'created' | 'lastActivity'
-type SortDirection = 'asc' | 'desc'
 type OpportunityValueUnit = 'mo' | 'session'
 type ManualLeadFormState = LessonRequestFields & {
   fullName: string
@@ -597,8 +602,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortKey, setSortKey] = useState<LeadSortKey>('created')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const tablePreferences = useTablePreferences(LEAD_TABLE_SCHEMA)
+  const sortKey = (tablePreferences.preferences.sort?.key || 'created') as LeadSortKey
+  const sortDirection = tablePreferences.preferences.sort?.direction || 'desc'
   const [activeTab, setActiveTab] = useState<LeadTabKey>('lesson_inquiry')
   const leadListCacheRef = useRef(new Map<string, LeadListCacheEntry>())
   const leadListRequestRef = useRef(0)
@@ -611,6 +617,21 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const deepLinkedLeadHandledRef = useRef(false)
   const [smsViewOpen, setSmsViewOpen] = useState(false)
   const [isBulkComposeOpen, setIsBulkComposeOpen] = useState(false)
+  const [bulkChannel, setBulkChannel] = useState<'sms' | 'email'>('sms')
+  const [bulkContactIds, setBulkContactIds] = useState<string[]>([])
+  const [bulkFollowUpTargets, setBulkFollowUpTargets] = useState<BulkFollowUpTarget[] | null>(null)
+  const tenantId = getActiveTenantId()
+  const [ownerTenant, setOwnerTenant] = useState<string | null>(null)
+  const isOwner = ownerTenant === tenantId
+  useEffect(() => {
+    const controller = new AbortController()
+    setOwnerTenant(null)
+    void fetch(`/api/account/me?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => { if (!controller.signal.aborted && data?.tenantId === tenantId && data.isOwner === true) setOwnerTenant(tenantId) })
+      .catch(() => { /* Fail closed: deletion remains unavailable. */ })
+    return () => controller.abort()
+  }, [tenantId])
   const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
   const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
     if (typeof window === 'undefined') return {}
@@ -654,7 +675,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   const [inquirySearch, setInquirySearch] = useState('')
   const [tablePage, setTablePage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = tablePreferences.preferences.pageSize || 50
   const [personView, setPersonView] = useState<TablePersonView>('family')
   const visibleLeads = useMemo(() => leads.filter(lead => matchesLeadInquirySearch(lead, inquirySearch)), [leads, inquirySearch])
   const sortedLeads = useMemo(() => {
@@ -859,6 +880,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   }
 
   const openDeleteModal = () => {
+    if (!isOwner) return
     setDeleteError('')
     setIsDeleteOpen(true)
   }
@@ -870,13 +892,13 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   }
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.size === 0) return
+    if (!isOwner || selectedIds.size === 0) return
 
     setDeleteLoading(true)
     setDeleteError('')
 
     try {
-      await fetchJsonWithTimeout<{ success: true }>(`/api/leads`, {
+      await fetchJsonWithTimeout<{ success: true }>(`/api/leads?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selectedIds), intake_type: activeTab }),
@@ -1213,7 +1235,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       setFollowUpNote(getLeadFollowUpNote(data))
       setLeads((current) => current.map((lead) => (
         lead.id === selectedLeadId
-          ? { ...lead, follow_up_at: data.follow_up_at ?? null, follow_up_note: data.follow_up_note ?? null, updated_at: data.updated_at }
+          ? { ...lead, payload: data.payload, follow_up_at: data.follow_up_at ?? null, follow_up_note: data.follow_up_note ?? null, updated_at: data.updated_at }
           : lead
       )))
       invalidateLeadListCache()
@@ -1241,7 +1263,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       setFollowUpNote('')
       setLeads((current) => current.map((lead) => (
         lead.id === selectedLeadId
-          ? { ...lead, follow_up_at: null, follow_up_note: null, updated_at: data.updated_at }
+          ? { ...lead, payload: { ...lead.payload, follow_up_at: null, follow_up_note: null }, follow_up_at: null, follow_up_note: null, updated_at: data.updated_at }
           : lead
       )))
       invalidateLeadListCache()
@@ -1389,6 +1411,36 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const followUpAt = getLeadFollowUpAt(selectedLead)
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
 
+  const saveFollowUpPatch = async (id: string, payload: FollowUpPatch) => {
+    const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${id}?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload }),
+    })
+    setLeads(current => current.map(row => row.id === id ? { ...row, payload: data.payload, follow_up_at: data.follow_up_at ?? null, follow_up_note: data.follow_up_note ?? null, updated_at: data.updated_at } : row))
+    updateLeadPanelDraft(id, { ...leadPanelDrafts[id], followUpDate: undefined, followUpNote: undefined })
+    if (selectedLeadIdRef.current === id) {
+      setSelectedLead(data)
+      setFollowUpDate(toDateInputValue(getLeadFollowUpAt(data)))
+      setFollowUpNote(getLeadFollowUpNote(data))
+    }
+    invalidateLeadListCache()
+  }
+
+  const saveTableFollowUp = (lead: LeadRecord, date: string, reminder: string) => saveFollowUpPatch(lead.id, {
+    follow_up_at: date ? new Date(`${date}T12:00:00`).toISOString() : null,
+    follow_up_note: reminder.trim() || null,
+  })
+
+  const openBulkFollowUp = () => setBulkFollowUpTargets(leads.filter(lead => selectedIds.has(lead.id)).map(lead => ({
+    id: lead.id, name: lead.contact?.full_name || 'Unnamed lead', date: toDateInputValue(getLeadFollowUpAt(lead)), reminder: getLeadFollowUpNote(lead),
+  })))
+
+  const openBulkComposer = (channel: 'sms' | 'email') => {
+    setBulkContactIds([...new Set(leads.filter(lead => selectedIds.has(lead.id)).map(lead => lead.contact_id).filter(Boolean))])
+    setBulkChannel(channel)
+    setIsBulkComposeOpen(true)
+  }
+
   const leadColumns: DataTableColumn<LeadRecord, LeadSortKey>[] = [
     {
       id: 'signal',
@@ -1439,19 +1491,26 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     },
     {
       id: 'followUp',
-      header: 'Follow-up',
-      width: 'minmax(84px, 0.55fr)',
+      header: 'Follow-up date',
+      width: 'minmax(145px, 0.8fr)',
       sortable: true,
       sortKey: 'followUp',
       render: (lead) => {
         const followUp = getLeadFollowUpAt(lead)
-        if (!followUp || getFollowUpTone(followUp).urgency === 'none') return null
-        const followUpTone = getFollowUpTone(followUp)
-        return (
-          <span title={followUpTone.label || 'Follow-up scheduled'} style={{ ...leadCardFollowUpStyle, fontVariantNumeric: 'tabular-nums', color: isUrgentFollowUp(followUpTone) ? followUpTone.color : colors.tableSecondary, fontWeight: isUrgentFollowUp(followUpTone) ? typography.weightBold : typography.weightMedium }}>
-            {formatFollowUpDate(followUp)}
-          </span>
-        )
+        const tone = getFollowUpTone(followUp)
+        return <LeadFollowUpCell field="date" name={lead.contact?.full_name || 'Unknown'} date={toDateInputValue(followUp)} reminder={getLeadFollowUpNote(lead)} dateLabel={followUp ? formatFollowUpDate(followUp) : ''}
+          dateStyle={{ fontVariantNumeric: 'tabular-nums', color: isUrgentFollowUp(tone) ? tone.color : colors.tableSecondary, fontWeight: isUrgentFollowUp(tone) ? typography.weightBold : typography.weightMedium }}
+          onSave={(date, reminder) => saveTableFollowUp(lead, date, reminder)} />
+      },
+    },
+    {
+      id: 'followUpNote',
+      header: 'Follow-up reminder',
+      width: 'minmax(220px, 1.2fr)',
+      render: (lead) => {
+        const followUp = getLeadFollowUpAt(lead)
+        return <LeadFollowUpCell field="reminder" name={lead.contact?.full_name || 'Unknown'} date={toDateInputValue(followUp)} reminder={getLeadFollowUpNote(lead)} dateLabel={followUp ? formatFollowUpDate(followUp) : ''}
+          onSave={(date, reminder) => saveTableFollowUp(lead, date, reminder)} />
       },
     },
     {
@@ -1836,6 +1895,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         <Textarea
           value={followUpNote}
           onChange={(event) => setFollowUpNote(event.target.value)}
+          aria-label="Follow-up reminder"
           placeholder="Reminder note — e.g. “Parent said to reach back Monday.”"
           style={{ minHeight: '64px' }}
         />
@@ -1909,13 +1969,17 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           />
         </div>
 
+        {error && <MessageBox>{error}</MessageBox>}
+        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
+
+        <div style={{ marginBottom: spacing.sm }}><Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} /></div>
+
         <RichDataTable
           preferenceSchema={LEAD_TABLE_SCHEMA}
+          preferenceState={tablePreferences}
           columnLabels={{ signal: 'Signal' }}
           displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" individualLabel="Account holders" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
           toolbar={<>
-          <Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} />
-
           <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
@@ -1931,22 +1995,18 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               <option key={option} value={option}>{activeTab === 'winback' ? `Disenrolled: ${formatLabel(option)}` : `Status: ${formatLabel(option)}`}</option>
             ))}
           </Select>
-          {selectedCount > 0 && (
-            <div style={bulkActionBarStyle}>
-              <span style={bulkActionTextStyle}>{selectedCount} selected</span>
-              {activeTab === 'winback' && <Button type="button" size="sm" onClick={() => setIsBulkComposeOpen(true)}>Message selected</Button>}
-              <Button type="button" variant="destructive" size="sm" onClick={openDeleteModal}>
-                Delete {deleteRecordLabelPlural}
-              </Button>
-            </div>
-          )}
           </>}
-          beforeTable={<>
-        {!loading && <p style={subtleTextStyle}>Viewing {visibleLeads.length} loaded {visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}</p>}
-        {error && <MessageBox>{error}</MessageBox>}
-
-        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
-          </>}
+          contextualToolbarPlacement="replace"
+          contextualToolbar={selectedCount > 0 ? <TableContextActionBar selectedCount={selectedCount}
+            resultLabel={`${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`}
+            onClear={() => setSelectedIds(new Set())}
+            actions={[
+              { id: 'follow-up', label: 'Update follow-up', onClick: openBulkFollowUp, disabledReason: activeTab === 'job_application' ? 'Follow-up editing is available for leads, not applications.' : undefined },
+              { id: 'text', label: 'Text', onClick: () => openBulkComposer('sms') },
+              { id: 'email', label: 'Email', onClick: () => openBulkComposer('email') },
+              ...(isOwner ? [{ id: 'delete', label: `Delete ${deleteRecordLabelPlural}`, onClick: openDeleteModal }] : []),
+            ]} /> : undefined}
+          beforeTable={<TableResultCount>{loading ? 'Loading leads…' : `Viewing ${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`}</TableResultCount>}
           groupedRows={personView === 'family'}
           rows={pagedLeads}
           columns={leadColumns}
@@ -1961,8 +2021,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           getRowKey={(lead) => lead.id}
           sort={{ key: sortKey, direction: sortDirection }}
           onSortChange={(nextSort) => {
-            setSortKey(nextSort.key)
-            setSortDirection(nextSort.direction)
+            tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort })
           }}
           selection={{
             selectedKeys: selectedIds,
@@ -1981,7 +2040,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               description={inquirySearch.trim() ? 'Try another contact or student name, or load more inquiries.' : activeTab === 'winback' ? 'Import a former-student CSV to begin your re-enrollment outreach.' : 'New website inquiries will show up here once your forms start posting to the intake API.'}
             />
           )}
-          onRowClick={(lead) => openLead(lead.id, lead.intake_type)}
+          onRowClick={(lead) => toggleLeadSelection(lead.id)}
           getRowStyle={(lead, index) => ({
             background: selectedIds.has(lead.id)
               ? colors.surfaceSelected
@@ -1993,7 +2052,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           })}
           ariaLabel="Leads"
         />
-        {!loading && <TablePagination ariaLabel="Leads pagination" page={leadPage} pageCount={leadPageCount} onPageChange={page => { setTablePage(page); setSelectedIds(new Set()) }} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setTablePage(1) }} itemLabel={personView === 'family' ? 'families' : 'account holders'} />}
+        {!loading && <TablePagination ariaLabel="Leads pagination" page={leadPage} pageCount={leadPageCount} onPageChange={page => { setTablePage(page); setSelectedIds(new Set()) }} pageSize={pageSize} onPageSizeChange={size => { tablePreferences.updatePreferences({ ...tablePreferences.preferences, pageSize: size }); setTablePage(1) }} itemLabel={personView === 'family' ? 'families' : 'account holders'} />}
         {hasMore && <Button type="button" variant="secondary" onClick={loadMoreLeads} disabled={loading || loadingMore} style={{ marginTop: spacing.lg }}>
           {loadingMore ? 'Loading…' : 'Load more leads'}
         </Button>}
@@ -2208,22 +2267,13 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
 
 
+      {bulkFollowUpTargets && <LeadBulkFollowUpPanel targets={bulkFollowUpTargets} onSave={saveFollowUpPatch} onClose={() => setBulkFollowUpTargets(null)} />}
+
       <SlidePanel isOpen={isBulkComposeOpen} onClose={() => setIsBulkComposeOpen(false)} fullScreen={isMobileLayout} width="min(92vw, 720px)">
-        <SlidePanelHeader title="Message selected Disenrolled students" subtitle={`${selectedCount} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={() => setIsBulkComposeOpen(false)} backLabel="Back to Disenrolled students" />
+        <SlidePanelHeader title={bulkChannel === 'sms' ? 'Text selected leads' : 'Email selected leads'} subtitle={`${bulkContactIds.length} ${bulkContactIds.length === 1 ? 'contact' : 'contacts'} selected`} onClose={() => setIsBulkComposeOpen(false)} onBack={() => setIsBulkComposeOpen(false)} backLabel="Back to leads" />
         <div style={{ flex: 1, minHeight: 0, overflow: isMobileLayout ? 'hidden' : 'auto' }}>
-          <ComposePanel
-            recipientCount={selectedCount}
-            filterExplanation={`Disenrolled: ${selectedCount} selected former students`}
-            recipientIds={leads.filter((lead) => selectedIds.has(lead.id)).map((lead) => lead.contact_id)}
-            channel="sms"
-            mode="bulk"
-            recipientPreview={leads.filter((lead) => selectedIds.has(lead.id)).map((lead) => ({
-              id: lead.contact_id,
-              first_name: lead.contact?.full_name.split(' ')[0] || 'Student',
-              last_name: lead.contact?.full_name.split(' ').slice(1).join(' ') || '',
-            }))}
+          <ContactBulkComposer key={`${bulkChannel}:${bulkContactIds.join(',')}`} tenantId={tenantId} contactIds={bulkContactIds} channel={bulkChannel}
             onClose={() => setIsBulkComposeOpen(false)}
-            onSent={() => window.setTimeout(() => setIsBulkComposeOpen(false), 3000)}
           />
         </div>
       </SlidePanel>
@@ -2985,19 +3035,6 @@ const manualLeadSessionHintStyle: React.CSSProperties = {
 const filterSelectWrapStyle: React.CSSProperties = {
   width: 'auto',
   flex: '0 0 auto',
-}
-
-const bulkActionBarStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: spacing.sm,
-  marginLeft: 'auto',
-}
-
-const bulkActionTextStyle: React.CSSProperties = {
-  fontSize: typography.sizeSm,
-  color: colors.textSecondary,
-  fontFamily: typography.fontSans,
 }
 
 const emptyActivityStyle: React.CSSProperties = {

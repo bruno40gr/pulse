@@ -13,10 +13,10 @@ const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), '
 
 test('Leads controls page size with shared options and keeps whole inquiries together', () => {
   const leads = source('components/leads/LeadsView.tsx')
-  assert.match(leads, /const \[pageSize, setPageSize\] = useState\(50\)/)
+  assert.match(leads, /const pageSize = tablePreferences.preferences.pageSize \|\| 50/)
   assert.match(leads, /Math.ceil\(sortedLeads.length \/ pageSize\)/)
   assert.match(leads, /sortedLeads.slice\(\(leadPage - 1\) \* pageSize, leadPage \* pageSize\)/)
-  assert.match(leads, /pageSize=\{pageSize\} onPageSizeChange=\{size => \{ setPageSize\(size\); setTablePage\(1\) \}\}/)
+  assert.match(leads, /pageSize=\{pageSize\} onPageSizeChange=\{size => \{ tablePreferences.updatePreferences\(\{ \.\.\.tablePreferences.preferences, pageSize: size \}\); setTablePage\(1\) \}\}/)
   assert.match(leads, /itemLabel=\{personView === 'family' \? 'families' : 'account holders'\}/)
   assert.match(source('components/ui/TablePagination.tsx'), /pageSizeOptions = \[25, 50, 100, 250\]/)
 })
@@ -43,6 +43,20 @@ test('shared results slot overlays count and actions with matching reserved resp
   assert.match(source('components/ui/RichDataTable.tsx'), /<TableResultsSlot result=\{beforeTable\} contextual=\{contextualToolbar\}/)
 })
 
+test('Leads replaces controls with shared blue bar and owner-only delete', () => {
+  const leads = source('components/leads/LeadsView.tsx')
+  assert.match(leads, /contextualToolbarPlacement="replace"/)
+  assert.match(leads, /contextualToolbar=\{selectedCount > 0 \? <TableContextActionBar/)
+  assert.match(leads, /beforeTable=\{<TableResultCount>/)
+  assert.match(leads, /onClear=\{\(\) => setSelectedIds\(new Set\(\)\)\}/)
+  assert.match(leads, /label: 'Update follow-up', onClick: openBulkFollowUp/)
+  assert.match(leads, /label: 'Text', onClick: \(\) => openBulkComposer\('sms'\)/)
+  assert.match(leads, /label: 'Email', onClick: \(\) => openBulkComposer\('email'\)/)
+  assert.match(leads, /isOwner \? \[\{ id: 'delete'/)
+  assert.match(leads, /id: 'delete', label: `Delete \$\{deleteRecordLabelPlural\}`, onClick: openDeleteModal/)
+  assert.doesNotMatch(leads, /bulkActionBarStyle|bulkActionTextStyle/)
+})
+
 test('shared grid applies hover to parent and detail rows without replacing base backgrounds', () => {
   const grid = source('components/ui/DataGridTable.tsx')
   assert.equal((grid.match(/className=\{styles.row\}/g) || []).length, 4)
@@ -56,8 +70,9 @@ test('shared grid applies hover to parent and detail rows without replacing base
 test('each table uses the same preference rules with its own metadata schema', () => {
   for (const schema of [LEAD_TABLE_SCHEMA, CONTACT_TABLE_SCHEMA]) {
     assert.deepEqual(plain(normalizeTablePreferences(null, schema).columns), plain(schema.defaultColumns))
-    assert.deepEqual(plain(normalizeTablePreferences({ columns: ['email', 'email', 'unknown'], density: 'compact' }, schema)), { columns: ['name', 'email'], density: 'compact' })
-    assert.deepEqual(plain(normalizeTablePreferences({ columns: [] }, schema)), { columns: ['name'], density: 'comfortable' })
+    const defaults = plain(normalizeTablePreferences(null, schema))
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: ['email', 'email', 'unknown'], density: 'compact' }, schema)), { ...defaults, columns: ['name', 'email'], density: 'compact' })
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: [] }, schema)), { ...defaults, columns: ['name'], density: 'comfortable' })
   }
 })
 test('storage remains membership/tenant/table scoped and preserves released Leads key', () => {

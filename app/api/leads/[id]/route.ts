@@ -351,6 +351,16 @@ export async function PATCH(
     const tenantId = tenantAccess.tenantId
     const { id } = await params
     const body = await request.json()
+    if (body.payload && typeof body.payload === 'object' &&
+      ('follow_up_at' in body.payload || 'follow_up_note' in body.payload)) {
+      if (!tenantAccess.context || (tenantAccess.context.roleKey !== 'owner' && !tenantAccess.context.permissions.has(PERMISSIONS.leadsManage))) {
+        return NextResponse.json({ error: 'You do not have permission to update lead follow-up.' }, { status: 403 })
+      }
+      if (('follow_up_at' in body.payload && body.payload.follow_up_at !== null && (typeof body.payload.follow_up_at !== 'string' || !Number.isFinite(Date.parse(body.payload.follow_up_at)))) ||
+        ('follow_up_note' in body.payload && body.payload.follow_up_note !== null && (typeof body.payload.follow_up_note !== 'string' || body.payload.follow_up_note.length > 12000))) {
+        return NextResponse.json({ error: 'Enter a valid follow-up date and a reminder of up to 12000 characters.' }, { status: 400 })
+      }
+    }
     if ('edit_note' in body && (Object.keys(body).some(key => key !== 'edit_note') || !body.edit_note ||
       typeof body.edit_note.id !== 'string' || typeof body.edit_note.text !== 'string' ||
       !body.edit_note.text.trim() || body.edit_note.text.length > 12000 || typeof body.edit_note.previous_text !== 'string')) {
@@ -368,6 +378,7 @@ export async function PATCH(
 
     const existingJobApplication = await getJobApplicationDetail(tenantId, id)
     if (existingJobApplication) {
+      if (body.payload && ('follow_up_at' in body.payload || 'follow_up_note' in body.payload)) return NextResponse.json({ error: 'Follow-up editing is not available for applications.' }, { status: 400 })
       if ('edit_note' in body) return NextResponse.json({ error: 'Application messages cannot be edited here.' }, { status: 400 })
       const jobUpdates: Record<string, unknown> = {}
       const contactUpdates: Record<string, unknown> = {}
@@ -508,7 +519,7 @@ export async function PATCH(
       body.payload &&
       typeof body.payload === 'object' &&
       !Array.isArray(body.payload) &&
-      'follow_up_at' in (body.payload as Record<string, unknown>),
+      ('follow_up_at' in (body.payload as Record<string, unknown>) || 'follow_up_note' in (body.payload as Record<string, unknown>)),
     )
 
     const existingLeadResult = await withTimeout<any>(

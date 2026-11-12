@@ -154,3 +154,47 @@ account holders were incorrect and are withdrawn.
 - Preferences stay tenant/membership/table scoped in localStorage. Changes made
   before account verification completes are retained and saved once verified,
   rather than overwritten by older storage or silently left unsaved.
+- Leads owns its preference hook above the table and persists sort key/direction
+  and page size alongside visible columns and spacing. Restore validated values
+  from the existing key; legacy entries retain default Created descending / 50.
+  Preferences survive visits in the same browser, not across devices. Do not
+  persist selections or inline edit drafts. Schemas without sorting/page-size
+  metadata retain their previous preference shape.
+
+## Leads follow-up cells
+
+- Separate Follow-up date and Follow-up reminder columns display the current
+  deadline and latest follow-up reminder, not the general Notes history. Clamp the reminder preview to two lines; the
+  edit control exposes the complete reminder. Empty values remain visually blank, with an accessible edit target; never
+  render Add date / Add reminder placeholders. Preserve deadline urgency colors and existing sorting rules.
+- Follow Cloudscape's direct-cell-edit pattern with existing shared controls:
+  edit one field in place, confirm/cancel with labeled check/X controls, visible
+  focus and a pencil on hover/focus (always on touch). No modal or popup form.
+  Keep shortcut/helper copy out of cells. Date Enter and reminder Ctrl/Command+Enter
+  save; Escape cancels. Blur never
+  saves or discards a draft. Errors remain inline with the draft intact.
+- Save through the existing lead PATCH endpoint and activity trail. Table and
+  LeadDetailPanel share returned data in both directions; clear removes payload
+  fallback values too. A table save clears stale panel follow-up drafts without
+  discarding unrelated note drafts. Re-sort only after successful save, with no
+  separate reapply-sort prompt. General notes and lead status are not edited here.
+
+- Leads row-body clicks toggle the parent inquiry checkbox, including family detail
+  rows. Only the primary name control opens the lead panel. Inline edit controls,
+  save/cancel actions and checkboxes do not bubble into row selection.
+- Existing visible follow-up preferences migrate once to include the reminder
+  column; later staff choices to hide either column remain respected.
+- Leads uses the shared blue `TableContextActionBar` in replacement mode: it
+  replaces Export/Status/View/Columns controls without moving the table. Search
+  remains visible. Actions are Update follow-up, Text, Email, and owner-only
+  Delete (enforced by the API too). Clear selection restores unchanged controls.
+- Update follow up opens a shared SlidePanel with the selected lead count,
+  Date, Quick pick (Tomorrow/Next week/Next month) and Reminder note. The footer
+  is Update follow then Cancel. Common values are prefilled; differing values
+  show Mixed (a hint for the native date picker). Only edited fields overwrite
+  values for all selected leads. Clearing an edited field clears that value;
+  mixed fields have a clear action since their input starts empty. No mode
+  selectors. Save snapshots the targets, preserves unrelated payload fields,
+  shows partial failures, and retries only failures with the original patch.
+  Applications do not support follow-up editing. Text/Email reuse the Contacts
+  composer and its server-backed eligibility, exclusions and deduplication.

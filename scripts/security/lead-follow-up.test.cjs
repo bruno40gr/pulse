@@ -13,8 +13,13 @@ for (const [name, date, note, event] of [
   test(`follow-up ${name} persists reminder and activity without replacing lead details`, async () => {
     const h = createHarness()
     h.setScenario({
-      actor: { personId: 'staff', instructorId: null, displayName: 'Synthetic Staff', access: { kind: 'demo', tenantId: HEAD } },
+      authUser: { id: 'auth' },
       fixtures: {
+        tenant_memberships: [{ id: 'membership', tenant_id: HEAD, person_id: 'staff', auth_user_id: 'auth', role_id: 'role', status: 'active' }],
+        roles: [{ id: 'role', tenant_id: HEAD, key: 'assistant' }],
+        role_permissions: [{ role_id: 'role', permission_id: 'manage' }],
+        permissions: [{ id: 'manage', key: 'leads.manage' }],
+        people: [{ id: 'staff', tenant_id: HEAD, first_name: 'Synthetic', last_name: 'Staff' }],
         tenants: [{ id: HEAD, name: 'Synthetic school', is_demo: true }],
         crm_contacts: [{ id: 'contact', tenant_id: HEAD, full_name: 'Synthetic Contact' }],
         lead_intakes: [{ id: 'inquiry', tenant_id: HEAD, contact_id: 'contact', intake_type: 'lesson_inquiry', status: 'contacted', payload: { student_name: 'Keep student', siblings: [{ name: 'Keep sibling' }], ...(name !== 'schedule' ? { follow_up_at: '2026-10-29T20:00:00Z', follow_up_note: 'Old reminder' } : {}) } }],
