@@ -6,6 +6,28 @@ One lead-detail browser capture supplied on November 12, 2026 shows 2.85 seconds
 total: 2.84 seconds waiting for the response, 4.28 ms queueing and 1.60 ms download.
 This is one sample, not a percentile or proof of a particular database bottleneck.
 
+The instrumented production lead GET at 19:12 UTC on November 12 recorded 2334 ms
+handler time: access 1948 ms, record 111 ms, activity 282 ms, notes 255 ms and
+authors 103 ms. Access includes identity enrichment; this sample does not isolate
+each individual access subquery or prove a contact-specific delay.
+
+## Targeted access optimization
+
+- Reuse the full membership row already selected within the current resolution;
+  retain tenant, active-status, legacy-access and ambiguous-account checks.
+- Resolve role and its permission mappings concurrently, but require a valid
+  tenant-scoped role and successful permission queries before granting access.
+- Lead GET uses the same tenant authorization without the unused viewer-name and
+  instructor enrichment. Note author identity and editability remain verified.
+  PATCH retains full identity enrichment for mutation attribution.
+- Request-context reuse is keyed by Request object and tenant only; no permission
+  data is cached across requests. No middleware checks are bypassed.
+- Contacts using membership authorization benefit from the shared resolver;
+  legacy contact authorization behavior is unchanged, not broadened.
+
+This removes queries/serial waits rather than adding requests or hiding a delay.
+Production before/after improvement still requires observed post-deploy timings.
+
 ## Current data flow
 
 - Leads opens its panel shell immediately, but hides the detail component behind

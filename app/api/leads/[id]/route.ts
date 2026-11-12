@@ -13,6 +13,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { PERMISSIONS } from '@/lib/permissions'
 import { createDetailRequestTiming } from '@/lib/detail-request-timing'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
+import { getRequestActor } from '@/lib/access'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -194,9 +196,12 @@ export async function GET(
   const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming()
 
   try {
-    const tenantAccess = await measure('access', () => resolveRequestTenant(request, DEFAULT_TENANT_ID))
+    // Viewing needs the verified tenant/member, not staff display-name enrichment.
+    // PATCH retains resolveRequestTenant for persisted actor attribution.
+    const tenantAccess = await measure('access', () => authorizeTenantRequest(request, { allowDemo: true }))
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status, headers: responseHeaders() })
     const tenantId = tenantAccess.tenantId
+    const actorPersonId = tenantAccess.context?.personId || (await getRequestActor(request))?.personId || ''
     const requestedIntakeType = new URL(request.url).searchParams.get('intake_type')
     const { id } = await params
 
@@ -308,7 +313,7 @@ export async function GET(
       const name = person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() : note.actor_name
       const canManage = !tenantAccess.context || tenantAccess.context.roleKey === 'owner' || tenantAccess.context.permissions.has(PERMISSIONS.leadsManage)
       return { ...note, editable: canManage && isLeadNoteAuthor(event?.payload?.actor, {
-        personId: tenantAccess.context?.personId || tenantAccess.identity.personId,
+        personId: actorPersonId,
         membershipId: tenantAccess.context?.membershipId,
       }), actor_name: name || note.actor_name, actor_avatar_url: getStaffAvatarUrl(tenantId, name || note.actor_name) || null }
     })

@@ -55,15 +55,18 @@ async function loadMembershipContext(input: {
   authSource: AuthenticationSource
   authUserId: string | null
   legacyActor: PulseActor | null
+  selectedMembership?: Awaited<ReturnType<typeof findLoginMembership>>
 }): Promise<RequestContextResult> {
   const membershipQuery = supabaseAdmin
     .from('tenant_memberships')
     .select('id, tenant_id, person_id, auth_user_id, role_id, status, legacy_access_enabled')
     .eq('tenant_id', input.tenantId)
 
-  const { data: membership, error: membershipError } = input.authUserId
-    ? { data: await findLoginMembership(input.authUserId, input.tenantId), error: null }
-    : await membershipQuery.eq('person_id', input.legacyActor!.personId).maybeSingle()
+  const { data: membership, error: membershipError } = input.selectedMembership
+    ? { data: input.selectedMembership, error: null }
+    : input.authUserId
+      ? { data: await findLoginMembership(input.authUserId, input.tenantId), error: null }
+      : await membershipQuery.eq('person_id', input.legacyActor!.personId).maybeSingle()
   if (membershipError) throw membershipError
   if (!membership) return { ok: false, status: 403, error: 'A staff membership is required for this account.' }
   const allowedStatuses = input.authSource === 'supabase' ? ['active'] : ['unclaimed', 'invited', 'active']
@@ -74,19 +77,23 @@ async function loadMembershipContext(input: {
     return { ok: false, status: 403, error: 'Legacy access is disabled for this staff account.' }
   }
 
-  const { data: role, error: roleError } = await supabaseAdmin
-    .from('roles')
-    .select('id, key')
-    .eq('id', membership.role_id)
-    .eq('tenant_id', input.tenantId)
-    .maybeSingle()
+  const [roleResult, mappingsResult] = await Promise.all([
+    supabaseAdmin
+      .from('roles')
+      .select('id, key')
+      .eq('id', membership.role_id)
+      .eq('tenant_id', input.tenantId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('role_permissions')
+      .select('permission_id')
+      .eq('role_id', membership.role_id),
+  ])
+  const { data: role, error: roleError } = roleResult
   if (roleError) throw roleError
   if (!role) return { ok: false, status: 403, error: 'This staff account does not have a valid role.' }
 
-  const { data: mappings, error: mappingsError } = await supabaseAdmin
-    .from('role_permissions')
-    .select('permission_id')
-    .eq('role_id', role.id)
+  const { data: mappings, error: mappingsError } = mappingsResult
   if (mappingsError) throw mappingsError
 
   const permissionIds = (mappings || []).map(mapping => mapping.permission_id)
@@ -113,7 +120,20 @@ async function loadMembershipContext(input: {
 }
 
 /** Resolve an explicit selection or the identity's sole membership; never a school default. */
-export async function resolveMembershipRequestContext(
+const requestContexts = new WeakMap<Request, Map<string | undefined, Promise<RequestContextResult>>>()
+
+/** Request-local only: never reuse authorization across users or requests. */
+export function resolveMembershipRequestContext(request: Request, tenantId?: string): Promise<RequestContextResult> {
+  let contexts = requestContexts.get(request)
+  if (!contexts) { contexts = new Map(); requestContexts.set(request, contexts) }
+  const existing = contexts.get(tenantId)
+  if (existing) return existing
+  const result = resolveMembershipRequestContextUncached(request, tenantId)
+  contexts.set(tenantId, result)
+  return result
+}
+
+async function resolveMembershipRequestContextUncached(
   request: Request,
   tenantId?: string,
 ): Promise<RequestContextResult> {
@@ -128,8 +148,9 @@ export async function resolveMembershipRequestContext(
     legacyActor: PulseActor | null
   }): Promise<RequestContextResult> {
     let selectedTenant = tenantId
+    let selectedMembership: Awaited<ReturnType<typeof findLoginMembership>> | undefined
     if (!selectedTenant) {
-      let query = supabaseAdmin.from('tenant_memberships').select('tenant_id')
+      let query = supabaseAdmin.from('tenant_memberships').select('id, tenant_id, person_id, auth_user_id, role_id, status, legacy_access_enabled')
       query = input.authUserId
         ? query.eq('auth_user_id', input.authUserId).eq('status', 'active')
         : query.eq('person_id', input.legacyActor!.personId)
@@ -140,13 +161,15 @@ export async function resolveMembershipRequestContext(
         const membership = await findLoginMembership(input.authUserId)
         if (!membership || membership.status !== 'active') return { ok: false, status: 403, error: 'An active staff membership is required.' }
         selectedTenant = membership.tenant_id
+        selectedMembership = membership
       } else {
         if (!data?.length) return { ok: false, status: 403, error: 'An active staff membership is required.' }
         if (data.length !== 1) return { ok: false, status: 400, error: 'Select an account before continuing.' }
         selectedTenant = data[0].tenant_id
+        selectedMembership = data[0]
       }
     }
-    return loadMembershipContext({ tenantId: selectedTenant!, ...input })
+    return loadMembershipContext({ tenantId: selectedTenant!, ...input, selectedMembership })
   }
 
   const legacyResult = legacyActor
