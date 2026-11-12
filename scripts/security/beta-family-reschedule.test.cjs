@@ -63,3 +63,31 @@ test('three occurrences across three weeks commit together without changing the 
   assert.throws(() => planner.commitFamilyMoves(data, state, 'demo:family-9', { ...moves, [Object.keys(moves)[2]]: { ...Object.values(moves)[2], time: '03:00' } }), /available/)
   assert.equal(JSON.stringify({ data, state }), before, 'Failure leaves all three original bookings untouched')
 })
+
+test('batch cancellation preserves credit policy, subscriptions and atomic failure', () => {
+  const { data, state, planner, adam, sara } = fixture()
+  const before = JSON.stringify({ data, state })
+  const next = planner.cancelFamilyLessons(data, state, 'demo:family-9', [adam.id, sara.id])
+  assert.ok([adam.id, sara.id].every(id => next.data.lessons.find(item => item.id === id).status === 'Absent'))
+  assert.equal(next.state.absences.find(item => item.lessonId === adam.id).makeupId, null, 'Under 24 hours does not grant credit')
+  assert.ok(next.state.absences.find(item => item.lessonId === sara.id).makeupId, 'Eligible cancellation grants credit')
+  assert.deepEqual(next.data.students, data.students)
+  for (const ids of [[adam.id, 'missing'], [adam.id, adam.id], []]) assert.throws(() => planner.cancelFamilyLessons(data, state, 'demo:family-9', ids))
+  assert.throws(() => planner.cancelFamilyLessons(data, state, 'demo:family-1', [adam.id, sara.id]), /unavailable/)
+  assert.throws(() => planner.cancelFamilyLessons(next.data, next.state, 'demo:family-9', [adam.id]), /unavailable/)
+  const past = { ...data, lessons: data.lessons.map(item => item.id === adam.id ? { ...item, date: '2026-11-02' } : item) }
+  assert.throws(() => planner.cancelFamilyLessons(past, state, 'demo:family-9', [sara.id, adam.id]), /started/)
+  assert.equal(JSON.stringify({ data, state }), before)
+})
+
+test('batch cancellation returns eligible booked makeup and forfeits late makeup', () => {
+  const { data, state, planner, sara } = fixture()
+  const credit = { id: 'batch-booked-makeup', lessonId: 'batch-original', studentId: sara.student.id, enrollmentId: sara.enrollmentId, date: '2026-10-01', duration: sara.duration, program: sara.program, teacher: sara.teacher, service: sara.enrollment.service }
+  for (const [date, expected] of [['2026-11-10', true], ['2026-11-03', false]]) {
+    const bookedState = { ...state, items: [...state.items, { ...credit, booking: { date, time: '15:00', teacher: sara.teacher, program: sara.program } }] }
+    const next = planner.cancelFamilyLessons(data, bookedState, 'demo:family-9', [sara.id, credit.id])
+    assert.equal(Boolean(next.state.items.find(item => item.id === credit.id)), expected)
+    assert.equal(next.state.items.find(item => item.id === credit.id)?.booking, undefined)
+    assert.ok(bookedState.items.find(item => item.id === credit.id).booking, 'Input remains unchanged')
+  }
+})

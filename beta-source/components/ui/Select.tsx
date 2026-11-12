@@ -2,16 +2,18 @@
 
 import { useId, type SelectHTMLAttributes } from 'react'
 import styles from './FormControl.module.css'
+import { buttonSizeStyles } from './Button'
 import { colors, typography, radius, spacing } from '@/beta-source/lib/tokens'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  controlSize?: 'default' | 'toolbar'
   label?: string
   hint?: string
   fullWidth?: boolean
   wrapperStyle?: React.CSSProperties
 }
 
-export function Select({ label, hint, style, children, fullWidth = true, wrapperStyle, id, className, 'aria-describedby': describedBy, ...props }: SelectProps) {
+export function Select({ controlSize = 'default', label, hint, style, children, fullWidth = true, wrapperStyle, id, className, 'aria-describedby': describedBy, ...props }: SelectProps) {
   const generatedId = useId()
   const controlId = id || generatedId
   const hintId = `${controlId}-hint`
@@ -41,6 +43,7 @@ export function Select({ label, hint, style, children, fullWidth = true, wrapper
           maxWidth: '100%',
           boxSizing: 'border-box' as const,
           cursor: 'pointer',
+          ...(controlSize === 'toolbar' ? { ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontWeight: typography.weightMedium, paddingRight: 38 } : {}),
           ...style,
         }}
         {...props}

@@ -1,0 +1,83 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Isolated sample workflow. */
+const assert = require('node:assert/strict')
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.BASE_URL || 'http://127.0.0.1:3227'
+assert.match(base, /^http:\/\/127\.0\.0\.1:/)
+
+;(async () => {
+  const browser = await chromium.launch({ channel: 'chrome' })
+  try {
+    for (const width of [1440, 900, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 1100 } })
+      const errors = [], writes = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.route('**/api/**', route => {
+        if (route.request().method() !== 'GET') writes.push(route.request().url())
+        return route.fulfill({ json: { roleKey: 'owner' } })
+      })
+      await page.goto(`${base}/odeon-demo?view=quick&account=demo%3Afamily-9&section=enrollments`)
+      const panel = page.getByRole('dialog', { name: 'Family workspace V3' })
+      const dateView = panel.getByRole('combobox', { name: 'Lesson date view' })
+      const toolbar = panel.locator('[data-lesson-selection-toolbar]')
+      const snapshot = () => toolbar.evaluate(element => {
+        const rect = node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height } }
+        return { toolbar: rect(element), mode: rect(element.querySelector('select')), actions: rect(element.querySelector('[aria-label="Selected lessons"]')) }
+      })
+      await dateView.waitFor()
+      const before = await snapshot()
+      await panel.getByRole('checkbox', { name: 'Include Adam Guitar lesson 2026-11-03', exact: true }).check()
+      await panel.getByRole('button', { name: 'Reschedule', exact: true }).waitFor()
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).waitFor()
+      assert.equal(await panel.getByRole('button', { name: 'Reschedule together', exact: true }).count(), 0)
+      const single = await snapshot()
+      assert.ok(Math.abs(before.toolbar.height - single.toolbar.height) <= 1, 'Selecting a lesson does not move content')
+      await panel.getByRole('checkbox', { name: 'Include Sara Voice & Vocals lesson 2026-11-04', exact: true }).check()
+      await panel.getByRole('button', { name: 'Cancel together', exact: true }).waitFor()
+      const selected = await snapshot()
+      assert.deepEqual(single, selected, 'Single and multiple action labels use the same intrinsic slots')
+      for (const mode of ['all', 'range', 'week']) {
+        await dateView.selectOption(mode)
+        const current = await snapshot()
+        for (const slot of ['toolbar', 'mode', 'actions']) for (const dimension of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(current[slot][dimension] - selected[slot][dimension]) <= 1, `${slot} ${dimension} stays stable in ${mode}`)
+        const heights = await toolbar.locator('select, button').evaluateAll(elements => elements.filter(element => !element.closest('[aria-hidden="true"]')).map(element => element.getBoundingClientRect().height))
+        assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 1), 'Toolbar dropdown and buttons share control height')
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
+        await page.screenshot({ path: `/tmp/beta-selection-${mode}-${width}.png`, fullPage: true })
+      }
+      await panel.getByRole('button', { name: 'Cancel together', exact: true }).click()
+      const review = page.getByRole('dialog', { name: 'Cancel selected lessons', exact: true })
+      await review.waitFor()
+      assert.match(await review.innerText(), /Adam · Guitar/)
+      assert.match(await review.innerText(), /Sara · Voice & Vocals/)
+      assert.match(await review.innerText(), /Less than 24 hours/)
+      assert.match(await review.innerText(), /A makeup credit will be added/)
+      const confirm = review.getByRole('button', { name: 'Cancel', exact: true })
+      await confirm.focus(); await page.keyboard.down('Space'); await page.waitForTimeout(200); await page.keyboard.up('Space')
+      assert.equal(await review.isVisible(), true, 'Early release cannot cancel')
+      await review.getByRole('button', { name: 'Keep lessons', exact: true }).click()
+      const getSaved = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('odeon:app-sample:v2')).snapshot)
+      assert.equal((await getSaved()).data.lessons.find(item => item.id === 'demo:enrollment-10:calendar:2026-11-03').status, 'Scheduled')
+      await panel.getByRole('button', { name: 'Cancel together', exact: true }).click()
+      await page.screenshot({ path: `/tmp/beta-cancel-review-${width}.png`, fullPage: true })
+      await confirm.focus(); await page.keyboard.down('Space'); await page.waitForTimeout(1700); await page.keyboard.up('Space')
+      await page.getByRole('dialog', { name: 'Confirmation', exact: true }).waitFor()
+      const saved = await getSaved()
+      for (const id of ['demo:enrollment-10:calendar:2026-11-03', 'demo:enrollment-11:calendar:2026-11-04']) assert.equal(saved.data.lessons.find(item => item.id === id).status, 'Absent')
+      assert.equal(saved.makeups.absences.find(item => item.lessonId === 'demo:enrollment-10:calendar:2026-11-03').makeupId, null)
+      assert.ok(saved.makeups.absences.find(item => item.lessonId === 'demo:enrollment-11:calendar:2026-11-04').makeupId)
+      await page.getByRole('button', { name: 'Done', exact: true }).click()
+      assert.equal(await panel.getByRole('button', { name: 'Cancel together', exact: true }).count(), 0)
+      await dateView.selectOption('all')
+      await panel.getByRole('checkbox', { name: 'Include Adam Guitar lesson 2026-11-10', exact: true }).check()
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      const singleReview = page.getByRole('dialog', { name: 'Cancel selected lesson', exact: true })
+      await singleReview.waitFor()
+      await singleReview.getByRole('button', { name: 'Keep lessons', exact: true }).click()
+      await panel.getByRole('button', { name: 'Reschedule', exact: true }).click()
+      await panel.getByRole('region', { name: 'Reschedule together', exact: true }).waitFor()
+      assert.deepEqual(errors, []); assert.deepEqual(writes, [])
+      console.log(`PASS ${width}: stable date-mode geometry and control sizing, single/multiple labels, cancellation review/early release/dismiss/commit, credit policy, no operational writes/errors`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exitCode = 1 })

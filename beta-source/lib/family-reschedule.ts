@@ -1,5 +1,5 @@
 import type { FamilyPreviewData } from './academy-family-preview'
-import { movePreviewLesson, type MakeupPreviewState, type PreviewMakeup } from './academy-makeup-preview'
+import { movePreviewLesson, cancelPreviewReplacement, recordPreviewAbsence, type MakeupPreviewState, type PreviewMakeup } from './academy-makeup-preview'
 
 export type FamilyMoves = Record<string, NonNullable<PreviewMakeup['booking']>>
 
@@ -21,4 +21,16 @@ export function commitFamilyMoves(data: FamilyPreviewData, state: MakeupPreviewS
     movePreviewLesson(checkData, checkState, accountId, id, booking)
   }
   return final
+}
+
+/** Immutable staging: an invalid item prevents the entire cancellation batch. */
+export function cancelFamilyLessons(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, ids: string[], parent = false) {
+  if (!ids.length || new Set(ids).size !== ids.length) throw new Error('Choose lessons to cancel.')
+  let next = { data, state }
+  for (const id of ids) {
+    next = next.state.items.some(item => item.id === id && item.booking)
+      ? { data: next.data, state: cancelPreviewReplacement(next.data, next.state, accountId, id) }
+      : recordPreviewAbsence(next.data, next.state, accountId, id, false, parent)
+  }
+  return next
 }

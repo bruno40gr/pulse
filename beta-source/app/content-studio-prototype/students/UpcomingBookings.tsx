@@ -6,20 +6,21 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useContext, useState } from 'react'
 import { InlineWorkspaceContext } from './AccountWorkspace'
 import { WeeklySchedule } from './WeeklySchedule'
-import { CalendarWeekToolbar } from '../enrollment/CalendarWeekToolbar'
+import { LessonSelectionToolbar } from './LessonSelectionToolbar'
+import { ConfirmActionButton } from './ConfirmActionButton'
 import { SectionHeader, SectionHeading } from './SectionHeader'
-import { Avatar, Badge, Button, EmptyState, SurfacePanel, Select, Input } from '@/beta-source/components/ui'
+import { Avatar, Badge, Button, EmptyState, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter, DenseSectionPanel } from '@/beta-source/components/ui'
 import { ControlButton } from '@/beta-source/components/ui/ControlButton'
 import { OverflowMenu } from '@/beta-source/components/ui/OverflowMenu'
 import { formatScheduleDate, formatScheduleTime, shiftDate, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
-import { makeupPreviewNow, previewCalendarLessons } from '@/beta-source/lib/academy-makeup-preview'
+import { makeupPreviewNow, previewCalendarLessons, absenceEligible } from '@/beta-source/lib/academy-makeup-preview'
 import { colors, avatarSizes, spacing, typography } from '@/beta-source/lib/tokens'
 import { getStaffAvatarUrl } from '@/beta-source/lib/staff-avatars'
 import { getActiveTenantId } from '@/beta-source/lib/tenant'
 import type { WorkspaceSectionProps } from './WorkspaceSections'
 import { LessonStatus } from './LessonStatus'
 
-export function UpcomingBookings({ data, makeups, location, onEnsure, onLesson, onMove, onCalendar, lessonView, onLessonView, lessonWeek, onLessonWeek, onRescheduleTogether }: Pick<WorkspaceSectionProps, 'data' | 'makeups' | 'location' | 'onEnsure' | 'onLesson' | 'onMove' | 'onCalendar' | 'lessonView' | 'onLessonView' | 'lessonWeek' | 'onLessonWeek' | 'onRescheduleTogether'>) {
+export function UpcomingBookings({ data, makeups, location, onEnsure, onLesson, onMove, onCalendar, lessonView, onLessonView, lessonWeek, onLessonWeek, onRescheduleTogether, onCancelTogether }: Pick<WorkspaceSectionProps, 'data' | 'makeups' | 'location' | 'onEnsure' | 'onLesson' | 'onMove' | 'onCalendar' | 'lessonView' | 'onLessonView' | 'lessonWeek' | 'onLessonWeek' | 'onRescheduleTogether' | 'onCancelTogether'>) {
   const inline = useContext(InlineWorkspaceContext)
   const [localWeek, setWeek] = useState(() => weekStart(makeupPreviewNow.slice(0, 10)))
   const week = inline && lessonWeek ? lessonWeek : localWeek
@@ -33,19 +34,27 @@ export function UpcomingBookings({ data, makeups, location, onEnsure, onLesson, 
   const horizon = data.demoSchool ? '2027-04-01' : data.lessons.reduce((last, item) => item.date > last ? item.date : last, through)
   const from = listView && dateView === 'all' ? makeupPreviewNow.slice(0, 10) : listView && dateView === 'range' ? rangeStart : week
   const to = listView && dateView === 'all' ? horizon : listView && dateView === 'range' ? rangeEnd : through
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelError, setCancelError] = useState('')
+  const selectedLessons = previewCalendarLessons(data, makeups, { ...location, enrollmentId: '', teacher: '' }).filter(item => checked.includes(item.id))
   const tenantId = getActiveTenantId()
   const bookings = previewCalendarLessons(data, makeups, { ...location, enrollmentId: '', teacher: '' }).filter(item => item.date >= from && item.date <= to)
   function navigateWeek(days: number) { const next = shiftDate(week, days); onEnsure(shiftDate(next, 6)); setWeek(next); onLessonWeek?.(next); setSelectedId(null) }
-  const selectionActions = checked.length > 0 ? <div role="group" aria-label="Selected lessons" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm }}><span>{checked.length} selected</span><Button variant="ghost" onClick={() => setChecked([])}>Clear selection</Button><Button onClick={() => onRescheduleTogether?.(checked)}>Reschedule together</Button></div> : undefined
-  const dateFilter = listView ? <Select aria-label="Lesson date view" fullWidth={false} value={dateView} onChange={event => { const value = event.target.value; setDateView(value); if (value !== 'week') onEnsure(value === 'all' ? horizon : rangeEnd) }}><option value="week">This week</option><option value="all">All weeks</option><option value="range">Date range</option></Select> : undefined
   return <section aria-label="Upcoming bookings" style={{ display: 'flex', flexDirection: 'column', gap: inline ? 10 : spacing.md, minWidth: 0 }}>
     <SectionHeader compactActions={inline} actions={inline ? <div role="group" aria-label="Lesson view" style={{ display: 'flex', gap: spacing.xs }}>{(['list', 'calendar'] as const).map(view => <ControlButton key={view} kind="toggle" selected={(lessonView || 'list') === view} aria-pressed={(lessonView || 'list') === view} onClick={() => onLessonView?.(view)}>{view === 'list' ? <List size={16} aria-hidden="true" /> : <Grid2X2 size={16} aria-hidden="true" />}{view === 'list' ? 'List' : 'Calendar'}</ControlButton>)}</div> : <Button variant="secondary" size="md" onClick={onCalendar}>View calendar</Button>}>
       <SectionHeading>{inline ? 'Schedule & lessons' : <>Week of {formatScheduleDate(week)} – {formatScheduleDate(through)}</>}</SectionHeading>
       {!inline && <div role="group" aria-label="Browse lesson weeks" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}><ControlButton kind="icon" aria-label="Previous lesson week" onClick={() => navigateWeek(-7)} style={{ width: 40, height: 40 }}><ChevronLeft size={20} aria-hidden="true" /></ControlButton><ControlButton kind="icon" aria-label="Next lesson week" onClick={() => navigateWeek(7)} style={{ width: 40, height: 40 }}><ChevronRight size={20} aria-hidden="true" /></ControlButton></div>}
     </SectionHeader>
-    {inline && (!listView || dateView === 'week') ? <CalendarWeekToolbar flush week={week} lastDate={shiftDate(week, bookings.some(item => item.date === through) ? 6 : 5)} onWeek={next => { onEnsure(shiftDate(next, 6)); setWeek(next); onLessonWeek?.(next); setSelectedId(null) }} actions={selectionActions}>{dateFilter}</CalendarWeekToolbar> : inline && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm }}>{dateFilter}<div style={{ marginLeft: 'auto' }}>{selectionActions}</div></div>}
-    {listView && dateView === 'range' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md }}><div style={{ flex: '1 1 140px' }}><Input label="From date" type="date" value={rangeStart} max={rangeEnd} onChange={event => { if (event.target.value) setRangeStart(event.target.value) }} /></div><div style={{ flex: '1 1 140px' }}><Input label="Through date" type="date" value={rangeEnd} min={rangeStart} max={horizon} onChange={event => { if (event.target.value) { setRangeEnd(event.target.value); onEnsure(event.target.value > horizon ? horizon : event.target.value) } }} /></div></div>}
-    {listView && dateView === 'all' && <p style={{ ...typography.helper, color: colors.textMuted, margin: 0 }}>Upcoming lessons through {formatScheduleDate(horizon, { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+    {inline && <LessonSelectionToolbar mode={dateView} calendar={!listView} onMode={value => { setDateView(value); if (value !== 'week') onEnsure(value === 'all' ? horizon : rangeEnd) }} week={week} lastDate={shiftDate(week, bookings.some(item => item.date === through) ? 6 : 5)} onWeek={next => { onEnsure(shiftDate(next, 6)); setWeek(next); onLessonWeek?.(next); setSelectedId(null) }} horizon={horizon} from={rangeStart} through={rangeEnd} onFrom={setRangeStart} onThrough={value => { setRangeEnd(value); onEnsure(value > horizon ? horizon : value) }} count={checked.length} onClear={() => setChecked([])} onReschedule={() => onRescheduleTogether?.(checked)} onCancel={onCancelTogether ? () => { setCancelError(''); setCancelOpen(true) } : undefined} />}
+    <Modal isOpen={cancelOpen} onClose={() => setCancelOpen(false)} size="md" layout="content" ariaLabel={checked.length > 1 ? 'Cancel selected lessons' : 'Cancel selected lesson'}>
+      <ModalHeader title={checked.length > 1 ? `Cancel ${checked.length} lessons?` : 'Cancel this lesson?'} onClose={() => setCancelOpen(false)} />
+      <ModalBody><div style={{ display: 'grid', gap: spacing.md }}>
+        <p style={{ ...typography.bodySmall, margin: 0 }}>Only these lesson occurrences will be cancelled. Recurring subscriptions stay unchanged.</p>
+        {selectedLessons.map(item => <DenseSectionPanel key={item.id} title={`${item.student.firstName} · ${item.program}`}><strong style={typography.bodySmall}>{formatScheduleDate(item.date)} · {formatScheduleTime(item.time)}</strong><p style={{ ...typography.bodySmall, color: colors.textSecondary }}>{item.teacher}</p><p style={typography.bodySmall}>{absenceEligible(item.date, item.time) ? item.makeup ? 'Makeup credit returns to the makeup bin.' : 'A makeup credit will be added.' : 'Less than 24 hours away: no makeup credit will be added or returned.'}</p></DenseSectionPanel>)}
+        {cancelError && <p role="alert">{cancelError}</p>}
+      </div></ModalBody>
+      <ModalFooter><Button variant="secondary" onClick={() => setCancelOpen(false)}>Keep lessons</Button><ConfirmActionButton variant="destructive" disabled={!checked.length || selectedLessons.length !== checked.length} loadingLabel="Cancelling lessons" onClick={() => { const error = onCancelTogether?.(checked); if (error) setCancelError(error); else { setCancelOpen(false); setChecked([]) } }}>Cancel</ConfirmActionButton></ModalFooter>
+    </Modal>
     {listView && dateView === 'range' && rangeStart > rangeEnd && <p role="alert">Choose an end date on or after the start date.</p>}
     {inline && lessonView === 'calendar' ? <WeeklySchedule data={data} makeups={makeups} location={location} onEnsure={onEnsure} onLesson={onLesson} onMove={onMove} taskLayout compact week={week} onWeek={onLessonWeek} /> : <>{bookings.map(item => {
       const [firstName, ...rest] = item.teacher.split(' ')

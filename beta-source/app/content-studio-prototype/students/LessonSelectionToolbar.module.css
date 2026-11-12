@@ -1,0 +1,11 @@
+.container { container-type: inline-size; min-width: 0; }
+.toolbar { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: var(--lesson-toolbar-gap); }
+.mode { grid-column: 1; grid-row: 1; }
+.actions { grid-column: 3; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--lesson-toolbar-gap); min-width: 0; }
+.dates { grid-column: 2; grid-row: 1; display: grid; align-items: center; min-width: 0; }
+@container (max-width: 800px) {
+  .toolbar { grid-template-columns: minmax(0, 1fr); }
+  .mode { justify-self: start; }
+  .actions { grid-column: 1; grid-row: 2; }
+  .dates { grid-column: 1; grid-row: 3; }
+}

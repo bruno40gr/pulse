@@ -11,6 +11,22 @@ The selected-lesson actions appear at the right of the week toolbar, with
 Reschedule together at the far right, aligned with the week picker on desktop.
 The toolbar wraps on narrow screens without horizontal overflow.
 
+Date modes use one LessonSelectionToolbar with stable mode/date/action slots,
+shared toolbar-sized Button/Select controls, and FieldGrid date inputs. Inactive
+date slots remain in intrinsic layout but are hidden, inert and aria-hidden,
+so switching modes cannot move the dropdown, actions or first lesson. No per-mode
+offsets, forced row heights or measured pixel positioning are used. Single/plural
+action labels share intrinsic slots so selection count changes do not resize them.
+
+One selection exposes Reschedule and Cancel; multiple selections expose
+Reschedule together and Cancel together. Cancellation opens a shared Modal review
+listing each selected occurrence and its normal makeup-credit outcome. The final
+Cancel uses the existing hold-to-confirm control. It preserves the 24-hour rule,
+returns eligible booked makeup credits, forfeits late booked makeup credits, and
+does not alter recurring subscriptions. Cancellation stages all operations
+immutably; invalid/unauthorized/already-started lessons reject the entire batch.
+Staff makeup-credit exceptions remain in the existing individual lesson flow.
+
 List view supports This week, All weeks (upcoming through the available Beta
 schedule horizon, April 1, 2027), and an inclusive From/Through date range.
 Calendar view remains weekly; returning to List retains its date filter and
@@ -52,6 +68,11 @@ The multiweek browser regression additionally verifies all-weeks/date filtering,
 list alignment, three occurrences across three weeks, whole-card/keyboard focus,
 automatic week jumps, independent Clear, and a confirmed three-change batch at
 1440px and 390px. A synthetic test covers atomic three-week validation/failure.
+The selection browser regression checks stable toolbar geometry across all three
+date modes at 1440/900/390px, matching control heights, single/plural labels,
+cancellation review/dismiss/early release/commit and credit outcomes. Synthetic
+tests cover atomic cancellation failure, ownership, duplicates, past lessons,
+repeat cancellation, and booked makeup return/forfeit behavior.
 
 Try BETA → Contacts → Sam Ibrahim → Schedule & lessons (List). Check Adam and
 Sara, select Reschedule together, then select either planning card.
