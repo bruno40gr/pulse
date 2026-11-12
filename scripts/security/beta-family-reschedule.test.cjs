@@ -45,3 +45,21 @@ test('unchanged sibling bookings remain occupied in the projected draft', () => 
   assert.deepEqual(projected.data.lessons.find(item => item.id === sara.id), data.lessons.find(item => item.id === sara.id))
   assert.deepEqual(planner.projectFamilyMoves(data, state, {}).data.lessons, data.lessons)
 })
+
+test('three occurrences across three weeks commit together without changing the recurring subscription', () => {
+  const { data, state, planner, slot, adam } = fixture()
+  const originals = ['2026-11-03', '2026-11-10', '2026-11-17']
+  const destinations = ['2026-11-04', '2026-11-09', '2026-11-16']
+  const moves = Object.fromEntries(originals.map((date, index) => {
+    const item = { ...adam, id: `demo:enrollment-10:calendar:${date}`, date }
+    return [item.id, slot(item, destinations[index])]
+  }))
+  assert.ok(Object.values(moves).every(Boolean))
+  const before = JSON.stringify({ data, state })
+  const next = planner.commitFamilyMoves(data, state, 'demo:family-9', moves)
+  originals.forEach((date, index) => assert.equal(next.data.lessons.find(item => item.id === `demo:enrollment-10:calendar:${date}`).date, destinations[index]))
+  assert.deepEqual(next.data.students, data.students)
+  assert.equal(JSON.stringify({ data, state }), before)
+  assert.throws(() => planner.commitFamilyMoves(data, state, 'demo:family-9', { ...moves, [Object.keys(moves)[2]]: { ...Object.values(moves)[2], time: '03:00' } }), /available/)
+  assert.equal(JSON.stringify({ data, state }), before, 'Failure leaves all three original bookings untouched')
+})

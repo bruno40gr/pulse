@@ -11,8 +11,17 @@ The selected-lesson actions appear at the right of the week toolbar, with
 Reschedule together at the far right, aligned with the week picker on desktop.
 The toolbar wraps on narrow screens without horizontal overflow.
 
-Each card shows Unchanged or an explicit
-original-to-proposed summary, with Undo change. Confirmation counts only proposed
+List view supports This week, All weeks (upcoming through the available Beta
+schedule horizon, April 1, 2027), and an inclusive From/Through date range.
+Calendar view remains weekly; returning to List retains its date filter and
+selection. Selections can span weeks. List cards show the student name even in
+student-scoped views, with a clear checkbox gutter and aligned staff row.
+
+Each planner card separates Original and New time, with bold dates/times and
+secondary teacher text. The whole card is a keyboard-accessible focus control;
+focusing it jumps to its proposed week, or original week if unchanged. Clear in
+the header removes only that proposal, without changing the focused lesson.
+Confirmation counts only proposed
 changes. Existing single-lesson actions and makeup booking remain available.
 This release changes individual occurrences, not recurring subscription schedules.
 
@@ -36,9 +45,13 @@ browser Back clear the planner. Existing Beta authorization remains unchanged.
 Validation: TypeScript, targeted lint and 82 scoped tests pass. Synthetic tests
 cover one/two moves, unchanged siblings, ownership, immutable failure and unchanged
 subscriptions. Desktop/mobile browser checks cover hidden/visible action,
-checkbox/clear selection, focus switching, tentative selections, Undo, and saving
+checkbox/clear selection, focus switching, tentative selections, Clear, and saving
 only one of two selected lessons. Existing single-reschedule/makeup browser checks
 are rerun. Browser tests use an isolated loopback host with synthetic identities.
+The multiweek browser regression additionally verifies all-weeks/date filtering,
+list alignment, three occurrences across three weeks, whole-card/keyboard focus,
+automatic week jumps, independent Clear, and a confirmed three-change batch at
+1440px and 390px. A synthetic test covers atomic three-week validation/failure.
 
 Try BETA → Contacts → Sam Ibrahim → Schedule & lessons (List). Check Adam and
-Sara, select Reschedule together, then select either planning card's title.
+Sara, select Reschedule together, then select either planning card.

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, DenseSectionPanel } from '@/beta-source/components/ui'
-import { formatScheduleDate, formatScheduleTime } from '@/beta-source/lib/academy-enrollment-schedule'
+import { formatScheduleDate, formatScheduleTime, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
 import { makeupSlots, type MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import type { FamilyPreviewData } from '@/beta-source/lib/academy-family-preview'
 import { projectFamilyMoves, type FamilyMoves } from '@/beta-source/lib/family-reschedule'
@@ -18,6 +18,7 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
   onWeek: (week: string) => void; onBack: () => void; onConfirm: (moves: FamilyMoves) => string | null
 }) {
   const [activeId, setActiveId] = useState(items[0]?.id)
+  const [focusVersion, setFocusVersion] = useState(0)
   const [moves, setMoves] = useState<FamilyMoves>({})
   const [error, setError] = useState('')
   const active = items.find(item => item.id === activeId)
@@ -31,15 +32,29 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
     .map(item => ({ ...item, id: `proposed:${item.id}`, proposed: true }))
   const slotData = { ...availability.data, lessons: availability.data.lessons.filter(item => item.id !== activeId) }
   const slotState = { ...availability.state, items: availability.state.items.filter(item => item.id !== activeId) }
+  function focusLesson(item: ScheduledClassItem) { setActiveId(item.id); setFocusVersion(value => value + 1); onWeek(weekStart(moves[item.id]?.date || item.date)) }
   function back() { if (!count || window.confirm('Discard the proposed lesson changes?')) onBack() }
   function undo(id: string) { setMoves(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id))); setError('') }
   return <section aria-label="Reschedule together" style={{ display: 'grid', gap: 16, minWidth: 0 }}>
-    <MoveLesson referenceLessons={[...references, ...proposals]} key={activeId} item={active} data={availability.data} state={availability.state} accountName={accountName} initialDate={week} onWeek={onWeek} onBack={back} rightControls={<div style={{ display: 'grid', gap: spacing.md }}>    <div role="group" aria-label="Lessons to reschedule" style={{ display: 'grid', gap: spacing.sm }}>
-      {items.map(item => { const proposed = moves[item.id]; return <DenseSectionPanel key={item.id} style={{ borderColor: activeId === item.id ? colors.link : colors.border, background: activeId === item.id ? colors.surfaceMuted : colors.surface, boxShadow: activeId === item.id ? `inset 0 0 0 1px ${colors.link}` : undefined, padding: spacing.md, gap: spacing.sm }} title={<ControlButton kind="row" aria-pressed={activeId === item.id} onClick={() => setActiveId(item.id)} aria-label={`Plan ${item.student.firstName} ${item.program}`} style={{ width: '100%', justifyContent: 'flex-start', padding: 0, textAlign: 'left', fontWeight: typography.weightSemibold }}>{item.student.firstName} · {item.program}</ControlButton>}>
-        <p>Original: {formatScheduleDate(item.date)} · {formatScheduleTime(item.time)} · {item.teacher}</p>
-        <p>{proposed ? `Proposed: ${formatScheduleDate(proposed.date)} · ${formatScheduleTime(proposed.time)} · ${proposed.teacher}` : 'Unchanged'}</p>
-        {proposed && <Button variant="ghost" onClick={() => undo(item.id)} aria-label={`Undo ${item.student.firstName} change`}>Undo change</Button>}
-      </DenseSectionPanel> })}
+    <MoveLesson referenceLessons={[...references, ...proposals]} key={`${activeId}:${focusVersion}`} item={active} data={availability.data} state={availability.state} accountName={accountName} initialDate={week} onWeek={onWeek} onBack={back} rightControls={<div style={{ display: 'grid', gap: spacing.md }}>    <div role="group" aria-label="Lessons to reschedule" style={{ display: 'grid', gap: spacing.sm }}>
+      {items.map(item => {
+        const proposed = moves[item.id]
+        const focused = activeId === item.id
+        return <DenseSectionPanel key={item.id} style={{ position: 'relative', borderColor: focused ? colors.link : colors.border, background: focused ? colors.surfaceMuted : colors.surface, boxShadow: focused ? `inset 0 0 0 1px ${colors.link}` : undefined, padding: spacing.md, gap: spacing.md }} title={<strong style={{ ...typography.bodySmall, color: colors.text, fontWeight: typography.weightSemibold }}>{item.student.firstName} · {item.program}</strong>} actions={proposed && <Button variant="ghost" size="sm" style={{ position: 'relative', zIndex: 2 }} onClick={() => undo(item.id)} aria-label={`Clear ${item.student.firstName} change`}>Clear</Button>}>
+          <ControlButton kind="row" aria-pressed={focused} onClick={() => focusLesson(item)} aria-label={`Plan ${item.student.firstName} ${item.program}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', padding: 0, zIndex: 1 }} />
+          <div style={{ display: 'grid', gap: spacing.md, pointerEvents: 'none' }}>
+            <div style={{ display: 'grid', gap: spacing.xs }}>
+              <span style={{ ...typography.helper, color: colors.textMuted }}>Original</span>
+              <strong style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.text }}>{formatScheduleDate(item.date)} · {formatScheduleTime(item.time)}</strong>
+              <span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{item.teacher}</span>
+            </div>
+            <div style={{ display: 'grid', gap: spacing.xs, borderTop: `1px solid ${colors.border}`, paddingTop: spacing.sm }}>
+              <span style={{ ...typography.helper, color: colors.textMuted }}>New time</span>
+              {proposed ? <><strong style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.link }}>{formatScheduleDate(proposed.date)} · {formatScheduleTime(proposed.time)}</strong><span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{proposed.teacher}</span></> : <span style={{ ...typography.bodySmall, color: colors.textMuted }}>Unchanged</span>}
+            </div>
+          </div>
+        </DenseSectionPanel>
+      })}
     </div>
     <ConfirmActionButton disabled={!count} loadingLabel="Rescheduling lessons" onClick={() => setError(onConfirm(moves) || '')}>Confirm {count} {count === 1 ? 'change' : 'changes'}</ConfirmActionButton>
 {error && <p role="alert">{error}</p>}</div>} draftBooking={moves[activeId] || null} onDraftChange={booking => {
