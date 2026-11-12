@@ -1,7 +1,6 @@
 'use client'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
-import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
@@ -779,7 +778,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
             description="Funding authorization and coverage details will appear here when this student is assigned to a funding program."
           />
         )
-      ) : insightsLoading ? <ProfilePanelSkeleton /> : (
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
         {/* LEFT COLUMN */}
         <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
@@ -868,7 +867,11 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
             title={<SectionTitle as="h3" variant="card"><Sparkles size={15} aria-hidden="true" /> AI highlights</SectionTitle>}
             style={{ marginBottom: spacing.lg }}
           >
-          {actionInsights.length === 0 && passiveInsights.length === 0 ? (
+          {insightsLoading ? (
+            <p role="status" style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
+              Loading AI highlights…
+            </p>
+          ) : actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
               No insights available for this contact yet.
             </p>
