@@ -1,0 +1,8 @@
+.members { container-type: inline-size; min-width: 0; }
+.member { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 18px 0; border-bottom: 1px solid #e5e7eb; }
+.member:first-child { border-top: 1px solid #e5e7eb; }
+.member h3 { margin: 0; overflow-wrap: anywhere; }
+@container (max-width: 560px) {
+  .member { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .member > button { grid-column: 1 / -1; justify-self: end; }
+}

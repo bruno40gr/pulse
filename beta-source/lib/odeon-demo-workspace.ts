@@ -1,0 +1,30 @@
+import { createOdeonDemo, demoDiscount, demoHours, demoServices } from './odeon-demo'
+import type { FamilyPreviewData } from './academy-family-preview'
+import type { MakeupPreviewState } from './academy-makeup-preview'
+
+/** Adapt fixtures to the existing app workspaces; no replacement presentation layer. */
+export function createDemoWorkspace(): { data: FamilyPreviewData; makeups: MakeupPreviewState } {
+  const seed = createOdeonDemo()
+  const accounts = seed.families.map(family => ({ id: family.id, name: family.name, holderId: `${family.id}:holder`, holderName: family.guardian, email: family.email, studentIds: seed.students.filter(student => student.familyId === family.id).map(student => student.id) }))
+  const students: FamilyPreviewData['students'] = seed.students.map(student => {
+    const account = accounts.find(item => item.id === student.familyId)!, family = seed.families.find(item => item.id === account.id)!, discount = demoDiscount(seed, family)
+    return {
+      id: student.id, firstName: student.name.split(' ')[0], lastName: student.name.split(' ').slice(1).join(' '), birthday: student.birthday, email: '', phone: '', communicationContactId: account.holderId,
+      family: [{ id: account.holderId, name: account.holderName, relationship: 'Parent / guardian', email: account.email, phone: '(202) 555-0100' }, ...(family.otherGuardian ? [{ id: `${account.id}:guardian-2`, name: family.otherGuardian, relationship: 'Parent / guardian', email: 'robin.ibrahim@example.invalid', phone: '' }] : []), ...seed.students.filter(item => item.familyId === account.id && item.id !== student.id).map(item => ({ id: item.id, studentId: item.id, name: item.name, relationship: 'Sibling' }))],
+      enrollments: seed.enrollments.filter(item => item.studentId === student.id).map(enrollment => {
+        const session = seed.sessions.find(item => item.id === enrollment.sessionId)!, service = demoServices.find(item => item.id === session.serviceId)!, teacher = seed.teachers.find(item => item.id === session.teacherId)!
+        return { id: enrollment.id, studentId: student.id, program: service.name, service: service.format === 'private' ? 'Private' : 'Group', teacher: teacher.name, level: enrollment.level, day: demoHours.find(item => item.day === session.day)!.label, time: session.time, duration: service.minutes, start: seed.lessons.find(item => item.sessionId === session.id)!.date, frequency: 'Weekly', amountMinor: service.unitMinor * (100 - discount.percent) / 100, currency: 'USD', priceUnit: 'per lesson', collection: 'Monthly · 1st of the month', payerId: account.holderId, paymentMethod: 'Demo Visa ···· 4242', status: 'active' }
+      }),
+      notes: [{ id: `${student.id}:practice`, text: 'Practice a little each day. Bring your questions to your next class.', timestamp: '2026-11-02T18:00:00Z', actor_name: 'School team', audience: 'family' }, { id: `${student.id}:internal`, text: family.scenario, timestamp: '2026-11-02T18:00:00Z', actor_name: 'School team', audience: 'internal' }], messages: [],
+    }
+  })
+  const data: FamilyPreviewData = {
+    demoSchool: true, students, accounts,
+    contacts: accounts.map(account => ({ id: account.holderId, firstName: account.holderName.split(' ')[0], lastName: account.holderName.split(' ').slice(1).join(' '), email: account.email, phone: '(202) 555-0100', memberSince: '2026-09-01' })),
+    lessons: seed.enrollments.flatMap(enrollment => { const session = seed.sessions.find(item => item.id === enrollment.sessionId)!; return seed.lessons.filter(item => item.sessionId === session.id).map(lesson => ({ id: `${enrollment.id}:${lesson.date}`, enrollmentId: enrollment.id, date: lesson.date, time: session.time, room: session.room, status: seed.makeups.some(credit => credit.enrollmentId === enrollment.id && credit.originalLessonId === lesson.id) ? 'Absent' : 'Scheduled' })) }),
+    cards: accounts.map(account => ({ id: `${account.id}:card`, accountId: account.id, payerId: account.holderId, cardholderName: account.holderName, label: 'Demo Visa ···· 4242', expires: '12/2030', isDefault: true })),
+    invoices: seed.invoices.map(invoice => { const account = accounts.find(item => item.id === invoice.familyId)!; return { id: invoice.id, accountId: account.id, payerId: account.holderId, payerName: account.holderName, paidById: account.holderId, paidByName: account.holderName, paymentMethod: 'Simulated · Visa ···· 4242', date: invoice.date, due: invoice.date, status: 'Paid', notes: invoice.lines.map(line => `${seed.students.find(item => item.id === line.studentId)!.name} · ${demoServices.find(item => item.id === line.serviceId)!.name}: ${line.quantity} classes at $${line.unitMinor / 100}${line.discountPercent ? ` less ${line.discountPercent}% ${line.discountLabel}` : ''}. Dates: ${line.dates.join(', ')}`).join('\n'), lines: invoice.lines.map(line => ({ enrollmentId: line.enrollmentId, studentId: line.studentId, studentName: seed.students.find(item => item.id === line.studentId)!.name, program: demoServices.find(item => item.id === line.serviceId)!.name, quantity: line.quantity, unitMinor: line.totalMinor / line.quantity, period: invoice.date.slice(0, 7), pricingBasis: line.discountPercent ? `${line.discountPercent}% ${line.discountLabel} applied` : 'Per scheduled class' })) } }),
+  }
+  const makeups: MakeupPreviewState = { items: seed.makeups.map(credit => { const enrollment = students.flatMap(student => student.enrollments).find(item => item.id === credit.enrollmentId)!, original = seed.lessons.find(item => item.id === credit.originalLessonId)!; return { id: credit.id, lessonId: `${enrollment.id}:${original.date}`, studentId: credit.studentId, enrollmentId: enrollment.id, date: original.date, duration: enrollment.duration, program: enrollment.program, teacher: enrollment.teacher, service: enrollment.service } }), absences: [] }
+  return { data, makeups }
+}

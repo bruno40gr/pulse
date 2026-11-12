@@ -1,0 +1,5 @@
+/* Note composer focus: keep a visible but brand-neutral ring instead of the default blue box. */
+.composer.composer:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 144, 170, 0.5);
+}

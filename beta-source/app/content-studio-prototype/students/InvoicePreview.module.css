@@ -1,0 +1,26 @@
+.actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.identity { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.amount { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; text-align: left; }
+.document { display: flex; flex-direction: column; gap: 20px; }
+.documentHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 24px; }
+.logo { display: block; width: 176px; max-width: 100%; height: auto; }
+.tableWrap { max-width: 100%; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { text-align: left; padding: 14px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+.table th:first-child, .table td:first-child { padding-left: 0; }
+.table th:last-child, .table td:last-child { text-align: right; padding-right: 0; white-space: nowrap; }
+.totals { align-self: flex-end; width: min(100%, 320px); display: grid; gap: 12px; }
+.totalRow { display: flex; justify-content: space-between; gap: 16px; }
+.balance { display: flex; flex-direction: column; gap: 8px; }
+.screenHeader { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.screenHeader h2 { overflow-wrap: anywhere; }
+.actionPair { align-items: stretch; max-width: 100%; }
+.paymentButton, .actionPair > button { box-sizing: border-box; width: 166px; max-width: 100%; }
+.actions > button { box-sizing: border-box; }
+.metadata { display: grid; grid-template-columns: minmax(72px, max-content) minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 14px; }
+.metadata dt { color: #4b5563; }
+.metadata dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.freeText { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.editor { display: flex; flex-direction: column; gap: 14px; }
+.customField { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; align-items: end; }
+.customField > button { justify-self: start; grid-column: 1 / -1; }

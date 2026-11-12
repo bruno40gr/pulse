@@ -4,6 +4,12 @@ const assert = require('node:assert/strict')
 const { createHarness } = require('./synthetic-harness.cjs')
 const load = () => createHarness().load('lib/work-area-navigation.ts')
 
+test('Beta access is restricted to owner and admin roles', () => {
+  const { canAccessBeta } = load()
+  for (const roleKey of ['owner', 'admin']) assert.equal(canAccessBeta({ roleKey }), true)
+  for (const roleKey of [undefined, '', 'staff', 'assistant', 'tester']) assert.equal(canAccessBeta({ roleKey, canAccessDesignSystem: true }), false)
+})
+
 test('area routing separates website, staff, funding, settings and operations', () => {
   const { workAreaForPath } = load()
   for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'school'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)

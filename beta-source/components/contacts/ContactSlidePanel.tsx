@@ -1,0 +1,1039 @@
+'use client'
+import { ContactAIHighlightsPanel } from './ContactAIHighlightsPanel'
+import { AccountManagersPanel } from './AccountManagersPanel'
+import { ContactDetailsPanel } from './ContactDetailsPanel'
+import { SlidePanelActionBar } from '@/beta-source/components/ui/SlidePanelActionBar'
+import { PROFILE_PANEL_WIDTH } from '@/beta-source/lib/conversation-display'
+import { ProfilePanelSkeleton } from '@/beta-source/components/ui/ProfilePanelSkeleton'
+
+import { ControlButton } from '@/beta-source/components/ui/ControlButton'
+import ConversationComposeLink from '@/beta-source/components/inbox/ConversationComposeLink'
+import { getStaffAvatarUrl } from '@/beta-source/lib/staff-avatars'
+import { useState, useEffect, useContext } from 'react'
+import CardSmsComposer from '@/beta-source/components/inbox/CardSmsComposer'
+import { ConversationComposeContext } from '@/beta-source/components/inbox/ConversationComposeContext'
+import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone } from 'lucide-react'
+import { Button, Badge, Avatar, Input, FieldGrid, SectionTitle, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, NotesSection, StatusBadge, Tabs } from '@/beta-source/components/ui'
+import { formatPhoneNumber } from '@/beta-source/lib/phone'
+import { colors, typography, radius, spacing, shadows } from '@/beta-source/lib/tokens'
+import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl } from '@/beta-source/lib/tenant'
+import { useIsMobile } from '@/beta-source/lib/useMediaQuery'
+import { FundingContactDetails } from '@/beta-source/components/funding/FundingContactDetails'
+import { InvoiceStatusModal } from '@/beta-source/components/funding/InvoiceStatusModal'
+import type { FundingCase, FundingInvoice, FundingInvoiceStatus } from '@/beta-source/components/funding/types'
+
+interface AccountHolder {
+  name: string | null
+  phone: string | null
+  email: string | null
+  relationship: string | null
+  is_primary: boolean
+}
+
+interface NoteEntry {
+  id?: string
+  text: string
+  timestamp: string
+  actor_name?: string | null
+  completed_at?: string | null
+}
+
+interface InstructorInfo {
+  staff_id: string
+  person_id: string | null
+  name: string | null
+  phone: string | null
+  email: string | null
+}
+
+interface InstructorStudent {
+  enrollment_id: string
+  person_id: string
+  name: string
+  client_status: string
+  instrument: string | null
+  service_type: string | null
+  lesson_day: string | null
+  lesson_time: string | null
+}
+
+interface Contact {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  email: string | null
+  date_of_birth?: string | null
+  client_status: string
+  opted_out: boolean
+  last_attended: string | null
+  notes: string | null
+  family_name: string | null
+  account_holder_name: string | null
+  account_holder_phone: string | null
+  account_holder_email: string | null
+  account_holders?: AccountHolder[]
+  instructor?: InstructorInfo | null
+  staff_id?: string | null
+  is_active?: boolean
+  custom_fields: Record<string, unknown>
+  message_routing?: string
+  is_minor?: boolean
+  notes_history?: NoteEntry[]
+  student_notes_history?: NoteEntry[]
+  active_students?: InstructorStudent[]
+}
+
+interface TenantField {
+  field_key: string
+  field_label: string
+  field_type: string
+  field_options: string[] | null
+}
+
+function normalizeFieldName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function isHiddenContactCardField(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key.includes('pronoun') || label.includes('pronoun') || label === 'gender' || key === 'account manager name' || label === 'account manager name'
+}
+
+function getContactCardFieldLabel(field: TenantField) {
+  const key = normalizeFieldName(field.field_key)
+  const label = normalizeFieldName(field.field_label)
+  return key === 'primary account manager' || label === 'primary account manager' ? 'Account manager' : field.field_label
+}
+
+interface Insight {
+  headline: string
+  detail?: string | null
+  action?: string | null
+  valence?: 'attention' | 'celebrate' | 'opportunity' | 'passive'
+  source?: 'profile' | 'student_note' | 'internal_note'
+  // backward-compat with old flat shape
+  type?: string
+  text?: string
+}
+
+const valenceConfig: Record<string, { dotColor: string; bg: string; titleColor: string }> = {
+  attention: { dotColor: '#92400E', bg: '#FEF7E7', titleColor: '#92400E' },
+  celebrate: { dotColor: '#1F5C3A', bg: '#F3FBF6', titleColor: '#1F5C3A' },
+  opportunity: { dotColor: '#1D4ED8', bg: '#F2F7FF', titleColor: '#1D4ED8' },
+  passive: { dotColor: '#6B7280', bg: '#FFFFFF', titleColor: '#374151' },
+}
+
+interface ContactSlidePanelProps {
+  contact: Contact
+  tenantFields: TenantField[]
+  onClose: () => void
+  onUpdated: (updated: Contact) => void
+  onCompose?: (contactIds: string[]) => void
+  onViewInstructor?: (personId: string) => void
+  initialNotesTab?: 'notes' | 'internal'
+  mockFundingCase?: FundingCase
+  initialPanelTab?: ContactPanelTab
+  onInvoiceStatusChange?: (invoice: FundingInvoice) => void
+  onFundingCaseUpdated?: (fundingCase: FundingCase) => void
+  /** Development-only fictional adapter; never supplies data/actions to live profiles. */
+  preview?: {
+    tab: ContactPanelTab
+    onTabChange: (tab: ContactPanelTab) => void
+    onOpenWorkspace: () => void
+    toolbar: React.ReactNode
+    content: React.ReactNode
+    /** Quick view deliberately exposes only a subset of full-workspace sections. */
+    tabs?: { key: ContactPanelTab; label: string }[]
+    hideTabs?: boolean
+  }
+}
+
+type ContactPanelTab = 'profile' | 'enrollments' | 'scheduling' | 'billing' | 'funding'
+
+
+const dividerStyle: React.CSSProperties = {
+  height: '1px',
+  background: colors.borderLight,
+  margin: '24px 0',
+}
+
+export default function ContactSlidePanel({ contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', onInvoiceStatusChange, onFundingCaseUpdated, preview: previewAdapter }: ContactSlidePanelProps) {
+  const preview = process.env.NODE_ENV === 'development' && contact.id.startsWith('preview:') ? previewAdapter : undefined
+  const isPreview = Boolean(preview)
+  const tenantId = getActiveTenantId()
+  const isMobile = useIsMobile()
+  const contextualCompose = useContext(ConversationComposeContext)
+  const [smsOpen, setSmsOpen] = useState(false)
+  useEffect(() => { setSmsOpen(false) }, [contact.id])
+  const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
+  const [insights, setInsights] = useState<Insight[]>([])
+  const [insightsLoading, setInsightsLoading] = useState(true)
+  const [studentNotesSaving, setStudentNotesSaving] = useState(false)
+  const [internalNotesSaving, setInternalNotesSaving] = useState(false)
+  const [studentNotesHistory, setStudentNotesHistory] = useState<NoteEntry[]>(
+    Array.isArray(contact.student_notes_history) ? contact.student_notes_history : []
+  )
+  const [internalNotesHistory, setInternalNotesHistory] = useState<NoteEntry[]>(
+    Array.isArray(contact.notes_history) ? contact.notes_history : []
+  )
+  const [saving, setSaving] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isStaffActionMenuOpen, setIsStaffActionMenuOpen] = useState(false)
+  const [calling, setCalling] = useState(false)
+  const [copiedEmail, setCopiedEmail] = useState(false)
+  const [edits, setEdits] = useState<Record<string, unknown>>({})
+  const [activeNotesTab, setActiveNotesTab] = useState<'notes' | 'internal'>(initialNotesTab)
+  const [activePanelTab, setActivePanelTab] = useState<ContactPanelTab>(initialPanelTab)
+  const [fundingCase, setFundingCase] = useState<FundingCase | null>(mockFundingCase || null)
+  const [invoiceEdit, setInvoiceEdit] = useState<FundingInvoice | null>(null)
+
+  useEffect(() => {
+    setStudentNotesHistory(Array.isArray(contact.student_notes_history) ? contact.student_notes_history : [])
+    setInternalNotesHistory(Array.isArray(contact.notes_history) ? contact.notes_history : [])
+    setActiveNotesTab(initialNotesTab)
+    setActivePanelTab(initialPanelTab)
+  }, [contact.id, contact.notes_history, contact.student_notes_history, initialNotesTab, initialPanelTab])
+
+  useEffect(() => {
+    setFundingCase(mockFundingCase || null)
+  }, [mockFundingCase])
+
+  useEffect(() => {
+    if (isPreview || mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
+    let active = true
+    fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
+      .then(async response => {
+        const body = await response.json()
+        if (!response.ok) throw new Error(body?.error || 'Could not load funding details.')
+        if (active) setFundingCase(Array.isArray(body) ? body[0] || null : null)
+      })
+      .catch(() => {
+        if (active) setFundingCase(null)
+      })
+    return () => { active = false }
+  }, [contact.id, isInstructor, mockFundingCase, tenantId, isPreview])
+
+  const applyFundingCase = (updated: FundingCase) => {
+    setFundingCase(updated)
+    onFundingCaseUpdated?.(updated)
+  }
+
+  const saveInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
+    if (!invoiceEdit) return
+    const response = await fetch(`/api/funding/invoices/${invoiceEdit.id}/status?tenant=${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: input.status, evidence: input.evidence, note: input.note, paid_on: input.paidOn }),
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body?.error || 'Could not update invoice status.')
+    applyFundingCase(body)
+    showToast('invoice status saved')
+  }
+
+  // ── Load insights with note context ──
+  useEffect(() => {
+    if (isPreview || mockFundingCase) {
+      setInsights([])
+      setInsightsLoading(false)
+      return
+    }
+
+    if (isInstructor) {
+      setInsights([])
+      setInsightsLoading(false)
+      return
+    }
+
+    const cacheKey = `pulse_contact_insights_${contact.id}`
+    const cacheTimeKey = `pulse_contact_insights_time_${contact.id}`
+    const cached = localStorage.getItem(cacheKey)
+    const cachedTime = localStorage.getItem(cacheTimeKey)
+
+    if (cached && cachedTime) {
+      try {
+        const age = Date.now() - new Date(cachedTime).getTime()
+        if (age < 10 * 60 * 1000) {
+          const parsed = JSON.parse(cached)
+          if (Array.isArray(parsed)) {
+            setInsights(normalizeInsights(parsed))
+            setInsightsLoading(false)
+            return
+          }
+        }
+      } catch {}
+    }
+
+    const contactSummary = {
+      name: `${contact.first_name} ${contact.last_name}`,
+      status: contact.client_status,
+      last_attended: contact.last_attended,
+      days_since_attended: contact.last_attended
+        ? Math.floor((Date.now() - new Date(contact.last_attended).getTime()) / (1000 * 60 * 60 * 24))
+        : null,
+      ...contact.custom_fields
+    }
+
+    fetch('/api/contact-insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contact: contactSummary,
+        student_notes: studentNotesHistory.map(n => n.text).join('\n'),
+        internal_notes: internalNotesHistory.map(n => n.text).join('\n'),
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.insights) {
+          const normalized = normalizeInsights(data.insights)
+          setInsights(normalized)
+          localStorage.setItem(cacheKey, JSON.stringify(normalized))
+          localStorage.setItem(cacheTimeKey, new Date().toISOString())
+        }
+        setInsightsLoading(false)
+      })
+      .catch(() => setInsightsLoading(false))
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory, isPreview])
+
+  // Normalize both new (headline/valence) and legacy (text/type) shapes
+  const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
+    return raw
+      .filter(i => i && (i.headline || i.text))
+      .map(i => {
+        const type = typeof i.type === 'string' ? i.type : undefined
+        const legacyValence =
+          type === 'risk' || type === 'nudge' ? 'attention' :
+          type === 'milestone' ? 'celebrate' :
+          type === 'opportunity' ? 'opportunity' :
+          type === 'info' ? 'passive' : undefined
+
+        return {
+          headline: (typeof i.headline === 'string' ? i.headline : typeof i.text === 'string' ? i.text : '') || '',
+          detail: typeof i.detail === 'string' ? i.detail : null,
+          action: typeof i.action === 'string' ? i.action : null,
+          valence: (i.valence === 'attention' || i.valence === 'celebrate' || i.valence === 'opportunity' || i.valence === 'passive' ? i.valence : legacyValence) || 'passive',
+          source: i.source === 'profile' || i.source === 'student_note' || i.source === 'internal_note' ? i.source : 'profile',
+        }
+      })
+  }
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(''), 2000)
+  }
+
+  const patch = async (fields: Partial<Contact>, silent = false) => {
+    setSaving(true)
+    try {
+      const updated = await fetch(`/api/contacts/${contact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+      }).then(r => r.json())
+      if (updated && typeof updated.error === 'string') {
+        if (!silent) showToast(updated.error)
+        return
+      }
+      onUpdated(updated)
+      if (!silent) showToast('changes saved')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStartEditing = () => {
+    const initial: Record<string, unknown> = {}
+    if (contact.first_name) initial.first_name = contact.first_name
+    if (contact.last_name) initial.last_name = contact.last_name
+    if (contact.phone) initial.phone = contact.phone
+    if (contact.email) initial.email = contact.email
+    if (contact.date_of_birth) initial.date_of_birth = contact.date_of_birth
+    for (const f of tenantFields) {
+      const val = contact.custom_fields?.[f.field_key]
+      if (val !== undefined && val !== null) {
+        initial[f.field_key] = val
+      }
+    }
+    setEdits(initial)
+    setIsEditing(true)
+  }
+
+  const handleSaveEdits = async () => {
+    if (Object.keys(edits).length > 0) {
+      await patch(edits)
+    }
+    setEdits({})
+    setIsEditing(false)
+  }
+
+  const handleCancelEditing = () => {
+    setEdits({})
+    setIsEditing(false)
+  }
+
+  const handleCall = async (phone: string | null = contact.phone) => {
+    if (!phone || calling) return
+
+    setCalling(true)
+    try {
+      const response = await fetch(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_phone: phone, contact_id: contact.id }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not place call')
+      showToast(data.demo ? 'Demo call placed' : 'Call placed')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not place call')
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  const copyEmail = async (email: string | null) => {
+    if (!email) return
+    try {
+      await navigator.clipboard.writeText(email)
+      setCopiedEmail(true)
+      window.setTimeout(() => setCopiedEmail(false), 1800)
+    } catch {}
+  }
+
+  const updateEdit = (key: string, value: string) => {
+    setEdits(prev => ({ ...prev, [key]: value }))
+  }
+
+  const displayPhone = formatPhoneNumber
+
+  const getAgeFromDOB = (dob: string | null | undefined): number | null => {
+    if (!dob) return null
+    try {
+      const birth = new Date(dob)
+      const today = new Date()
+      let age = today.getFullYear() - birth.getFullYear()
+      const m = today.getMonth() - birth.getMonth()
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+      if (age >= 0 && age < 120) return age
+    } catch {}
+    return null
+  }
+
+  const age = getAgeFromDOB(contact.date_of_birth)
+  const computedIsMinor = age !== null ? age < 18 : contact.is_minor
+  const ageLabel = age !== null ? `Age ${age}` : null
+  const statusLabel = (contact.client_status || 'active').charAt(0).toUpperCase() + (contact.client_status || 'active').slice(1)
+  const isInstructorActive = contact.is_active !== false
+  const activeStudents = contact.active_students || []
+
+  const headerIconButtonStyle: React.CSSProperties = {
+    width: '32px',
+    height: '32px',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: colors.textSecondary,
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.sm,
+    cursor: 'pointer',
+  }
+
+  const accountHolders: AccountHolder[] = contact.account_holders?.length
+    ? contact.account_holders
+    : (contact.account_holder_name
+      ? [{
+          name: contact.account_holder_name,
+          phone: contact.account_holder_phone,
+          email: contact.account_holder_email,
+          relationship: null,
+          is_primary: true,
+        }]
+      : [])
+
+  const primaryAccountHolder = accountHolders.find(holder => holder.is_primary) || accountHolders[0]
+  const contactPhone = computedIsMinor ? (primaryAccountHolder?.phone || contact.account_holder_phone) : contact.phone
+  const contactEmail = computedIsMinor ? (primaryAccountHolder?.email || contact.account_holder_email) : contact.email
+
+  const showAccountHolders = computedIsMinor
+    ? accountHolders.length > 0
+    : accountHolders.length > 0 && (
+        accountHolders[0].phone !== contact.phone ||
+        accountHolders[0].email !== contact.email
+      )
+
+  const visibleTenantFields = tenantFields.filter(field => !isHiddenContactCardField(field))
+  const populatedFields = visibleTenantFields.filter(f => {
+    const val = contact.custom_fields?.[f.field_key]
+    return val !== undefined && val !== null && val !== ''
+  })
+
+  const actionInsights = insights.filter(i => i.valence && i.valence !== 'passive')
+  const passiveInsights = insights.filter(i => !i.valence || i.valence === 'passive')
+
+  const contactAvatarSrc = shouldUseDemoPhotos(tenantId)
+    ? getContactDemoAvatarUrl(tenantId, contact)
+    : isInstructor ? getStaffAvatarUrl(tenantId, `${contact.first_name} ${contact.last_name}`) : undefined
+
+  // ── Full-screen edit form ──
+  if (isEditing) {
+    const editFirstName = edits.first_name ?? contact.first_name
+    const editLastName = edits.last_name ?? contact.last_name
+
+    return (
+      <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+        <SlidePanelHeader
+          title="Edit contact"
+          onClose={onClose}
+          toast={toastMessage || undefined}
+          compact={isMobile}
+        />
+
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', background: colors.surface, padding: isMobile ? '0 16px 20px' : '0 28px 24px' }}>
+          {/* Profile picture + name */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px 0 20px' }}>
+              <Avatar
+                firstName={editFirstName as string}
+                lastName={editLastName as string}
+                size={56}
+                src={shouldUseDemoPhotos(tenantId)
+                  ? getContactDemoAvatarUrl(tenantId, {
+                      first_name: editFirstName as string,
+                      last_name: editLastName as string,
+                      is_minor: contact.is_minor,
+                    })
+                  : undefined}
+              />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: colors.text, overflowWrap: 'anywhere' }}>
+                {editFirstName as string} {editLastName as string}
+              </div>
+              <div style={{ fontSize: '12px', color: colors.textMuted, marginTop: '2px', overflowWrap: 'anywhere' }}>
+                Profile picture upload coming soon
+              </div>
+            </div>
+          </div>
+
+          <SectionTitle as="h3">Contact details</SectionTitle>
+          <FieldGrid>
+            <Input label="First name" type="text" value={editFirstName as string} onChange={e => updateEdit('first_name', e.target.value)} placeholder="First name" />
+            <Input label="Last name" type="text" value={editLastName as string} onChange={e => updateEdit('last_name', e.target.value)} placeholder="Last name" />
+            <Input label="Phone" type="tel" value={(edits.phone as string) ?? contact.phone ?? ''} onChange={e => updateEdit('phone', formatPhoneNumber(e.target.value))} placeholder="Phone number" />
+            <Input label="Email" type="email" value={(edits.email as string) ?? contact.email ?? ''} onChange={e => updateEdit('email', e.target.value)} placeholder="Email address" />
+            <Input label="Date of birth" type="date" value={(edits.date_of_birth as string) ?? contact.date_of_birth ?? ''} onChange={e => updateEdit('date_of_birth', e.target.value || '')} />
+          </FieldGrid>
+
+          <div style={dividerStyle} />
+          <SectionTitle as="h3">Additional details</SectionTitle>
+          <FieldGrid>
+            {visibleTenantFields.map(f => {
+              const currentVal = edits[f.field_key] ?? contact.custom_fields?.[f.field_key] ?? ''
+              if (f.field_options?.length) {
+                return (
+                  <div key={f.field_key}>
+                    <Select label={getContactCardFieldLabel(f)} value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)}>
+                      <option value="">—</option>
+                      {f.field_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </Select>
+                  </div>
+                )
+              }
+              return (
+                <div key={f.field_key}>
+                <Input label={getContactCardFieldLabel(f)} type="text" value={String(currentVal)} onChange={e => updateEdit(f.field_key, e.target.value)} placeholder={f.field_label} />
+                </div>
+              )
+            })}
+          </FieldGrid>
+        </div>
+
+        {/* Footer — Cancel/Done (matches normal-mode button size) */}
+        <div style={{
+          padding: isMobile ? '12px 16px' : `16px 28px`,
+          borderTop: `1px solid ${colors.borderLight}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          flexWrap: 'wrap',
+          minWidth: 0,
+          flexShrink: 0,
+          background: colors.surface,
+        }}>
+          <Button variant="secondary" onClick={handleCancelEditing}>Cancel</Button>
+          <Button variant="primary" onClick={handleSaveEdits} disabled={saving}>{saving ? 'Saving...' : 'Done'}</Button>
+        </div>
+      </SlidePanel>
+    )
+  }
+
+  // ── Normal view ──
+  if (smsOpen) return <SlidePanel isOpen onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+    <CardSmsComposer backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
+      onBack={() => setSmsOpen(false)} onClose={onClose} />
+  </SlidePanel>
+
+  return (
+    <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+      <SlidePanelHeader
+        title={`${contact.first_name} ${contact.last_name}`}
+        avatar={{
+          firstName: contact.first_name,
+          lastName: contact.last_name,
+          size: 48,
+          src: contactAvatarSrc,
+        }}
+        titleSize={typography.size2xl}
+        compact={isMobile}
+        badge={
+          <>
+            <StatusBadge status={contact.opted_out ? 'spam' : contact.client_status} label={contact.opted_out ? 'Opted out' : statusLabel} size="md" />
+            {isInstructor && <Badge variant="info">Instructor</Badge>}
+            {isInstructor && !isInstructorActive && <Badge variant="inactive">Sunset</Badge>}
+            {computedIsMinor && <Badge variant="minor">Minor</Badge>}
+            {ageLabel && <span style={{ fontSize: '13px', color: colors.textMuted, fontWeight: 400 }}>{ageLabel}</span>}
+          </>
+        }
+        onClose={onClose}
+        toast={toastMessage || undefined}
+        titleBadge={!preview && !isInstructor ? (
+          <ControlButton kind="icon"
+            type="button"
+            aria-label="Edit contact"
+            title="Edit contact"
+            onClick={handleStartEditing}
+            style={{ width: '32px' }}
+          >
+            <Pencil size={16} />
+          </ControlButton>
+        ) : undefined}
+        actions={preview ? <Button variant="secondary" onClick={preview.onOpenWorkspace}>Open full workspace</Button> : isInstructor ? (
+          <>
+            <ControlButton kind="icon"
+              type="button"
+              onClick={() => onCompose?.([contact.id])}
+              disabled={!onCompose}
+              aria-label={`Message ${contact.first_name} ${contact.last_name}`}
+              title="Send message"
+              style={{ width: '32px' }}
+            >
+              <MessageSquare size={16} />
+            </ControlButton>
+            <ControlButton kind="icon"
+              type="button"
+              onClick={() => handleCall(contact.phone)}
+              disabled={!contact.phone || calling}
+              aria-label={`Call ${contact.first_name} ${contact.last_name}`}
+              title={contact.phone ? `Call ${displayPhone(contact.phone)}` : 'No phone number'}
+              style={{ width: '32px' }}
+            >
+              <Phone size={16} />
+            </ControlButton>
+            <div style={{ position: 'relative' }}>
+              <ControlButton kind="icon"
+                type="button"
+                onClick={() => setIsStaffActionMenuOpen(open => !open)}
+                aria-label="Staff edit options"
+                aria-expanded={isStaffActionMenuOpen}
+                title="Edit staff member"
+                style={{ width: '32px' }}
+              >
+                <Pencil size={16} />
+              </ControlButton>
+              {isStaffActionMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '38px',
+                  right: 0,
+                  zIndex: 5,
+                  minWidth: '176px',
+                  padding: spacing.xs,
+                  background: colors.surface,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radius.md,
+                  boxShadow: shadows.md,
+                }}>
+                  <Button variant="secondary" size="sm"
+                    type="button"
+                    onClick={() => {
+                      setIsStaffActionMenuOpen(false)
+                      handleStartEditing()
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    Edit staff member
+                  </Button>
+                  <Button variant="secondary" size="sm"
+                    type="button"
+                    onClick={() => {
+                      setIsStaffActionMenuOpen(false)
+                      if (isInstructorActive && !window.confirm('Sunset this instructor? They will no longer be able to sign in or be messaged.')) return
+                      patch({ is_active: !isInstructorActive })
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    {isInstructorActive ? 'Sunset / offboard' : 'Reactivate instructor'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        ) : undefined}
+      />
+
+      {preview ? <SlidePanelActionBar isMobile={isMobile}>{preview.toolbar}</SlidePanelActionBar> : !isInstructor && <SlidePanelActionBar isMobile={isMobile}>
+        <Button
+          type="button"
+          size="md"
+          disabled={!contactPhone || calling}
+          onClick={() => void handleCall(contactPhone)}
+
+        >
+          <Phone size={16} />
+          {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
+        </Button>
+        {contactPhone && contactPhone !== contact.phone ? <Button type="button" variant="secondary" size="md"
+          disabled={!onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
+          <Button variant="secondary" disabled={!contactPhone} onClick={() => contextualCompose ? contextualCompose('sms') : setSmsOpen(true)}>Send SMS</Button>}
+        <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="email"
+          disabled={!contactEmail || contactEmail !== contact.email}
+          unavailableReason={contactEmail && contactEmail !== contact.email ? 'Account-holder routing is not yet supported in Conversations.' : undefined} />
+        <CompactMetaCard fullWidth={isMobile} style={emailControlStyle}>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{contactEmail || 'Not provided'}</span>
+          {contactEmail && (
+            <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail(contactEmail)} >
+              <Copy size={15} />
+            </Button>
+          )}
+          {copiedEmail && <span role="status" style={{ color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }}>Copied</span>}
+        </CompactMetaCard>
+      </SlidePanelActionBar>}
+
+      {!preview?.hideTabs && <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
+          <Tabs
+            items={preview?.tabs || [
+              { key: 'profile', label: 'Profile' },
+              ...(preview ? [{ key: 'enrollments' as const, label: 'Enrollments' }] : []),
+              { key: 'scheduling', label: 'Scheduling' },
+              { key: 'billing', label: 'Billing' },
+              { key: 'funding', label: 'Funding Program' },
+            ]}
+            activeKey={preview?.tab || activePanelTab}
+            onChange={preview?.onTabChange || setActivePanelTab}
+            compact={isMobile}
+            style={preview ? { width: 'max-content', minWidth: '100%' } : isMobile ? { minWidth: 430 } : undefined}
+          />
+      </div>}
+
+      {/* Body — two desktop columns, one mobile stack */}
+      {preview ? <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: colors.background, padding: spacing.lg }}>{preview.content}</div> : activePanelTab === 'scheduling' ? (
+        <ContactModuleEmptyState
+          icon={<CalendarDays size={32} />}
+          title="Scheduling coming soon"
+          description="Lessons, appointments, and attendance will be available here."
+        />
+      ) : activePanelTab === 'billing' ? (
+        fundingCase ? (
+          <FundingContactDetails
+            fundingCase={fundingCase}
+            embedded
+            sections="billing"
+            onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+            onFundingDetailsUpdated={applyFundingCase}
+          />
+        ) : (
+          <ContactModuleEmptyState
+            icon={<CreditCard size={32} />}
+            title="No billing activity yet"
+            description="Invoices and payments will appear here once this student is assigned to a funding program."
+          />
+        )
+      ) : activePanelTab === 'funding' ? (
+        fundingCase ? (
+          <FundingContactDetails
+            fundingCase={fundingCase}
+            embedded
+            showBilling={false}
+            onInvoiceStatusChange={invoice => onInvoiceStatusChange ? onInvoiceStatusChange(invoice) : setInvoiceEdit(invoice)}
+            onFundingDetailsUpdated={applyFundingCase}
+          />
+        ) : (
+          <ContactModuleEmptyState
+            icon={<Landmark size={32} />}
+            title="No funding program assigned"
+            description="Funding authorization and coverage details will appear here when this student is assigned to a funding program."
+          />
+        )
+      ) : insightsLoading ? <ProfilePanelSkeleton /> : (
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', flex: 1, minWidth: 0, overflowY: isMobile ? 'auto' : 'hidden', overflowX: 'hidden', background: colors.background }}>
+        {/* LEFT COLUMN */}
+        <div style={{ minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '16px' : '24px 28px', borderRight: isMobile ? 'none' : `1px solid ${colors.borderLight}` }}>
+
+          {/* Account holders (conditional — no card space / divider when absent) */}
+          {showAccountHolders ? (
+            <AccountManagersPanel accountHolders={accountHolders} onCall={phone => { void handleCall(phone) }} calling={calling} />
+          ) : null}
+
+          {/* AI Insights */}
+          {!isInstructor && <ContactAIHighlightsPanel>
+          {actionInsights.length === 0 && passiveInsights.length === 0 ? (
+            <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
+              No insights available for this contact yet.
+            </p>
+          ) : (
+            <div style={{ marginTop: '10px' }}>
+              {/* Action cards — headline + detail only, no CTA */}
+              {actionInsights.map((insight, i) => {
+                const config = valenceConfig[insight.valence || 'passive']
+                return (
+                  <div key={i} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    background: config.bg,
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: config.titleColor, lineHeight: 1.4, minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {insight.headline}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        {insight.source === 'internal_note' && (
+                          <span style={{
+                            fontSize: '10px', fontWeight: 600, color: '#6B7280',
+                            background: 'rgba(255,255,255,0.7)',
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            borderRadius: '4px', padding: '1px 6px',
+                            whiteSpace: 'nowrap',
+                          }}>🔒 team</span>
+                        )}
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: config.dotColor, marginTop: '5px' }} />
+                      </div>
+                    </div>
+                    {insight.detail && (
+                      <div style={{ fontSize: '13px', color: colors.text, lineHeight: 1.5, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                        {insight.detail}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+            </div>
+          )}
+          </ContactAIHighlightsPanel>}
+
+          {isInstructor && (
+            <DenseSectionPanel
+              title={`Active students (${activeStudents.length})`}
+              style={{ marginBottom: spacing.lg }}
+              contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
+            >
+              {activeStudents.length === 0 ? (
+                <p style={{ margin: 0, fontSize: typography.sizeSm, color: colors.textMuted }}>
+                  No active students are currently subscribed to this instructor.
+                </p>
+              ) : activeStudents.map(student => (
+                <div
+                  key={student.enrollment_id}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, padding: '10px 12px', border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <ControlButton kind="link"
+                      type="button"
+                      onClick={() => onViewInstructor?.(student.person_id)}
+                      disabled={!onViewInstructor}
+
+                    >
+                      {student.name}
+                    </ControlButton>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', marginTop: '3px', fontSize: typography.sizeXs, color: colors.textMuted }}>
+                      {student.instrument && <span>{student.instrument}</span>}
+                      {student.service_type && <span>{student.service_type}</span>}
+                      {student.lesson_day && <span>{student.lesson_day}</span>}
+                      {student.lesson_time && <span>{student.lesson_time}</span>}
+                    </div>
+                  </div>
+                  <StatusBadge status={student.client_status} label={student.client_status.charAt(0).toUpperCase() + student.client_status.slice(1)} />
+                </div>
+              ))}
+            </DenseSectionPanel>
+          )}
+
+          {/* Details grid */}
+          {(populatedFields.length > 0 || contact.date_of_birth) && (
+            <ContactDetailsPanel contact={contact} populatedFields={populatedFields} onViewInstructor={onViewInstructor} />
+          )}
+        </div>
+
+        {/* RIGHT COLUMN — Notes + Internal notes */}
+        <div style={{ overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '0 16px 16px' : '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <DenseSectionPanel tone="default" style={{ height: 'fit-content' }}>
+            <Tabs
+              items={[
+                { key: 'notes', label: 'Notes' },
+                { key: 'internal', label: 'Internal notes' },
+              ]}
+              activeKey={activeNotesTab}
+              onChange={setActiveNotesTab}
+              style={{ marginBottom: spacing.lg }}
+            />
+
+            {activeNotesTab === 'notes' ? (
+              <NotesSection
+                title="Notes"
+                notes={studentNotesHistory}
+                avatarInitial="S"
+                avatarBg={colors.crimson}
+                cardBg="#FFFFFF"
+                addLabel="Add a note"
+                saving={studentNotesSaving}
+                showHeader={false}
+                onSave={async (text) => {
+                  setStudentNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not save note')
+                      return false
+                    }
+                    setStudentNotesHistory(Array.isArray(result.student_notes_history) ? result.student_notes_history : [])
+                    showToast('changes saved')
+                    return true
+                  } finally {
+                    setStudentNotesSaving(false)
+                  }
+                }}
+                onToggleComplete={async (index) => {
+                  const entry = studentNotesHistory[index]
+                  if (!entry) return
+                  setStudentNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not update note')
+                      return
+                    }
+                    setStudentNotesHistory(Array.isArray(result.student_notes_history) ? result.student_notes_history : [])
+                  } finally {
+                    setStudentNotesSaving(false)
+                  }
+                }}
+              />
+            ) : (
+              <NotesSection
+                title="Internal notes"
+                notes={internalNotesHistory}
+                avatarInitial="T"
+                avatarBg={colors.textMuted}
+                cardBg="#f6f8f8"
+                addLabel="Add internal note"
+                saving={internalNotesSaving}
+                signifierLabel="Internal comms"
+                helperText="Visible to staff only. Use for coaching, coordination, and operational follow-up."
+                showHeader={false}
+                mentionsEnabled
+                onSave={async (text, mentionMembershipIds) => {
+                  setInternalNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text, mention_membership_ids: mentionMembershipIds }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not save note')
+                      return false
+                    }
+                    setInternalNotesHistory(Array.isArray(result.notes_history) ? result.notes_history : [])
+                    showToast('changes saved')
+                    return true
+                  } finally {
+                    setInternalNotesSaving(false)
+                  }
+                }}
+                onToggleComplete={async (index) => {
+                  const entry = internalNotesHistory[index]
+                  if (!entry) return
+                  setInternalNotesSaving(true)
+                  try {
+                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),
+                    })
+                    const result = await response.json()
+                    if (!response.ok) {
+                      showToast(result?.error || 'Could not update note')
+                      return
+                    }
+                    setInternalNotesHistory(Array.isArray(result.notes_history) ? result.notes_history : [])
+                  } finally {
+                    setInternalNotesSaving(false)
+                  }
+                }}
+              />
+            )}
+          </DenseSectionPanel>
+        </div>
+      </div>
+      )}
+
+      <InvoiceStatusModal invoice={invoiceEdit} onClose={() => setInvoiceEdit(null)} onSave={saveInvoiceStatus} />
+    </SlidePanel>
+  )
+}
+
+function ContactModuleEmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 320, padding: spacing.xl, background: colors.background }}>
+      <div style={{ width: '100%', maxWidth: 520 }}>
+        <EmptyState
+          variant="panel"
+          icon={icon}
+          title={title}
+          description={description}
+        />
+      </div>
+    </div>
+  )
+}
+
+const mobileActionControlStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+}
+
+const emailControlStyle: React.CSSProperties = {
+  gap: spacing.xs,
+  color: colors.textSecondary,
+  fontWeight: typography.weightMedium,
+  flexWrap: 'wrap',
+  minHeight: `calc(${typography.sizeBase} + ${spacing.lg} + ${spacing.sm})`,
+  padding: `${spacing.sm} ${spacing.lg}`,
+  fontSize: typography.sizeBase,
+  maxWidth: '100%',
+  minWidth: 0,
+  overflow: 'hidden',
+}

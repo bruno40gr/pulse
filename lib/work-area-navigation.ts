@@ -1,8 +1,13 @@
 export type NavigationAccess = {
+  roleKey?: string
   canAccessDesignSystem?: boolean
   canManageIntegrations?: boolean
   canManageBrand?: boolean
   canManageRoles?: boolean
+}
+
+export function canAccessBeta(access: NavigationAccess) {
+  return access.roleKey === 'owner' || access.roleKey === 'admin'
 }
 
 export type WorkAreaId = 'operations' | 'school' | 'funding' | 'website' | 'settings'

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { colors } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
-import { activeNavigationLink, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
+import { activeNavigationLink, canAccessBeta, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
 import styles from './WorkAreaNavigation.module.css'
 
 const icons = { operations: LayoutDashboard, school: GraduationCap, funding: Wallet, website: Globe }
@@ -88,7 +88,10 @@ export default function WorkAreaNavigation({ access, leadCount, conversationCoun
         onNavigate()
       }}>{link.label}{count > 0 && <span className={styles.count} aria-label={`${count} ${link.href === '/dashboard/leads' ? 'new leads' : 'unread messages'}`}>{count}</span>}</Link>
     })}</nav>
-    <div className={styles.footer}><Link href="/dashboard/settings" className={styles.link} aria-current={areaId === 'settings' ? 'page' : undefined} onClick={onNavigate}><Settings size={16} />Settings</Link></div>
+    <div className={styles.footer}>
+      {canAccessBeta(access) && <Link href={`/odeon-demo?tenant=${encodeURIComponent(tenant)}`} aria-label="BETA academy preview" onClick={onNavigate} className={styles.link} style={{ justifyContent: 'space-between', background: colors.yellow, color: colors.espresso, fontWeight: 700 }}><span>BETA</span><span style={{ fontSize: 12, fontWeight: 500 }}>Academy preview</span></Link>}
+      <Link href="/dashboard/settings" className={styles.link} aria-current={areaId === 'settings' ? 'page' : undefined} onClick={onNavigate}><Settings size={16} />Settings</Link>
+    </div>
     <Modal isOpen={searchOpen} onClose={() => setSearchOpen(false)} ariaLabel="Jump to a page" size="md">
       <ModalHeader title="Jump to a page" onClose={() => setSearchOpen(false)} />
       <ModalBody>

@@ -1,0 +1,17 @@
+.editor { display: grid; gap: var(--teacher-gap, 22px); }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--teacher-gap); flex-wrap: wrap; }
+.assignmentHeader, .assignment { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 32%); align-items: center; gap: var(--teacher-gap); }
+.assignment { border-bottom: 1px solid var(--teacher-border); padding: 28px 0; min-height: 108px; box-sizing: border-box; }
+.level { display: grid; gap: var(--teacher-gap); padding: 0 10px; }
+.sliderTrack { position: relative; height: 6px; background: var(--teacher-border); border-radius: var(--teacher-radius); }
+.sliderFill { position: absolute; height: 100%; background: var(--teacher-accent); border-radius: inherit; }
+.sliderDot { position: absolute; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--teacher-border); }
+.sliderDot[data-active='true'] { background: var(--teacher-accent); }
+.sliderTrack input { position: absolute; width: calc(100% + 20px); height: 44px; top: 50%; left: -10px; transform: translateY(-50%); opacity: 0; margin: 0; cursor: pointer; }
+.sliderTrack:focus-within { outline: 2px solid var(--teacher-accent); outline-offset: 12px; }
+.levelLabels { display: flex; justify-content: space-between; font-size: var(--teacher-small); }
+@media (max-width: 540px) { .assignmentHeader, .assignment { grid-template-columns: minmax(0, 1fr) minmax(120px, 45%); } }
+.day { position: relative; height: calc(64 * var(--calendar-slot-height)); background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--calendar-slot-height) - 1px), var(--teacher-border) calc(var(--calendar-slot-height) - 1px), var(--teacher-border) var(--calendar-slot-height)); touch-action: none; user-select: none; }
+.block { position: absolute; left: 2px; right: 2px; min-height: 10px; background: var(--teacher-surface); border: 1px solid var(--teacher-accent); border-radius: var(--teacher-radius); color: var(--teacher-accent); cursor: grab; font-size: var(--teacher-small); overflow: hidden; box-sizing: border-box; }
+.resize { position: absolute; bottom: 0; left: 0; right: 0; height: 8px; background: var(--teacher-accent); cursor: ns-resize; }
+.timeOff { position: absolute; left: 2px; right: 2px; z-index: 2; box-sizing: border-box; background: var(--teacher-surface); border: 1px dashed var(--teacher-muted); border-radius: var(--teacher-radius); overflow: hidden; }

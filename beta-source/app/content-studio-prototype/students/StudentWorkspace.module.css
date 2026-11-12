@@ -1,0 +1,82 @@
+.root { min-width: 0; box-sizing: border-box; }
+.root *, .root *::before, .root *::after { box-sizing: border-box; }
+.columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr); align-items: start; }
+.stack { display: flex; flex-direction: column; min-width: 0; }
+.communicationContent { display: flex; flex-direction: column; overflow: hidden; container-type: inline-size; }
+.panelContent.communicationContent { padding-top: 6px; }
+.communication { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; min-width: 0; }
+.communicationToolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; flex-shrink: 0; }
+.communicationToolbar > button { min-height: 44px; flex-shrink: 0; }
+.communicationToolbar > section { flex: 1; }
+.communicationDraft { padding: 6px 24px 24px; overflow-y: auto; flex: 1; min-height: 0; }
+.communicationDraftInner { max-width: 1050px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 700px) { .communicationDraft { padding: 6px 16px 18px; } }
+.emailBrowser { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; }
+.emailList, .emailReader { min-width: 0; overflow-y: auto; min-height: 0; }
+.emailReader { padding: 18px; display: none; }
+.emailBrowser[data-reader='true'] .emailReader { display: block; }
+.emailBrowser[data-reader='true'] .emailList { display: none; }
+.emailBack { margin-bottom: 18px; }
+.emailSnippet { color: #4b5563; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 0; }
+@container (min-width: 620px) {
+  .emailBrowser { grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); }
+  .emailBrowser .emailList, .emailBrowser[data-reader='true'] .emailList { display: block; border-right: 1px solid var(--border, #e5e7eb); }
+  .emailBrowser .emailReader { display: block; }
+  .emailBack { display: none; }
+}
+.subscriptionManagement { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (min-width: 900px) { .subscriptionManagement { grid-template-columns: minmax(260px, .8fr) minmax(0, 1.4fr); } }
+.subscriptionManagementInline { display: flex; flex-direction: column; align-items: stretch; }
+.enrollments { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.tabs { max-width: 100%; overflow-x: auto; }
+.panelNavigation { flex-shrink: 0; padding: 0 24px;  }
+.panelContent { padding: 18px 24px 24px; overflow-y: auto; min-height: 0; flex: 1; container-type: inline-size; }
+.profileGrid { display: grid; gap: 14px; align-items: start; }
+.quickReferenceLayout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 18px; }
+.quickReferenceLayout > * { min-width: 0; }
+.lessonsLayout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr); align-items: start; gap: 18px; min-width: 0; }
+.lessonsBrowse, .lessonDetail { min-width: 0; }
+.lessonRow { display: grid !important; grid-template-columns: minmax(100px, 1fr) minmax(100px, 1.5fr) auto; width: 100%; padding: 14px !important; border-bottom: 1px solid var(--border, #e5e7eb) !important; text-align: left; }
+.mobileLessonBack { display: none; }
+@media (max-width: 700px) {
+  .lessonsLayout { grid-template-columns: minmax(0, 1fr); }
+  .lessonsLayout[data-detail='true'] .lessonsBrowse, .lessonsLayout[data-detail='false'] .lessonDetail { display: none; }
+  .mobileLessonBack { display: block; margin-bottom: 14px; }
+  .lessonRow { grid-template-columns: minmax(80px, 1fr) minmax(90px, 1.2fr); }
+  .lessonRow > :last-child { grid-column: 2; }
+}
+@container (min-width: 760px) {
+  .quickReferenceLayout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+}
+@container (min-width: 760px) { .profileGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 700px) { .panelNavigation { padding: 0 16px; } .panelContent { padding: 14px 16px 18px; } }
+.calendarScroll { max-width: 100%; overflow-x: auto; }
+.calendar { display: grid; grid-template-columns: 64px repeat(5, minmax(150px, 1fr)); min-width: 850px; }
+.day { position: relative; height: 480px; min-width: 0; }
+.event { position: absolute; left: 3px; right: 3px; overflow: auto; }
+.treeHeader, .treeRow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(100px, 1fr); gap: 18px; padding: 14px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.treeRow { cursor: pointer; }
+.treeRow:hover { background: #f5f7f7; }
+.treeRow:focus-visible { outline: 2px solid #0090aa; outline-offset: -2px; }
+.treeMeta { display: block; font-size: 12px; color: #64748b; margin-top: 4px; }
+.childRow { padding-left: 38px; }
+@media (max-width: 700px) { .columns { grid-template-columns: minmax(0, 1fr); } }
+.calendarTaskLayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
+.calendarTaskCanvas { min-width: 0; }
+.calendarTaskCanvas > div { margin-top: 0; }
+@media (min-width: 1000px) { .calendarTaskLayout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); } }
+
+.calendarToolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.calendarToolbar > div:first-child { margin-bottom: 0; }
+
+.emailMessage { padding: 16px 0; }
+.emailMessage + .emailMessage { border-top: 1px solid #e5e7eb; }
+.emailMessageHeader { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.emailMessageContent { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+.emailMetadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; }
+.emailMetadata dt { color: #4b5563; }
+.emailMetadata dd { margin: 0; overflow-wrap: anywhere; }
+.emailMessageBody { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.emailReply { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+.emailReply h4 { margin: 0; }

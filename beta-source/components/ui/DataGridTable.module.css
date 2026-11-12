@@ -1,0 +1,16 @@
+.interactive [role='rowgroup'] > [role='row'] {
+  background: var(--table-row-background) !important;
+}
+
+.interactive [role='rowgroup']:hover > [role='row'],
+.interactive [role='rowgroup']:focus-within > [role='row'] {
+  background: var(--table-row-hover) !important;
+}
+
+.interactive [role='rowgroup']:has([aria-selected='true']) > [role='row'] {
+  background: #eaf2ff !important;
+}
+
+.interactive [role='rowgroup']:has([aria-selected='true']):hover > [role='row'] {
+  background: #dfeaff !important;
+}
