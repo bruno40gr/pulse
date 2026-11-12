@@ -77,30 +77,26 @@ async function loadMembershipContext(input: {
     return { ok: false, status: 403, error: 'Legacy access is disabled for this staff account.' }
   }
 
-  const [roleResult, mappingsResult] = await Promise.all([
-    supabaseAdmin
-      .from('roles')
-      .select('id, key')
-      .eq('id', membership.role_id)
-      .eq('tenant_id', input.tenantId)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('role_permissions')
-      .select('permission_id')
-      .eq('role_id', membership.role_id),
-  ])
-  const { data: role, error: roleError } = roleResult
+  // The FK-backed nested select resolves the role and its permission keys in one
+  // database round trip. A join/query failure must deny access, never skip checks.
+  const { data: role, error: roleError } = await supabaseAdmin
+    .from('roles')
+    .select('id, key, role_permissions(permission_id, permissions(key))')
+    .eq('id', membership.role_id)
+    .eq('tenant_id', input.tenantId)
+    .maybeSingle()
   if (roleError) throw roleError
   if (!role) return { ok: false, status: 403, error: 'This staff account does not have a valid role.' }
 
-  const { data: mappings, error: mappingsError } = mappingsResult
-  if (mappingsError) throw mappingsError
-
-  const permissionIds = (mappings || []).map(mapping => mapping.permission_id)
-  const { data: permissions, error: permissionsError } = permissionIds.length
-    ? await supabaseAdmin.from('permissions').select('key').in('id', permissionIds)
-    : { data: [], error: null }
-  if (permissionsError) throw permissionsError
+  const mappings = role.role_permissions as unknown as { permissions: { key: string } | { key: string }[] | null }[]
+  if (!Array.isArray(mappings)) throw new Error('Role permissions could not be verified.')
+  const permissionKeys = mappings.flatMap(mapping => {
+    const permissions = Array.isArray(mapping.permissions) ? mapping.permissions : [mapping.permissions]
+    if (!permissions.length || permissions.some(permission => !permission || typeof permission.key !== 'string')) {
+      throw new Error('Role permission could not be verified.')
+    }
+    return permissions.map(permission => permission!.key)
+  })
 
   return {
     ok: true,
@@ -113,7 +109,7 @@ async function loadMembershipContext(input: {
       roleId: role.id,
       roleKey: role.key,
       membershipStatus: membership.status,
-      permissions: new Set((permissions || []).map(permission => permission.key)),
+      permissions: new Set(permissionKeys),
       legacyActor: input.legacyActor,
     },
   }

@@ -26,6 +26,7 @@ import { LeadBulkFollowUpPanel, type BulkFollowUpTarget } from './LeadBulkFollow
 import type { FollowUpPatch } from '@/lib/lead-bulk-follow-up'
 import { getActiveTenantId } from '@/lib/tenant'
 import { LeadDetailPanel } from './LeadDetailPanel'
+import { LeadPanelPreview } from './LeadPanelPreview'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LeadInlineEditor } from './LeadInlineEditor'
 import { matchesLeadInquirySearch } from '@/lib/lead-inquiry-search'
@@ -611,6 +612,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const leadListCacheGenerationRef = useRef(0)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null)
+  const [leadPreview, setLeadPreview] = useState<LeadRecord | null>(null)
   const selectedLeadIdRef = useRef<string | null>(null)
   const leadDetailRequestRef = useRef(0)
   const leadSaveRequestRef = useRef(0)
@@ -943,6 +945,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   const openLead = async (leadId: string, intakeType?: string) => {
     selectedLeadIdRef.current = leadId
+    setSelectedLead(null)
+    setLeadPreview(leads.find(lead => lead.id === leadId) || null)
     setSmsViewOpen(false)
     setSelectedLeadId(leadId)
     await fetchLeadDetail(leadId, intakeType)
@@ -1133,6 +1137,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setSmsViewOpen(false)
     setSelectedLeadId(null)
     setSelectedLead(null)
+    setLeadPreview(null)
     removeCurrentSearchParam('lead')
     setDetailError('')
     setShowStatusEditor(false)
@@ -2218,7 +2223,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       <SlidePanel isOpen={Boolean(selectedLeadId)} onClose={leadHistory.closePanel} closeOnBackdrop={!(correctionPrototype && isEditLeadOpen)} closeOnEscape={!(correctionPrototype && isEditLeadOpen)} fullScreen={isMobileLayout} width={PROFILE_PANEL_WIDTH}>
         <div style={leadPanelBodyStyle}>
           {detailError && <MessageBox>{detailError}</MessageBox>}
-          {detailLoading && <ProfilePanelSkeleton />}
+          {!selectedLead && leadPreview && <LeadPanelPreview lead={leadPreview} loading={detailLoading} onClose={leadHistory.closePanel} />}
+          {detailLoading && !leadPreview && <><SlidePanelHeader title="Loading lead…" onClose={leadHistory.closePanel} /><ProfilePanelSkeleton /></>}
 
           {selectedLead && !detailLoading && (
             <LeadDetailPanel

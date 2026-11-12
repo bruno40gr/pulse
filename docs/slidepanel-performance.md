@@ -79,3 +79,25 @@ Ship diagnostic-only changes separately from the pending list/account optimizati
 Verify the deployed commit and ready status before collecting one authorized lead
 and one contact interaction. Do not claim a production improvement from local
 synthetic tests or assume a successful push proves successful deployment.
+
+## Follow-up after the first access optimization
+
+Production requests on November 12, 2026 still took 1,316–1,775 ms in the
+handler, including 942–1,179 ms resolving access. The browser reported 2.58 s
+waiting. This is not an instant detail response; middleware/startup/transport
+remain outside the handler timer.
+
+The follow-up combines tenant-scoped role and permission-key loading using the
+existing foreign keys, eliminating the separate mapping and permission queries.
+Missing or malformed embedded permissions fail closed. Membership status,
+legacy eligibility, tenant selection and permission enforcement remain unchanged.
+
+Opening a loaded lead now immediately renders a clearly labelled read-only
+preview from its existing list row. It does not fabricate detail, fetch notes
+separately, prefetch rows or permit edits/messages before the fresh detail arrives.
+Deep links without a list row retain the loading fallback. Existing request-ID
+guards discard late results after close or selection changes.
+
+The intercepted local browser check held the detail response open and measured
+73 ms to preview, one GET per opening, no writes and no late-response reopening.
+This is a local UI measurement, not evidence of improved production server time.

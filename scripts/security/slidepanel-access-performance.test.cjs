@@ -33,6 +33,7 @@ for (const legacy of [false, true]) test(`lead GET avoids viewer enrichment and 
   assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 1)
   assert.equal(h.getQueries().filter(q => q.table === 'instructors').length, 0)
   assert.equal(h.getQueries().filter(q => q.table === 'people').length, 1, 'Only note-author lookup remains')
+  assert.equal(h.getQueries().filter(q => ['role_permissions', 'permissions'].includes(q.table)).length, 0, 'Role query embeds permission keys')
   assert.equal(h.getWrites().length, 0)
 })
 
@@ -70,4 +71,11 @@ test('authorization reuse never crosses Request objects or tenant selections', a
   assert.equal((await resolve(request, DEMO)).ok, false)
   h.setScenario(scenario({ status: 'suspended' }))
   assert.equal((await resolve(new Request(request), HEAD)).ok, false)
+})
+
+test('missing embedded permission fails closed instead of granting partial access', async () => {
+  const h = createHarness(); const data = scenario(); data.fixtures.permissions = []; h.setScenario(data)
+  const result = await h.load('lib/tenant-request.ts').authorizeTenantRequest(new Request(`http://synthetic.invalid/?tenant=${HEAD}`))
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 503)
 })

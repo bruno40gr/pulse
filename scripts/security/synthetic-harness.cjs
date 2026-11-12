@@ -58,6 +58,15 @@ function createHarness() {
             }
           }
           if (limit !== undefined) data = data.slice(0, limit)
+          // Emulate the FK-backed role -> mappings -> permission-key projection.
+          // Keep failure injection effective for each table embedded in the query.
+          if (table === 'roles' && filters.some(([method, columns]) => method === 'select' && columns.includes('role_permissions('))) {
+            const joinError = scenario.errors?.role_permissions || scenario.errors?.permissions
+            if (joinError) return { data: null, error: joinError }
+            data = data.map(role => ({ ...role, role_permissions: (scenario.fixtures?.role_permissions || [])
+              .filter(mapping => mapping.role_id === role.id)
+              .map(mapping => ({ ...mapping, permissions: (scenario.fixtures?.permissions || []).find(permission => permission.id === mapping.permission_id) || null })) }))
+          }
           if (single) data = data[0] || null
           return { data: error ? null : data, error, count: Array.isArray(data) ? data.length : 0 }
         }
