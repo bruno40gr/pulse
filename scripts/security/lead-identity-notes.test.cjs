@@ -57,6 +57,25 @@ test('initial manual note appears in lead detail without a database backfill', a
   )
   assert.equal(response.status, 200)
   assert.equal((await response.json()).notes_history[0].text, 'Initial manual note')
+  assert.equal(response.headers.get('cache-control'), 'private, no-store')
+  assert.ok(response.headers.get('x-request-id'))
+  const timing = response.headers.get('server-timing')
+  for (const stage of ['access', 'record', 'activity', 'notes', 'total']) {
+    assert.match(timing, new RegExp(`(?:^|, )${stage};dur=\\d+`))
+  }
+  assert.doesNotMatch(timing, /staff|older|tenant|email/)
+})
+test('detail timing does not bypass access or query lead data when signed out', async () => {
+  const h = createHarness()
+  h.setScenario({ fixtures: {} })
+  const response = await h.load('app/api/leads/[id]/route.ts').GET(
+    new Request('https://synthetic.invalid/api/leads/older?intake_type=lesson_inquiry'),
+    { params: Promise.resolve({ id: 'older' }) },
+  )
+  assert.equal(response.status, 401)
+  assert.match(response.headers.get('server-timing'), /^access;dur=\d+, total;dur=\d+$/)
+  assert.equal(response.headers.get('cache-control'), 'private, no-store')
+  assert.equal(h.getQueries().some(query => ['lead_intakes', 'lead_events', 'job_applications'].includes(query.table)), false)
 })
 test('saving unrelated fields on a shared contact is allowed and preserves the creation note', async () => {
   const h = createHarness()

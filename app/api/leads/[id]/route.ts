@@ -12,6 +12,7 @@ import { applySavedNoteStatus } from '@/lib/lead-status-automation-server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { PERMISSIONS } from '@/lib/permissions'
+import { createDetailRequestTiming } from '@/lib/detail-request-timing'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEAD_DETAIL_TIMEOUT_MS = 8000
@@ -190,17 +191,17 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const requestLog = createRequestLogContext()
+  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming()
 
   try {
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
-    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
+    const tenantAccess = await measure('access', () => resolveRequestTenant(request, DEFAULT_TENANT_ID))
+    if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status, headers: responseHeaders() })
     const tenantId = tenantAccess.tenantId
     const requestedIntakeType = new URL(request.url).searchParams.get('intake_type')
     const { id } = await params
 
     const existingJobApplication = requestedIntakeType === 'job_application' || !requestedIntakeType
-      ? await getJobApplicationDetail(tenantId, id)
+      ? await measure('job', () => getJobApplicationDetail(tenantId, id))
       : null
     if (existingJobApplication) {
       console.info('[leads][detail]', {
@@ -208,13 +209,14 @@ export async function GET(
         tenantId,
         leadId: id,
         intakeType: 'job_application',
+        timings,
         durationMs: getDurationMs(requestLog.startedAt),
       })
 
-      return NextResponse.json(existingJobApplication)
+      return NextResponse.json(existingJobApplication, { headers: responseHeaders() })
     }
 
-    const leadResultPromise = withTimeout<any>(
+    const leadResultPromise = measure('record', () => withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_intakes')
         .select(`
@@ -257,9 +259,9 @@ export async function GET(
         .single(),
       LEAD_DETAIL_TIMEOUT_MS,
       'lead detail query',
-    )
+    ))
 
-    const eventsResultPromise = withTimeout<any>(
+    const eventsResultPromise = measure('activity', () => withTimeout<any>(
       crmSupabaseAdmin
         .from('lead_events')
         .select('*')
@@ -269,8 +271,8 @@ export async function GET(
         .limit(LEAD_EVENTS_LIMIT),
       LEAD_DETAIL_TIMEOUT_MS,
       'lead events query',
-    )
-    const notesResultPromise = withTimeout(
+    ))
+    const notesResultPromise = measure('notes', () => withTimeout(
       crmSupabaseAdmin
         .from('lead_events')
         .select('*')
@@ -280,7 +282,7 @@ export async function GET(
         .order('created_at', { ascending: false }),
       LEAD_DETAIL_TIMEOUT_MS,
       'lead notes query',
-    )
+    ))
 
     const [leadResult, eventsResult, notesResult] = await Promise.all([leadResultPromise, eventsResultPromise, notesResultPromise])
     const { data: lead, error: leadError } = leadResult as { data: LeadRecord, error: { message: string } | null }
@@ -297,8 +299,8 @@ export async function GET(
       const actor = event.payload?.actor as { personId?: unknown } | undefined
       return typeof actor?.personId === 'string' ? [actor.personId] : []
     }))]
-    const authors = personIds.length ? await supabaseAdmin.from('people').select('id,first_name,last_name')
-      .eq('tenant_id', tenantId).in('id', personIds) : null
+    const authors = personIds.length ? await measure('authors', () => supabaseAdmin.from('people').select('id,first_name,last_name')
+      .eq('tenant_id', tenantId).in('id', personIds)) : null
     const notesWithAuthors = notes_history.map(note => {
       const event = noteEvents?.find(event => event.id === note.id)
       const actor = event?.payload?.actor as { personId?: string } | undefined
@@ -317,6 +319,7 @@ export async function GET(
       leadId: id,
       intakeType: lead.intake_type,
       eventCount: events?.length ?? 0,
+      timings,
       durationMs: getDurationMs(requestLog.startedAt),
     })
 
@@ -327,15 +330,16 @@ export async function GET(
       contact: unwrapContact(lead.crm_contacts),
       events: events || [],
       notes_history: notesWithAuthors,
-    })
+    }, { headers: responseHeaders() })
   } catch (error) {
     console.error('[leads][detail] Error fetching lead detail', {
       requestId: requestLog.requestId,
       durationMs: getDurationMs(requestLog.startedAt),
       error: getErrorMessage(error),
+      timings,
     })
 
-    return NextResponse.json({ error: getErrorMessage(error), requestId: requestLog.requestId }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error), requestId: requestLog.requestId }, { status: 500, headers: responseHeaders() })
   }
 }
 

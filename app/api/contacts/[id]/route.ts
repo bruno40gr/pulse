@@ -8,6 +8,8 @@ import { isNonStudentBooking } from '@/lib/contact-kind'
 import { assertTenantAccess } from '@/lib/access'
 import { requirePermission } from '@/lib/request-context'
 import { PERMISSIONS, type PermissionKey } from '@/lib/permissions'
+import { createDetailRequestTiming } from '@/lib/detail-request-timing'
+import { getDurationMs } from '@/lib/request-runtime'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -104,6 +106,7 @@ async function getActiveInstructorStudents(instructorPersonId: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming()
   const { id } = await params
 
   const tryFetch = async (useNewJoins: boolean) => {
@@ -145,7 +148,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   try {
-    let result = await tryFetch(true)
+    let result = await measure('record', () => tryFetch(true))
 
     // If the new query failed because tables don't exist, fall back
     if (result.error && (
@@ -154,31 +157,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       result.error.code === 'PGRST200'
     )) {
       console.warn('New joins not available yet, falling back to legacy query:', result.error.message)
-      result = await tryFetch(false)
+      result = await measure('legacy_record', () => tryFetch(false))
     }
 
     const { data: person, error } = result
     if (error) throw error
-    if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: responseHeaders() })
 
-    const access = await authorizeContactAccess(request, person.tenant_id, PERMISSIONS.contactsRead)
-    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+    const access = await measure('access', () => authorizeContactAccess(request, person.tenant_id, PERMISSIONS.contactsRead))
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status, headers: responseHeaders() })
 
     const student = (person as any).students?.[0] || {}
     const account = student.accounts || {}
     const enrollment = student.enrollments?.[0] || {}
 
     // Detect if this person is an instructor (staff) so they can be edited and sunset like a contact.
-    const { data: ownInstructor } = await supabaseAdmin
+    const { data: ownInstructor } = await measure('instructor', () => supabaseAdmin
       .from('instructors')
       .select('id')
       .eq('person_id', person.id)
       .eq('tenant_id', person.tenant_id)
-      .maybeSingle()
+      .maybeSingle())
     const staffId = ownInstructor?.id ?? null
     const isInstructor = !!staffId
     const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
-    const activeStudents = isInstructor ? await getActiveInstructorStudents(person.id) : []
+    const activeStudents = isInstructor ? await measure('students', () => getActiveInstructorStudents(person.id)) : []
 
     // Build account_holders array from student_accounts
     const studentAccounts = student.student_accounts ?? []
@@ -214,6 +217,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       email: instructor.person?.email ?? null,
     } : null
 
+    console.info('[contacts][detail]', {
+      requestId: requestLog.requestId,
+      timings,
+      durationMs: getDurationMs(requestLog.startedAt),
+    })
     return NextResponse.json(enrichDemoContact({
       id: person.id,
       student_id: nonStudentBooking ? null : (student.id ?? null),
@@ -252,9 +260,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         session_name: enrollment.session_name,
         band_name: enrollment.custom_fields?.band_name || person.custom_fields?.band_name,
       },
-    }))
+    }), { headers: responseHeaders() })
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+    console.error('[contacts][detail]', { requestId: requestLog.requestId, timings, durationMs: getDurationMs(requestLog.startedAt) })
+    return NextResponse.json({ error: (error as Error).message }, { status: 500, headers: responseHeaders() })
   }
 }
 
