@@ -9,17 +9,18 @@ import { CalendarLegend } from './CalendarLegend'
 import styles from './CalendarBookingLayout.module.css'
 
 /** The calendar owns the first column; changing controls never changes its top edge. */
-export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar, hideConfirm = false }: {
+export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar, hideConfirm = false, rightControls }: {
   children: ReactNode; moving?: boolean; booking?: boolean; makeup: PreviewMakeup; program: string
   sameTeacher: boolean; onSameTeacher: (same: boolean) => void; teacher: string; onTeacher: (teacher: string) => void
   selected: NonNullable<PreviewMakeup['booking']> | null; onConfirm: () => void; error: string
-  hideConfirm?: boolean; sidebar?: ReactNode; studentName?: string
+  rightControls?: ReactNode; hideConfirm?: boolean; sidebar?: ReactNode; studentName?: string
 }) {
   const teachers = scheduleTeachers.filter(item => (item.instruments as readonly string[]).includes(program))
   const slotLabel = (date: string, time: string) => `${formatScheduleDate(date, { weekday: 'short', month: 'short', day: 'numeric' })}, ${formatScheduleTime(time)}`
   return <div className={`${styles.layout} ${moving ? styles.enter : ''} ${sidebar ? styles.leftRail : ''}`} data-booking-layout="">
     <div className={styles.calendar}>{children}<CalendarLegend moving={moving} /></div>
     <aside className={styles.controls} aria-label="Booking controls">
+      {rightControls || <>
       {sidebar}
       <p className={styles.summary}>Family calendar · All children’s lessons and booked makeups stay visible. Sibling lessons may overlap when a suitable teacher is available.</p>
       {(moving || booking) && <SurfacePanel appearance="flat"><section aria-label={moving ? 'Move summary' : 'Makeup summary'} className={styles.moveSummary} aria-live="polite">
@@ -36,6 +37,7 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
       {!moving && !booking && selected && <p className={styles.summary} aria-live="polite">{formatScheduleDate(selected.date)} · {formatScheduleTime(selected.time)}<br />{selected.teacher}</p>}
       {error && <p role="alert">{error}</p>}
       {!hideConfirm && <div className={moving || booking ? styles.moveAction : undefined}><ConfirmActionButton loadingLabel={moving ? 'Rescheduling lesson' : 'Booking makeup'} disabled={!selected} onClick={onConfirm}>{moving ? 'Reschedule lesson' : 'Book makeup'}</ConfirmActionButton></div>}
+      </>}
     </aside>
   </div>
 }
