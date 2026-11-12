@@ -138,3 +138,17 @@ query, removing its final separate membership read. Primary-login precedence,
 revocation, membership ID, tenant, status and role validation remain enforced.
 The query shape was verified read-only; production benefit for the reported
 interaction remains unmeasured and that interaction's identity path is unknown.
+
+## Confirmed duplicate lookup on the reported path
+
+Two production openings on November 12 at 22:12 UTC confirmed the linked-login
+fallback. Access took 789/957 ms: authentication 108/241 ms, initial membership
+selection 254/240 ms, fallback login resolution 328/361 ms, and role 98/115 ms.
+Fallback resolution unnecessarily repeated the primary-membership query.
+
+Account selection now checks primary memberships once, keeps inactive primary
+accounts from falling through, and queries the explicit link directly only when
+no primary membership exists. Multiple active memberships still require account
+selection. Revoked links, tenant/status checks and role permissions are unchanged.
+This removes one database call on the observed path; it does not establish a
+particular production latency reduction until new timings are measured.

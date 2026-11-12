@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { getAccessScope, getRequestActor, type PulseActor } from '@/lib/access'
 import type { PermissionKey } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { findLoginMembership } from '@/lib/membership-logins'
+import { findLinkedLoginMembership, findLoginMembership } from '@/lib/membership-logins'
 
 export type AuthenticationSource = 'supabase' | 'legacy'
 
@@ -169,13 +169,19 @@ async function resolveMembershipRequestContextUncached(
     if (!selectedTenant) {
       let query = supabaseAdmin.from('tenant_memberships').select('id, tenant_id, person_id, auth_user_id, role_id, status, legacy_access_enabled')
       query = input.authUserId
-        ? query.eq('auth_user_id', input.authUserId).eq('status', 'active')
+        ? query.eq('auth_user_id', input.authUserId)
         : query.eq('person_id', input.legacyActor!.personId)
           .eq('legacy_access_enabled', true).in('status', ['unclaimed', 'invited', 'active'])
-      const { data, error } = await measureAccess(request, 'access_selection', () => query.limit(2))
+      // Inspect all primary memberships once so inactive primary accounts cannot
+      // fall through to a linked login. Legacy selection still needs only two.
+      const { data: primaryRows, error } = await measureAccess(request, 'access_selection', () => input.authUserId ? query : query.limit(2))
       if (error) throw error
+      const data = input.authUserId ? primaryRows?.filter(row => row.status === 'active') : primaryRows
+      if (input.authUserId && primaryRows?.length && !data?.length) {
+        return { ok: false, status: 403, error: 'An active staff membership is required.' }
+      }
       if (!data?.length && input.authUserId) {
-        const membership = await measureAccess(request, 'access_linked_login', () => findLoginMembership(input.authUserId!))
+        const membership = await measureAccess(request, 'access_linked_login', () => findLinkedLoginMembership(input.authUserId!))
         if (!membership || membership.status !== 'active') return { ok: false, status: 403, error: 'An active staff membership is required.' }
         selectedTenant = membership.tenant_id
         selectedMembership = membership

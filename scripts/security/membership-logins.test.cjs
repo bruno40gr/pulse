@@ -40,6 +40,20 @@ test('secondary login resolves tenant when omitted', async () => {
   assert.equal(result.ok, true)
   assert.equal(result.context.tenantId, HEAD)
 })
+test('inactive primary membership cannot fall through to an active linked membership', async () => {
+  const h = createHarness()
+  h.setScenario({ authUser: { id: 'auth' }, fixtures: {
+    tenant_memberships: [
+      { id: 'inactive', tenant_id: HEAD, auth_user_id: 'auth', status: 'suspended' },
+      { id: 'linked', tenant_id: HEAD, auth_user_id: 'different', status: 'active' },
+    ],
+    membership_login_links: [{ membership_id: 'linked', auth_user_id: 'auth', revoked_at: null }],
+  } })
+  const result = await h.load('lib/request-context.ts').resolveMembershipRequestContext(request())
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 403)
+  assert.equal(h.getQueries().some(q => q.table === 'membership_login_links'), false)
+})
 test('secondary login embeds membership without a separate linked membership query', async () => {
   const h = setup()
   const result = await h.load('lib/request-context.ts').requireAccountAdministrator(request(), HEAD)

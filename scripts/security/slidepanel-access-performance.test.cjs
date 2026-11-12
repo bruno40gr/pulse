@@ -47,7 +47,7 @@ test('explicit linked login still resolves with one linked membership read', asy
   assert.equal(result.ok, true)
   assert.equal(result.context.membershipId, 'membership')
   assert.equal(h.getQueries().filter(q => q.table === 'membership_login_links').length, 1)
-  assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 2, 'Selection and primary login; linked membership is embedded')
+  assert.equal(h.getQueries().filter(q => q.table === 'tenant_memberships').length, 1, 'Primary selection is not repeated before linked lookup')
 })
 
 for (const options of [{ status: 'suspended' }, { roleTenant: DEMO }]) test(`optimized access denies invalid membership/role ${JSON.stringify(options)}`, async () => {

@@ -10,6 +10,11 @@ export async function findLoginMembership(authUserId: string, tenantId?: string)
   if (error) throw error
   if (membership) return membership
 
+  return findLinkedLoginMembership(authUserId, tenantId)
+}
+
+/** Only call after checking primary membership; inactive primary access must not fall through. */
+export async function findLinkedLoginMembership(authUserId: string, tenantId?: string) {
   const { data: link, error: linkError } = await supabaseAdmin
     .from('membership_login_links').select(`membership_id, tenant_memberships(${membershipColumns})`).eq('auth_user_id', authUserId)
     .is('revoked_at', null).maybeSingle()
