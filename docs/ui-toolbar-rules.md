@@ -186,8 +186,10 @@ account holders were incorrect and are withdrawn.
   column; later staff choices to hide either column remain respected.
 - Leads uses the shared blue `TableContextActionBar` in replacement mode: it
   replaces Export/Status/View/Columns controls without moving the table. Search
-  remains visible. Actions are Update follow-up, Text, Email, and owner-only
-  Delete (enforced by the API too). Clear selection restores unchanged controls.
+  remains visible. The bar overlays the controls at the exact same position and
+  height (including wrapped mobile controls), excluding their bottom gap. Actions
+  are Update follow-up, Send SMS, Send email, and owner-only Delete (enforced by
+  the API too). Clear selection restores unchanged controls.
 - Update follow up opens a shared SlidePanel with the selected lead count,
   Date, Quick pick (Tomorrow/Next week/Next month) and Reminder note. The footer
   is Update follow then Cancel. Common values are prefilled; differing values

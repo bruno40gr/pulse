@@ -50,11 +50,19 @@ test('Leads replaces controls with shared blue bar and owner-only delete', () =>
   assert.match(leads, /beforeTable=\{<TableResultCount>/)
   assert.match(leads, /onClear=\{\(\) => setSelectedIds\(new Set\(\)\)\}/)
   assert.match(leads, /label: 'Update follow-up', onClick: openBulkFollowUp/)
-  assert.match(leads, /label: 'Text', onClick: \(\) => openBulkComposer\('sms'\)/)
-  assert.match(leads, /label: 'Email', onClick: \(\) => openBulkComposer\('email'\)/)
+  assert.match(leads, /label: 'Send SMS', onClick: \(\) => openBulkComposer\('sms'\)/)
+  assert.match(leads, /label: 'Send email', onClick: \(\) => openBulkComposer\('email'\)/)
   assert.match(leads, /isOwner \? \[\{ id: 'delete'/)
-  assert.match(leads, /id: 'delete', label: `Delete \$\{deleteRecordLabelPlural\}`, onClick: openDeleteModal/)
+  assert.match(leads, /id: 'delete', label: 'Delete', onClick: openDeleteModal/)
   assert.doesNotMatch(leads, /bulkActionBarStyle|bulkActionTextStyle/)
+})
+
+test('replacement bar overlays discovery without contributing height or covering its bottom gap', () => {
+  const controls = source('components/ui/TableWorkspaceControls.tsx')
+  const css = source('components/ui/TableWorkspaceControls.module.css')
+  assert.match(controls, /className=\{styles.replacementLayer\}/)
+  assert.match(css, /\.replacementLayer\s*\{[^}]*position: absolute;[^}]*inset: 0 0 8px;/s)
+  assert.match(css, /\.replacementLayer > \.actionBar\s*\{[^}]*height: 100%;[^}]*min-height: 0;/s)
 })
 
 test('shared grid applies hover to parent and detail rows without replacing base backgrounds', () => {

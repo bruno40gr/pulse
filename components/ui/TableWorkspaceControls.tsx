@@ -67,8 +67,8 @@ export function TableToolbarMode({ discovery, contextual, placement = 'replace' 
     {contextual}
   </div>
   const active = !!contextual
-  return <div data-table-toolbar-mode={active ? 'selection' : 'discovery'} style={{ display: 'grid' }}>
+  return <div data-table-toolbar-mode={active ? 'selection' : 'discovery'} style={{ display: 'grid', position: 'relative' }}>
     <div inert={active} aria-hidden={active} style={{ gridArea: '1 / 1', visibility: active ? 'hidden' : 'visible', minWidth: 0 }}>{discovery}</div>
-    <div inert={!active} aria-hidden={!active} style={{ gridArea: '1 / 1', visibility: active ? 'visible' : 'hidden', minWidth: 0 }}>{contextual}</div>
+    <div className={styles.replacementLayer} inert={!active} aria-hidden={!active} style={{ visibility: active ? 'visible' : 'hidden' }}>{contextual}</div>
   </div>
 }

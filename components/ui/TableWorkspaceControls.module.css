@@ -20,6 +20,19 @@
   box-sizing: border-box;
 }
 
+/* Overlay the controls themselves, excluding their existing bottom gap. The
+   mounted discovery layer alone determines height, including wrapped controls. */
+.replacementLayer {
+  position: absolute;
+  inset: 0 0 8px;
+  min-width: 0;
+}
+
+.replacementLayer > .actionBar {
+  height: 100%;
+  min-height: 0;
+}
+
 @media (max-width: 640px) {
   .results,
   .actionBar {

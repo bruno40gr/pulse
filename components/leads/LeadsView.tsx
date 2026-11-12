@@ -2002,9 +2002,9 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             onClear={() => setSelectedIds(new Set())}
             actions={[
               { id: 'follow-up', label: 'Update follow-up', onClick: openBulkFollowUp, disabledReason: activeTab === 'job_application' ? 'Follow-up editing is available for leads, not applications.' : undefined },
-              { id: 'text', label: 'Text', onClick: () => openBulkComposer('sms') },
-              { id: 'email', label: 'Email', onClick: () => openBulkComposer('email') },
-              ...(isOwner ? [{ id: 'delete', label: `Delete ${deleteRecordLabelPlural}`, onClick: openDeleteModal }] : []),
+              { id: 'text', label: 'Send SMS', onClick: () => openBulkComposer('sms') },
+              { id: 'email', label: 'Send email', onClick: () => openBulkComposer('email') },
+              ...(isOwner ? [{ id: 'delete', label: 'Delete', onClick: openDeleteModal }] : []),
             ]} /> : undefined}
           beforeTable={<TableResultCount>{loading ? 'Loading leads…' : `Viewing ${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`}</TableResultCount>}
           groupedRows={personView === 'family'}
