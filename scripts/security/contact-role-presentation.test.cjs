@@ -10,7 +10,7 @@ function load(file, dependencies = {}) {
   const loaded = { exports: {} }
   const source = fs.readFileSync(path.join(root, file), 'utf8')
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, console: { warn() {}, error() {} }, require: name => {
+  new vm.Script(code).runInNewContext({ module: loaded, exports: loaded.exports, console: { info() {}, warn() {}, error() {} }, require: name => {
     if (!(name in dependencies)) throw new Error(`Unexpected import: ${name}`)
     return dependencies[name]
   } })

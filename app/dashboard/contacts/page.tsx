@@ -252,14 +252,21 @@ export default function ContactsPage() {
 
   useEffect(() => {
     if (sampleContacts) { setContacts(sampleContacts); setLoading(false); return }
-    Promise.all([
-      fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()),
-      fetch(`/api/tenant-fields?tenant=${tenantId}`).then(r => r.json()),
-    ]).then(([contactData, fieldData]) => {
-      setContacts(Array.isArray(contactData) ? contactData : [])
-      setTenantFields(Array.isArray(fieldData) ? fieldData : [])
-      setLoading(false)
-    })
+    let cancelled = false
+    const controller = new AbortController()
+    setLoading(true)
+    setContacts([])
+    setTenantFields([])
+    void fetch(`/api/contacts?tenant=${tenantId}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(contactData => { if (!cancelled) setContacts(Array.isArray(contactData) ? contactData : []) })
+      .catch(() => { /* Existing empty state remains available on fetch failure. */ })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    void fetch(`/api/tenant-fields?tenant=${tenantId}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(fieldData => { if (!cancelled) setTenantFields(Array.isArray(fieldData) ? fieldData : []) })
+      .catch(() => { /* Optional custom fields must not block contact rows. */ })
+    return () => { cancelled = true; controller.abort() }
   }, [tenantId, sampleContacts])
 
   useEffect(() => {

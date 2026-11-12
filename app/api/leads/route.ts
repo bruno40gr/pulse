@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { LESSON_LEAD_TYPES } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
-import { resolveRequestTenant } from '@/lib/tenant-access'
+import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { requireOwner, requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getLeadOpportunityValue, OPEN_LEAD_STATUSES, WON_STATUS } from '@/lib/lead-value'
@@ -286,7 +286,7 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url)
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    const tenantAccess = await authorizeTenantRequest(request, { allowDemo: true })
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     if (url.searchParams.get('count_only') === '1') {

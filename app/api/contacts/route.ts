@@ -125,12 +125,19 @@ function mergeContactRows(rows: ParsedContact[]): ParsedContact {
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now()
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsRead, allowDemo: true })
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   const tenantId = access.tenantId
 
   try {
-    const importProfile = await getImportProfile(tenantId)
+    // Independent reads start after authorization; rows do not depend on profile,
+    // funding or staff lookups. Keep the same response and request count.
+    const importProfilePromise = getImportProfile(tenantId)
+    const fundingPromise = Promise.resolve(supabaseAdmin.from('funding_cases')
+      .select('student:students ( person_id )').eq('tenant_id', tenantId).is('archived_at', null))
+    const instructorsPromise = Promise.resolve(supabaseAdmin.from('instructors')
+      .select('id, person_id').eq('tenant_id', tenantId))
     // Actual schema: people → students → enrollments (instructor_person_id → people)
     const data: any[] = []
     for (let offset = 0; ; offset += 1000) {
@@ -162,11 +169,9 @@ export async function GET(request: Request) {
     // contacts table can render a Funded badge without a request per row. A missing or
     // unmigrated funding schema simply means nobody is marked as funded.
     const fundedPersonIds = new Set<string>()
-    const { data: fundedRows, error: fundedError } = await supabaseAdmin
-      .from('funding_cases')
-      .select('student:students ( person_id )')
-      .eq('tenant_id', tenantId)
-      .is('archived_at', null)
+    const [importProfile, { data: fundedRows, error: fundedError }, { data: allInstructorRows }] = await Promise.all([
+      importProfilePromise, fundingPromise, instructorsPromise,
+    ])
     if (fundedError) {
       console.warn('Funding membership lookup unavailable; omitting Funded badges:', fundedError.message)
     } else {
@@ -220,7 +225,7 @@ export async function GET(request: Request) {
     // Resolve instructor people (name) and instructors table (id)
     const personIdList = [...instructorPersonIds]
     let instructorPeople: any[] = []
-    let instructorRecords: any[] = []
+    const instructorRecords = allInstructorRows || []
 
     if (personIdList.length > 0) {
       const { data: peopleData } = await supabaseAdmin
@@ -229,21 +234,12 @@ export async function GET(request: Request) {
         .in('id', personIdList)
       instructorPeople = peopleData || []
 
-      const { data: instrData } = await supabaseAdmin
-        .from('instructors')
-        .select('id, person_id')
-        .in('person_id', personIdList)
-      instructorRecords = instrData || []
     }
 
     const personById = new Map(instructorPeople.map(p => [p.id, p]))
     const instructorIdByPersonId = new Map(instructorRecords.map(i => [i.person_id, i.id]))
 
     // Identify all instructors (staff) for this tenant so they can be surfaced as editable contacts.
-    const { data: allInstructorRows } = await supabaseAdmin
-      .from('instructors')
-      .select('id, person_id')
-      .eq('tenant_id', tenantId)
     const instructorIdByAllPersonIds = new Map((allInstructorRows || []).map((i: any) => [i.person_id, i.id]))
 
     // Flatten the joined data to match the contacts shape
@@ -334,6 +330,7 @@ export async function GET(request: Request) {
     })
 
     // Sunset instructors are not viewable/actionable — hide them from the list.
+    console.info('[contacts][list]', { durationMs: Date.now() - startedAt, count: flattened.length })
     return NextResponse.json(flattened.filter((c: any) => !(c.staff_id && c.is_active === false)))
   } catch (error) {
     console.error('Error fetching contacts:', error)

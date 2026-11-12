@@ -152,3 +152,23 @@ no primary membership exists. Multiple active memberships still require account
 selection. Revoked links, tenant/status checks and role permissions are unchanged.
 This removes one database call on the observed path; it does not establish a
 particular production latency reduction until new timings are measured.
+
+## List-loading critical paths
+
+Following duplicate-lookup removal, production lead-detail handlers measured
+658 ms and 1,228 ms; access measured 442 ms and 737 ms. Variability and upstream
+middleware still matter; neither panel is considered solved.
+
+Lead list GET now resolves authorized tenant context without unused viewer-name
+and instructor enrichment, retaining the same membership/tenant/demo decisions.
+Contact list profile, funding and tenant instructor reads run concurrently with
+people pagination after authorization. The already-loaded tenant instructor map
+also replaces the separate instructor-ID lookup. Holder mappings and people
+pagination remain unchanged, with no additional requests.
+
+Contacts rows no longer wait for the independent tenant-fields HTTP request.
+Tenant changes clear old rows/fields and abort obsolete requests. The local
+intercepted browser regression holds tenant fields pending while verifying rows
+are visible, with one contacts and one fields request. Contact panel header and
+detail behavior are unchanged. No contact detail timings were present in the
+recent production window, so panel-specific benefit is not asserted.
