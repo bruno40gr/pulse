@@ -1,6 +1,7 @@
 import type { FamilyPreviewData } from './academy-family-preview'
 import { previewCalendarLessons, type MakeupPreviewState } from './academy-makeup-preview'
 import { previewStudentName, workspaceInitial } from './academy-student-preview'
+import { formatScheduleTime } from './academy-enrollment-schedule'
 
 /** Display-only family context. Availability remains owned by makeupSlots. */
 export function familyBookingReferences(data: FamilyPreviewData, state: MakeupPreviewState, studentId: string, movingId?: string) {
@@ -12,6 +13,8 @@ export function familyBookingReferences(data: FamilyPreviewData, state: MakeupPr
     .filter(item => item.status === 'Scheduled')
     .map(item => ({
       id: `family:${item.id}`, date: item.date, time: item.time, duration: item.duration,
+      lines: [item.student.firstName, item.program, formatScheduleTime(item.time)],
+      proposed: false,
       label: `${previewStudentName(item.student)} · ${item.program} · ${item.teacher}${item.makeup ? ' · Makeup' : ''}${item.id === movingId ? ' · Original lesson' : ''}`,
       blocksAvailability: false,
     }))

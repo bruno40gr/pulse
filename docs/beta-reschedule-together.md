@@ -15,7 +15,14 @@ Drafts are in-memory and nothing is saved while choosing times. A lesson without
 a proposal keeps its original occupancy. Other proposed moves are projected into
 availability; final validation checks every proposed move against the complete
 arrangement before returning any updated sample state. If any move is invalid,
-none are applied. Back to schedule asks before discarding pending proposals.
+none are applied. The existing back arrow asks before discarding pending proposals;
+there is no separate Back to schedule / selected-count header.
+
+Original bookings remain visible at their original times while exploring drafts.
+They use neutral styling; proposed moves use the selected-replacement blue, including
+other children's proposals when focus switches. Compact blocks show first name,
+program and time on clipped single lines, with full details in the accessible label
+and hover title. A long name or program cannot spill into an adjacent time block.
 
 All implementation is confined to Beta sample components/data. No production
 booking APIs, migrations or operational writes were added. Account navigation and
@@ -29,4 +36,4 @@ only one of two selected lessons. Existing single-reschedule/makeup browser chec
 are rerun. Browser tests use an isolated loopback host with synthetic identities.
 
 Try BETA → Contacts → Sam Ibrahim → Schedule & lessons (List). Check Adam and
-Sara, select Reschedule together, then use Choose time on either planning card.
+Sara, select Reschedule together, then select either planning card's title.

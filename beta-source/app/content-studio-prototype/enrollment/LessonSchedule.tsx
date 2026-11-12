@@ -12,7 +12,7 @@ import { placeCalendarBlocks as placeBlocks } from '@/beta-source/lib/academy-ca
 import styles from './enrollment.module.css'
 
 type CalendarBlock = {
-  id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean; blocksAvailability?: boolean
+  id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean
   teachers?: readonly { name: string }[]
 }
 
@@ -24,7 +24,7 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   initialDate?: string
   teacherPreference?: string
   compactCopy?: boolean
-  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string; blocksAvailability?: boolean }[]
+  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean }[]
   replacementMode?: boolean
   chooseTeacherOnClick?: boolean
   detailedReplacementSlots?: boolean
@@ -80,8 +80,8 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
                 const interactive = (!replacementMode && block.active) || (onSelectLesson && planned.some(item => item.id === block.id))
                 const editing = block.active && choice?.editing && choice.date === date
                 const booking = interactive
-                  ? <button type="button" className={`${styles.bookedSlot} ${detailedReplacementSlots && block.active ? styles.detailedSlot : ''} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
-                  : <div className={`${styles.bookedSlot} ${detailedReplacementSlots && block.active ? styles.detailedSlot : ''} ${block.active ? replacementMode ? styles.replacementSlot : styles.activeBookedSlot : ''}`} style={position} aria-label={label} data-selected-replacement={replacementMode && block.active ? '' : undefined}>{replacementMode && block.active ? detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{lesson.teacher}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : `${formatScheduleTime(block.time)} · ${lesson.teacher}` : block.label}</div>
+                  ? <button type="button" className={`${styles.bookedSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
+                  : <div className={`${styles.bookedSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? replacementMode ? styles.replacementSlot : styles.activeBookedSlot : replacementMode ? block.proposed ? styles.replacementSlot : styles.familyReferenceSlot : ''}`} style={position} aria-label={label} title={label} data-calendar-time={block.time} data-calendar-date={date} data-family-reference={block.lines ? '' : undefined} data-proposed-reference={block.proposed ? '' : undefined} data-selected-replacement={replacementMode && block.active ? '' : undefined}>{replacementMode && block.active ? detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{lesson.teacher}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : `${formatScheduleTime(block.time)} · ${lesson.teacher}` : detailedReplacementSlots && block.lines ? block.lines.map((line, index) => <span key={index}>{line}</span>) : block.label}</div>
                 return <div key={block.id} className={styles.bookedCell} style={position} data-booking-menu={editing ? '' : undefined}>{booking}{editing && <div className={styles.bookingPopover} role="group" aria-label="Change teacher">
                   <strong>Change teacher</strong>
                   {choices.map(teacher => <button key={teacher.name} type="button" aria-pressed={teacher.name === lesson.teacher} onClick={() => { onChange({ teacher: teacher.name }); setChoice(null) }}>{teacher.name}</button>)}
