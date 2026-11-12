@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Baloo_2, Pridi } from "next/font/google";
+import { DM_Sans, Pridi } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -8,10 +9,12 @@ const dmSans = DM_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-const baloo2 = Baloo_2({
+// Bundle the font to avoid Google CSS URL parsing failures during production builds.
+const baloo2 = localFont({
+  src: "./fonts/Baloo2-variable.ttf",
   variable: "--font-baloo-2",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "600 700",
+  display: "swap",
 });
 
 const pridi = Pridi({

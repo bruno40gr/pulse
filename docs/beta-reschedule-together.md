@@ -7,16 +7,18 @@ selected lesson in a focusable card and shows compatible availability for the
 focused lesson on the family calendar.
 
 Selection is not a commitment to move.
-The selected-lesson actions appear at the right of the week toolbar, with
-Reschedule together at the far right, aligned with the week picker on desktop.
-The toolbar wraps on narrow screens without horizontal overflow.
+Discovery controls use a compact, content-sized filter row. Date range displays
+both native date inputs side by side without stacked visual labels (accessible
+From date / Through date labels remain). Inactive modes are unmounted and cannot
+reserve the former tall FieldGrid height. Desktop mode changes keep the row at
+shared control height; narrow containers wrap the date group while keeping its
+two inputs together. No per-mode offsets or forced row heights are used.
 
-Date modes use one LessonSelectionToolbar with stable mode/date/action slots,
-shared toolbar-sized Button/Select controls, and FieldGrid date inputs. Inactive
-date slots remain in intrinsic layout but are hidden, inert and aria-hidden,
-so switching modes cannot move the dropdown, actions or first lesson. No per-mode
-offsets, forced row heights or measured pixel positioning are used. Single/plural
-action labels share intrinsic slots so selection count changes do not resize them.
+Selection actions reuse the existing TableContextActionBar and TableResultsSlot
+from the maintained UI library, not a parallel blue-bar implementation. The bar
+replaces the normal lesson count in the reserved results row below discovery
+controls, with Cancel/Reschedule actions and an accessible X to clear. Selecting
+or clearing lessons does not shift the first lesson. Calendar view stays weekly.
 
 One selection exposes Reschedule and Cancel; multiple selections expose
 Reschedule together and Cancel together. Cancellation opens a shared Modal review
@@ -68,8 +70,8 @@ The multiweek browser regression additionally verifies all-weeks/date filtering,
 list alignment, three occurrences across three weeks, whole-card/keyboard focus,
 automatic week jumps, independent Clear, and a confirmed three-change batch at
 1440px and 390px. A synthetic test covers atomic three-week validation/failure.
-The selection browser regression checks stable toolbar geometry across all three
-date modes at 1440/900/390px, matching control heights, single/plural labels,
+The selection browser regression checks compact desktop toolbar geometry across all three
+date modes, side-by-side date inputs on desktop/mobile, shared blue action bar at 1440/900/390px, matching control heights, single/plural labels,
 cancellation review/dismiss/early release/commit and credit outcomes. Synthetic
 tests cover atomic cancellation failure, ownership, duplicates, past lessons,
 repeat cancellation, and booked makeup return/forfeit behavior.

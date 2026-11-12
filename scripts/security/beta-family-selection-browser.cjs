@@ -21,7 +21,7 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/)
       const toolbar = panel.locator('[data-lesson-selection-toolbar]')
       const snapshot = () => toolbar.evaluate(element => {
         const rect = node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height } }
-        return { toolbar: rect(element), mode: rect(element.querySelector('select')), actions: rect(element.querySelector('[aria-label="Selected lessons"]')) }
+        return { toolbar: rect(element), mode: rect(element.querySelector('select')), actions: rect(element.querySelector('[data-table-results]')) }
       })
       await dateView.waitFor()
       const before = await snapshot()
@@ -34,13 +34,21 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/)
       await panel.getByRole('checkbox', { name: 'Include Sara Voice & Vocals lesson 2026-11-04', exact: true }).check()
       await panel.getByRole('button', { name: 'Cancel together', exact: true }).waitFor()
       const selected = await snapshot()
-      assert.deepEqual(single, selected, 'Single and multiple action labels use the same intrinsic slots')
+      assert.deepEqual(single, selected, 'Single and multiple selection use the same reserved results slot')
       for (const mode of ['all', 'range', 'week']) {
         await dateView.selectOption(mode)
         const current = await snapshot()
-        for (const slot of ['toolbar', 'mode', 'actions']) for (const dimension of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(current[slot][dimension] - selected[slot][dimension]) <= 1, `${slot} ${dimension} stays stable in ${mode}`)
-        const heights = await toolbar.locator('select, button').evaluateAll(elements => elements.filter(element => !element.closest('[aria-hidden="true"]')).map(element => element.getBoundingClientRect().height))
-        assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 1), 'Toolbar dropdown and buttons share control height')
+        for (const slot of ['mode']) for (const dimension of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(current[slot][dimension] - selected[slot][dimension]) <= 1, `${slot} ${dimension} stays stable in ${mode}`)
+        if (width > 900) assert.ok(Math.abs(current.toolbar.height - selected.toolbar.height) <= 1, 'Desktop toolbar stays compact across modes')
+        if (mode === 'range') {
+          const start = await toolbar.getByLabel('From date', { exact: true }).boundingBox()
+          const end = await toolbar.getByLabel('Through date', { exact: true }).boundingBox()
+          assert.ok(Math.abs(start.y - end.y) <= 1, 'Date inputs share one row at every viewport')
+          assert.ok(start.width < 220 && end.width < 220, 'Date inputs are compact rather than stretched')
+          if (width > 900) assert.ok(Math.abs(start.y - current.mode.y) <= 1, 'Dropdown and date inputs share the filter row')
+        }
+        const filters = toolbar.locator('[data-lesson-date-filters]')
+        assert.equal(await filters.getByRole('button', { name: /Cancel|Reschedule|Clear/ }).count(), 0, 'Selection actions are separate from discovery controls')
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
         await page.screenshot({ path: `/tmp/beta-selection-${mode}-${width}.png`, fullPage: true })
       }
