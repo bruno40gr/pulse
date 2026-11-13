@@ -25,6 +25,7 @@ import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import { LeadBulkFollowUpPanel, type BulkFollowUpTarget } from './LeadBulkFollowUpPanel'
 import type { FollowUpPatch } from '@/lib/lead-bulk-follow-up'
 import { getActiveTenantId } from '@/lib/tenant'
+import { loadAccountContext } from '@/lib/account-context-client'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LeadInlineEditor } from './LeadInlineEditor'
@@ -131,7 +132,7 @@ type LeadDetail = LeadRecord & {
 
 type LeadListResponse = {
   leads: LeadRecord[]
-  counts: Record<LeadTabKey, number>
+  counts?: Record<LeadTabKey, number>
   pipelineValue?: number
   closedSinceOct1?: number
 }
@@ -596,6 +597,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   })
   const [pipelineValue, setPipelineValue] = useState(0)
   const [closedSinceOct1, setClosedSinceOct1] = useState(0)
+  const [summaryRevision, setSummaryRevision] = useState(0)
+  const [summaryError, setSummaryError] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -624,14 +627,37 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [ownerTenant, setOwnerTenant] = useState<string | null>(null)
   const isOwner = ownerTenant === tenantId
   useEffect(() => {
-    const controller = new AbortController()
+    let cancelled = false
     setOwnerTenant(null)
-    void fetch(`/api/account/me?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store', signal: controller.signal })
-      .then(async response => response.ok ? response.json() : null)
-      .then(data => { if (!controller.signal.aborted && data?.tenantId === tenantId && data.isOwner === true) setOwnerTenant(tenantId) })
+    void loadAccountContext(tenantId)
+      .then(data => { if (!cancelled && getActiveTenantId() === tenantId && data.isOwner === true) setOwnerTenant(tenantId) })
       .catch(() => { /* Fail closed: deletion remains unavailable. */ })
-    return () => controller.abort()
+    return () => { cancelled = true }
   }, [tenantId])
+  useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+    let timeout: number | undefined
+    // Coalesce bulk edits; no polling and no summary refetch on tab changes.
+    const timer = window.setTimeout(() => {
+      setSummaryError('')
+      timeout = window.setTimeout(() => controller.abort(), 10000)
+      const params = new URLSearchParams({ tenant: tenantId, summary_only: '1' })
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      void fetch(`/api/leads?${params}`, { cache: 'no-store', signal: controller.signal })
+        .then(async response => {
+          const data = await response.json()
+          if (!response.ok) throw new Error('Summary unavailable')
+          if (controller.signal.aborted || getActiveTenantId() !== tenantId) return
+          if (data.counts) setTabCounts(data.counts)
+          setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
+          setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
+        })
+        .catch(() => { if (!cancelled) setSummaryError('Lead summaries could not be refreshed. Your records are still available.') })
+        .finally(() => window.clearTimeout(timeout))
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer); window.clearTimeout(timeout); controller.abort() }
+  }, [tenantId, statusFilter, summaryRevision])
   const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
   const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
     if (typeof window === 'undefined') return {}
@@ -747,14 +773,15 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
     try {
       const params = new URLSearchParams()
+      params.set('tenant', getActiveTenantId())
       if (requestedTab !== 'winback' && requestedStatus !== 'all') params.set('status', requestedStatus)
       params.set('intake_type', requestedTab)
 
-      params.set('include_counts', '1')
+      params.set('include_counts', '0')
       params.set('include_activity', '0')
-      const data = await fetchJsonWithTimeout<LeadListResponse>(`/api/leads?${params.toString()}`)
+      const data = await fetchJsonWithTimeout<LeadListResponse | LeadRecord[]>(`/api/leads?${params.toString()}`)
 
-      const returnedLeads = Array.isArray(data.leads) ? data.leads : []
+      const returnedLeads = Array.isArray(data) ? data : Array.isArray(data.leads) ? data.leads : []
       const visibleLeads = filterWinbackLeads(returnedLeads, requestedTab, requestedStatus)
       if (cacheGeneration === leadListCacheGenerationRef.current) {
         leadListCacheRef.current.set(cacheKey, { leads: visibleLeads, fetchedAt: Date.now(), nextOffset: returnedLeads.length, hasMore: returnedLeads.length === 100 })
@@ -763,9 +790,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       if (requestId !== leadListRequestRef.current) return
       setLeads(visibleLeads)
       setHasMore(returnedLeads.length === 100)
-      setTabCounts(data.counts)
-      setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
-      setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
+      if (!Array.isArray(data) && data.counts) setTabCounts(data.counts)
 
     } catch (error: unknown) {
       if (requestId !== leadListRequestRef.current) return
@@ -780,6 +805,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
     leadListCacheGenerationRef.current += 1
     leadListCacheRef.current.clear()
+    setSummaryRevision(current => current + 1)
   }
 
   const loadMoreLeads = async () => {
@@ -1971,6 +1997,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         </div>
 
         {error && <MessageBox>{error}</MessageBox>}
+        {summaryError && <p role="status" style={subtleTextStyle}>{summaryError}</p>}
         {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
 
         <div style={{ marginBottom: spacing.sm }}><Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} /></div>

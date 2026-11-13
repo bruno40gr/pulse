@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
+import { loadAccountContext } from '@/lib/account-context-client'
 import { normalizeTablePreferences, tablePreferenceKey, type TablePreferences, type TablePreferenceSchema } from '@/lib/table-preferences'
 
 export function useTablePreferences(schema: TablePreferenceSchema) {
@@ -13,14 +14,11 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
   const changed = useRef(false)
   const latestPreferences = useRef(preferences)
   useEffect(() => {
-    const controller = new AbortController()
+    let cancelled = false
     const tenant = getActiveTenantId()
-    const timeout = window.setTimeout(() => controller.abort(), 10000)
-    void fetch(`/api/account/me?tenant=${encodeURIComponent(tenant)}`, { cache: 'no-store', signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) return
-        const data = await response.json()
-        if (controller.signal.aborted || typeof data.membershipId !== 'string' || data.tenantId !== tenant) return
+    void loadAccountContext(tenant)
+      .then(data => {
+        if (cancelled || getActiveTenantId() !== tenant) return
         const key = tablePreferenceKey(schema, tenant, data.membershipId)
         try {
           const stored = window.localStorage.getItem(key)
@@ -33,8 +31,7 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
         } catch { /* Keep defaults if storage is unavailable or malformed. */ }
         setStorageKey(key)
       }).catch(() => { /* Preferences still work for this visit without verified identity. */ })
-      .finally(() => window.clearTimeout(timeout))
-    return () => { controller.abort(); window.clearTimeout(timeout) }
+    return () => { cancelled = true }
   }, [schema])
 
   function updatePreferences(next: TablePreferences) {

@@ -4,6 +4,7 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getActiveTenantId } from '@/lib/tenant'
+import { loadAccountContext } from '@/lib/account-context-client'
 import { Button, PageContainer, PageHeader } from '@/components/ui'
 import AccessManagementClient from '@/components/access/AccessManagementClient'
 import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
@@ -38,13 +39,11 @@ export default function SettingsClient({ section }: { section?: Tab } = {}) {
   const [contextLoading, setContextLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/account/me?tenant=${tenantId}`)
-      .then(async response => {
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Could not load settings access.')
-        return data as AccountContext
-      })
+    let cancelled = false
+    setContextLoading(true)
+    void loadAccountContext(tenantId)
       .then(data => {
+        if (cancelled || getActiveTenantId() !== tenantId) return
         setAccountContext(data)
         const requestedTab = section || new URLSearchParams(window.location.search).get('tab')
         if (requestedTab === 'account') setTab('account')
@@ -54,15 +53,16 @@ export default function SettingsClient({ section }: { section?: Tab } = {}) {
         else if (requestedTab === 'roles' && data.canManageRoles) setTab('roles')
         else setTab('account')
       })
-      .catch(() => setAccountContext({
+      .catch(() => { if (!cancelled) setAccountContext({
         canManageRoles: false,
         canManageIntegrations: false,
         canManageBrand: false,
         canAccessDesignSystem: false,
         canUpdateCredentials: false,
         email: null,
-      }))
-      .finally(() => setContextLoading(false))
+      }) })
+      .finally(() => { if (!cancelled) setContextLoading(false) })
+    return () => { cancelled = true }
   }, [tenantId, section])
 
   useEffect(() => {
