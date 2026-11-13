@@ -1,5 +1,36 @@
 # Beta integration progress — November 13, 2026
 
+## Current status (supersedes historical checkpoint notes below)
+
+- Working directory: `/Users/brunowong/pulse-beta-integration`; branch
+  `integration/beta-20261113`. Main remains `9d5c5cc` and matches the live remote
+  ref checked during the hygiene pass. Nothing merged, pushed or deployed.
+- Committed integration checkpoints: `e003edf` preserves main's pending
+  performance work; `ba68944` patches dependencies; `656ab1a` promotes shared
+  controls; `f167748` reconciles models/Parent workflows and Leads adapters;
+  `17d958e` corrects sample ownership to reuse existing Beta identities.
+- Beta sample families/students remain authoritative. No prototype directory is
+  added to the Parent selector. Workflow state starts empty against those IDs.
+  Full synchronization of later sample-session edits with the staff queue is
+  still a pending integration concern, not a proven database feature.
+- The latest verified suite is 316/316, with passing TypeScript and focused
+  correction lint. Desktop/mobile Parent continuation, family reschedule/makeup
+  and Reschedule together passed their respective browser runs. Sharp runtime
+  conversion passed. These are scoped checks, not full release approval.
+- Staff Explorer, its Contacts action/adapter composition, image controls and
+  supporting primitives remain dirty/untracked WIP. TypeScript passing does not
+  establish those unfinished screens as functional or approved. Preserve this
+  WIP; do not publish it or include it in a documentation-only commit.
+- Staff navigation placement remains a user decision. Keep the prototype access
+  guard, operational API routes, main's newer calendar and permission/security
+  behavior. Real contacts and transactions remain disconnected.
+- Full production build is still blocked by missing approved nonproduction
+  Supabase configuration. Earlier audit evidence reports zero production
+  findings and seven tooling-inclusive findings; it is historical, not a fresh
+  audit in this documentation/hygiene pass.
+- Ongoing principles are in `docs/integration-principles.md`. Hygiene details and
+  recovery locations are in `docs/beta-hygiene-20261113.md`.
+
 ## Sample-data correction — existing Beta directory wins
 
 User clarified that the prototype's fake contacts should not be imported into
@@ -30,8 +61,10 @@ Reconciled Beta enrollment, band, program, opportunity and workflow models under
 `beta-source/lib`. The portal actions, queue, store and hook live there together;
 Parent enrollment consumes that same hook. There is no copied root queue/store.
 This remains fictional same-tab session transport, not authorization or payment
-infrastructure. Parent family selection projects queued accounts into the sample
-workspace; request drafts can open, save and resume without operational writes.
+infrastructure. This checkpoint originally projected queued accounts into the
+sample workspace; `17d958e` subsequently removed that behavior in favor of Beta's
+existing families. Request drafts can open, save and resume without operational
+writes.
 
 StaffEnrollment now uses the shared stepper, search picker, checkbox and synthetic
 card preview. School Setup gains optional embedded sections and externally owned
@@ -88,7 +121,7 @@ No merge, push or deployment performed.
   worktree or branch. Reconcile and perform the required recovery drill before
   eventual cleanup.
 
-## Dependencies
+## Dependencies (historical patch checkpoint)
 
 Next and eslint-config-next are pinned to 15.5.29, without a framework major
 upgrade. Compatible transitive versions are refreshed in the lockfile, including
@@ -106,10 +139,12 @@ Installed into this worktree independently with install scripts disabled; no
 shared node_modules mutation. The production build compiled and passed its type
 stage, then failed page-data collection because Supabase configuration is absent
 (`supabaseUrl is required` for `/api/account/claim`). No production secrets copied,
-no successful full build claimed. Sharp installation/runtime is not proven by
 the dependency audit alone; validate actual image processing before release.
+no successful full build claimed. Sharp installation/runtime was not proven by
+this dependency audit alone; the later runtime conversion check is recorded
+above and passed.
 
-## Shared component promotion
+## Shared component promotion (historical checkpoint)
 
 - Added shared Checkbox, RadioOptionGroup/styles, WeekdayToggleGroup,
   ParticipationPolicies and SaveStatusNotice from the prototype.
@@ -122,7 +157,7 @@ the dependency audit alone; validate actual image processing before release.
 - No wholesale Contacts/Leads replacement, API/middleware replacement or Beta
   calendar overwrite. No new workflow is reachable in Beta yet.
 
-## Checks
+## Checks (historical shared-control checkpoint)
 
 - 90/90 targeted tests pass: shared controls/tables, row selection, Leads table
   preferences and follow-up permissions/validation, conversation prototype,
@@ -141,10 +176,15 @@ and `/tmp/odeon-beta-dependency-tree-final.log`.
 
 ## Remaining work
 
-Reconcile the Beta domain/store/workflow dependency graph with `beta-source`,
-retaining one shared portal queue instance and main's newer family calendar and
-Reschedule together. Resolve the staff-workspace navigation placement before
-exposing it. Preserve operational Contacts/Leads defaults while adding simulated
-adapters. Complete build/image/browser/access validation, resolve or explicitly
-assess remaining tooling findings, then review the integration diff before merge.
-Real contacts, live booking and payments remain outside this release.
+1. Finish staff Contacts/Leads composition and fail-closed simulated transport;
+   use existing Beta sample identities and preserve complete operational UI.
+2. Verify queue/sample-session ownership across staff and Parent consumers;
+   retain one queue/store instance and explicit account/student relationships.
+3. Agree staff navigation placement before exposing workflows. Retain access
+   guards and run production-path access checks, not just isolated-host checks.
+4. Complete integrated desktop/mobile staff workflow validation, including bulk
+   actions, panels, drafts, sibling isolation and unexpected network requests.
+5. Complete production build with approved nonproduction configuration and
+   reassess remaining development-tooling findings without blind forced upgrades.
+6. Review final diff, release evidence and rollback checkpoints before merging
+   or publishing. Real contacts, live bookings and payments remain out of scope.

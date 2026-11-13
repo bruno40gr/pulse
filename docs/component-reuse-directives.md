@@ -22,6 +22,10 @@ These rules apply to prototypes and production work. Read alongside `AGENTS.md` 
 
 ## Simulate data, not replacement UI
 
+- Beta's existing sample directory owns its fictional contacts, families and
+  students. Reuse those stable IDs and relationships; do not import a prototype's
+  separate people, inquiry or membership fixtures as runtime defaults. Keep tiny
+  test fixtures explicitly injected and distinguish them from product sample data.
 - Keep fictional data and local-only operations behind adapters, callbacks or providers while retaining the actual UI composition.
 - Operational API coupling is a refactoring concern, not permission to build a lookalike. Prefer extracting a shared composition with operational and simulated adapters.
 - Preserve production defaults, permissions, validation, conditional visibility, draft retention and submitted values when extracting shared UI.
@@ -38,6 +42,9 @@ These rules apply to prototypes and production work. Read alongside `AGENTS.md` 
 
 ## Verification and reporting
 
+- Follow `docs/integration-principles.md` when promoting prototype changes. The
+  goal is an improved shared experience, not frozen old visuals or wholesale
+  replacement of newer implementations.
 - Before implementation, identify the reference experience and the behaviors that must remain unchanged.
 - Check visual fidelity separately from functional correctness. Inspect desktop and mobile screenshots against the reference, including unselected and selected states, the bulk-action bar, row menus, forms and detail panels as applicable.
 - Run relevant behavior tests and available type/lint checks. Verify account and sibling isolation when shared people or bulk operations are involved.

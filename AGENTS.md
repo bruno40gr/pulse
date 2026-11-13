@@ -15,6 +15,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## UI conventions
 
+- For Beta/prototype reconciliation, follow `docs/integration-principles.md` and
+  the current status in `docs/beta-integration-progress.md`. Improve shared UI
+  deliberately; never overwrite newer behavior or import a second sample-contact
+  directory merely because it accompanied a prototype.
+
 - Table toolbar controls follow `docs/ui-toolbar-rules.md`; use the shared toolbar Button/Select sizing and keep the example in `/dashboard/design` current.
 
 - Follow `docs/ui-layout-rules.md` for flat panels, form density, heading hierarchy and repeatable entity cards. Reuse `FieldGrid`, `DenseSectionPanel`, `SurfacePanel`, `Input`, `Select` and `Textarea`; do not introduce parallel card/field components.
