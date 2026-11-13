@@ -1,5 +1,29 @@
 # Beta integration progress — November 13, 2026
 
+## Sample-data correction — existing Beta directory wins
+
+User clarified that the prototype's fake contacts should not be imported into
+Beta. Runtime queue initialization now projects the existing Beta sample account
+and student IDs through `academy-beta-people.ts`; it seeds no prototype contacts,
+inquiries, registrations or band memberships. Parent family selection uses only
+the existing Beta snapshot again. No real contacts or APIs are involved.
+
+The queue uses `odeon:beta-enrollment-portal:v2` so older prototype queue storage
+cannot silently restore the separate directory. Old storage is not deleted.
+Legacy lifecycle tests inject their own explicit fixtures; a new regression
+asserts that runtime people all belong to the Beta sample directory.
+
+Validation: 316/316 targeted tests, TypeScript, focused correction lint and
+whitespace checks pass. Parent request open/save/resume passes at 1440px and
+390px using an existing Beta student, without operational writes/errors/overflow.
+Evidence: `/tmp/odeon-beta-existing-people-{full,lint,browser}.log` and
+`/tmp/odeon-beta-staff-types.log`.
+
+The staff Explorer reconciliation begun after the previous checkpoint remains
+uncommitted and unexposed; Contacts action integration and review are unfinished.
+Its institution switching no longer restores prototype contact fixtures. This
+correction checkpoint is separate from that unfinished UI work.
+
 ## Domain and screen reconciliation checkpoint
 
 Reconciled Beta enrollment, band, program, opportunity and workflow models under

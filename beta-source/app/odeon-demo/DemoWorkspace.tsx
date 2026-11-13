@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { usePortalQueue } from '@/beta-source/lib/usePortalQueue'
-import { withQueueAccounts } from '@/beta-source/lib/academy-portal-queue'
 import { useSearchParams } from 'next/navigation'
 import DashboardShell from '@/beta-source/app/dashboard/DashboardShell'
 import ContactsPage, { type Contact } from '@/app/dashboard/contacts/page'
@@ -23,7 +21,6 @@ import { colors, spacing } from '@/beta-source/lib/tokens'
 const storageKey = 'odeon:app-sample:v2'
 export default function DemoWorkspace({ onboarding = false }: { onboarding?: boolean }) {
   const params = useSearchParams()
-  const [queue] = usePortalQueue()
   const [snapshot, setSnapshot] = useState(createDemoWorkspace)
   const [setup, setSetup] = useState(createDemoSetup)
   const [ready, setReady] = useState(false)
@@ -36,7 +33,6 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   useEffect(() => { if (ready) { try { sessionStorage.setItem(storageKey, JSON.stringify({ snapshot, setup })) } catch { /* In-memory fallback. */ } } }, [snapshot, setup, ready])
   const onChange = useCallback((data: FamilyPreviewData, makeups: MakeupPreviewState) => setSnapshot({ data, makeups }), [])
   const onSetup = useCallback((data: Record<string, SetupRecord[]>) => setSetup(data), [])
-  const portalData = useMemo(() => withQueueAccounts(snapshot.data, queue), [snapshot.data, queue])
   const parent = params.get('view') === 'parent', staff = params.get('screen') === 'staff'
   const sampleStaff = useMemo(() => seed.teachers.map(teacher => ({ id: teacher.id, person_id: teacher.id, first_name: teacher.name.split(' ')[0], last_name: teacher.name.split(' ').slice(1).join(' '), email: teacher.email, phone: '(202) 555-0100', is_active: true })), [seed])
   const staffDetail = useMemo((): StaffMember | undefined => {
@@ -48,11 +44,11 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   if (onboarding) return <SchoolSetup demo configuredData={setup} onConfiguredChange={onSetup} />
   return <DashboardShell sample>
     <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · Changes are not shared with other testers</div>
-    {parent && <div style={{ padding: spacing.lg }}><Select label="Preview family" value={params.get('account') || portalData.accounts[0].id} onChange={event => { window.location.href = `/odeon-demo?view=parent&account=${encodeURIComponent(event.target.value)}` }}>{portalData.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</Select></div>}
+    {parent && <div style={{ padding: spacing.lg }}><Select label="Preview family" value={params.get('account') || snapshot.data.accounts[0].id} onChange={event => { window.location.href = `/odeon-demo?view=parent&account=${encodeURIComponent(event.target.value)}` }}>{snapshot.data.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</Select></div>}
     {staff ? <>
       <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
-    </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={parent ? portalData : snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} />} />}
+    </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} />} />}
   </DashboardShell>
 }
 

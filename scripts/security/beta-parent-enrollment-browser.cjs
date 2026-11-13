@@ -10,7 +10,9 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/, 'Use an isolated review host only'
   const model = h.load('beta-source/lib/academy-portal-queue.ts')
   const actions = h.load('beta-source/lib/academy-portal-actions.ts')
   let queue = model.createPortalQueue()
-  queue.inquiries = [{ id: 'browser-lesson', personId: 'sophie', accountId: 'kim', interest: 'Private · Guitar', category: 'Lesson requests', stage: 'Contacted' }]
+  const student = queue.state.people.find(person => person.roles.includes('Student'))
+  const accountId = student.accountId
+  queue.inquiries = [{ id: 'browser-lesson', personId: student.id, accountId, interest: 'Private · Guitar', category: 'Lesson requests', stage: 'Contacted' }]
   queue = actions.sendLessonEnrollment(queue, 'browser-lesson')
   const browser = await chromium.launch({ channel: 'chrome' })
   try {
@@ -23,7 +25,7 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/, 'Use an isolated review host only'
         return route.fulfill({ json: { roleKey: 'owner' } })
       })
       await page.addInitScript(({ key, value }) => { if (!sessionStorage.getItem(key)) sessionStorage.setItem(key, value) }, { key: model.portalQueueKey, value: JSON.stringify(queue) })
-      await page.goto(`${base}/odeon-demo?view=parent&account=kim`)
+      await page.goto(`${base}/odeon-demo?view=parent&account=${encodeURIComponent(accountId)}`)
       const requests = page.getByRole('region', { name: 'Enrollment requests', exact: true })
       await requests.getByRole('button', { name: 'Complete enrollment', exact: true }).click()
       await page.getByRole('button', { name: 'Continue', exact: true }).click()

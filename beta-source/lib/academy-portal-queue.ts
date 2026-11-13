@@ -1,18 +1,21 @@
 import { academySettings, type AcademySettings } from './academy-explorer'
-import { createExplorerState, explorerInquiries, type ExplorerInquiry } from './event-explorer'
+import { createExplorerState, type ExplorerInquiry } from './event-explorer'
+import { createDemoWorkspace } from './odeon-demo-workspace'
+import { betaEnrollmentPeople } from './academy-beta-people'
 import type { BandEnrollmentRequest } from './academy-band-requests'
 import type { BandEnrollment } from './academy-band-enrollment'
 import type { ProgramTask, ProgramBooking } from './academy-program-proposals'
 import type { WorkflowDraft } from './academy-workflow-drafts'
 import type { FamilyPreviewData } from './academy-family-preview'
 
-export const portalQueueKey = 'odeon:enrollment-portal:v1'
+// Separate from the discarded prototype directory; do not hydrate its contacts.
+export const portalQueueKey = 'odeon:beta-enrollment-portal:v2'
 export type PortalQueue = {
   state: ReturnType<typeof createExplorerState>; academy: AcademySettings; inquiries: ExplorerInquiry[];
   requests: BandEnrollmentRequest[]; enrollments: BandEnrollment[]; tasks: ProgramTask[]; bookings: ProgramBooking[]; drafts: WorkflowDraft[];
 }
-export function createPortalQueue(): PortalQueue {
-  return { state: createExplorerState(), academy: academySettings('music'), inquiries: [...explorerInquiries.map(item => ({ ...item })), { id: 'band-match-staff', personId: 'mia', serviceType: 'band', interest: 'Band program', category: 'Program inquiries', origin: 'staff_initiated', stage: 'New', followUp: '', note: '' }, { id: 'band-match-family', personId: 'leo', serviceType: 'band', interest: 'Band program', category: 'Program inquiries', origin: 'family_inquiry', stage: 'New', followUp: '', note: '' }], requests: [], enrollments: [], tasks: [], bookings: [], drafts: [] }
+export function createPortalQueue(data: FamilyPreviewData = createDemoWorkspace().data): PortalQueue {
+  return { state: { ...createExplorerState(), people: betaEnrollmentPeople(data), registrations: [] }, academy: { ...academySettings('music'), groups: [], singleLessons: [] }, inquiries: [], requests: [], enrollments: [], tasks: [], bookings: [], drafts: [] }
 }
 /** Validate the persisted envelope before restoring it. This is crash recovery,
  * not a security boundary: all records here are fictional and browser-editable.

@@ -17,8 +17,27 @@ function load(file) {
   return exports
 }
 
-const { createPortalQueue, familyQueue, withQueueAccounts } = load(path.join(root, 'beta-source/lib/academy-portal-queue.ts'))
+const { createPortalQueue: createBetaPortalQueue, familyQueue, withQueueAccounts } = load(path.join(root, 'beta-source/lib/academy-portal-queue.ts'))
 const { createDemoWorkspace } = load(path.join(root, 'beta-source/lib/odeon-demo-workspace.ts'))
+// Legacy lifecycle scenarios explicitly inject their tiny fixtures; runtime uses Beta.
+function createPortalQueue() {
+  const queue = createBetaPortalQueue()
+  queue.state = load(path.join(root, 'beta-source/lib/event-explorer.ts')).createExplorerState()
+  queue.academy = load(path.join(root, 'beta-source/lib/academy-explorer.ts')).academySettings('music')
+  return queue
+}
+test('runtime queue reuses Beta identities and seeds no prototype contacts or memberships', () => {
+  const data = createDemoWorkspace().data
+  const queue = createBetaPortalQueue(data)
+  const allowed = new Set([...data.accounts.map(account => account.holderId), ...data.students.map(student => student.id)])
+  assert.ok(queue.state.people.length > 10)
+  assert.ok(queue.state.people.every(person => allowed.has(person.id)))
+  assert.ok(!queue.state.people.some(person => ['sophie', 'ethan', 'mia', 'leo', 'alex', 'jules'].includes(person.id)))
+  assert.equal(queue.state.registrations.length, 0)
+  assert.equal(queue.academy.groups.length, 0)
+  assert.equal(queue.inquiries.length, 0)
+})
+
 test('queue scopes by explicit account and student IDs, never name or email', () => {
   const queue = createPortalQueue()
   queue.state.people = [
