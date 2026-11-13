@@ -1,0 +1,6 @@
+.option:focus-within {
+  outline: 2px solid var(--radio-focus-color, #0090aa);
+  outline-offset: 2px;
+}
+
+.radio { flex-shrink: 0; }

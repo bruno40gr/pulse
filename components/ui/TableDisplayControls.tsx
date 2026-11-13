@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useContext, useEffect, useId, useRef, useState } from 'react'
+import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
 import { ChevronDown } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -9,11 +10,25 @@ import { loadAccountContext } from '@/lib/account-context-client'
 import { normalizeTablePreferences, tablePreferenceKey, type TablePreferences, type TablePreferenceSchema } from '@/lib/table-preferences'
 
 export function useTablePreferences(schema: TablePreferenceSchema) {
+  const prototype = useContext(ContactPrototypeContext)
   const [preferences, setPreferences] = useState(() => normalizeTablePreferences(null, schema))
   const [storageKey, setStorageKey] = useState<string | null>(null)
   const changed = useRef(false)
   const latestPreferences = useRef(preferences)
   useEffect(() => {
+    if (prototype) {
+      const key = tablePreferenceKey(schema, 'explorer-local', 'sample')
+      try {
+        const stored = window.localStorage.getItem(key)
+        if (stored) {
+          const restored = normalizeTablePreferences(JSON.parse(stored), schema)
+          latestPreferences.current = restored
+          setPreferences(restored)
+        }
+      } catch { /* Keep defaults when local storage is unavailable. */ }
+      setStorageKey(key)
+      return
+    }
     let cancelled = false
     const tenant = getActiveTenantId()
     void loadAccountContext(tenant)
@@ -32,7 +47,7 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
         setStorageKey(key)
       }).catch(() => { /* Preferences still work for this visit without verified identity. */ })
     return () => { cancelled = true }
-  }, [schema])
+  }, [schema, prototype])
 
   function updatePreferences(next: TablePreferences) {
     next = normalizeTablePreferences(next, schema)

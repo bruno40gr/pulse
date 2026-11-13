@@ -46,12 +46,12 @@ function ContextAction({ action }: { action: TableContextAction }) {
 }
 
 /** Domain adapters supply labels, eligibility and handlers; this bar owns presentation. */
-export function TableContextActionBar({ resultLabel, selectedCount, selectionHint, actions, onClear }: {
-  resultLabel?: string; selectedCount: number; selectionHint?: string; actions: TableContextAction[]; onClear: () => void
+export function TableContextActionBar({ resultLabel, selectedCount, selectionHint, selectionNoun, actions, onClear }: {
+  resultLabel?: string; selectedCount: number; selectionHint?: string; selectionNoun?: string; actions: TableContextAction[]; onClear: () => void
 }) {
   return <div className={styles.actionBar} role="region" aria-label="Table results and actions" style={{ padding: `${spacing.xs} ${spacing.md}`, borderRadius: radius.sm, border: `1px solid ${colors.link}`, background: colors.link, fontFamily: typography.fontSans }}>
     <div style={{ marginRight: 'auto', minWidth: 0 }}>
-      <span role="status" style={{ fontSize: typography.sizeBase, fontWeight: typography.weightMedium, color: colors.surface }}>{selectedCount > 0 ? `${selectedCount}${resultLabel ? ` out of ${resultLabel}` : ''} selected` : resultLabel}</span>
+      <span role="status" style={{ fontSize: typography.sizeBase, fontWeight: typography.weightMedium, color: colors.surface }}>{selectedCount > 0 ? `${selectedCount}${selectionNoun ? ` ${selectedCount === 1 ? selectionNoun.replace(/s$/, '') : selectionNoun}` : ''}${resultLabel ? ` out of ${resultLabel}` : ''} selected` : resultLabel}</span>
       {selectionHint && <div style={{ fontSize: typography.sizeSm, color: colors.surface }}>{selectionHint}</div>}
     </div>
     <div role="group" aria-label="Selection actions" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs }}>
