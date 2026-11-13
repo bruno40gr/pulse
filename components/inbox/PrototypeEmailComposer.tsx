@@ -18,7 +18,7 @@ import { fillMockTemplate, mockTextHtml, validMockEmailRecipients, type MockEmai
 
 const line: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 
-export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack }: {
+export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false }: {
   name: string; email: string; student: string; draft: PrototypeEmailDraft
   onChange: (draft: PrototypeEmailDraft) => void
   onSend: (body: string, html: string) => void
@@ -26,7 +26,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   signatureImageUrl?: string
   senderEmail?: string; disabled?: boolean
   fromControl?: ReactNode; recipientSummary?: ReactNode; sendLabel?: string
-  title?: string; onBack?: () => void
+  title?: string; onBack?: () => void; hideSendAction?: boolean
   onCollapse: () => void; onDiscard: () => void; replying: boolean; people: MockRecipient[]; templates: MockTemplate[]; onCreateTemplate: (template: MockTemplate) => void
 }) {
   const [managingRecipients, setManagingRecipients] = useState(false)
@@ -57,12 +57,12 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     onChange({ ...draft, html: editor.current.innerHTML })
   }
 
-  const sendAction = <div aria-label="Email actions" style={{ ...line, justifyContent: 'flex-end', flexWrap: 'nowrap', flexShrink: 0 }}>
+  const sendAction = !hideSendAction && <div aria-label="Email actions" style={{ ...line, justifyContent: 'flex-end', flexWrap: 'nowrap', flexShrink: 0 }}>
       <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = sanitizePrototypeHtml(draft.html) + signatureHtml; onSend(prototypeHtmlText(content, trustedImages), sanitizePrototypeHtml(content, trustedImages)) }}><Send size={14} />{sendLabel}</Button>
     </div>
 
   return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-    {title ? <PageHeader title={title} onBack={onBack} backLabel="Back to Communications" right={sendAction} singleLine /> : <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>{sendAction}</div>}
+    {title ? <PageHeader title={title} onBack={onBack} backLabel="Back to Communications" right={sendAction} singleLine /> : !hideSendAction && <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>{sendAction}</div>}
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${spacing.xl} ${spacing.xl}` }}>
       <EmailComposerFields from={fromControl || <>{senderName} &lt;{senderEmail}&gt;</>} recipients={recipientSummary ? [{ label: 'To', content: recipientSummary }] : draft.recipients && !draft.contactOnly
         ? (['to', 'cc', 'bcc'] as const).filter(field => field === 'to' || draft.recipients![field].length).map(field => ({

@@ -1,8 +1,12 @@
-import { enrollmentSteps, enrollmentStepError, enrollmentStudents, enrollmentInstruments, enrollmentGroupPrograms, newStaffEnrollment, newLesson, type EnrollmentPerson, type StaffEnrollment } from './academy-staff-enrollment'
-import { readLeadStudents, type StudentPreferences } from './lead-students'
-import { isLessonLead } from './lead-lesson-details'
+import { enrollmentSteps, enrollmentStepError, enrollmentStudents, enrollmentInstruments, enrollmentGroupPrograms, newStaffEnrollment, newLesson, type EnrollmentPerson, type StaffEnrollment, type LessonChoice } from './academy-staff-enrollment'
+import { readLeadStudents, type StudentPreferences } from '@/lib/lead-students'
+import { isLessonLead } from '@/lib/lead-lesson-details'
 
 export type EnrollmentDraftRecord = {
+  completedAt?: string
+  paymentStatus?: 'unpaid' | 'paid'
+
+  entryLesson?: Partial<LessonChoice>
   id: string
   sourceLeadId?: string
   draft: StaffEnrollment
@@ -32,10 +36,28 @@ export function enrollmentDraftName(record: EnrollmentDraftRecord) {
   return names.join(', ') || [record.draft.contact?.firstName, record.draft.contact?.lastName].filter(Boolean).join(' ') || 'Unnamed enrollment'
 }
 
+/** Completion and payment are deliberately independent of reviewed-step progress. */
+export function completeEnrollmentDraft(record: EnrollmentDraftRecord, now: string): EnrollmentDraftRecord {
+  for (let step = 0; step < enrollmentSteps.length; step++) {
+    const error = enrollmentStepError(record.draft, step)
+    if (error) throw new Error(error)
+  }
+  return { ...record, completedAt: record.completedAt || now, paymentStatus: record.completedAt ? record.paymentStatus : record.draft.payment === 'later' ? 'unpaid' : 'paid', updatedAt: now }
+}
+export function enrollmentPaymentLabel(record: EnrollmentDraftRecord) {
+  if (record.paymentStatus === 'paid') return 'Paid'
+  return record.completedAt || record.draft.payment === 'later' ? 'Unpaid' : 'Not paid'
+}
+
 export function enrollmentDraftProgress(record: EnrollmentDraftRecord) {
+  return reviewedDraftProgress(enrollmentSteps, record.reviewedSteps, index => enrollmentStepError(record.draft, index))
+}
+
+/** Shared hub convention: only reviewed, valid, sequential steps count. */
+export function reviewedDraftProgress(labels: readonly string[], reviewedSteps: number[], stepError: (index: number) => unknown) {
   let previousComplete = true
-  const steps = enrollmentSteps.map((label, index) => {
-    const complete = previousComplete && record.reviewedSteps.includes(index) && !enrollmentStepError(record.draft, index)
+  const steps = labels.map((label, index) => {
+    const complete = previousComplete && reviewedSteps.includes(index) && !stepError(index)
     previousComplete = complete
     return { id: String(index), label, complete }
   })

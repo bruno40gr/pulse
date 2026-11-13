@@ -166,3 +166,16 @@ a.materialLabel:focus-visible { outline: 2px solid var(--setup-ink); outline-off
 .serviceImageChoice { flex-direction: column; align-items: stretch !important; text-align: left; min-width: 0; max-width: 260px; }
 .serviceImageChoice img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; }
 .serviceImageChoice[aria-pressed="true"] { outline: 2px solid var(--setup-ink); outline-offset: 2px; }
+
+.embedded { min-height: 0; }
+.embedded .layout { grid-template-columns: 210px minmax(0, 1fr); min-height: 0; }
+.embedded .main { padding: 24px; }
+.embedded .topbar { display: none; }
+@media (max-width: 1000px) {
+ .embedded .layout { grid-template-columns: minmax(0, 1fr); }
+ .embedded .sidebar { border-right: 0; padding: 12px; }
+ .embedded .sidebar nav { flex-direction: row; overflow-x: auto; }
+ .embedded .sidebar nav button { flex-shrink: 0; width: auto !important; }
+ .embedded .identity { display: none; }
+ .embedded .main { padding: 18px 12px; }
+}

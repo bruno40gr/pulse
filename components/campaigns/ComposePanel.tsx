@@ -1,4 +1,5 @@
 'use client'
+import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import ExcludedRecipientsNotice from '@/components/inbox/ExcludedRecipientsNotice'
 
 import { ComposerFooter } from '@/components/ui/ComposerFooter'
@@ -80,6 +81,7 @@ export default function ComposePanel({
 }: ComposePanelProps) {
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
+  const request = useLeadWorkspaceRequest()
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
   const [localMessage, setLocalMessage] = useState('')
@@ -175,8 +177,8 @@ export default function ComposePanel({
     const hydrateRecipientPreview = async () => {
       try {
         const [contactsRes, staffRes] = await Promise.all([
-          fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
-          fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
+          request(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
+          request(`/api/staff?tenant=${tenantId}`).then(r => r.json()).catch(() => []),
         ])
 
         const contacts = Array.isArray(contactsRes) ? contactsRes : []
@@ -230,10 +232,10 @@ export default function ComposePanel({
     return () => {
       cancelled = true
     }
-  }, [recipientIds, recipientPreview, tenantId])
+  }, [recipientIds, recipientPreview, tenantId, request])
 
   useEffect(() => {
-    fetch(`/api/brand-settings?tenant=${tenantId}`)
+    request(`/api/brand-settings?tenant=${tenantId}`)
       .then(r => r.json())
       .then(data => {
         const combinedVoice = [data?.brand_voice, data?.brand_markdown].filter(Boolean).join('\n\n').trim()
@@ -241,11 +243,11 @@ export default function ComposePanel({
         setBrandVoiceLoaded(true)
       })
       .catch(() => setBrandVoiceLoaded(true))
-  }, [tenantId])
+  }, [tenantId, request])
 
   useEffect(() => {
     if (!recipientIds.length) return
-    fetch('/api/contacts/check-sensitive', {
+    request('/api/contacts/check-sensitive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_ids: recipientIds })
@@ -256,7 +258,7 @@ export default function ComposePanel({
         opted_out: Array.isArray(data?.opted_out) ? data.opted_out : [],
       }))
       .catch(() => {})
-  }, [recipientIds.join(',')])
+  }, [recipientIds.join(','), request])
 
   const fallbackDraftFromIntent = () => {
     const firstNameToken = mode === 'single' ? '{first_name}' : ''
@@ -278,7 +280,7 @@ export default function ComposePanel({
   const loadMediaSuggestions = async (draftMessage?: string, reason: 'initial' | 'manual' = 'manual') => {
     setLoadingSuggestions(true)
     try {
-      const res = await fetch('/api/media-suggestions', {
+      const res = await request('/api/media-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,7 +316,7 @@ export default function ComposePanel({
         ? `Contact notes: ${contactContext.notes_history[0].text}`
         : ''
 
-      const res = await fetch('/api/draft-message', {
+      const res = await request('/api/draft-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -355,7 +357,7 @@ export default function ComposePanel({
     const generateInitialDraft = async () => {
       setAiLoading(true)
       try {
-        const res = await fetch('/api/draft-message', {
+        const res = await request('/api/draft-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -453,7 +455,7 @@ export default function ComposePanel({
         setMediaUrl('')
         return
       }
-      const campaignRes = await fetch(`/api/campaigns?tenant=${tenantId}`, {
+      const campaignRes = await request(`/api/campaigns?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -468,7 +470,7 @@ export default function ComposePanel({
       const campaign = await campaignRes.json()
       if (!campaignRes.ok || !campaign.id) throw new Error(campaign.error || 'The campaign could not be created.')
 
-      const sendRes = await fetch(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
+      const sendRes = await request(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId, recipientVersion: resolvedAudience?.version })

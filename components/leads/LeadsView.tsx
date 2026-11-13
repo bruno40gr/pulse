@@ -1,4 +1,5 @@
 'use client'
+import { LeadWorkspaceContext, type LeadWorkspaceAdapter, useLeadWorkspaceRequest } from './LeadWorkspaceContext'
 import { LeadFollowUpCell } from './LeadFollowUpCell'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
@@ -452,12 +453,12 @@ async function parseJsonSafely<T>(response: Response): Promise<T | { raw: string
   }
 }
 
-async function fetchJsonWithTimeout<T>(input: string, init?: RequestInit, timeoutMs = 10000): Promise<T> {
+async function fetchJsonWithTimeout<T>(request: LeadWorkspaceAdapter["request"], input: string, init?: RequestInit, timeoutMs = 10000): Promise<T> {
   const controller = new AbortController()
   const timeoutHandle = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(input, {
+    const response = await request(input, {
       ...init,
       cache: 'no-store',
       signal: controller.signal,
@@ -569,7 +570,14 @@ function getStartOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
 }
 
-export default function LeadsView({ correctionPrototype = true }: { correctionPrototype?: boolean } = {}) {
+export default function LeadsView({ adapter, correctionPrototype = true, matching = false }: { adapter?: LeadWorkspaceAdapter; correctionPrototype?: boolean; matching?: boolean } = {}) {
+  return <LeadWorkspaceContext.Provider value={adapter}><LeadWorkspace key={matching ? 'band-matching' : 'all'} matching={matching} correctionPrototype={correctionPrototype} adapter={adapter} /></LeadWorkspaceContext.Provider>
+}
+
+function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: LeadWorkspaceAdapter; correctionPrototype: boolean; matching: boolean }) {
+  const request = useLeadWorkspaceRequest()
+  const fetchJson = useCallback(<T,>(input: string, init?: RequestInit, timeoutMs?: number) => fetchJsonWithTimeout<T>(request, matching && input.startsWith('/api/leads?') ? `${input}&band_scope=1&band_id=unassigned` : input, init, timeoutMs), [request, matching])
+
   const [leads, setLeads] = useState<LeadRecord[]>([])
   const [rowNow, setRowNow] = useState(() => Date.now())
   useEffect(() => {
@@ -625,15 +633,16 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const [bulkFollowUpTargets, setBulkFollowUpTargets] = useState<BulkFollowUpTarget[] | null>(null)
   const tenantId = getActiveTenantId()
   const [ownerTenant, setOwnerTenant] = useState<string | null>(null)
-  const isOwner = ownerTenant === tenantId
+  const isOwner = adapter ? adapter.isOwner : ownerTenant === tenantId
   useEffect(() => {
     let cancelled = false
     setOwnerTenant(null)
+    if (adapter) return
     void loadAccountContext(tenantId)
       .then(data => { if (!cancelled && getActiveTenantId() === tenantId && data.isOwner === true) setOwnerTenant(tenantId) })
       .catch(() => { /* Fail closed: deletion remains unavailable. */ })
     return () => { cancelled = true }
-  }, [tenantId])
+  }, [tenantId, adapter])
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
@@ -644,7 +653,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       timeout = window.setTimeout(() => controller.abort(), 10000)
       const params = new URLSearchParams({ tenant: tenantId, summary_only: '1' })
       if (statusFilter !== 'all') params.set('status', statusFilter)
-      void fetch(`/api/leads?${params}`, { cache: 'no-store', signal: controller.signal })
+      void request(`/api/leads?${params}`, { cache: 'no-store', signal: controller.signal })
         .then(async response => {
           const data = await response.json()
           if (!response.ok) throw new Error('Summary unavailable')
@@ -657,7 +666,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         .finally(() => window.clearTimeout(timeout))
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer); window.clearTimeout(timeout); controller.abort() }
-  }, [tenantId, statusFilter, summaryRevision])
+  }, [tenantId, statusFilter, summaryRevision, request])
   const [isWinbackImportOpen, setIsWinbackImportOpen] = useState(false)
   const [leadPanelDrafts, setLeadPanelDrafts] = useState<Record<string, LeadPanelDraft>>(() => {
     if (typeof window === 'undefined') return {}
@@ -754,7 +763,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const fetchLeads = useCallback(async (options: { force?: boolean } = {}) => {
     const requestedTab = activeTab
     const requestedStatus = statusFilter
-    const cacheKey = getLeadListCacheKey(requestedTab, requestedStatus)
+    const cacheKey = `${matching ? 'band:unassigned:' : ''}${getLeadListCacheKey(requestedTab, requestedStatus)}`
     const cached = leadListCacheRef.current.get(cacheKey)
     const cacheIsFresh = cached && Date.now() - cached.fetchedAt < LEAD_LIST_CACHE_TTL_MS
     const requestId = ++leadListRequestRef.current
@@ -779,7 +788,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
       params.set('include_counts', '0')
       params.set('include_activity', '0')
-      const data = await fetchJsonWithTimeout<LeadListResponse | LeadRecord[]>(`/api/leads?${params.toString()}`)
+      const data = await fetchJson<LeadListResponse | LeadRecord[]>(`/api/leads?${params.toString()}`)
 
       const returnedLeads = Array.isArray(data) ? data : Array.isArray(data.leads) ? data.leads : []
       const visibleLeads = filterWinbackLeads(returnedLeads, requestedTab, requestedStatus)
@@ -799,7 +808,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     } finally {
       if (requestId === leadListRequestRef.current) setLoading(false)
     }
-  }, [activeTab, statusFilter])
+  }, [activeTab, statusFilter, fetchJson, matching])
 
   const invalidateLeadListCache = () => {
     window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
@@ -809,7 +818,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   }
 
   const loadMoreLeads = async () => {
-    const key = getLeadListCacheKey(activeTab, statusFilter)
+    const key = `${matching ? 'band:unassigned:' : ''}${getLeadListCacheKey(activeTab, statusFilter)}`
     const cached = leadListCacheRef.current.get(key)
     if (!cached || loadingMore) return
     const generation = leadListCacheGenerationRef.current
@@ -818,7 +827,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     try {
       const params = new URLSearchParams({ intake_type: activeTab, include_activity: '0', offset: String(cached.nextOffset) })
       if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
-      const rows = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params}`)
+      const rows = await fetchJson<LeadRecord[]>(`/api/leads?${params}`)
       if (generation !== leadListCacheGenerationRef.current || requestId !== leadListRequestRef.current) return
       const merged = Array.from(new Map([...cached.leads, ...filterWinbackLeads(rows, activeTab, statusFilter)].map((lead) => [lead.id, lead])).values())
       const next = { leads: merged, fetchedAt: Date.now(), nextOffset: cached.nextOffset + rows.length, hasMore: rows.length === 100 }
@@ -841,7 +850,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       while (true) {
         const params = new URLSearchParams({ intake_type: activeTab, include_activity: '0', offset: String(offset), limit: '500' })
         if (activeTab !== 'winback' && statusFilter !== 'all') params.set('status', statusFilter)
-        const rows = await fetchJsonWithTimeout<LeadRecord[]>(`/api/leads?${params}`)
+        const rows = await fetchJson<LeadRecord[]>(`/api/leads?${params}`)
         allRows.push(...filterWinbackLeads(rows, activeTab, statusFilter))
         offset += rows.length
         if (rows.length < 500) break
@@ -924,7 +933,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setDeleteError('')
 
     try {
-      await fetchJsonWithTimeout<{ success: true }>(`/api/leads?tenant=${encodeURIComponent(tenantId)}`, {
+      await fetchJson<{ success: true }>(`/api/leads?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selectedIds), intake_type: activeTab }),
@@ -949,7 +958,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     try {
       const params = new URLSearchParams()
       if (intakeType) params.set('intake_type', intakeType)
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}?${params.toString()}`)
+      const data = await fetchJson<LeadDetail>(`/api/leads/${leadId}?${params.toString()}`)
       if (requestId !== leadDetailRequestRef.current || selectedLeadIdRef.current !== leadId) return
       setSelectedLead(data)
       setStatusValue(data.status || 'new')
@@ -1008,13 +1017,23 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   const openAddLead = () => {
     setManualLeadError('')
-    setManualLeadForm(createInitialManualLeadForm(activeTab))
+    setManualLeadForm({ ...createInitialManualLeadForm(activeTab), ...(matching ? { programLabel: 'Band' } : {}) })
     setIsAddLeadOpen(true)
   }
+
+  useEffect(() => {
+    if (!adapter?.creation?.key) return
+    setManualLeadError('')
+    setManualLeadForm({ ...createInitialManualLeadForm('lesson_inquiry'), ...adapter.creation })
+    setIsAddLeadOpen(true)
+    // A creation key is an intent, not a signal to reset a user's in-progress draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter?.creation?.key])
 
   const closeAddLead = () => {
     if (manualLeadSaving) return
     setIsAddLeadOpen(false)
+    adapter?.onCreationClosed?.()
     setManualLeadError('')
     setManualLeadQueued(false)
   }
@@ -1060,7 +1079,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
         }
       }
 
-      const response = await fetchJsonWithTimeout<{ lead_intake_id?: string; queued?: boolean; receipt_id?: string }>(`/api/intake`, {
+      const response = await fetchJson<{ lead_intake_id?: string; queued?: boolean; receipt_id?: string }>(`/api/intake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1076,7 +1095,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           utm_source: manualLeadForm.source,
           utm_campaign: manualLeadForm.campaign.trim() || null,
           referrer: manualLeadForm.referrer.trim() || null,
-          payload,
+          payload: matching ? { ...payload, opportunity_origin: 'staff_initiated', service_type: 'band' } : payload,
         }),
       })
 
@@ -1089,7 +1108,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       invalidateLeadListCache()
       await fetchLeads({ force: true })
       setIsAddLeadOpen(false)
-      setManualLeadForm(createInitialManualLeadForm(activeTab))
+      adapter?.onCreationClosed?.()
+      setManualLeadForm({ ...createInitialManualLeadForm(activeTab), ...(matching ? { programLabel: 'Band' } : {}) })
 
       if (response.lead_intake_id) {
         const targetTab = isLessonLead(manualLeadForm.intakeType) ? 'lesson_inquiry' : 'service_inquiry'
@@ -1122,7 +1142,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setCallingLead(true)
     setDetailError('')
     try {
-      await fetchJsonWithTimeout<{ success: true }>(`/api/calls`, {
+      await fetchJson<{ success: true }>(`/api/calls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1191,7 +1211,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setDetailSaving(true)
     setDetailError('')
     try {
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadId}`, {
+      const data = await fetchJson<LeadDetail>(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1247,7 +1267,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setDetailError('')
     try {
       const iso = new Date(`${followUpDate}T12:00:00`).toISOString()
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
+      const data = await fetchJson<LeadDetail>(`/api/leads/${selectedLeadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1278,7 +1298,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
     setDetailSaving(true)
     setDetailError('')
     try {
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${selectedLeadId}`, {
+      const data = await fetchJson<LeadDetail>(`/api/leads/${selectedLeadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1324,7 +1344,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
     try {
       const opportunityValue = Number(leadEditForm.opportunityValue)
-      const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${leadEditTargetId}`, {
+      const data = await fetchJson<LeadDetail>(`/api/leads/${leadEditTargetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1439,7 +1459,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
   const lessonInstrument = typeof selectedLead?.payload?.instrument === 'string' ? selectedLead.payload.instrument : (selectedLead?.program_label || '—')
 
   const saveFollowUpPatch = async (id: string, payload: FollowUpPatch) => {
-    const data = await fetchJsonWithTimeout<LeadDetail>(`/api/leads/${id}?tenant=${encodeURIComponent(tenantId)}`, {
+    const data = await fetchJson<LeadDetail>(`/api/leads/${id}?tenant=${encodeURIComponent(tenantId)}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ payload }),
     })
@@ -1556,7 +1576,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       width: 'minmax(150px, 1fr)',
       sortable: true,
       sortKey: 'program',
-      render: (lead) => <div title={formatSourcePage(lead.source_page, lead.program_label || lead.service_label)} style={secondaryCellStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}</div>,
+      render: (lead) => <div title={formatSourcePage(lead.source_page, lead.program_label || lead.service_label)} style={secondaryCellStyle}>{formatSourcePage(lead.source_page, lead.program_label || lead.service_label)}{typeof lead.payload?.band_name === 'string' && <div style={secondaryCellStyle}>{lead.payload.band_name}</div>}</div>,
     },
     {
       id: 'source',
@@ -1694,6 +1714,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
       <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Source & attribution</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
         <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
           <Detail label="Source" value={selectedSource} />
+          {typeof selectedLead?.payload.opportunity_origin === 'string' && <Detail label="Interest origin" value={selectedLead.payload.opportunity_origin === 'staff_initiated' ? 'Staff-initiated' : 'Student / family interest'} />}
           <Detail label="Source form" value={formatLabel(selectedLead.source_form)} />
           <Detail label="Campaign" value={formatLabel(selectedCampaign)} />
           <Detail label="Landing page" value={formatSourcePage(selectedLead.source_page)} />
@@ -1706,6 +1727,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           <DenseSectionPanel title={<SectionTitle style={sectionTitleMiniStyle}>Lesson details</SectionTitle>} style={editorialSectionPanelStyle} contentStyle={sectionContentStyle}>
             <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
               <Detail label="Program or instrument" value={lessonInstrument} />
+              {typeof selectedLead.payload?.band_name === 'string' && <Detail label="Band" value={selectedLead.payload.band_name} />}
               <Detail label="Student name" value={lessonRequest.studentName || '—'} />
               <Detail label="Age" value={lessonRequest.studentAge || '—'} />
               <Detail label="Preferred date" value={lessonRequest.preferredDate || '—'} />
@@ -1846,6 +1868,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
                 <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
                   <Detail label="Service" value={selectedLead.service_label || '—'} />
                   <Detail label="Request context" value={selectedProgram} />
+                  {typeof selectedLead.payload?.band_name === 'string' && <Detail label="Band" value={selectedLead.payload.band_name} />}
                   <Detail label="Priority" value={formatLabel(selectedLead.priority)} />
                 </div>
               </DenseSectionPanel>
@@ -1955,8 +1978,8 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
 
   return (
     <>
-      <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-        <PageHeader
+      <div style={{ padding: matching ? 0 : spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+        {!matching && <PageHeader
           title="Leads"
           subtitle={subtitle}
           right={(
@@ -1967,14 +1990,11 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
                 const leadId = selectedLeadIdRef.current
                 if (leadId) await fetchLeadDetail(leadId, selectedLead?.intake_type)
               }} />
-            {activeTab === 'winback'
-              ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
-              : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>}
             </div>
           )}
-        />
+        />}
 
-        <div style={kpiRowStyle}>
+        {!matching && <div style={kpiRowStyle}>
           <div style={valueCardStyle}>
             <div style={valueCardLabelStyle}>In pipeline</div>
             <div style={valueCardAmountStyle}>{formatCurrency(pipelineValue)}</div>
@@ -1985,15 +2005,25 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             <div style={valueCardAmountStyle}>{formatCurrency(closedSinceOct1)}</div>
             <div style={valueCardMetaStyle}>Won opportunities</div>
           </div>
-        </div>
+        </div>}
 
-        <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
+        {!matching && <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
           <Tabs
             items={leadTabItems}
             activeKey={activeTab}
             onChange={tab => { setStatusFilter('all'); setActiveTab(tab) }}
             style={isMobileLayout ? { width: 'max-content', minWidth: '100%' } : undefined}
           />
+        </div>}
+
+        {error && <MessageBox>{error}</MessageBox>}
+        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
+
+        <div role="group" aria-label="Opportunity search and creation" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
+          <div style={{ flex: '1 1 160px', minWidth: 0 }}><Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} /></div>
+          {activeTab === 'winback'
+            ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
+            : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>}
         </div>
 
         {error && <MessageBox>{error}</MessageBox>}
@@ -2026,7 +2056,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           </>}
           contextualToolbarPlacement="replace"
           contextualToolbar={selectedCount > 0 ? <TableContextActionBar selectedCount={selectedCount}
-            resultLabel={`${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`}
+            resultLabel={matching ? `${visibleLeads.length} ${visibleLeads.length === 1 ? 'student' : 'students'}` : `${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`} selectionNoun={matching ? 'students' : undefined}
             onClear={() => setSelectedIds(new Set())}
             actions={[
               { id: 'follow-up', label: 'Update follow-up', onClick: openBulkFollowUp, disabledReason: activeTab === 'job_application' ? 'Follow-up editing is available for leads, not applications.' : undefined },
@@ -2043,7 +2073,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
               if (column.id === 'name') return <TablePersonName key={column.id} detail>{student.name || 'Student name not recorded'}</TablePersonName>
               if (column.id === 'phone') return <div key={column.id} style={secondaryCellStyle}>{leadTablePhone(student.phone)}</div>
               if (column.id === 'email') return <div key={column.id} style={secondaryCellStyle}>{student.email || ''}</div>
-              if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}</div>
+              if (column.id === 'program') return <div key={column.id} style={secondaryCellStyle}>{student.instrument_interest || ''}{typeof lead.payload?.band_name === 'string' && <div>{lead.payload.band_name}</div>}</div>
               return null
             }) }))}
           getRowKey={(lead) => lead.id}
@@ -2097,6 +2127,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
           <div style={manualLeadFormGridStyle}>
             <Select
               label="Lead type"
+              disabled={matching}
               value={manualLeadForm.intakeType}
               onChange={(event) => updateManualLeadField('intakeType', event.target.value as ManualLeadFormState['intakeType'])}
             >
@@ -2129,7 +2160,7 @@ export default function LeadsView({ correctionPrototype = true }: { correctionPr
             {isLessonLead(manualLeadForm.intakeType) ? (
               <>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <LeadStudentsEditor students={manualLeadForm.students} onChange={students => updateManualLeadField('students', students)} disabled={manualLeadSaving} contact={{ name: manualLeadForm.fullName, email: manualLeadForm.email, phone: manualLeadForm.phone }} />
+                  <LeadStudentsEditor programScope={matching ? 'band' : 'lessons'} students={manualLeadForm.students} onChange={students => updateManualLeadField('students', students)} disabled={manualLeadSaving} contact={{ name: manualLeadForm.fullName, email: manualLeadForm.email, phone: manualLeadForm.phone }} />
                 </div>
               </>
             ) : (

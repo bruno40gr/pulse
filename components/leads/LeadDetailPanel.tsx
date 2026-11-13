@@ -20,6 +20,7 @@ import { normalizeFamilyMembers } from '@/lib/lead-family'
 import { type LeadStudent, readLeadStudents, leadStudentsPatch } from '@/lib/lead-students'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
+import { LeadWorkspaceContext } from './LeadWorkspaceContext'
 import { reviewWinbackHierarchy } from '@/lib/winback-hierarchy'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
@@ -220,6 +221,7 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
 
 export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange, staticDetails = false }: LeadDetailPanelProps) {
   const contextualCompose = useContext(ConversationComposeContext)
+  const workspaceAdapter = useContext(LeadWorkspaceContext)
   const [smsOpen, setSmsOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<'details' | 'notes'>('details')
   useEffect(() => { setSmsOpen(false); setMobileSection('details') }, [lead.id])
@@ -346,7 +348,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
           <Field label="Relationship" value={label(student.relationship_to_contact)} />
         </div>
         <div style={twoColumnStyle}>
-          <Field label="Service" value={[...new Set(student.instrument_interest.split(',').map(item => item.trim().startsWith('Semi-private · ') ? 'Semi-private' : item.trim().startsWith('Private · ') ? 'Private' : ['Tiny Keys', 'Little Rockers', 'Band'].includes(item.trim()) ? 'Group' : '').filter(Boolean))].join(', ')} />
+          {typeof lead.payload.band_name === 'string' && <Field label="Band" value={lead.payload.band_name} />}<Field label="Service" value={[...new Set(student.instrument_interest.split(',').map(item => item.trim().startsWith('Semi-private · ') ? 'Semi-private' : item.trim().startsWith('Private · ') ? 'Private' : ['Tiny Keys', 'Little Rockers', 'Band'].includes(item.trim()) ? 'Group' : '').filter(Boolean))].join(', ')} />
           <Field label="Program" value={student.instrument_interest} />
           <Field label="Experience" value={student.preferences?.experience || ''} />
           <Field label="Available days" value={student.preferences?.preferredDays || ''} />
@@ -386,6 +388,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         const stage = event.target.value
         setStageSelection('')
         if (stage === 'lost') setLostOpen(true)
+        else if (stage === 'won' && typeof lead.payload.band_id === 'string' && workspaceAdapter?.onBandEnrollment) workspaceAdapter.onBandEnrollment(lead.contact?.id || '', lead.payload.band_id)
         else if (stage) void onPatch({ status: stage })
       }}
     >
@@ -420,7 +423,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         compact={isMobile}
         onClose={onRequestClose}
         titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
-        actions={isMobile ? undefined : (statusControls || undefined)}
+        actions={<>{!isMobile && statusControls}{workspaceAdapter?.onSendEnrollment && lead.intake_type === 'lesson_inquiry' && lead.payload.service_type !== 'band' && !['won', 'lost', 'spam', 'ghosted_us'].includes(lead.status) && <Button type="button" variant="secondary" size="sm" onClick={() => workspaceAdapter.onSendEnrollment?.(lead.id)}>Send enrollment request</Button>}</>}
       />
   )
   if (renderEditor) return renderEditor(renderHeader)

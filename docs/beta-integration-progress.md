@@ -1,5 +1,54 @@
 # Beta integration progress — November 13, 2026
 
+## Domain and screen reconciliation checkpoint
+
+Reconciled Beta enrollment, band, program, opportunity and workflow models under
+`beta-source/lib`. The portal actions, queue, store and hook live there together;
+Parent enrollment consumes that same hook. There is no copied root queue/store.
+This remains fictional same-tab session transport, not authorization or payment
+infrastructure. Parent family selection projects queued accounts into the sample
+workspace; request drafts can open, save and resume without operational writes.
+
+StaffEnrollment now uses the shared stepper, search picker, checkbox and synthetic
+card preview. School Setup gains optional embedded sections and externally owned
+discount configuration, retaining default standalone behavior. Existing calendar,
+makeup, family reschedule modules and their CSS were retained, not replaced.
+
+Shared Leads now accepts an explicit fictional request adapter while the default
+remains fetch. Main's coalesced account-context permission loading, debounced
+summaries, records cache, pagination, deletion checks and server routes remain.
+The fictional adapter supports main's summary-only and include-counts contracts.
+Dependent editors/composers receive the same request boundary; main's SMS review
+and campaign-create error handling were retained. Band-only student fields are
+opt-in; ordinary student editing keeps its established composition.
+
+Not yet reconciled/exposed: the full staff Explorer, its Contacts panel adapters,
+and staff navigation placement. Only BandEnrollment and ProgramAvailability were
+ported from that directory as Parent dependencies. Do not interpret the shared
+Leads adapter as approval to expose the whole staff explorer or to remove its
+development-only guard. No operational API route changed in this checkpoint.
+
+Validation on the isolated integration worktree:
+
+- 315/315 domain, adapter-contract, Beta-access, Leads, performance-context and
+  conversation tests passed; the final run is recorded in
+  `/tmp/odeon-beta-reconcile-full-tests.log`.
+- TypeScript and whitespace checks passed. Focused lint has no errors; existing
+  unused-variable/image/hook warnings remain in older large Leads/composer files.
+- Desktop 1440px and mobile 390px browser checks passed for family reschedule and
+  makeup, Reschedule together, and Parent request open/save/resume. No operational
+  writes, runtime errors or horizontal overflow in those checks.
+- Sharp 0.35.5 decoded PNG, resized 16x16 to 8x8, encoded WebP and read metadata.
+- Browser host `/tmp/pulse-beta-reconcile-host` on loopback port 3231 imports this
+  integration worktree, not the original prototype. It omits production middleware
+  and therefore does not validate deployment access controls.
+- Production build remains blocked by missing approved nonproduction Supabase
+  configuration; no secrets were copied and no deployment claim is made.
+
+Evidence: `/tmp/odeon-beta-{calendar-browser,reschedule-browser,parent-browser-final,
+reconcile-types,reconcile-lint,final-reconcile-lint,reconcile-full-tests}.log`.
+No merge, push or deployment performed.
+
 ## Isolated release line
 
 - Worktree: `/Users/brunowong/pulse-beta-integration`

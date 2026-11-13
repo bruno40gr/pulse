@@ -1,18 +1,18 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, GraduationCap, MapPin, Pencil, Plus, Settings, Trash2, Users, Wallet } from 'lucide-react'
 import Image from 'next/image'
-import { Button } from '@/beta-source/components/ui/Button'
-import { ControlButton } from '@/beta-source/components/ui/ControlButton'
-import { DenseSectionPanel } from '@/beta-source/components/ui/DenseSectionPanel'
-import { FieldGrid } from '@/beta-source/components/ui/FieldGrid'
-import { Input } from '@/beta-source/components/ui/Input'
-import { StudentMultiSelect } from '@/beta-source/components/leads/StudentMultiSelect'
+import { Button } from '@/components/ui/Button'
+import { ControlButton } from '@/components/ui/ControlButton'
+import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
+import { FieldGrid } from '@/components/ui/FieldGrid'
+import { Input } from '@/components/ui/Input'
+import { StudentMultiSelect } from '@/components/leads/StudentMultiSelect'
 import { EmptyState } from '@/beta-source/components/ui/EmptyState'
-import { Select } from '@/beta-source/components/ui/Select'
-import { colors, typography } from '@/beta-source/lib/tokens'
-import { createDiscounts, normalizePricing, pricingName, cloneCurriculum, createMaterials, createSetupData, defaultLevelNames, levelIds, lessonFormats, schedulingChoices, selection, serviceDefaults, setupAreas, validateRooms, validateSetup, visibleFields, type DiscountPolicy, type SetupCurriculum, type SetupMaterial, type SetupArea, type SetupExperience, type SetupRecord, type SetupRoom } from './setup-content'
+import { Select } from '@/components/ui/Select'
+import { colors, typography } from '@/lib/tokens'
+import { createDiscounts, normalizePricing, pricingName, cloneCurriculum, createMaterials, createSetupData, defaultLevelNames, levelIds, lessonFormats, schedulingChoices, selection, serviceDefaults, setupAreas, validateRooms, validateSetup, visibleFields, type SetupDiscount, type DiscountPolicy, type SetupCurriculum, type SetupMaterial, type SetupArea, type SetupExperience, type SetupRecord, type SetupRoom } from './setup-content'
 import ServiceEditor from './ServiceEditor'
 import CurriculumSection from './CurriculumSection'
 import DiscountsPanel from './DiscountsPanel'
@@ -45,17 +45,19 @@ function createEditor(area: SetupArea, data: Record<string, SetupRecord[]>, reco
   return { curriculum, materials, id: record?.id || `new-${area.id}`, values, rooms, fresh: !record, title: record?.values.name || '', initial: JSON.stringify({ values, rooms, curriculum, materials }) }
 }
 
-export default function SchoolSetup({ configuredData, onConfiguredChange, demo = false }: { configuredData?: Record<string, SetupRecord[]>; onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void; demo?: boolean } = {}) {
+export default function SchoolSetup({ configuredData, onConfiguredChange, configuredDiscounts, configuredDiscountPolicy, onDiscountsChange, demo = false, embedded = false, companySettings, offeringTypes, billingSettings, companyName, onExit }: { configuredDiscountPolicy?: DiscountPolicy; configuredDiscounts?: SetupDiscount[]; onDiscountsChange?: (discounts: SetupDiscount[], policy: DiscountPolicy) => void; configuredData?: Record<string, SetupRecord[]>; onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void; demo?: boolean; embedded?: boolean; companySettings?: ReactNode; offeringTypes?: ReactNode; billingSettings?: ReactNode; companyName?: string; onExit?: () => void } = {}) {
+  const hasOfferingTypes = Boolean(offeringTypes)
   const [view, setView] = useState('overview')
-  const [experience, setExperience] = useState<SetupExperience>('new')
+  const [experience, setExperience] = useState<SetupExperience>(embedded ? 'configured' : 'new')
   const [experiences, setExperiences] = useState(() => ({ new: createSetupData('new'), configured: configuredData || createSetupData('configured') }))
   useEffect(() => { onConfiguredChange?.(experiences.configured) }, [experiences.configured, onConfiguredChange])
   const data = experiences[experience]
   const [libraries, setLibraries] = useState(() => ({ new: createMaterials('new'), configured: createMaterials('configured') }))
   const [schoolLevels, setSchoolLevels] = useState(() => ({ new: { ...defaultLevelNames }, configured: { ...defaultLevelNames } }))
   const [enabledLevels, setEnabledLevels] = useState(() => ({ new: levelIds.slice(0, 3), configured: levelIds.slice(0, 3) }))
-  const [discountPolicies, setDiscountPolicies] = useState<Record<SetupExperience, DiscountPolicy>>({ new: { combination: 'best', order: 'percentage-first' }, configured: { combination: 'best', order: 'percentage-first' } })
-  const [discounts, setDiscounts] = useState(() => ({ new: createDiscounts('new'), configured: createDiscounts('configured') }))
+  const [discountPolicies, setDiscountPolicies] = useState<Record<SetupExperience, DiscountPolicy>>({ new: { combination: 'best', order: 'percentage-first' }, configured: configuredDiscountPolicy || { combination: 'best', order: 'percentage-first' } })
+  const [discounts, setDiscounts] = useState(() => ({ new: createDiscounts('new'), configured: configuredDiscounts || createDiscounts('configured') }))
+  useEffect(() => { onDiscountsChange?.(discounts.configured, discountPolicies.configured) }, [discounts.configured, discountPolicies.configured, onDiscountsChange])
   const [curriculumDirty, setCurriculumDirty] = useState(false)
   const [lastServices, setLastServices] = useState<Record<SetupExperience, string>>({ new: '', configured: '' })
   const [draft, setEditor] = useState<Editor | null>(null)
@@ -68,7 +70,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, demo =
   const [backHref, setBackHref] = useState('/content-studio-prototype/students?prototype=v3')
   const mainRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    const sync = () => { const params = new URLSearchParams(window.location.search); const id = params.get('section'); setExperience(params.get('experience') === 'configured' ? 'configured' : 'new'); setView((id === 'calendar' || id === 'curriculum' || setupAreas.some(area => area.id === id)) ? id! : 'overview'); setEditor(null); setCurriculumDirty(false); setError(''); setNotice('') }
+    const sync = () => { const params = new URLSearchParams(window.location.search); const id = params.get('section'); setExperience(embedded || params.get('experience') === 'configured' ? 'configured' : 'new'); setView((id === 'calendar' || id === 'curriculum' || (hasOfferingTypes && id === 'offering-types') || setupAreas.some(area => area.id === id)) ? id! : 'overview'); setEditor(null); setCurriculumDirty(false); setError(''); setNotice('') }
     sync()
     const url = new URL(demo ? '/dashboard' : window.location.pathname === '/school-setup' ? '/students' : '/content-studio-prototype/students', window.location.origin)
     url.searchParams.set('prototype', 'v3')
@@ -77,7 +79,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, demo =
     setBackHref(url.pathname + url.search)
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
-  }, [demo])
+  }, [demo, embedded, hasOfferingTypes])
   function canLeave() { return !(dirty || curriculumDirty) || window.confirm('Discard unsaved changes?') }
   function navigate(next: string) {
     if (!canLeave()) return
@@ -135,22 +137,30 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, demo =
   }
   const completed = setupAreas.filter(item => data[item.id].length > 0).length
   const nextArea = setupAreas.find(item => !data[item.id].length)
-  const actions = view === 'curriculum' ? null : inlineSettings ? (dirty ? <Button form="setup-editor" type="submit">Save changes</Button> : null) : editor ? <><Button variant="secondary" onClick={closeEditor}>Cancel</Button><Button form="setup-editor" type="submit">Save changes</Button></> : area ? <Button onClick={() => edit(area.singleton ? data[area.id][0] : undefined)}>{area.singleton && data[area.id].length ? <Pencil size={15} /> : <Plus size={15} />}{area.singleton ? (data[area.id].length ? 'Edit details' : `Set up ${area.singular}`) : `Add ${area.singular}`}</Button> : experience === 'new' && nextArea ? <Button onClick={() => navigate(nextArea.id)}>{completed ? 'Continue setup' : 'Start setup'}<ArrowRight size={16} /></Button> : null
+  const actions = ['curriculum', 'offering-types'].includes(view) ? null : inlineSettings ? (dirty ? <Button form="setup-editor" type="submit">Save changes</Button> : null) : editor ? <><Button variant="secondary" onClick={closeEditor}>Cancel</Button><Button form="setup-editor" type="submit">Save changes</Button></> : area ? <Button onClick={() => edit(area.singleton ? data[area.id][0] : undefined)}>{area.singleton && data[area.id].length ? <Pencil size={15} /> : <Plus size={15} />}{area.singleton ? (data[area.id].length ? 'Edit details' : `Set up ${area.singular}`) : `Add ${area.singular}`}</Button> : experience === 'new' && nextArea ? <Button onClick={() => navigate(nextArea.id)}>{completed ? 'Continue setup' : 'Start setup'}<ArrowRight size={16} /></Button> : null
   return <div style={theme}>
-    <div className={styles.shell}>
-    {demo && <p role="status" className={styles.betaNotice}>Beta · Sample data · No live school changes, payments or messages. Changes are not shared with other testers.</p>}
+    <div className={`${styles.shell} ${embedded ? styles.embedded : ''}`}>
+    {demo && !embedded && <p role="status" className={styles.betaNotice}>Beta · Sample data · No live school changes, payments or messages. Changes are not shared with other testers.</p>}
     <a href="#setup-content" className={styles.skip}>Skip to setup content</a>
-    <header className={styles.topbar}><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={28} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a><span>School Setup</span><div className={styles.exit}><Button variant="destructive" size="sm" onClick={() => { if (canLeave()) window.location.assign(backHref) }}><ArrowLeft size={15} aria-hidden="true" />{demo ? 'Back to Headliner' : 'Back to Odeon'}</Button></div></header>
+    <header className={styles.topbar}><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={28} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a><span>School Setup</span><div className={styles.exit}><Button variant="destructive" size="sm" onClick={() => { if (canLeave()) { if (onExit) onExit(); else window.location.assign(backHref) } }}><ArrowLeft size={15} aria-hidden="true" />{embedded ? 'Back to operations' : demo ? 'Back to Headliner' : 'Back to Odeon'}</Button></div></header>
     <div className={styles.layout}>
-      <aside className={styles.sidebar}><div className={styles.identity}><h2>{data.school[0]?.values.name || 'Your school'}</h2></div><nav aria-label="School setup sections"><ControlButton kind="navigation" selected={view === 'overview'} aria-current={view === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>Overview</ControlButton>{setupAreas.map((item, index) => { const Icon = icons[index]; return <ControlButton key={item.id} kind="navigation" selected={view === item.id} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon size={17} aria-hidden="true" />{item.title}</ControlButton> })}<ControlButton kind="navigation" selected={view === 'calendar'} aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => navigate('calendar')}><CalendarDays size={17} aria-hidden="true" />Calendar</ControlButton><ControlButton kind="navigation" selected={view === 'curriculum'} aria-current={view === 'curriculum' ? 'page' : undefined} onClick={() => navigate('curriculum')}><BookOpen size={17} aria-hidden="true" />Curriculum</ControlButton></nav></aside>
+      <aside className={styles.sidebar}><div className={styles.identity}><h2>{companyName || data.school[0]?.values.name || 'Your school'}</h2></div><nav aria-label="School setup sections">
+        <ControlButton kind="navigation" selected={view === 'overview'} aria-current={view === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>Overview</ControlButton>
+        {setupAreas.map((item, index) => { const Icon = icons[index]; return <Fragment key={item.id}>
+          <ControlButton kind="navigation" selected={view === item.id} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon size={17} aria-hidden="true" />{embedded && item.id === 'school' ? 'Company settings' : item.title}</ControlButton>
+          {item.id === 'services' && offeringTypes && <ControlButton kind="navigation" selected={view === 'offering-types'} aria-current={view === 'offering-types' ? 'page' : undefined} onClick={() => navigate('offering-types')}><Users size={17} aria-hidden="true" />Group & event types</ControlButton>}
+        </Fragment> })}
+        <ControlButton kind="navigation" selected={view === 'calendar'} aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => navigate('calendar')}><CalendarDays size={17} aria-hidden="true" />Calendar</ControlButton>
+        <ControlButton kind="navigation" selected={view === 'curriculum'} aria-current={view === 'curriculum' ? 'page' : undefined} onClick={() => navigate('curriculum')}><BookOpen size={17} aria-hidden="true" />Curriculum</ControlButton>
+      </nav></aside>
       <main id="setup-content" tabIndex={-1} ref={mainRef} className={styles.main}>
 
         <section className={styles.progress} aria-label="Setup progress"><div><span>{completed} of {setupAreas.length} sections set up</span><strong>{Math.round(completed / setupAreas.length * 100)}%</strong></div><progress aria-label="School setup completion" max={setupAreas.length} value={completed} /></section>
-        <header className={styles.pageHeader}><div>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="link" onClick={closeEditor}>{area.title}</ControlButton>}<div className={styles.editorTitle}>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="icon" aria-label={editor ? `Back to ${data[area.id].length ? area.title : 'overview'}` : 'Back to overview'} onClick={editor ? closeEditor : () => navigate('overview')}><ArrowLeft size={24} /></ControlButton>}<h1>{inlineSettings ? area?.title : editor && area ? (view === 'calendar' ? 'Edit calendar' : editor.fresh ? (area.singleton ? area.title : `Add ${area.singular}`) : `Edit ${area.id === 'locations' ? `“${editor.title}”` : editor.title}`) : area?.title || (view === 'curriculum' ? 'Curriculum' : null) || (experience === 'new' ? 'Set up your school' : 'School Setup')}</h1></div></div><div className={styles.actions}>{actions}</div></header>
+        <header className={styles.pageHeader}><div>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="link" onClick={closeEditor}>{area.title}</ControlButton>}<div className={styles.editorTitle}>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="icon" aria-label={editor ? `Back to ${data[area.id].length ? area.title : 'overview'}` : 'Back to overview'} onClick={editor ? closeEditor : () => navigate('overview')}><ArrowLeft size={24} /></ControlButton>}<h1>{inlineSettings ? (embedded && area?.id === 'school' ? 'Company settings' : area?.title) : editor && area ? (view === 'calendar' ? 'Edit calendar' : editor.fresh ? (area.singleton ? area.title : `Add ${area.singular}`) : `Edit ${area.id === 'locations' ? `“${editor.title}”` : editor.title}`) : area?.title || (view === 'curriculum' ? 'Curriculum' : view === 'offering-types' ? 'Group & event types' : null) || (experience === 'new' ? 'Set up your school' : 'School Setup')}</h1></div></div><div className={styles.actions}>{actions}</div></header>
         {view === 'plans' && !editor && <p className={styles.sectionDescription}>Create reusable pricing models for your school. Choose which models to offer when editing each service; the same model can be used by multiple services.</p>}
         {inlineSettings && dirty && <p role="status" className={styles.sectionDescription}>Unsaved changes</p>}
         {notice && <p role="status" className={styles.notice}>{notice}</p>}
-        {view === 'curriculum' ? <CurriculumSection key={experience} levelNames={schoolLevels[experience]} enabledLevels={enabledLevels[experience]} materials={libraries[experience]} onDirty={setCurriculumDirty} onSave={(names, materials, enabled) => { setEnabledLevels(current => ({ ...current, [experience]: enabled })); setSchoolLevels(current => ({ ...current, [experience]: names })); setLibraries(current => ({ ...current, [experience]: materials })); setCurriculumDirty(false) }} /> : !area ? <>{experience === 'configured' && <div className={styles.summary}><div><span>School</span><strong>{data.school[0]?.values.name || 'Not set'}</strong></div><div><span>Timezone</span><strong>{data.school[0]?.values.timezone || 'Not set'}</strong></div><div><span>Currency</span><strong>USD</strong></div></div>}<div className={styles.grid}>{setupAreas.map((item, index) => {
+        {view === 'school' && companySettings}{view === 'plans' && billingSettings}{view === 'offering-types' ? offeringTypes : view === 'curriculum' ? <CurriculumSection key={experience} levelNames={schoolLevels[experience]} enabledLevels={enabledLevels[experience]} materials={libraries[experience]} onDirty={setCurriculumDirty} onSave={(names, materials, enabled) => { setEnabledLevels(current => ({ ...current, [experience]: enabled })); setSchoolLevels(current => ({ ...current, [experience]: names })); setLibraries(current => ({ ...current, [experience]: materials })); setCurriculumDirty(false) }} /> : !area ? <>{experience === 'configured' && <div className={styles.summary}><div><span>School</span><strong>{data.school[0]?.values.name || 'Not set'}</strong></div><div><span>Timezone</span><strong>{data.school[0]?.values.timezone || 'Not set'}</strong></div><div><span>Currency</span><strong>USD</strong></div></div>}<div className={styles.grid}>{setupAreas.map((item, index) => {
           const Icon = icons[index]
           const records = data[item.id]
           const summary = !records.length ? 'Not set up' : item.singleton ? (item.id === 'school' ? records[0].values.name : 'School-wide rules & agreements') : `${records.length} ${item.singular}${records.length === 1 ? '' : 's'}`

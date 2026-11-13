@@ -1,5 +1,7 @@
 'use client'
 
+import { ParentEnrollmentQueue } from './ParentEnrollmentQueue'
+
 import { familyActionConfirmation, useActionConfirmation } from './useActionConfirmation'
 
 import { ConfirmActionButton } from './ConfirmActionButton'
@@ -162,6 +164,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
       }} /> : section === 'makeups' && !selectedLesson ? <><BackControl label="Back to lessons" showLabel onClick={() => navigate('lessons')} /><div className={styles.intro}><h1>Schedule a makeup</h1></div><div className={styles.makeupLayout}>{makeupBlocks}<WeeklySchedule data={visible} makeups={credits} location={{ ...location, studentId }} taskLayout week={week} onWeek={setWeek} onEnsure={through => onData(expandPreviewCalendar(data, through))} onLesson={openLesson} onMove={startMove} compact /></div></> : selectedLesson ? <LessonPreview key={selectedLesson.id} lesson={selectedLesson} parent absence={makeups.absences.find(item => item.lessonId === selectedLesson.id)} onBack={() => setLessonId(null)} onSchedule={id => { setLessonId(null); setMakeupId(id) }} onCancel={() => {
         try { const next = recordPreviewAbsence(data, makeups, account.id, selectedLesson.id, false, true); onData(next.data); onMakeups(next.state); confirm('I’ve cancelled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
       }} /> : selectedInvoice ? <InvoicePreview invoice={selectedInvoice} onBack={() => setInvoiceId(null)} onPay={selectedInvoice.status === 'Open' ? () => setPayment({ kind: 'pay', invoiceId: selectedInvoice.id }) : undefined} /> : section === 'home' ? <>
+        <ParentEnrollmentQueue accountId={account.id} />
         <div className={styles.intro}><div><h1>Hi, {account.holderName.split(' ')[0]}.</h1><p>Your children’s lessons and your account, in one place.</p></div></div>
         <div className={styles.grid}><DenseSectionPanel title="Upcoming lessons" headingLevel="h2" actions={<Button variant="secondary" size="sm" onClick={() => navigate('lessons')}>View all lessons</Button>}>{renderLessons(4)}</DenseSectionPanel><div className={styles.stack}>
           <DenseSectionPanel title="Your balance" headingLevel="h2" actions={<Button variant={hasOverdueInvoices ? 'destructive' : 'secondary'} size="sm" onClick={() => navigate('billing')}>View billing</Button>}><p className={styles.amount}>{previewMoney(balance, 'USD')}</p>{nextPayment && <p className={styles.muted}>Next payment · {formatScheduleDate(nextPayment)}</p>}<span className={styles.muted}>{open.length ? `${open.length} unpaid invoice${open.length === 1 ? '' : 's'} billed to you` : 'You’re all paid up.'}</span></DenseSectionPanel>

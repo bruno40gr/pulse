@@ -1,0 +1,2 @@
+.search:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #2563eb; }
+@media (forced-colors: active) { .search:focus-visible { outline: 2px solid Highlight; outline-offset: -3px; } }
