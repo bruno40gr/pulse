@@ -46,6 +46,7 @@ import { mergeEmailPages } from '@/lib/conversation-email-merge'
 import { startStoredEmailRefresh } from '@/lib/conversation-email-refresh'
 import { conversationEmailStatus } from '@/lib/conversation-email-status'
 import { formatCommunicationTimestamp } from '@/lib/communication-time'
+import { startVisiblePolling } from '@/lib/visible-polling'
 
 const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
 const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
@@ -171,12 +172,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     setEditingSmsRecipients(false)
     setLocation(next)
   }, !embedded)
-  const refreshSms = useCallback(async () => {
+  const smsPoller = useRef<ReturnType<typeof startVisiblePolling> | null>(null)
+  const refreshSms = useCallback(() => { smsPoller.current?.refresh() }, [])
+  const loadSms = useCallback(async (signal: AbortSignal) => {
     if (!tenantId) return
     const [directory, inbox] = await Promise.all([
-      requestJson(`/api/conversations?tenant=${tenantId}`),
-      requestJson(`/api/inbox?tenant=${tenantId}${campaignId ? `&campaign_id=${encodeURIComponent(campaignId)}` : ''}`),
+      requestJson(`/api/conversations?tenant=${tenantId}`, { signal }),
+      requestJson(`/api/inbox?tenant=${tenantId}${campaignId ? `&campaign_id=${encodeURIComponent(campaignId)}` : ''}`, { signal }),
     ])
+    if (signal.aborted) return
     const nextPeople: ConversationPerson[] = directory.people
     const smsThreads: LiveThread[] = (inbox as SmsInboxThread[]).map(thread => {
       let person = nextPeople.find(person => person.profileId && person.profileId === thread.profile_id && person.profileType === thread.profile_type)
@@ -201,11 +205,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [tenantId, campaignId])
   useEffect(() => {
     if (!tenantId) return
-    let cancelled = false
-    void refreshSms().catch(error => { if (!cancelled) setLoadError(error.message) }).finally(() => { if (!cancelled) setLoading(false) })
-    const interval = window.setInterval(() => { void refreshSms().catch(() => {}) }, 15000)
-    return () => { cancelled = true; window.clearInterval(interval) }
-  }, [refreshSms, tenantId])
+    let stopped = false
+    const poller = startVisiblePolling(async signal => {
+      try { await loadSms(signal) }
+      catch (error) { if (!stopped) setLoadError(signal.aborted ? 'Conversation refresh timed out. Please retry.' : error instanceof Error ? error.message : 'Could not load conversations.') }
+      finally { if (!stopped) setLoading(false) }
+    })
+    smsPoller.current = poller
+    return () => { stopped = true; poller.stop(); smsPoller.current = null }
+  }, [loadSms, tenantId])
   useEffect(() => {
     if (embedded) return
     const reset = () => {
@@ -216,7 +224,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       remembered.current = {}
       // Remove recipient-compose parameters so another click cannot reopen a draft.
       window.history.replaceState({ ...window.history.state, odeonWorkspace: undefined }, '', window.location.pathname)
-      void refreshSms().catch(error => setLoadError(error.message))
+      refreshSms()
     }
     window.addEventListener(CONVERSATIONS_HOME_EVENT, reset)
     return () => window.removeEventListener(CONVERSATIONS_HOME_EVENT, reset)
@@ -515,7 +523,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       await requestJson(`/api/inbox/reply?tenant=${tenantId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: selectedPerson?.smsContactId || null, body, to_phone: contact.phone, media_url: mediaUrl || undefined }) })
       setSmsDrafts(current => ({ ...current, [sms.id]: '' }))
       setNotice('Text message submitted.')
-      await refreshSms().catch(() => setNotice('Text message submitted. Refresh Communications to see the latest history.'))
+      refreshSms()
     } catch (error) { setSendError(error instanceof Error ? error.message : 'Text could not be sent.'); throw error }
     finally { sendLock.current = false; setSending(false) }
   }
@@ -563,7 +571,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const draftAction = 'Reply'
 
   if (loading || (embedded && location.view === 'contacts' && !composeLinkError && !loadError)) return <PageContainer style={{ padding: embedded ? 0 : mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0 }}>{embedded ? <ProfilePanelSkeleton /> : <><PageHeader title="Communications" /><CommunicationsSkeleton /></>}</PageContainer>
-  if (loadError) return <PageContainer><Notice variant="error">{loadError}</Notice><Button onClick={() => { setLoading(true); void refreshSms().catch(error => setLoadError(error.message)).finally(() => setLoading(false)) }}>Retry</Button></PageContainer>
+  if (loadError) return <PageContainer><Notice variant="error">{loadError}</Notice><Button onClick={() => { setLoadError(''); setLoading(true); refreshSms() }}>Retry</Button></PageContainer>
   if (composeLinkError) return <PageContainer><PageHeader title="Recipient unavailable" /><Notice variant="error">{composeLinkError}</Notice><Button onClick={() => { setComposeLinkError(''); setLocation(initialLocation) }}>Browse Communications</Button></PageContainer>
 
   return <PageContainer style={{ padding: embedded ? 0 : mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0, color: colors.text, fontFamily: typography.fontSans, ...(embedded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' } : {}) }}>
@@ -616,7 +624,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           recipientPreview={smsRecipients.filter(person => person.phone).map(person => ({ id: people.find(item => item.id === person.id)?.smsContactId || person.id, first_name: person.name.split(' ')[0], last_name: person.name.split(' ').slice(1).join(' ') }))}
           excludedRecipients={smsRecipients.filter(person => !person.phone).map(person => ({ id: person.id, name: person.name, reason: 'No phone number' }))}
           draft={{ body: newSms.body, onChange: body => setNewSms(current => current ? { ...current, body } : current) }}
-          onSent={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }); void refreshSms() }} />
+          onSent={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }); refreshSms() }} />
       </SurfacePanel>
       <Modal isOpen={editingSmsRecipients} onClose={() => setEditingSmsRecipients(false)} ariaLabel="Edit SMS recipients" size="wide"><ModalHeader compact title="Select text message recipients" onClose={() => setEditingSmsRecipients(false)} /><ModalBody style={{ display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}><SmsRecipientPicker query={smsRecipientQuery} people={contacts} selected={newSms.ids} onQueryChange={setSmsRecipientQuery} onChange={ids => setNewSms(current => current ? { ...current, ids } : current)} /></div></ModalBody><ModalFooter><Button onClick={() => setEditingSmsRecipients(false)}>Done</Button></ModalFooter></Modal>
       <Modal isOpen={discardOpen} onClose={() => setDiscardOpen(false)} ariaLabel="Discard text message" size="sm"><ModalHeader title="Discard this text message?" onClose={() => setDiscardOpen(false)} /><ModalBody>Your recipients and unsent text will be removed.</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setDiscardOpen(false)}>Keep message</Button><Button variant="destructive" onClick={() => { setNewSms(null); navigate({ view: 'contacts', activeId: '' }) }}>Discard message</Button></ModalFooter></Modal>
