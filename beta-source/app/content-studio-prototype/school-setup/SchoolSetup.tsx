@@ -1,7 +1,10 @@
 'use client'
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, GraduationCap, MapPin, Pencil, Plus, Settings, Trash2, Users, Wallet } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, GraduationCap, MapPin, Menu, Pencil, Plus, Settings, Trash2, Users, Wallet } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { useIsMobile } from '@/lib/useMediaQuery'
+import { useDialogLayer } from '@/lib/useDialogLayer'
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -138,15 +141,21 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
     return value || 'Not set'
   }
   const completed = setupAreas.filter(item => data[item.id].length > 0).length
+  const mobile = useIsMobile()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const closeMenu = () => setMenuOpen(false)
+  const drawer = useDialogLayer(!embedded && mobile && menuOpen, closeMenu)
   const nextArea = setupAreas.find(item => !data[item.id].length)
   const actions = ['curriculum', 'offering-types'].includes(view) ? null : inlineSettings ? (dirty ? <Button form="setup-editor" type="submit">Save changes</Button> : null) : editor ? <><Button variant="secondary" onClick={closeEditor}>Cancel</Button><Button form="setup-editor" type="submit">Save changes</Button></> : area ? <Button onClick={() => edit(area.singleton ? data[area.id][0] : undefined)}>{area.singleton && data[area.id].length ? <Pencil size={15} /> : <Plus size={15} />}{area.singleton ? (data[area.id].length ? 'Edit details' : `Set up ${area.singular}`) : `Add ${area.singular}`}</Button> : experience === 'new' && nextArea ? <Button onClick={() => navigate(nextArea.id)}>{completed ? 'Continue setup' : 'Start setup'}<ArrowRight size={16} /></Button> : null
   return <div style={theme}>
     <div className={`${styles.shell} ${embedded ? styles.embedded : ''}`}>
-    {demo && !embedded && <p role="status" className={styles.betaNotice}>Beta · Sample data · No live school changes, payments or messages. Changes are not shared with other testers.</p>}
     <a href="#setup-content" className={styles.skip}>Skip to setup content</a>
-    <header className={styles.topbar}><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={28} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a><span>School Setup</span><div className={styles.exit}><Button variant="destructive" size="sm" onClick={() => { if (canLeave()) { if (onExit) onExit(); else window.location.assign(backHref) } }}><ArrowLeft size={15} aria-hidden="true" />{embedded ? 'Back to operations' : demo ? 'Back to Headliner' : 'Back to Odeon'}</Button></div></header>
+    {!embedded && mobile && <header className={styles.topbar}><ControlButton kind="icon" aria-label="Open menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={22} /></ControlButton><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={28} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a></header>}
     <div className={styles.layout}>
-      <aside className={styles.sidebar}><WorkAreaNavigation access={{}} leadCount={0} conversationCount={0} switcherOnly light onBeforeNavigate={canLeave} onNavigate={() => {}} /><div className={styles.identity}><h2>{companyName || data.school[0]?.values.name || 'Your school'}</h2></div><nav aria-label="School setup sections">
+      {(() => {
+        const navigation = <>
+          {!embedded && <><div className={styles.sidebarBrand}><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={36} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a>{mobile && <ControlButton kind="close" aria-label="Close menu" onClick={closeMenu} />}</div><div className={styles.back}><Button variant="destructive" size="sm" style={{ width: '100%' }} onClick={() => { if (canLeave()) { if (onExit) onExit(); else window.location.assign(backHref) } }}><ArrowLeft size={15} aria-hidden="true" />{demo ? 'Back to Headliner' : 'Back to operations'}</Button></div></>}
+          <div className={styles.areaSwitcher}><WorkAreaNavigation access={{}} leadCount={0} conversationCount={0} switcherOnly light onBeforeNavigate={canLeave} onNavigate={closeMenu} /></div><nav aria-label="School onboarding sections" onClick={event => { if ((event.target as HTMLElement).closest('button')) closeMenu() }}>
         <ControlButton kind="navigation" selected={view === 'overview'} aria-current={view === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>Overview</ControlButton>
         {setupAreas.map((item, index) => { const Icon = icons[index]; return <Fragment key={item.id}>
           <ControlButton kind="navigation" selected={view === item.id} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon size={17} aria-hidden="true" />{embedded && item.id === 'school' ? 'Company settings' : item.title}</ControlButton>
@@ -154,8 +163,11 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
         </Fragment> })}
         <ControlButton kind="navigation" selected={view === 'calendar'} aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => navigate('calendar')}><CalendarDays size={17} aria-hidden="true" />Calendar</ControlButton>
         <ControlButton kind="navigation" selected={view === 'curriculum'} aria-current={view === 'curriculum' ? 'page' : undefined} onClick={() => navigate('curriculum')}><BookOpen size={17} aria-hidden="true" />Curriculum</ControlButton>
-      </nav></aside>
-      <main id="setup-content" tabIndex={-1} ref={mainRef} className={styles.main}>
+      </nav></>
+        return !embedded && mobile ? menuOpen && drawer.mounted && createPortal(<div ref={drawer.rootRef} style={theme}><div className={styles.drawerBackdrop} onClick={closeMenu} /><aside ref={drawer.dialogRef} role="dialog" aria-modal="true" aria-label="School navigation" tabIndex={-1} className={`${styles.sidebar} ${styles.drawer}`}>{navigation}</aside></div>, document.body) : <aside className={styles.sidebar}>{navigation}</aside>
+      })()}
+      <main id="setup-content" tabIndex={-1} ref={mainRef} className={styles.main} aria-label={companyName ? `${companyName} onboarding` : 'School onboarding'}>
+        {demo && !embedded && <p role="status" className={styles.betaNotice}>Beta · Sample data · No live school changes, payments or messages. Changes are not shared with other testers.</p>}
 
         <section className={styles.progress} aria-label="Setup progress"><div><span>{completed} of {setupAreas.length} sections set up</span><strong>{Math.round(completed / setupAreas.length * 100)}%</strong></div><progress aria-label="School setup completion" max={setupAreas.length} value={completed} /></section>
         <header className={styles.pageHeader}><div>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="link" onClick={closeEditor}>{area.title}</ControlButton>}<div className={styles.editorTitle}>{area && editor && !inlineSettings && data[area.id].length > 0 && <ControlButton kind="icon" aria-label={editor ? `Back to ${data[area.id].length ? area.title : 'overview'}` : 'Back to overview'} onClick={editor ? closeEditor : () => navigate('overview')}><ArrowLeft size={24} /></ControlButton>}<h1>{inlineSettings ? (embedded && area?.id === 'school' ? 'Company settings' : area?.title) : editor && area ? (view === 'calendar' ? 'Edit calendar' : editor.fresh ? (area.singleton ? area.title : `Add ${area.singular}`) : `Edit ${area.id === 'locations' ? `“${editor.title}”` : editor.title}`) : area?.title || (view === 'curriculum' ? 'Curriculum' : view === 'offering-types' ? 'Group & event types' : null) || (experience === 'new' ? 'Set up your school' : 'School Setup')}</h1></div></div><div className={styles.actions}>{actions}</div></header>

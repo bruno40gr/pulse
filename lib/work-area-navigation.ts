@@ -10,7 +10,7 @@ export function canAccessBeta(access: NavigationAccess) {
   return access.roleKey === 'owner' || access.roleKey === 'admin'
 }
 
-export type WorkAreaId = 'operations' | 'school' | 'onboarding' | 'funding' | 'website' | 'settings'
+export type WorkAreaId = 'operations' | 'onboarding' | 'funding' | 'website' | 'settings'
 export type NavigationLink = { href: string; label: string }
 export type WorkArea = { id: WorkAreaId; label: string; description: string; links: NavigationLink[] }
 
@@ -26,14 +26,16 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
   return [
     { id: 'operations', label: 'Operations', description: 'Run your day-to-day work', links: [
       { href: '/dashboard', label: 'Overview' },
+      ...(canAccessBeta(access) ? [
+        { href: '/odeon-demo?screen=teacher', label: 'Teacher day' },
+        { href: '/odeon-demo?screen=calendar', label: 'Calendar' },
+      ] : []),
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/leads', label: 'Leads' },
       { href: '/dashboard/contacts', label: 'Contacts' },
       { href: '/dashboard/inbox', label: 'Communications' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/rsvps', label: 'Event RSVPs' },
-    ] },
-    { id: 'school', label: 'School Setup', description: 'Manage your school’s teaching team', links: [
       { href: '/dashboard/staff', label: 'Teachers & staff' },
     ] },
     { id: 'onboarding', label: 'School onboarding', description: 'Set up your school', links: [
@@ -68,7 +70,6 @@ export function settingsLinks(access: NavigationAccess): NavigationLink[] {
 export function workAreaForPath(pathname: string): WorkAreaId {
   if (pathname === '/odeon-demo/school-setup' || pathname === '/school-setup') return 'onboarding'
   if (pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/')) return 'settings'
-  if (pathname === '/dashboard/staff' || pathname.startsWith('/dashboard/staff/')) return 'school'
   if (pathname.startsWith('/dashboard/funding/') || pathname === '/dashboard/funded-cases') return 'funding'
   if (pathname === '/dashboard/community' || pathname.startsWith('/dashboard/community/') || pathname === '/dashboard/website-content' || pathname.startsWith('/dashboard/website-content/')) return 'website'
   return 'operations'

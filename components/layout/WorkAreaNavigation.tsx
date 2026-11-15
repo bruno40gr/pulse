@@ -11,7 +11,7 @@ import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
 import { activeNavigationLink, canAccessBeta, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
 import styles from './WorkAreaNavigation.module.css'
 
-const icons = { operations: LayoutDashboard, school: GraduationCap, onboarding: GraduationCap, funding: Wallet, website: Globe }
+const icons = { operations: LayoutDashboard, onboarding: GraduationCap, funding: Wallet, website: Globe }
 
 export default function WorkAreaNavigation({ access, leadCount, conversationCount, onNavigate, switcherOnly = false, light = false, onBeforeNavigate }: {
   access: NavigationAccess; leadCount: number; conversationCount: number; onNavigate: () => void; switcherOnly?: boolean; light?: boolean; onBeforeNavigate?: () => boolean

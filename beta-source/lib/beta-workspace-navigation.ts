@@ -3,6 +3,7 @@ export type BetaWorkflowScreen = typeof betaWorkflowScreens[number]
 export type BetaScreen = 'contacts' | 'staff' | 'teacher' | 'parent' | 'calendar' | BetaWorkflowScreen
 
 export const betaNavigation: { screen: BetaScreen; label: string; href: string }[] = [
+  { screen: 'teacher', label: 'Teacher day', href: '/odeon-demo?screen=teacher' },
   { screen: 'calendar', label: 'Calendar', href: '/odeon-demo?screen=calendar' },
   { screen: 'contacts', label: 'Contacts', href: '/odeon-demo' },
   { screen: 'opportunities', label: 'Opportunities', href: '/odeon-demo?screen=opportunities' },

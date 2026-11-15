@@ -237,7 +237,7 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false, sampleScree
       </div>
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>
         {sample && <WorkAreaNavigation access={{}} leadCount={0} conversationCount={0} onNavigate={onNavigate} switcherOnly />}
-        {(sample ? [{ label: 'BETA', links: betaNavigation }] : NAV_GROUPS).map(group => (
+        {(sample ? [{ label: 'Operations', links: betaNavigation }] : NAV_GROUPS).map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
             {group.links.filter(link => link.href !== '/dashboard/website-content' || canPublishWebsite).map(({ href, label }) => {

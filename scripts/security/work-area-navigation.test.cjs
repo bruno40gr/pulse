@@ -26,7 +26,17 @@ test('Beta access is restricted to owner and admin roles', () => {
 
 test('area routing separates website, staff, funding, settings and operations', () => {
   const { workAreaForPath } = load()
-  for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'school'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)
+  for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'operations'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)
+})
+
+test('Operations owns staff and authorized teacher/calendar links without duplicate School Setup', () => {
+  const { workAreasForAccess } = load()
+  const areas = workAreasForAccess({ roleKey: 'owner' })
+  assert.equal(areas.some(area => area.id === 'school' || area.label === 'School Setup'), false)
+  const links = areas.find(area => area.id === 'operations').links
+  assert.equal(links.findIndex(link => link.label === 'Teacher day') + 1, links.findIndex(link => link.label === 'Calendar'))
+  assert.ok(links.some(link => link.href === '/dashboard/staff'))
+  assert.equal(workAreasForAccess({ roleKey: 'staff' }).flatMap(area => area.links).some(link => link.href.startsWith('/odeon-demo?')), false)
 })
 
 test('school onboarding is a parallel workspace with a standalone destination', () => {

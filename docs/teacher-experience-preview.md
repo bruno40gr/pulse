@@ -1,6 +1,6 @@
 # Teacher experience preview — November 15, 2026
 
-Entry: Beta → Staff → **Teacher experience · Preview**, or
+Entry: **Operations → Teacher day**, immediately above Calendar, or
 `/odeon-demo?screen=teacher`. Existing Owner/Admin Beta access gates are unchanged;
 this is not a teacher login or a production teacher permission boundary.
 
@@ -13,7 +13,10 @@ this is not a teacher login or a production teacher permission boundary.
   navigation and both tab sets remain outside. Desktop filtering is unchanged.
 - Teacher mockup: day/week agenda and roster from preview records, participant
   attendance controls, lesson-note tasks, family-message drafts, configured
-  teaching hours and availability proposals. Desktop uses two columns; mobile
+  teaching hours and availability proposals. Schedule cards reuse the extracted
+  Contacts `LessonCard` composition with **Take attendance**, **Leave notes** and
+  **Message family** actions. Messaging offers SMS/email within the lesson dialog;
+  there is no Families tab. Desktop uses two columns; mobile
   stacks the same components.
 - All teacher edits are component-local and disappear on exit/reload. Nothing is
   sent, no API mutations are made, and no shared sample records are changed.
@@ -39,7 +42,7 @@ the daily workflow; it displaces reliable rescheduling and live permission work.
 
 ## Validation
 
-- 1,099/1,099 academy/security tests passed.
+- 1,100/1,100 academy/security tests passed after the navigation revision.
 - Production build passed (Next.js 15.5.29), TypeScript check and targeted ESLint
   passed; no dependency or migration changes.
 - `beta-mobile-teacher-browser.cjs`: 390px and 1440px, calendar filter controls,
@@ -51,3 +54,12 @@ the daily workflow; it displaces reliable rescheduling and live permission work.
   in the new browser script rather than the desktop toolbar geometry test.
 - Screenshots and command logs saved under `/tmp/odeon-{teacher,mobile-teacher}*`.
   Local preview validation does not establish hosted deployment readiness.
+- Removed the duplicate School Setup work area; Teachers & staff is retained in
+  Operations. School onboarding keeps the configuration workflows and URL, with
+  an app-aligned 252px left-pinned sidebar, full-width content, and a 72px mobile
+  bar with an accessible navigation drawer. No centered max-width outer frame.
+- `beta-onboarding-shell-browser.cjs` checks 1920px/1440px/390px shell geometry,
+  area deduplication and navigation. `beta-shared-lesson-card-browser.cjs` checks
+  Contacts selection, bulk checkbox and existing reschedule/cancel menus at
+  desktop/mobile widths. Setup scheduling persistence regressions also passed;
+  those tests now explicitly request configured fixtures.

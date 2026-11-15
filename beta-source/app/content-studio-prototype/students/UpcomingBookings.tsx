@@ -9,7 +9,8 @@ import { WeeklySchedule } from './WeeklySchedule'
 import { LessonSelectionToolbar } from './LessonSelectionToolbar'
 import { ConfirmActionButton } from './ConfirmActionButton'
 import { SectionHeader, SectionHeading } from './SectionHeader'
-import { Avatar, Badge, Button, EmptyState, SurfacePanel, Modal, ModalHeader, ModalBody, ModalFooter, DenseSectionPanel } from '@/beta-source/components/ui'
+import { Avatar, Badge, Button, EmptyState, Modal, ModalHeader, ModalBody, ModalFooter, DenseSectionPanel } from '@/beta-source/components/ui'
+import { LessonCard } from './LessonCard'
 import { ControlButton } from '@/beta-source/components/ui/ControlButton'
 import { OverflowMenu } from '@/beta-source/components/ui/OverflowMenu'
 import { formatScheduleDate, formatScheduleTime, shiftDate, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
@@ -61,27 +62,21 @@ export function UpcomingBookings({ data, makeups, location, onEnsure, onLesson, 
       const cancelled = item.status === 'Absent' || item.status === 'Cancelled'
       const rescheduled = !cancelled && 'originalDate' in item && Boolean(item.originalDate && item.originalDate !== item.date)
       const status = cancelled ? 'Cancelled' : rescheduled ? 'Rescheduled' : item.status
-      return <SurfacePanel key={item.id} appearance="flat" padding={spacing.lg} style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, minWidth: 0 }}>
-          {inline && onRescheduleTogether && item.status === 'Scheduled' && <input type="checkbox" aria-label={`Include ${item.student.firstName} ${item.program} lesson ${item.date}`} checked={checked.includes(item.id)} onChange={event => setChecked(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} />}
-          <ControlButton kind="row" aria-label={`Select ${item.student.firstName} ${item.program} lesson ${item.date}${item.makeup ? ', makeup lesson' : ''}`} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(selectedId === item.id ? null : item.id)} style={{ flex: 1, minWidth: 0, padding: 0, flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start', gap: spacing.xs, textAlign: 'left' }}>
-            <span style={{ ...typography.h2, margin: 0, color: colors.text, fontWeight: typography.weightBold }}>
-              {formatScheduleDate(item.date, { weekday: 'long', month: 'short', day: 'numeric' })} · {formatScheduleTime(item.time)}
-            </span>
-            <span style={{ ...typography.bodySmall, color: colors.textSecondary }}>
-              {item.student.firstName} · {item.program} • {item.duration} min
-            </span>
-          </ControlButton>
-          {item.status === 'Scheduled' && <OverflowMenu label={`${item.student.firstName} ${item.program} lesson ${item.date} actions`} items={[{ label: 'Reschedule lesson', onSelect: () => onMove(item.id) }, { label: 'Cancel lesson', onSelect: () => onLesson(item.id) }]} />}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minWidth: 0, marginLeft: inline && onRescheduleTogether && item.status === 'Scheduled' ? `calc(18px + ${spacing.lg})` : undefined }}>
+      return <LessonCard key={item.id}
+        title={<>{formatScheduleDate(item.date, { weekday: 'long', month: 'short', day: 'numeric' })} · {formatScheduleTime(item.time)}</>}
+        subtitle={<>{item.student.firstName} · {item.program} • {item.duration} min</>}
+        selectLabel={`Select ${item.student.firstName} ${item.program} lesson ${item.date}${item.makeup ? ', makeup lesson' : ''}`}
+        selected={selectedId === item.id} onSelect={() => setSelectedId(selectedId === item.id ? null : item.id)}
+        leading={inline && onRescheduleTogether && item.status === 'Scheduled' ? <input type="checkbox" aria-label={`Include ${item.student.firstName} ${item.program} lesson ${item.date}`} checked={checked.includes(item.id)} onChange={event => setChecked(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} /> : undefined}
+        actions={item.status === 'Scheduled' ? <OverflowMenu label={`${item.student.firstName} ${item.program} lesson ${item.date} actions`} items={[{ label: 'Reschedule lesson', onSelect: () => onMove(item.id) }, { label: 'Cancel lesson', onSelect: () => onLesson(item.id) }]} /> : undefined}
+        metadata={<>
           <Avatar firstName={firstName} lastName={rest.join(' ')} size={avatarSizes.sm} src={getStaffAvatarUrl(tenantId, item.teacher)} />
           <span style={{ ...typography.bodySmall, color: colors.textMuted }}>{item.teacher}</span>
           <LessonStatus status={status} />
           {item.makeup && <Badge size="sm" variant="info">Makeup lesson</Badge>}
           {!item.makeup && item.enrollment.frequency === 'One-off' && <Badge size="sm">One-off</Badge>}
-        </div>
-      </SurfacePanel>
+        </>}
+      />
     })}
     {!bookings.length && <EmptyState title="No lessons in this date range" />}</>}
   </section>

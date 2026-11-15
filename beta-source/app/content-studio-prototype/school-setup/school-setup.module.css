@@ -8,18 +8,24 @@
 .brand strong { font-size: 26px; letter-spacing: -1px; }
 .exit { margin-left: auto; display: flex; align-items: center; }
 .brand:focus-visible { outline: 2px solid var(--interaction-focus); outline-offset: 5px; }
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1600px; margin: auto; min-height: calc(100dvh - 80px); }
-.sidebar { padding: 34px 20px; border-right: 1px solid var(--setup-border); }
+.layout { display: block; width: 100%; min-height: 100dvh; }
+.sidebar { position: fixed; top: 0; left: 0; width: 252px; height: 100dvh; display: flex; flex-direction: column; background: var(--setup-surface); border-right: 1px solid var(--setup-border); z-index: 35; }
+.sidebarBrand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 24px 20px 16px; border-bottom: 1px solid var(--setup-border); }
+.back { padding: 12px 8px 0; }
+.areaSwitcher { flex: 0 0 auto; }
+.sidebar > nav { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 16px; }
+.drawerBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 40; }
+.drawer { width: min(280px, 85vw); z-index: 50; }
 .identity { padding: 0 10px 28px; }
 .identity h2 { font-size: 18px; margin: 12px 0 0; overflow-wrap: anywhere; }
-.sidebar nav { display: flex; flex-direction: column; gap: 7px; }
-.sidebar nav button { min-height: 44px; gap: 10px !important; }
+.sidebar nav { display: flex; flex-direction: column; gap: 3px; }
+.sidebar nav button { min-height: 42px; padding: 9px 12px; gap: 8px !important; }
 .sidebar nav button[aria-current='page'] { background: var(--setup-ink) !important; color: white !important; }
 .sidebar nav button:not([aria-current='page']):hover { background: var(--setup-surface) !important; color: var(--setup-ink) !important; }
 .empty { padding: 24px 0; }
 .empty h2 { font-size: 18px; font-weight: 500; }
 .empty p { color: var(--setup-muted); font-size: 14px; }
-.main { min-width: 0; width: 100%; max-width: 988px; padding: 24px 44px 50px; outline: none; container-type: inline-size; }
+.main { min-width: 0; width: calc(100% - 252px); margin-left: 252px; padding: 28px; outline: none; container-type: inline-size; }
 .pageHeader { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; }
 .pageHeader h1 { margin: 12px 0 9px; font-size: 32px; font-weight: 600; line-height: 1.2; letter-spacing: -.8px; }
 .pageHeader p { margin: 0; color: var(--setup-muted); font-size: 14px; line-height: 1.7; }
@@ -168,9 +174,21 @@ a.materialLabel:focus-visible { outline: 2px solid var(--setup-ink); outline-off
 .serviceImageChoice[aria-pressed="true"] { outline: 2px solid var(--interaction-selected); outline-offset: 2px; }
 
 .embedded { min-height: 0; }
+.shell:not(.embedded) .sidebar nav { flex-direction: column; overflow-x: hidden; }
+.shell:not(.embedded) .sidebar nav button { width: 100% !important; font-size: 14px !important; white-space: normal; }
+@media (max-width: 960px) {
+ .shell:not(.embedded) .topbar { position: fixed; inset: 0 0 auto; min-height: 72px; padding: 8px 16px; gap: 12px; z-index: 30; }
+ .shell:not(.embedded) .main { margin-left: 0; width: 100%; padding: 100px 28px 28px; }
+ .shell:not(.embedded) .sidebar { padding: 0; border-right: 1px solid var(--setup-border); }
+}
 .embedded .layout { grid-template-columns: 210px minmax(0, 1fr); min-height: 0; }
-.embedded .main { padding: 24px; }
+.embedded .layout { display: grid; }
+.embedded .sidebar { position: static; width: auto; height: auto; padding: 20px 12px; z-index: auto; }
+.embedded .main { margin-left: 0; width: 100%; padding: 24px; }
 .embedded .topbar { display: none; }
+.drawer.sidebar { padding: 0; border-right: 1px solid var(--setup-border); }
+.drawer.sidebar nav { flex-direction: column; overflow-x: hidden; }
+.drawer.sidebar nav button { width: 100% !important; white-space: normal; font-size: 14px !important; }
 @media (max-width: 1000px) {
  .embedded .layout { grid-template-columns: minmax(0, 1fr); }
  .embedded .sidebar { border-right: 0; padding: 12px; }
