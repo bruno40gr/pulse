@@ -1,6 +1,28 @@
 # Beta integration progress — November 13, 2026
 
-## Current status — main promotion authorized, November 15, 2026
+## Current status — merged and pushed, November 15, 2026
+
+- Merge `61ce7bb` landed the validated integration on main and was pushed;
+  live remote main matched that SHA. The merge tree exactly matches integration
+  checkpoint `f0a3477`. Beta middleware/access gating remains unchanged.
+- Reinstalled main dependencies from the committed lockfile. Full suite passed
+  again on merged main: 1,099/1,099. Full production build passed on merged main
+  with existing staging configuration, including page-data/static generation.
+- Main's redundant pre-merge working state remains in the named
+  `beta-main-promotion preserved baseline 20261115` stash and private archives.
+  Main's working tree was clean after merge; no pending work was overwritten.
+- Preview source/import/dependency links now target `/Users/brunowong/pulse`.
+  Restarted the loopback-only host after preserving stale generated dependencies
+  and cache; HTTP 200 and six-destination navigation passed at 1440/390px.
+- Post-merge cleanup recovery passed at
+  `/Users/brunowong/pulse-backups/beta-main-cleanup-20261115-085956`.
+  Only the merged Beta integration line is eligible for removal; protected Odeon
+  refs, other unmerged worktrees and both stashes remain retained.
+- No manual deployment or database migration performed. Hosted deployment state
+  is not verified; push-triggered CI may run independently. Shared school storage
+  remains unprovisioned and impersonation remains sample-only.
+
+## Historical main promotion authorization — November 15, 2026
 
 - User authorized committing the reviewed integration to main while retaining
   Beta gating. Final full suite passed 1,099/1,099, including anonymous/staff/

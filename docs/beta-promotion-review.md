@@ -2,6 +2,27 @@
 
 ## Scope and decision
 
+### Completed main promotion — November 15
+
+Merged and pushed as `61ce7bb`; remote main verified at that SHA. Exact tree
+equality with `f0a3477` passed. After lockfile dependency installation, merged
+main passed all 1,099 domain/security tests and the full production build.
+Middleware is unchanged and Beta remains administrator-gated.
+
+Main's earlier dirty state was byte-matched to the preserved integration baseline
+and parked in stash `beta-main-promotion preserved baseline 20261115`, not dropped
+or reapplied over integrated fixes. Both stashes are retained. Preview links and
+route adapters now use main; after preserving stale generated dependency/cache
+directories and restarting on loopback, HTTP 200 and desktop/mobile navigation
+passed. The initial preview transition had a stale dependency-resolution 500;
+the clean restart/rerun resolved it without application changes.
+
+Fresh post-merge backup/recovery gate passed at
+`/Users/brunowong/pulse-backups/beta-main-cleanup-20261115-085956`.
+Remove only the verified merged integration worktree/branch. Preserve protected
+refs and all other unmerged work. No migration or manual deployment; hosted
+deployment state is not verified by this operation.
+
 ### Main promotion authorization — November 15
 
 The user authorized main promotion. Final domain/security tests passed 1,099/1,099;
