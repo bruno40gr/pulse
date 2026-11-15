@@ -1,6 +1,24 @@
 # Beta integration progress — November 13, 2026
 
-## Current status — validation repair, November 15, 2026
+## Current status — main promotion authorized, November 15, 2026
+
+- User authorized committing the reviewed integration to main while retaining
+  Beta gating. Final full suite passed 1,099/1,099, including anonymous/staff/
+  cross-tenant denial and Owner/Admin access. Middleware is unchanged from main.
+- Main's 11 dirty source paths exactly match the preserved `e003edf` baseline;
+  park their redundant working state before merging, retaining the stash/archive.
+  Shared UI/performance changes intentionally affect operational screens too;
+  the Beta gate is not represented as isolating shared components.
+- Fresh backup/recovery passed at
+  `/Users/brunowong/pulse-backups/beta-main-merge-20261115-085752`:
+  all five branches restored and all four worktrees hash-verified, including
+  private ignored configuration. Protected Odeon refs/unmerged work stay intact.
+- Promotion procedure: merge without rewriting history, push main, verify remote
+  ancestry/content, then remove only the merged integration branch/worktree after
+  a refreshed final backup gate. No deployment or database migration is part of
+  this operation; pushing may trigger externally configured CI/deployment.
+
+## Historical validation repair — November 15, 2026
 
 - **Production build now passes (exit 0), including page-data collection and
   static generation.** Existing staging credentials were available in main's

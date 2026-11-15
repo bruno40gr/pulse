@@ -2,6 +2,23 @@
 
 ## Scope and decision
 
+### Main promotion authorization — November 15
+
+The user authorized main promotion. Final domain/security tests passed 1,099/1,099;
+configured production build and desktop/mobile workflow evidence are recorded
+below. Beta middleware is unchanged and its synthetic anonymous/staff/cross-tenant
+denial plus Owner/Admin access tests passed. This does not claim a live hosted
+Owner-session test. Reviewed shared UI/performance changes affect operational
+screens outside the gated workspace as intended by the integration principles.
+
+Main's 11 pending source paths were byte-compared with `e003edf` and all match.
+Retain their archived/stashed working state rather than applying it over newer
+integrated content. Fresh all-ref/four-worktree backup and recovery passed at
+`/Users/brunowong/pulse-backups/beta-main-merge-20261115-085752`.
+Merge/push without rewriting history; delete only the verified merged line after
+the final backup/recovery and preview-source repair. Preserve protected Odeon refs,
+other unmerged work, and stashes. No database migration or manual deployment.
+
 Preserve the complete recent Beta implementation on the existing integration
 line, rather than copying the older prototype tree or replacing newer main code.
 Scope includes calendar and booking, enrollment completion and portal projection,
