@@ -7,7 +7,8 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/)
 ;(async () => {
   const browser = await chromium.launch({ channel: 'chrome' })
   try {
-    for (const width of [1440, 390]) {
+    // Mobile filter/drawing contracts live in beta-mobile-teacher-browser.cjs.
+    for (const width of [1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1100 } })
       page.setDefaultTimeout(30000)
       const errors = []

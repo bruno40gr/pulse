@@ -1,6 +1,6 @@
 export const betaWorkflowScreens = ['opportunities', 'book', 'groups', 'events', 'setup'] as const
 export type BetaWorkflowScreen = typeof betaWorkflowScreens[number]
-export type BetaScreen = 'contacts' | 'staff' | 'parent' | 'calendar' | BetaWorkflowScreen
+export type BetaScreen = 'contacts' | 'staff' | 'teacher' | 'parent' | 'calendar' | BetaWorkflowScreen
 
 export const betaNavigation: { screen: BetaScreen; label: string; href: string }[] = [
   { screen: 'calendar', label: 'Calendar', href: '/odeon-demo?screen=calendar' },
@@ -14,6 +14,7 @@ export const betaNavigation: { screen: BetaScreen; label: string; href: string }
 
 export function betaScreen(screen: string | null, view: string | null): BetaScreen {
   if (view === 'parent') return 'parent'
+  if (screen === 'teacher') return 'teacher'
   if (screen === 'staff') return 'staff'
   if (screen === 'calendar') return 'calendar'
   return betaWorkflowScreens.includes(screen as BetaWorkflowScreen) ? screen as BetaWorkflowScreen : 'contacts'

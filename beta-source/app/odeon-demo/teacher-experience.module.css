@@ -1,0 +1,25 @@
+.workspace { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.controls > :first-child { min-width: 200px; }
+.dateControls { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dateControls input { min-width: 0; }
+.summary { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 16px 0; border-block: 1px solid var(--teacher-border); }
+.summary strong { font-size: 22px; margin-right: 4px; }
+.tabs { min-width: 0; overflow-x: auto; }
+.tabs > div { min-width: max-content; }
+.columns { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.list { display: flex; flex-direction: column; gap: 16px; }
+.session { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-block: 14px; border-bottom: 1px solid var(--teacher-border); }
+.session > div:nth-child(2) { flex: 1; min-width: 140px; }
+.session p, .roster p { margin: 6px 0; }
+.title { font-size: 16px; margin: 0; }
+.muted { font-size: 14px; color: var(--teacher-muted); }
+.roster { padding-block: 8px; border-bottom: 1px solid var(--teacher-border); }
+.task { display: flex; flex-direction: column; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--teacher-border); }
+@media (max-width: 767px) {
+  .columns { grid-template-columns: minmax(0, 1fr); }
+  .controls { align-items: stretch; }
+  .controls > :first-child { width: 100%; }
+  .dateControls { width: 100%; }
+  .summary { gap: 12px; display: grid; grid-template-columns: 1fr 1fr; }
+}

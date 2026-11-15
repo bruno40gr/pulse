@@ -35,6 +35,9 @@ import { Select } from '@/components/ui/Select'
 import { Tabs } from '@/components/ui/Tabs'
 import { workspaceInitial } from '@/beta-source/lib/academy-student-preview'
 import { Notice } from '@/components/ui/Notice'
+import { SlidePanel } from '@/components/ui/SlidePanel'
+import { SlidePanelHeader } from '@/components/ui/SlidePanelHeader'
+import { useIsMobile } from '@/lib/useMediaQuery'
 import { attendanceOutcomes, changeSessionOccurrence, markParticipantAttendance } from '@/beta-source/lib/academy-session'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
@@ -62,6 +65,8 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   onExit: () => void
   onApply: (change: (current: FamilyPreviewData) => FamilyPreviewData) => void
 }) {
+  const mobile = useIsMobile()
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [week, setWeek] = useState(() => betaWeekStart(today))
   const [dayMode, setDayMode] = useState(true)
   const [perspective, setPerspective] = useState<CalendarPerspective>('teacher')
@@ -214,13 +219,15 @@ return (
       <div hidden={Boolean(reschedule)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
         <Tabs<CalendarPerspective> variant="prominent" controlSize="toolbar" ariaLabel="View by" activeKey={perspective} onChange={view => { setPerspective(view); setWeekResource(''); setSelected(null) }} items={[{ key: 'teacher', label: 'Teacher' }, { key: 'room', label: 'Room' }, { key: 'service', label: 'Service' }]} />
-        {!dayMode && <div style={{ width: 230 }}><Select controlSize="toolbar" aria-label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select></div>}
+        {!dayMode && !mobile && <div style={{ width: 230 }}><Select controlSize="toolbar" aria-label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select></div>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
+        {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filters.staff.length + filters.room.length + filters.service.length + Number(!showUnavailable) + Number(Boolean(weekResource)) > 0 ? ` (${filters.staff.length + filters.room.length + filters.service.length + Number(!showUnavailable) + Number(Boolean(weekResource))})` : ''}</Button> : <>
         <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
         <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
         <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
         <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
+        </>}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <ControlButton kind="icon" aria-label={`Previous ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? -1 : -7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronLeft size={18} /></ControlButton>
           <Button variant="secondary" onClick={() => { setWeek(betaWeekStart(today)); setFocusDate(today) }}>Today</Button>
@@ -229,6 +236,19 @@ return (
           <Tabs<'Day' | 'Week'> variant="prominent" controlSize="toolbar" ariaLabel="Calendar range" activeKey={dayMode ? 'Day' : 'Week'} onChange={range => { setDayMode(range === 'Day'); setSelected(null) }} items={[{ key: 'Day', label: 'Day' }, { key: 'Week', label: 'Week' }]} />
         </div>
       </div>
+      {mobile && <SlidePanel isOpen={filtersOpen} onClose={() => setFiltersOpen(false)} width="min(100vw, 420px)" ariaLabel="Calendar filters">
+        <SlidePanelHeader title="Calendar filters" onClose={() => setFiltersOpen(false)} />
+        <div style={{ padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.lg, overflowY: 'auto' }}>
+          {!dayMode && <Select label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select>}
+          {(['staff', 'room', 'service'] as const).map(field => <fieldset key={field} style={{ border: 0, padding: 0, margin: 0 }}><legend style={{ fontWeight: typography.weightSemibold }}>{field === 'staff' ? 'Staff' : field === 'room' ? 'Room' : 'Service'}</legend>
+            <Checkbox label={`All ${field}`} checked={!filters[field].length} onChange={() => setFilters(current => ({ ...current, [field]: [] }))} />
+            {calendarResources(field === 'staff' ? 'teacher' : field, setup, occurrences).map(option => <Checkbox key={option.id} label={option.name} checked={filters[field].includes(option.id)} onChange={() => setFilters(current => ({ ...current, [field]: current[field].includes(option.id) ? current[field].filter(id => id !== option.id) : [...current[field], option.id] }))} />)}
+          </fieldset>)}
+          <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
+          <Button variant="secondary" onClick={() => { setFilters(blankFilters); setWeekResource(''); setShowUnavailable(true) }}>Reset filters</Button>
+          <Button onClick={() => setFiltersOpen(false)}>Done</Button>
+        </div>
+      </SlidePanel>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
       <CalendarTimeGrid dates={columns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
@@ -242,7 +262,8 @@ return (
               const index = times.indexOf(time)
               const reason = slotReason(column.date, time, column.resource.id)
               const active = drawing.current?.column === id && drawEnd && minutesOf(time) >= Math.min(minutesOf(drawing.current.time), minutesOf(drawEnd)) && minutesOf(time) <= Math.max(minutesOf(drawing.current.time), minutesOf(drawEnd))
-              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: 0, background: reason && showUnavailable ? colors.border : active ? colors.surfaceMuted : 'transparent', opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : 'crosshair', touchAction: 'pan-y' }} onPointerDown={event => { if (event.button !== 0 || reason) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={() => {
+              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: 0, background: reason && showUnavailable ? colors.border : active ? colors.surfaceMuted : 'transparent', opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
+                if (mobile || event.pointerType === 'touch') return
                 const start = drawing.current
                 if (!start || start.column !== id) return
                 const from = clock(Math.min(minutesOf(start.time), minutesOf(time)))

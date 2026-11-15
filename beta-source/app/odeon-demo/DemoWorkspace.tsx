@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import EventExplorer, { type BetaWorkflowCompletion } from '@/beta-source/app/content-studio-prototype/event-explorer/EventExplorer'
 import AcademyCalendar from '@/beta-source/app/odeon-demo/AcademyCalendar'
+import TeacherExperience from '@/beta-source/app/odeon-demo/TeacherExperience'
 import { betaPreviewToday, betaShiftDate, betaCalendarOccurrences } from '@/beta-source/lib/beta-academy-calendar'
 import { projectBetaBandMembership, projectBetaEnrollment } from '@/beta-source/lib/beta-workflow-projection'
 import { enrollmentBillingPreview } from '@/beta-source/lib/academy-enrollment-pricing'
@@ -239,7 +240,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
       const target = params.get('impersonateReturn') || ''
       window.location.assign(target.startsWith('/odeon-demo?') ? target : '/odeon-demo')
     }}>Exit impersonation</Button></div>}
-    {calendar ? <AcademyCalendar
+    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} /> : calendar ? <AcademyCalendar
     data={snapshot.data}
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}
@@ -253,6 +254,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     onExit={() => { const next = new URLSearchParams(params.toString()); next.delete('screen'); router.push(`/odeon-demo?${next}`) }}
     onApply={change => setSnapshot(current => ({ ...current, data: change(current.data) }))}
   /> : workflow ? <EventExplorer bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} teachingLoad={teachingLoad} /> : staff ? <>
+      <div style={{ padding: '12px 24px', display: 'flex', justifyContent: 'flex-end' }}><Button variant="secondary" onClick={() => { const next = new URLSearchParams(params.toString()); next.set('screen', 'teacher'); router.push(`/odeon-demo?${next}`) }}>Teacher experience · Preview</Button></div>
       <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} onWorkflow={beginWorkflow} />} />}
