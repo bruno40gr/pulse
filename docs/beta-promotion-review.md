@@ -8,7 +8,10 @@ Scope includes calendar and booking, enrollment completion and portal projection
 bands and ensembles, setup/scheduling/rooms, shared interaction/layout controls,
 standalone onboarding, workspace switching, and sample-parent impersonation.
 
-Promotion to `main` is blocked. No merge, push, deployment, database migration,
+Initial promotion review was blocked by tests/build. Both are now passing after
+the November 15 validation/configuration repairs recorded below. Final release
+impact/access review and refreshed backup/merge gates still apply.
+No merge, push, deployment, database migration,
 branch deletion or worktree removal was performed by this review. The integration
 checkpoint is not a release approval. Temporary preview-host dashboard adapters
 are outside Git and are not part of the application artifact; production uses
@@ -34,6 +37,15 @@ the complete archive/recovery drill rerun successfully before proceeding.
 
 ### November 15 repair (supersedes failing-test counts below)
 
+- **Configured production build passed, exit 0**, including page-data collection
+  and static generation. Root cause was missing worktree-local configuration,
+  not absent credentials. Main's existing `.env.local` targets documented staging;
+  six Supabase variables were copied into a new owner-only (0600), Git-ignored
+  integration `.env.local`. No secrets are in this document or commit; no
+  production credentials, placeholder values, migrations or database writes.
+- Post-configuration tenant-selection, academy storage and Settings checks:
+  88/88 passed. Docker was installed but its daemon was stopped; no Docker
+  operation or backup restoration was necessary for the build repair.
 - Full domain/security run: **1,099 passed, zero failed**. The 12 previous failures
   were reconciled against intended current behavior and history, not suppressed.
   `bb023f0` explicitly removed the automatic-status notice/Undo; it was not a
@@ -55,9 +67,10 @@ the complete archive/recovery drill rerun successfully before proceeding.
 - The first expanded mobile run timed out looking for a hidden sidebar link.
   Opening the existing mobile menu fixed the harness; the complete six-case
   enrollment/band rerun passed. No runtime navigation behavior was changed.
-- Production build reattempt compiled and passed types, then failed collecting
+- Historical pre-configuration build reattempt compiled and passed types, then failed collecting
   `/api/account/email-signoff`: `supabaseUrl is required`. Nonproduction
-  configuration remains a blocking gate; this is not a completed production build.
+  configuration was then a blocking gate. The later configured build above
+  completed successfully and supersedes that failure.
 - Product direction is documented in `docs/Odeon-AI-vision.md`, with explicit
   instructions to flag over-polishing in `AGENTS.md`.
 
@@ -92,7 +105,9 @@ recorded there separately and must not be inferred from historical screenshots.
 
 1. Resolve the failing contracts against actual behavior without regressing main
    or weakening security/access assertions; document baseline issues explicitly.
-2. Complete the production build using approved nonproduction configuration.
+2. Completed: production build using existing documented staging configuration.
+   Keep environment files private and environment-specific; build success does
+   not prove deployed configuration, live schema or live transaction readiness.
 3. Rerun desktop/mobile calendar, enrollment/band completion, navigation and sample
    impersonation tests, plus production-path authorization checks. Isolated-host
    tests do not prove deployed middleware or live-session access.

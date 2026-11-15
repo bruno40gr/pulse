@@ -2,6 +2,15 @@
 
 ## Current status — validation repair, November 15, 2026
 
+- **Production build now passes (exit 0), including page-data collection and
+  static generation.** Existing staging credentials were available in main's
+  `.env.local`, but the integration worktree had no env file. Configured a
+  private, Git-ignored, owner-only integration `.env.local` with six existing
+  Supabase variables, verifying both URL aliases against documented Odeon staging.
+  No dummy credentials, production secrets, database writes or migrations.
+  Tenant-selection/storage/Settings checks passed 88/88 after configuration.
+  Docker is installed but its daemon was stopped; Docker was not needed to fix
+  this build. Build-time readiness is not live-school persistence approval.
 - Full domain/security suite is now **1,099/1,099 passing**, including two new
   Settings account-context failure/unmount regressions. Focused tests, changed
   test lint, explicit TypeScript and diff checks pass.
@@ -15,10 +24,11 @@
   All six enrollment/band cases passed, as did calendar controls, navigation,
   onboarding round trips and impersonation/exit at both widths. See
   `docs/beta-promotion-review.md` for scope and remaining build limitations.
-- The build was rerun: compilation and type validation passed; page-data
+- Historical pre-configuration build attempt: compilation and type validation passed; page-data
   collection still fails with `supabaseUrl is required` (this run encountered
   `/api/account/email-signoff`). Approved nonproduction configuration is still
-  required. No credentials were fabricated or production secrets copied.
+  required at that point. This blocker is resolved by the configured build above.
+  No credentials were fabricated or production secrets copied.
 - Agreed human/agent direction and the anti-over-polishing agreement are in
   `docs/Odeon-AI-vision.md`; `AGENTS.md` links and enforces the guidance.
 - Main remains `9d5c5cc`, confirmed against the live remote. No merge, push,
