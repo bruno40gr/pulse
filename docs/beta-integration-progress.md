@@ -1,6 +1,31 @@
 # Beta integration progress — November 13, 2026
 
-## Current status — promotion review, November 14, 2026
+## Current status — validation repair, November 15, 2026
+
+- Full domain/security suite is now **1,099/1,099 passing**, including two new
+  Settings account-context failure/unmount regressions. Focused tests, changed
+  test lint, explicit TypeScript and diff checks pass.
+- Reconciled obsolete test contracts with existing intended behavior: Undo was
+  deliberately removed by `bb023f0`; Settings uses the shared account-context
+  loader; Contacts/Leads use adapter transport and interaction tokens. No runtime
+  permission checks or application behavior were weakened to satisfy tests.
+- Enrollment/band browser checks now read the sample snapshot from localStorage
+  (workflow queue remains sessionStorage) and cover both 1440px and 390px. Mobile
+  band navigation explicitly opens the existing menu before following the link.
+  All six enrollment/band cases passed, as did calendar controls, navigation,
+  onboarding round trips and impersonation/exit at both widths. See
+  `docs/beta-promotion-review.md` for scope and remaining build limitations.
+- The build was rerun: compilation and type validation passed; page-data
+  collection still fails with `supabaseUrl is required` (this run encountered
+  `/api/account/email-signoff`). Approved nonproduction configuration is still
+  required. No credentials were fabricated or production secrets copied.
+- Agreed human/agent direction and the anti-over-polishing agreement are in
+  `docs/Odeon-AI-vision.md`; `AGENTS.md` links and enforces the guidance.
+- Main remains `9d5c5cc`, confirmed against the live remote. No merge, push,
+  deployment, migration or branch/worktree deletion occurred in this repair.
+  Sample-only impersonation and browser/live-school isolation remain unchanged.
+
+## Historical promotion review — November 14, 2026 (superseded)
 
 - The user requested promotion of all recent Beta work: calendar, enrollment,
   bands, onboarding, navigation, contextual sample-parent impersonation and shared

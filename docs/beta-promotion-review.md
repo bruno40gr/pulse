@@ -32,6 +32,37 @@ the complete archive/recovery drill rerun successfully before proceeding.
 
 ## Validation and blocking gates
 
+### November 15 repair (supersedes failing-test counts below)
+
+- Full domain/security run: **1,099 passed, zero failed**. The 12 previous failures
+  were reconciled against intended current behavior and history, not suppressed.
+  `bb023f0` explicitly removed the automatic-status notice/Undo; it was not a
+  regression to restore. Settings mocks now use the account-context loader and
+  retain authorized/unauthorized deep-link checks, with added failure/unmount
+  cases. Transport, effect-dependency, token and toolbar assertions reflect the
+  existing shared implementations.
+- Focused suite: 39/39 passed. Changed-test lint, TypeScript and diff checks pass.
+- Completion regression uses the actual localStorage snapshot and retains
+  sessionStorage for the workflow queue. All identity, payment, amount, lesson,
+  membership, parent visibility and no-operational-API assertions remain intact.
+  It now runs at 1440px and 390px; mobile uses the existing navigation menu.
+- Final browser runs passed at both 1440px and 390px: sample card enrollment,
+  pay-later enrollment, student/lesson projection and parent-portal visibility;
+  band creation and paid membership confirmation/projection; calendar controls;
+  six-destination navigation; onboarding/workspace round trips; contextual
+  impersonation and exit/reload. Scripts reported no operational API requests or
+  runtime errors; navigation/calendar/impersonation also checked overflow.
+- The first expanded mobile run timed out looking for a hidden sidebar link.
+  Opening the existing mobile menu fixed the harness; the complete six-case
+  enrollment/band rerun passed. No runtime navigation behavior was changed.
+- Production build reattempt compiled and passed types, then failed collecting
+  `/api/account/email-signoff`: `supabaseUrl is required`. Nonproduction
+  configuration remains a blocking gate; this is not a completed production build.
+- Product direction is documented in `docs/Odeon-AI-vision.md`, with explicit
+  instructions to flag over-polishing in `AGENTS.md`.
+
+### Historical initial review
+
 - Full domain/security suite: 1,097 tests, 1,085 passes, 12 failures.
 - Seven failures reproduce on archived main's working state: lead Undo-copy,
   Settings description/tab layout, and five Settings email-location/access tests.

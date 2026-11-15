@@ -15,7 +15,7 @@ function loadControl() {
     if (name === './ButtonBase') return { ButtonBase: 'button' }
     if (name === './ControlButton.module.css') return { default: { control: 'shared-control' } }
     if (name === 'lucide-react') return { X: 'CloseIcon' }
-    if (name === '@/lib/tokens') return { colors: {}, radius: {}, spacing: {}, typography: {} }
+    if (name === '@/lib/tokens') return { interaction: { focus: '#00677A' }, colors: {}, radius: {}, spacing: {}, typography: {} }
     return require(name)
   } })
   return exports.ControlButton

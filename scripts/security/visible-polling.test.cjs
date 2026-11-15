@@ -96,6 +96,7 @@ test('Leads only loads the requested tab, retaining cache and manual refresh beh
   assert.match(source, /params.set\('intake_type', requestedTab\)/)
   assert.match(source, /params.set\('include_counts', '0'\)/)
   assert.match(source, /summary_only: '1'/)
-  assert.match(source, /\[tenantId, statusFilter, summaryRevision\]/)
+  assert.match(source, /\[tenantId, statusFilter, summaryRevision, request\]/)
+  assert.match(source, /request\(`\/api\/leads\?\$\{params\}`/)
   assert.match(source, /leadListCacheRef.current.clear\(\)/)
 })

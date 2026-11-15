@@ -15,6 +15,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## UI conventions
 
+- Follow `docs/Odeon-AI-vision.md` for the agreed human/agent operating direction.
+  Explicitly flag over-polishing before cosmetic iteration or unnecessary new
+  surfaces: explain the limited benefit, opportunity cost and recommended deferral.
+  Preserve correctness, accessibility and proven usability work; the user decides.
+
 - Follow `docs/ui-interaction-colors.md` for selected/on/progress/focus colors. Use the `interaction` roles and canonical `components/ui` controls; no page-level accent colors or new parallel Beta primitives.
 
 - For Beta/prototype reconciliation, follow `docs/integration-principles.md` and

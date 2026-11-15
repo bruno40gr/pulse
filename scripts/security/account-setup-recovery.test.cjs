@@ -92,8 +92,11 @@ test('scanner-safe confirmation is still explicit POST, and expired links offer 
   assert.ok(route.includes("const pathname = '/forgot-password'"))
 })
 
-test('lead automation boilerplate is removed but undo remains', () => {
+test('lead automation notice stays removed while manual status controls remain', () => {
   const source = fs.readFileSync(path.join(root, 'components/leads/LeadDetailPanel.tsx'), 'utf8')
   assert.doesNotMatch(source, /Clear outreach and booking notes|Pause automatic updates|Manual status changes pause automation/)
-  assert.ok(source.includes('>Undo</Button>'))
+  // bb023f0 deliberately removed the automatic-status notice and its Undo action.
+  assert.doesNotMatch(source, />Undo<\/Button>|status_automation_action/)
+  assert.match(source, /aria-label="Change lead status"/)
+  assert.match(source, /onPatch\(\{ status: stage \}\)/)
 })

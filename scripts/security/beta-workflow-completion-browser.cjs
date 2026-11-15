@@ -38,6 +38,7 @@ async function completeBandMembership(page) {
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: 'Create band', exact: true }).click()
   await page.waitForTimeout(400)
+  if (page.viewportSize().width < 768) await page.getByRole('button', { name: 'Open menu', exact: true }).click()
   await page.getByRole('link', { name: 'Bands & ensembles', exact: true }).first().click()
   await page.waitForTimeout(300)
   await page.getByRole('button', { name: 'Beta regression band', exact: true }).click()
@@ -59,8 +60,9 @@ async function completeBandMembership(page) {
 ;(async () => {
   const browser = await chromium.launch({ channel: 'chrome' })
   try {
+    for (const width of [1440, 390]) {
     for (const payment of ['demo_card', 'later']) {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+      const page = await browser.newPage({ viewport: { width, height: 1000 } })
       page.setDefaultTimeout(30000)
       const errors = [], requests = []
       page.on('pageerror', error => errors.push(error.message))
@@ -73,7 +75,8 @@ async function completeBandMembership(page) {
       assert.ok(draft?.data?.completedAt, 'Booking is marked complete')
       assert.equal(draft.data.paymentStatus, payment === 'later' ? 'unpaid' : 'paid')
 
-      const snapshot = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)), snapshotKey)
+      await page.waitForFunction(key => !!localStorage.getItem(key), snapshotKey)
+      const snapshot = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), snapshotKey)
       const student = snapshot.snapshot.data.students.find(item => item.id === 'demo:student-1-1')
       const enrollment = student.enrollments.find(item => item.id.startsWith('beta:'))
       assert.ok(enrollment, 'The booking is recorded on the student')
@@ -98,11 +101,11 @@ async function completeBandMembership(page) {
       assert.ok(portal.includes(friendly), 'The family sees the booked time')
       assert.deepEqual(errors, [])
       assert.deepEqual(requests, [])
-      console.log(`PASS ${payment}: booking completes, is recorded on the student and reaches the family portal; no API requests/errors`)
+      console.log(`PASS ${width} ${payment}: booking completes, is recorded on the student and reaches the family portal; no API requests/errors`)
       await page.close()
     }
 
-    const bandPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    const bandPage = await browser.newPage({ viewport: { width, height: 1000 } })
     bandPage.setDefaultTimeout(30000)
     const bandErrors = [], bandRequests = []
     bandPage.on('pageerror', error => bandErrors.push(error.message))
@@ -119,7 +122,8 @@ async function completeBandMembership(page) {
     const band = queue.academy.groups.find(group => group.id === receipt.bandId)
     assert.deepEqual(band.memberIds, ['demo:student-1-1'], 'The student is a confirmed member')
     assert.deepEqual(band.pendingMemberIds || [], [], 'No candidate stays pending')
-    const bandSnapshot = await bandPage.evaluate(key => JSON.parse(sessionStorage.getItem(key)), snapshotKey)
+    await bandPage.waitForFunction(key => !!localStorage.getItem(key), snapshotKey)
+    const bandSnapshot = await bandPage.evaluate(key => JSON.parse(localStorage.getItem(key)), snapshotKey)
     const membership = bandSnapshot.snapshot.data.students.find(item => item.id === 'demo:student-1-1').enrollments.find(item => item.id.startsWith('beta:band:'))
     assert.ok(membership, 'The membership is recorded on the student')
     assert.equal(membership.program, 'Beta regression band')
@@ -127,7 +131,8 @@ async function completeBandMembership(page) {
     assert.equal(membership.amountMinor, 3500)
     assert.deepEqual(bandErrors, [])
     assert.deepEqual(bandRequests, [])
-    console.log('PASS band: membership completes, confirms the member and is recorded on the student; no API requests/errors')
+    console.log(`PASS ${width} band: membership completes, confirms the member and is recorded on the student; no API requests/errors`)
     await bandPage.close()
+    }
   } finally { await browser.close() }
 })().catch(error => { console.error(error); process.exitCode = 1 })
