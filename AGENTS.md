@@ -15,6 +15,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## UI conventions
 
+- Follow `docs/ui-interaction-colors.md` for selected/on/progress/focus colors. Use the `interaction` roles and canonical `components/ui` controls; no page-level accent colors or new parallel Beta primitives.
+
 - For Beta/prototype reconciliation, follow `docs/integration-principles.md` and
   the current status in `docs/beta-integration-progress.md`. Improve shared UI
   deliberately; never overwrite newer behavior or import a second sample-contact

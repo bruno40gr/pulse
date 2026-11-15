@@ -10,7 +10,7 @@ import AccessManagementClient from '@/components/access/AccessManagementClient'
 import OrganisationEmailSettings from '@/components/settings/OrganisationEmailSettings'
 import GmailConnections from '@/components/settings/GmailConnections'
 import EmailSignatureSettings from '@/components/settings/EmailSignatureSettings'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
 import type { MediaAsset } from '@/lib/media-catalog'
 import { createClient } from '@/lib/supabase/client'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
@@ -528,7 +528,7 @@ function HighlightsSettings({ tenantId, cardS, sectionTitleS }: { tenantId: stri
                   max={5}
                   value={threshold}
                   onChange={e => setThreshold(Number(e.target.value))}
-                  style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
+                  style={{ flex: 1, accentColor: interaction.selected, cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, whiteSpace: 'nowrap' }}>Only clear signals</span>
               </div>
@@ -669,7 +669,7 @@ function AccountSettingsTab({ context, inputS, labelS, hintS, cardS, sectionTitl
               value={fontSize}
               onChange={event => handleFontSizeChange(Number(event.target.value))}
               aria-label="Base font size"
-              style={{ flex: 1, accentColor: colors.crimson, cursor: 'pointer' }}
+              style={{ flex: 1, accentColor: interaction.selected, cursor: 'pointer' }}
             />
             <span style={{ fontSize: typography.sizeXs, color: colors.textMuted }}>20px</span>
           </div>

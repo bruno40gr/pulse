@@ -40,7 +40,7 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
       {items.map(item => {
         const proposed = moves[item.id]
         const focused = activeId === item.id
-        return <DenseSectionPanel key={item.id} style={{ position: 'relative', borderColor: focused ? colors.link : colors.border, background: focused ? colors.surfaceMuted : colors.surface, boxShadow: focused ? `inset 0 0 0 1px ${colors.link}` : undefined, padding: spacing.md, gap: spacing.md }} title={<strong style={{ ...typography.bodySmall, color: colors.text, fontWeight: typography.weightSemibold }}>{item.student.firstName} · {item.program}</strong>} actions={proposed && <Button variant="ghost" size="sm" style={{ position: 'relative', zIndex: 2 }} onClick={() => undo(item.id)} aria-label={`Clear ${item.student.firstName} change`}>Clear</Button>}>
+        return <DenseSectionPanel key={item.id} style={{ position: 'relative', borderColor: focused ? colors.textSecondary : colors.border, background: focused ? colors.surfaceMuted : colors.surface, boxShadow: focused ? `inset 0 0 0 1px ${colors.textSecondary}` : undefined, padding: spacing.md, gap: spacing.md }} title={<strong style={{ ...typography.bodySmall, color: colors.text, fontWeight: typography.weightSemibold }}>{item.student.firstName} · {item.program}</strong>} actions={proposed && <Button variant="ghost" size="sm" style={{ position: 'relative', zIndex: 2 }} onClick={() => undo(item.id)} aria-label={`Clear ${item.student.firstName} change`}>Clear</Button>}>
           <ControlButton kind="row" aria-pressed={focused} onClick={() => focusLesson(item)} aria-label={`Plan ${item.student.firstName} ${item.program}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', padding: 0, zIndex: 1 }} />
           <div style={{ display: 'grid', gap: spacing.md, pointerEvents: 'none' }}>
             <div style={{ display: 'grid', gap: spacing.xs }}>
@@ -50,7 +50,7 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
             </div>
             <div style={{ display: 'grid', gap: spacing.xs, borderTop: `1px solid ${colors.border}`, paddingTop: spacing.sm }}>
               <span style={{ ...typography.helper, color: colors.textMuted }}>New time</span>
-              {proposed ? <><strong style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.link }}>{formatScheduleDate(proposed.date)} · {formatScheduleTime(proposed.time)}</strong><span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{proposed.teacher}</span></> : <span style={{ ...typography.bodySmall, color: colors.textMuted }}>Unchanged</span>}
+              {proposed ? <><strong style={{ ...typography.bodySmall, fontWeight: typography.weightSemibold, color: colors.text }}>{formatScheduleDate(proposed.date)} · {formatScheduleTime(proposed.time)}</strong><span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{proposed.teacher}</span></> : <span style={{ ...typography.bodySmall, color: colors.textMuted }}>Unchanged</span>}
             </div>
           </div>
         </DenseSectionPanel>

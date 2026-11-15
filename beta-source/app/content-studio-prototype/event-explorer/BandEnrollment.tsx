@@ -1,12 +1,10 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { EnrollmentLayout } from '@/components/ui/EnrollmentLayout'
 import { Button } from '@/components/ui/Button'
 import { SectionTitle } from '@/components/ui/SectionTitle'
-import { ModalStepper } from '@/components/ui/ModalStepper'
 import { ModalFooter } from '@/components/ui/Modal'
-import { useIsMobile } from '@/lib/useMediaQuery'
 import { spacing } from '@/lib/tokens'
 import { SurfacePanel } from '@/components/ui/SurfacePanel'
 import { Select } from '@/components/ui/Select'
@@ -31,8 +29,8 @@ export default function BandEnrollment({ draft, people, groups, policies, onChan
   request?: import('@/beta-source/lib/academy-band-requests').BandEnrollmentRequest;
   onComplete: (draft: Draft) => void; onClose: () => void;
 }) {
-  const mobile = useIsMobile()
   const [error, setError] = useState('')
+  const [attempted, setAttempted] = useState(false)
   const [personDraft, setPersonDraft] = useState<EnrollmentPerson | null>(null)
   const submitting = useRef(false)
   const group = groups.find(group => group.id === draft.bandId)
@@ -55,12 +53,11 @@ export default function BandEnrollment({ draft, people, groups, policies, onChan
     const holder = people.find(item => (item.accountId || item.id) === (selected.accountId || selected.id) && item.roles.some(role => ['Parent', 'Account holder'].includes(role))) || selected
     patch({ studentId: person.id, payerName: holder.name, payerEmail: holder.email, instrument: defaultBandInstrument(selected) })
   }
-  return <div className={styles.stack} style={{ maxWidth: 1050, width: '100%', marginInline: 'auto', minWidth: 0 }}>
-    <PageHeader title="Band enrollment" onBack={onClose} right={<Button variant="secondary" onClick={onClose}>Save & close</Button>} />
-    <div aria-label="Band enrollment steps"><ModalStepper steps={bandEnrollmentSteps} currentStep={draft.step} compact={mobile} onStepChange={move} /></div>
+  return <EnrollmentLayout title="Band enrollment" actions={<Button variant="secondary" onClick={onClose}>Save & close</Button>} steps={bandEnrollmentSteps} currentStep={draft.step} onStepChange={move}>
     <SurfacePanel appearance="flat" padding={spacing.xl}>
       <form className={styles.stack} onSubmit={event => {
         event.preventDefault()
+        setAttempted(true)
         if (draft.step === 0 && personDraft) {
           const problem = personDetailsError(personDraft)
           if (problem) { setError(problem); return }
@@ -78,7 +75,7 @@ export default function BandEnrollment({ draft, people, groups, policies, onChan
       }}>
         {error && <Notice variant="error">{error}</Notice>}
         {draft.step === 0 && <section className={styles.stack}><SectionTitle as="h2">Student</SectionTitle>
-          {request ? <p>{student?.name} · {group?.name}</p> : <PersonPicker title="" value={personDraft || (student ? pickerPerson(student) : null)} people={people.filter(person => !person.roles.includes('Parent')).map(pickerPerson)} onChange={selectStudent} onAdd={person => { onStudent(person); setPersonDraft(person); patch({ studentId: person.id, payerName: `${person.firstName} ${person.lastName}`, payerEmail: person.email }) }} />}
+          {request ? <p>{student?.name} · {group?.name}</p> : <PersonPicker showErrors={attempted} title="" value={personDraft || (student ? pickerPerson(student) : null)} people={people.filter(person => !person.roles.includes('Parent')).map(pickerPerson)} onChange={selectStudent} onAdd={person => { onStudent(person); setPersonDraft(person); patch({ studentId: person.id, payerName: `${person.firstName} ${person.lastName}`, payerEmail: person.email }) }} />}
         </section>}
         {draft.step === 1 && <section className={styles.stack}><SectionTitle as="h2">Band</SectionTitle><div className={styles.stack}>
           <Select label="Band" disabled={!!request} value={draft.chooseBandLater && !draft.bandId ? 'unassigned' : draft.bandId} onChange={event => patch({ bandId: event.target.value === 'unassigned' ? '' : event.target.value, chooseBandLater: event.target.value === 'unassigned', policyAccepted: false, subscriptionAccepted: false })}><option value="">Choose a band</option><option value="unassigned">Choose a band later</option>{groups.map(group => <option key={group.id} value={group.id} disabled={group.memberIds.includes(draft.studentId)}>{group.name}</option>)}</Select>
@@ -96,5 +93,5 @@ export default function BandEnrollment({ draft, people, groups, policies, onChan
         <ModalFooter leading={draft.step > 0 ? <Button type="button" variant="secondary" onClick={() => move(draft.step - 1)}>Back</Button> : undefined}><Button type="submit">{draft.step === 3 ? draft.pricing && !draft.pricing.recurring ? 'Pay & enroll' : 'Pay & subscribe' : 'Continue'}</Button></ModalFooter>
       </form>
     </SurfacePanel>
-  </div>
+  </EnrollmentLayout>
 }

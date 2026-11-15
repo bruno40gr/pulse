@@ -1,5 +1,7 @@
 import { NOTE_COLORS } from './sticky-note-appearance'
 
+export { interaction } from '@/lib/tokens'
+
 export const colors = {
   // Brand
   crimson: '#FF0044',

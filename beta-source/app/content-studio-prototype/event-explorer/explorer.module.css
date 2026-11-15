@@ -28,7 +28,7 @@
 
 /* Enrollment editor geometry; compact progress belongs to queue rows, not editors. */
 .workflowContainer { width: 100%; box-sizing: border-box; }
-.workflowLayout { display: grid; grid-template-columns: minmax(0, 1fr) 255px; gap: 28px; align-items: start; }
+.workflowLayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 750px) { .workflowLayout { grid-template-columns: minmax(0, 1fr); } }
 
 .inlineActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }

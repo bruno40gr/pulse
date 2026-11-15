@@ -1,4 +1,6 @@
 'use client'
+import { ContactPrototypeContext, ContactBandEnrollmentContext } from './ContactPrototypeContext'
+import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
@@ -142,7 +144,7 @@ interface ContactSlidePanelProps {
   onFundingCaseUpdated?: (fundingCase: FundingCase) => void
 }
 
-type ContactPanelTab = 'profile' | 'scheduling' | 'billing' | 'funding'
+type ContactPanelTab = 'profile' | 'scheduling' | 'billing' | 'funding' | 'enrollments'
 
 
 const dividerStyle: React.CSSProperties = {
@@ -152,6 +154,9 @@ const dividerStyle: React.CSSProperties = {
 }
 
 export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+  const simulated = useContext(ContactPrototypeContext)
+  const bandEnrollments = useContext(ContactBandEnrollmentContext)
+  const request = useLeadWorkspaceRequest()
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
   const contextualCompose = useContext(ConversationComposeContext)
@@ -200,9 +205,9 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
   }, [mockFundingCase])
 
   useEffect(() => {
-    if (mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
+    if (simulated || mockFundingCase || isInstructor || contact.id.startsWith('mock-')) return
     let active = true
-    fetch(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
+    request(`/api/funding/cases?tenant=${encodeURIComponent(tenantId)}&student_person_id=${encodeURIComponent(contact.id)}`)
       .then(async response => {
         const body = await response.json()
         if (!response.ok) throw new Error(body?.error || 'Could not load funding details.')
@@ -212,7 +217,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
         if (active) setFundingCase(null)
       })
     return () => { active = false }
-  }, [contact.id, isInstructor, mockFundingCase, tenantId])
+  }, [contact.id, isInstructor, mockFundingCase, tenantId, simulated, request])
 
   const applyFundingCase = (updated: FundingCase) => {
     setFundingCase(updated)
@@ -221,7 +226,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
 
   const saveInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
     if (!invoiceEdit) return
-    const response = await fetch(`/api/funding/invoices/${invoiceEdit.id}/status?tenant=${encodeURIComponent(tenantId)}`, {
+    const response = await request(`/api/funding/invoices/${invoiceEdit.id}/status?tenant=${encodeURIComponent(tenantId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: input.status, evidence: input.evidence, note: input.note, paid_on: input.paidOn }),
@@ -234,7 +239,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
 
   // ── Load insights with note context ──
   useEffect(() => {
-    if (mockFundingCase) {
+    if (simulated || mockFundingCase) {
       setInsights([])
       setInsightsLoading(false)
       return
@@ -275,7 +280,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
       ...contact.custom_fields
     }
 
-    fetch('/api/contact-insights', {
+    request('/api/contact-insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -295,7 +300,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
         setInsightsLoading(false)
       })
       .catch(() => setInsightsLoading(false))
-  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory])
+  }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory, simulated, request])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes
   const normalizeInsights = (raw: Array<Record<string, unknown>>): Insight[] => {
@@ -325,9 +330,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
   }
 
   const patch = async (fields: Partial<Contact>, silent = false) => {
+    if (simulated) { onUpdated({ ...contact, ...fields }); return }
     setSaving(true)
     try {
-      const updated = await fetch(`/api/contacts/${contact.id}`, {
+      const updated = await request(`/api/contacts/${contact.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields)
@@ -374,11 +380,11 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
   }
 
   const handleCall = async (phone: string | null = contact.phone) => {
-    if (!phone || calling) return
+    if (simulated || !phone || calling) return
 
     setCalling(true)
     try {
-      const response = await fetch(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
+      const response = await request(`/api/calls?tenant=${encodeURIComponent(tenantId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_phone: phone, contact_id: contact.id }),
@@ -728,6 +734,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
           <Tabs
             items={[
               { key: 'profile', label: 'Profile' },
+              ...(bandEnrollments ? [{ key: 'enrollments' as const, label: 'Enrollments' }] : []),
               { key: 'scheduling', label: 'Scheduling' },
               { key: 'billing', label: 'Billing' },
               { key: 'funding', label: 'Funding Program' },
@@ -740,7 +747,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
       </div>
 
       {/* Body — two desktop columns, one mobile stack */}
-      {activePanelTab === 'scheduling' ? (
+      {activePanelTab === 'enrollments' && bandEnrollments ? <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing.lg }}>{bandEnrollments(contact.id)}</div> : activePanelTab === 'scheduling' ? (
         <ContactModuleEmptyState
           icon={<CalendarDays size={32} />}
           title="Scheduling coming soon"
@@ -1061,9 +1068,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
                 saving={studentNotesSaving}
                 showHeader={false}
                 onSave={async (text) => {
+                  if (simulated) { setStudentNotesHistory(current => [...current, { id: crypto.randomUUID(), text, timestamp: new Date().toISOString() }]); return true }
                   setStudentNotesSaving(true)
                   try {
-                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                    const response = await request(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ text }),
@@ -1083,9 +1091,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
                 onToggleComplete={async (index) => {
                   const entry = studentNotesHistory[index]
                   if (!entry) return
+                  if (simulated) { setStudentNotesHistory(current => current.map((note, i) => i === index ? { ...note, completed_at: note.completed_at ? null : new Date().toISOString() } : note)); return }
                   setStudentNotesSaving(true)
                   try {
-                    const response = await fetch(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
+                    const response = await request(`/api/contacts/${contact.id}/student-notes?tenant=${tenantId}`, {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),
@@ -1115,9 +1124,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
                 showHeader={false}
                 mentionsEnabled
                 onSave={async (text, mentionMembershipIds) => {
+                  if (simulated) { setInternalNotesHistory(current => [...current, { id: crypto.randomUUID(), text, timestamp: new Date().toISOString() }]); return true }
                   setInternalNotesSaving(true)
                   try {
-                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                    const response = await request(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ text, mention_membership_ids: mentionMembershipIds }),
@@ -1137,9 +1147,10 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
                 onToggleComplete={async (index) => {
                   const entry = internalNotesHistory[index]
                   if (!entry) return
+                  if (simulated) { setInternalNotesHistory(current => current.map((note, i) => i === index ? { ...note, completed_at: note.completed_at ? null : new Date().toISOString() } : note)); return }
                   setInternalNotesSaving(true)
                   try {
-                    const response = await fetch(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
+                    const response = await request(`/api/contacts/${contact.id}/internal-notes?tenant=${tenantId}`, {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ note_id: entry.id, timestamp: entry.timestamp }),

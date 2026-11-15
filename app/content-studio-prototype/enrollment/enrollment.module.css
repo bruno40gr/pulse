@@ -21,7 +21,7 @@
 .personActions { display: flex; gap: 4px; }
 .workspace label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 500; }
 .workspace input:not([type=radio]):not([type=checkbox]), .workspace select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #d1d5db; border-radius: 6px; padding: 9px 11px; font: inherit; color: #1a1a1a; background: white; }
-.workspace button:focus-visible, .workspace input:focus-visible, .workspace select:focus-visible { outline: 2px solid #2563eb !important; outline-offset: 3px; }
+
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .inlineActions { display: flex; gap: 10px; margin-top: 18px; }
 .results { border: 1px solid #e5e7eb; border-radius: 6px; margin: 10px 0 14px; overflow: hidden; }
@@ -41,7 +41,7 @@
 .payerLine { color: #6b7280; }
 .paymentOptions { display: flex; flex-direction: column; gap: 16px; margin: 26px 0 46px; }
 .paymentOptions label { flex-direction: row; align-items: center; gap: 12px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
-.paymentOptions input { accent-color: #1a130f; width: 16px; height: 16px; }
+.paymentOptions input { accent-color: var(--interaction-selected); width: 16px; height: 16px; }
 .formFooter { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #e5e7eb; padding-top: 22px; margin-top: 30px; }
 .summary { padding: 6px 0; }
 .summary h2 { font-size: 13px; color: #6b7280; font-weight: 500; margin-bottom: 18px; }
@@ -61,7 +61,7 @@
 .weekToolbar strong { font-size: 14px; font-weight: 500; }
 .viewButtons, .teacherFilters { display: flex; gap: 6px; flex-wrap: wrap; }
 .viewButtons button, .teacherFilters button { font: inherit; font-size: 12px; color: #4b5563; background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 7px 12px; cursor: pointer; }
-.viewButtons button[aria-pressed=true], .teacherFilters button[aria-pressed=true] { background: #1a130f; border-color: #1a130f; color: white; }
+.viewButtons button[aria-pressed=true], .teacherFilters button[aria-pressed=true] { background: var(--interaction-selected); border-color: var(--interaction-selected); color: var(--interaction-onSelected); }
 .sampleLabel { color: #6b7280; font-size: 12px; }
 .teacherFilters { margin-bottom: 16px; }
 .container:has(.bookingLayout) { max-width: 1500px; }
@@ -95,7 +95,7 @@
 .openSlot:hover, .openSlot[aria-pressed=true] { background: #dceee1; border-color: #3d8b5f; }
 .openSlot + .openSlot { margin-top: 4px; }
 .openSlot span:last-child { font-size: 10px; }
-.selectedCell { background: #f5faf6; }
+.selectedCell { background: var(--interaction-selectedSurface); }
 .calendarTimezone { color: #6b7280; font-size: 11px; margin-top: 10px !important; }
 .students { margin-top: 28px; }
 .lessonTime { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; color: #6b7280; }
@@ -126,10 +126,10 @@
 .bookedSlot { background: #243b53; color: #fff; border: 2px solid #243b53; border-radius: 5px; padding: 7px; text-align: left; font: inherit; font-weight: 600; }
 .activeBookedSlot { background: #124c3c; border-color: #124c3c; }
 .teacherFilters label { flex-direction: row; align-items: center; gap: 7px; color: #1a1a1a; }
-.teacherFilters input { width: 16px; height: 16px; accent-color: #243b53; }
+.teacherFilters input { width: 16px; height: 16px; accent-color: var(--interaction-selected); }
 .payerEditor { margin-top: 20px; }
 .workspace .lookupToggle { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 16px; }
-.lookupToggle input { width: 16px; height: 16px; accent-color: #243b53; }
+.lookupToggle input { width: 16px; height: 16px; accent-color: var(--interaction-selected); }
 .slotOption { position: relative; display: flex; }
 .slotOption > .openSlot { height: 100%; margin: 0; justify-content: center; }
 .slotOption:focus-within { z-index: 3; }
@@ -141,7 +141,7 @@
 .bookingActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
 .editTeachers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .editTeachers > button { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 5px; background: white; font: inherit; cursor: pointer; }
-.editTeachers > button[aria-pressed=true] { border-color: #124c3c; background: #e7f2ed; }
+.editTeachers > button[aria-pressed=true] { border-color: var(--interaction-selected); background: var(--interaction-selectedSurface); }
 
 /* Scheduling: single-row lesson navigation above calendar and weekly agenda. */
 .bookingLayout .studentCards { display: grid; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: calc((100% - 36px) / 4); gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
@@ -175,5 +175,5 @@
 .bookingPopover { position: absolute; z-index: 5; top: 100%; right: 0; width: 190px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: white; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 14px #0002; }
 .bookingPopover strong { font-size: 12px; color: #6b7280; }
 .bookingPopover button { padding: 8px; text-align: left; font: inherit; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer; }
-.bookingPopover button[aria-pressed="true"] { background: #eef7f0; border-color: #24804a; }
+.bookingPopover button[aria-pressed="true"] { background: var(--interaction-selectedSurface); border-color: var(--interaction-selected); }
 .bookingPopover .clearSlot { margin-top: 6px; border: 0; border-top: 1px solid #e5e7eb; border-radius: 0; padding-top: 12px; }

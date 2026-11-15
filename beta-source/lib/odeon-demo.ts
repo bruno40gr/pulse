@@ -1,4 +1,6 @@
 /** Deterministic fictional sandbox. No database, auth, messaging or payment clients. */
+import { addDemoDensity } from './odeon-demo-density'
+import { demoRoomName } from './odeon-demo-rooms'
 export const demoMonths = ['2026-09', '2026-10'] as const
 export const demoToday = '2026-11-09'
 export const demoHours = [
@@ -110,6 +112,7 @@ export function createOdeonDemo(): OdeonDemo {
     const student = students.find(item => item.id === studentId)!
     if (!enrollments.some(item => item.studentId === studentId && sessions.find(session => session.id === item.sessionId)?.serviceId === service)) enroll(student, service, 2)
   }
+  addDemoDensity({ teachers, families, students, sessions, enrollments })
   const lessons = sessions.flatMap(session => demoMonths.flatMap(month => demoDates(session.day, month).map(date => ({ id: `${session.id}:${date}`, sessionId: session.id, date }))))
   const data: OdeonDemo = { teachers, families, students, sessions, enrollments, lessons, invoices: [], makeups: [] }
   data.invoices = families.flatMap(family => demoMonths.map(month => {
@@ -120,13 +123,14 @@ export function createOdeonDemo(): OdeonDemo {
       const grossMinor = dates.length * service.unitMinor, discountMinor = Math.round(grossMinor * discount.percent / 100)
       return { enrollmentId: enrollment.id, studentId: enrollment.studentId, serviceId: service.id, dates, quantity: dates.length, unitMinor: service.unitMinor, grossMinor, discountPercent: discount.percent, discountLabel: discount.label, discountMinor, totalMinor: grossMinor - discountMinor }
     })
-    return { id: `DEMO-${month}-${family.id.split('-').at(-1)}`, familyId: family.id, date: `${month}-01`, status: 'Paid' as const, lines, grossMinor: lines.reduce((sum, line) => sum + line.grossMinor, 0), discountMinor: lines.reduce((sum, line) => sum + line.discountMinor, 0), totalMinor: lines.reduce((sum, line) => sum + line.totalMinor, 0), paymentReference: `SIMULATED-${month}-${family.id}` }
+    return { id: `DEMO-${month}-${family.id.startsWith('demo:dense-') ? 'dense-' : ''}${family.id.split('-').at(-1)}`, familyId: family.id, date: `${month}-01`, status: 'Paid' as const, lines, grossMinor: lines.reduce((sum, line) => sum + line.grossMinor, 0), discountMinor: lines.reduce((sum, line) => sum + line.discountMinor, 0), totalMinor: lines.reduce((sum, line) => sum + line.totalMinor, 0), paymentReference: `SIMULATED-${month}-${family.id}` }
   }))
   for (const studentId of ['demo:student-1-1', 'demo:student-6-1', 'demo:student-9-2', 'demo:student-12-1', 'demo:student-13-1', 'demo:student-15-3']) {
     const enrollment = enrollments.find(item => item.studentId === studentId)!
     const original = lessons.find(item => item.sessionId === enrollment.sessionId && item.date.startsWith('2026-10'))!
     data.makeups.push({ id: `demo:makeup-${data.makeups.length + 1}`, studentId, enrollmentId: enrollment.id, originalLessonId: original.id, reason: 'Family absence · more than 24 hours notice', expires: '2027-04-01', status: 'Available' })
   }
+  for (const session of data.sessions) session.room = demoRoomName(session.room)
   return data
 }
 

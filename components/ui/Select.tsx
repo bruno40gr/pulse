@@ -9,11 +9,12 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   controlSize?: 'default' | 'toolbar' | 'compact'
   label?: string
   hint?: string
+  error?: string
   fullWidth?: boolean
   wrapperStyle?: React.CSSProperties
 }
 
-export function Select({ controlSize = 'default', label, hint, style, children, fullWidth = true, wrapperStyle, id, className, 'aria-describedby': describedBy, ...props }: SelectProps) {
+export function Select({ controlSize = 'default', label, hint, error, style, children, fullWidth = true, wrapperStyle, id, className, 'aria-describedby': describedBy, ...props }: SelectProps) {
   const generatedId = useId()
   const controlId = id || generatedId
   const hintId = `${controlId}-hint`
@@ -27,7 +28,8 @@ export function Select({ controlSize = 'default', label, hint, style, children, 
       <select
         id={controlId}
         className={[styles.control, styles.select, className].filter(Boolean).join(' ')}
-        aria-describedby={[describedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined}
+        aria-describedby={[describedBy, hint || error ? hintId : undefined].filter(Boolean).join(' ') || undefined}
+        aria-invalid={error ? true : undefined}
         style={{
           border: `1px solid ${colors.border}`,
           borderRadius: radius.md,
@@ -48,12 +50,14 @@ export function Select({ controlSize = 'default', label, hint, style, children, 
           ...(controlSize === 'toolbar' ? { background: undefined, backgroundColor: colors.surface, paddingRight: 38 } : {}),
           ...(controlSize === 'compact' ? { minHeight: 34, paddingBlock: spacing.xs, fontSize: typography.sizeSm } : {}),
           ...style,
+          ...(error ? { borderColor: colors.error } : {}),
         }}
         {...props}
       >
         {children}
       </select>
-      {hint && <span id={hintId} style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
+      {hint && !error && <span id={hintId} style={{ ...typography.helper, color: colors.textMuted }}>{hint}</span>}
+      {error && <span id={hintId} style={{ ...typography.helper, color: colors.error }}>{error}</span>}
     </div>
   )
 }

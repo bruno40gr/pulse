@@ -15,6 +15,16 @@ export type WorkflowDraft = DraftBase & (
 )
 export type WorkflowContext = { academy: AcademySettings; people: ExplorerPerson[]; staffIds: string[]; events: ExplorerEvent[]; tasks?: ProgramTask[]; registrations?: ExplorerRegistration[]; registrationAudience?: 'staff' | 'family' }
 export const workflowLabels = { program: 'Band / group program', enrollment: 'Individual / semi-private lessons', group: 'Create group', event: 'Create event', membership: 'Group membership', registration: 'Event' }
+/** An enrollment needs a real person's name before it becomes a resumable record. */
+export function hasEnrollmentName(record: WorkflowDraft, people: readonly ExplorerPerson[]): boolean {
+  if (record.kind === 'enrollment') {
+    const draft = record.data.draft
+    return [draft.contact, draft.student, ...draft.additionalStudents].some(person => !!person && !!`${person.firstName} ${person.lastName}`.trim())
+  }
+  if (record.kind === 'registration') return !!(people.find(person => person.id === record.data.personId)?.name.trim() || record.data.name.trim())
+  if (record.kind === 'membership' || record.kind === 'program') return record.data.memberIds.some(id => !!people.find(person => person.id === id)?.name.trim())
+  return true
+}
 export function workflowSteps(record: WorkflowDraft): string[] {
   if (record.kind === 'program') return ['People & proposal', 'Availability', 'Schedule & pricing', 'Review & book']
   if (record.kind === 'enrollment') return enrollmentDraftProgress(record.data).steps.map(step => step.label)

@@ -11,20 +11,20 @@
 .steps .current { color: #1a130f; font-weight: 600; }
 .steps .current > span { background: #1a130f; color: white; border-color: #1a130f; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
-.card, .saved { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 30px; }
-.card h2, .saved h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
-.personPicker { margin-bottom: 24px; }
+.card, .saved { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; }
+.card h2, .saved h2 { font-size: 20px; font-weight: 600; margin-bottom: 14px; }
+.personPicker { margin-bottom: 14px; display: grid; gap: 14px; }
 .personPicker > label { margin-bottom: 12px; }
 .person { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .person p, .summary p, .lesson > p { color: #6b7280; font-size: 13px; }
 .personActions { display: flex; gap: 4px; }
-.workspace label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 500; }
+.workspace label:not(:has(input[type="checkbox"])):not(:has(input[type="radio"])) { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 500; }
 .workspace input:not([type=radio]):not([type=checkbox]), .workspace select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #d1d5db; border-radius: 6px; padding: 9px 11px; font: inherit; color: #1a1a1a; background: white; }
 .workspace select:not([multiple]):not([size]), .workspace select[size="1"] { appearance: none; padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; }
 @media (forced-colors: active) {
   .workspace select:not([multiple]):not([size]), .workspace select[size="1"] { appearance: auto; background-image: none; }
 }
-.workspace button:focus-visible, .workspace input:focus-visible, .workspace select:focus-visible { outline: 2px solid #2563eb !important; outline-offset: 3px; }
+
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .inlineActions { display: flex; gap: 10px; margin-top: 18px; }
 .results { border: 1px solid #e5e7eb; border-radius: 6px; margin: 10px 0 14px; overflow: hidden; }
@@ -44,17 +44,17 @@
 .payerLine { color: #6b7280; }
 .paymentOptions { display: flex; flex-direction: column; gap: 16px; margin: 26px 0 46px; }
 .paymentOptions label { flex-direction: row; align-items: center; gap: 12px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
-.paymentOptions input { accent-color: #1a130f; width: 16px; height: 16px; }
+.paymentOptions input { accent-color: var(--interaction-selected); width: 16px; height: 16px; }
 .termsText { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; max-height: 310px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 12px; font-size: 13px; padding-right: 14px; }
 .termsText h3 { margin-bottom: 0; margin-top: 8px; }
 .consentChoices { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
 .workspace .consentChoice, .workspace .selfToggle { flex-direction: row; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 400; }
-.consentChoice input, .selfToggle input { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; accent-color: #1a130f; }
-.termsText:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.consentChoice input { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; accent-color: var(--interaction-selected); }
+.termsText:focus-visible { outline: 2px solid var(--interaction-focus); outline-offset: 3px; }
 .familyStudent { padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
 .familyStudent .selfToggle { margin-bottom: 16px; }
 .familyStudent .personPicker { margin-bottom: 16px; }
-.formFooter { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #e5e7eb; padding-top: 22px; margin-top: 30px; }
+.formFooter { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 18px; }
 .summary { padding: 6px 0; }
 .summary h2 { font-size: 13px; color: #6b7280; font-weight: 500; margin-bottom: 18px; }
 .summary > div { padding-top: 18px; margin-top: 18px; border-top: 1px solid #e5e7eb; }
@@ -74,7 +74,7 @@
 .weekToolbar strong { font-size: 14px; font-weight: 500; }
 .viewButtons, .teacherFilters { display: flex; gap: 6px; flex-wrap: wrap; }
 .viewButtons button, .teacherFilters button { font: inherit; font-size: 12px; color: #4b5563; background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 7px 12px; cursor: pointer; }
-.viewButtons button[aria-pressed=true], .teacherFilters button[aria-pressed=true] { background: #1a130f; border-color: #1a130f; color: white; }
+.viewButtons button[aria-pressed=true], .teacherFilters button[aria-pressed=true] { background: var(--interaction-selected); border-color: var(--interaction-selected); color: var(--interaction-onSelected); }
 .sampleLabel { color: #6b7280; font-size: 12px; }
 .teacherFilters { margin-bottom: 16px; }
 .container:has(.bookingLayout) { max-width: 1050px; }
@@ -82,7 +82,7 @@
 .studentCards { display: flex; flex-direction: column; gap: 14px; }
 .studentCard { border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; background: white; cursor: pointer; }
 .studentCard .fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.selectedCard { border-color: #a8b7ac; background: #fafbf9; }
+.selectedCard { border-color: var(--calendar-neutral-strong); background: var(--calendar-neutral-surface); }
 .cardSelect { background: transparent; border: 0; text-align: left; padding: 0; font: inherit; font-size: 15px; font-weight: 600; color: #1a130f; cursor: pointer; }
 .bookingLayout .schedule { margin-top: 0; min-width: 0; }
 .teacherPreference { margin: 0 0 16px; font-size: 12px; color: #6b7280; }
@@ -90,7 +90,7 @@
 .timeTeachers { display: flex; flex-direction: column; gap: 4px; padding: 7px 0; }
 .timeTeachers button { font: inherit; border: 1px solid #d1d5db; padding: 7px 5px; border-radius: 4px; background: white; color: #1a130f; cursor: pointer; text-align: left; }
 @media (max-width: 1050px) { .bookingLayout { grid-template-columns: minmax(0, 1fr); } .studentCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
-.calendarScroll { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+.calendarScroll { overflow-x: auto; scroll-padding-left: 80px; scroll-padding-top: 56px; border: 1px solid #e5e7eb; border-radius: 8px; }
 .calendar { width: 100%; min-width: 700px; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
 .calendar th, .calendar td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
 .calendar th:last-child, .calendar td:last-child { border-right: 0; }
@@ -104,11 +104,11 @@
 .calendarEvent, .plannedEvent { display: flex; flex-direction: column; border-radius: 4px; padding: 5px; background: #f0f1f3; color: #4b5563; margin-bottom: 3px; }
 .plannedEvent { background: #e8f3eb; color: #245c3a; }
 .calendarEvent strong, .plannedEvent strong { font-weight: 500; }
-.openSlot { display: flex; flex-direction: column; width: 100%; border: 1px solid #93c5fd; color: #1e40af; padding: 5px; border-radius: 4px; text-align: left; font: inherit; background: #eff6ff; cursor: pointer; }
-.openSlot:hover, .openSlot[aria-pressed=true] { background: #dbeafe; border-color: #2563eb; }
+.openSlot { display: flex; flex-direction: column; width: 100%; border: 1px dashed var(--calendar-neutral-border); color: var(--calendar-neutral-text); padding: 5px; border-radius: 4px; text-align: left; font: inherit; background: var(--calendar-neutral-surface); cursor: pointer; }
+.openSlot:hover, .openSlot[aria-pressed=true] { background: white; border-color: var(--calendar-neutral-strong); box-shadow: inset 0 0 0 1px var(--calendar-neutral-strong); }
 .openSlot + .openSlot { margin-top: 4px; }
 .openSlot span:last-child { font-size: 10px; }
-.selectedCell { background: #f5faf6; }
+.selectedCell { background: var(--calendar-neutral-surface); }
 .calendarTimezone { color: #6b7280; font-size: 11px; margin-top: 10px !important; }
 .students { margin-top: 28px; }
 .lessonTime { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; color: #6b7280; }
@@ -129,24 +129,26 @@
 .dayHeading strong { font-size: 16px; color: #1a1a1a; }
 .dayColumn, .timeAxis { border-right: 1px solid #e5e7eb; }
 .dayColumn:last-child { border-right: 0; }
+.timeAxis { position: sticky; left: 0; z-index: 4; background: var(--calendar-neutral-surface, #fafbf9); }
+.dayHeading { position: sticky; top: 0; z-index: 3; }
+.timeAxis .dayHeading { z-index: 5; }
 .timeLabel { height: var(--calendar-slot-height); box-sizing: border-box; border-bottom: 1px solid #e5e7eb; padding: 3px 4px; color: #6b7280; }
 .daySlots { display: grid; grid-template-rows: repeat(20, var(--calendar-slot-height)); background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--calendar-slot-height) - 1px), #e5e7eb calc(var(--calendar-slot-height) - 1px), #e5e7eb var(--calendar-slot-height)); }
 .daySlots > button, .daySlots > div { margin: 4px 3px; min-width: 0; width: auto; overflow-wrap: anywhere; justify-content: center; }
-.bookedSlot { background: #f3e8ff; color: #581c87; border: 1px solid #b18bd1; border-radius: 5px; padding: 5px; text-align: left; font: inherit; font-weight: 600; }
-.activeBookedSlot { background: #ede0fa; border: 2px solid #7e22ce; }
-.activeBookedSlot::before { content: 'Editing · '; font-size: 11px; font-weight: 700; }
-.replacementSlot { background: #dbeafe; border: 2px solid #2563eb; color: #1e3a8a; }
-.familyReferenceSlot { background: #f6f8f8; border-color: #E5E7EB; color: #1A1A1A; }
+.bookedSlot { background: var(--calendar-student-surface); color: var(--calendar-student-text); border: 1px solid var(--calendar-student-border); border-radius: 5px; padding: 5px; text-align: left; font: inherit; font-weight: 600; }
+.activeBookedSlot { border: 2px solid var(--calendar-student-border); box-shadow: inset 0 0 0 1px var(--calendar-student-border); }
+.replacementSlot { background: var(--calendar-student-surface); border: 2px solid var(--calendar-student-border); color: var(--calendar-student-text); }
+.familyReferenceSlot { background: var(--calendar-student-surface); border-color: var(--calendar-student-border); color: var(--calendar-student-text); }
 .schedule.replacementCalendar { margin-top: 0; }
-.replacementCalendar .openSlot, .availableLegend { background: #eff6ff; border-color: #93c5fd; border-style: dashed; color: #1e40af; }
-.replacementCalendar .openSlot:hover { background: #fff; border-color: #2563eb; border-style: dashed; box-shadow: inset 0 0 0 1px #2563eb; }
-.replacementCalendar .openSlot[aria-pressed=true] { background: #dbeafe; border: 2px solid #2563eb; }
+.replacementCalendar .openSlot, .availableLegend { background: var(--calendar-neutral-surface); border-color: var(--calendar-neutral-border); border-style: dashed; color: var(--calendar-neutral-text); }
+.replacementCalendar .openSlot:hover { background: #fff; border-color: var(--calendar-neutral-strong); border-style: dashed; box-shadow: inset 0 0 0 1px var(--calendar-neutral-strong); }
+.replacementCalendar .openSlot[aria-pressed=true] { background: white; border: 2px solid var(--calendar-neutral-strong); }
 .replacementCalendar .openSlot span:first-child { font-size: 12px; font-weight: 600; }
 .teacherFilters label { flex-direction: row; align-items: center; gap: 7px; color: #1a1a1a; }
-.teacherFilters input { width: 16px; height: 16px; accent-color: #243b53; }
+.teacherFilters input { width: 16px; height: 16px; accent-color: var(--interaction-selected); }
 .payerEditor { margin-top: 20px; }
 .workspace .lookupToggle { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 16px; }
-.lookupToggle input { width: 16px; height: 16px; accent-color: #243b53; }
+.lookupToggle input { width: 16px; height: 16px; accent-color: var(--interaction-selected); }
 .slotOption { position: relative; display: flex; }
 .slotOption > .openSlot { height: 100%; margin: 0; justify-content: center; }
 .slotOption:focus-within { z-index: 3; }
@@ -158,7 +160,7 @@
 .bookingActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
 .editTeachers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .editTeachers > button { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 5px; background: white; font: inherit; cursor: pointer; }
-.editTeachers > button[aria-pressed=true] { border-color: #124c3c; background: #e7f2ed; }
+.editTeachers > button[aria-pressed=true] { border-color: var(--interaction-selected); background: var(--interaction-selectedSurface); }
 
 /* Scheduling: single-row lesson navigation above calendar and weekly agenda. */
 .bookingLayout .studentCards { display: grid; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: calc((100% - 36px) / 4); gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
@@ -194,7 +196,7 @@
 .bookingPopover { position: absolute; z-index: 5; top: 100%; right: 0; width: 190px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: white; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 14px #0002; }
 .bookingPopover strong { font-size: 12px; color: #6b7280; }
 .bookingPopover button { padding: 8px; text-align: left; font: inherit; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer; }
-.bookingPopover button[aria-pressed="true"] { background: #eef7f0; border-color: #24804a; }
+.bookingPopover button[aria-pressed="true"] { background: var(--interaction-selectedSurface); border-color: var(--interaction-selected); }
 .bookingPopover .clearSlot { margin-top: 6px; border: 0; border-top: 1px solid #e5e7eb; border-radius: 0; padding-top: 12px; }
 
 .addLesson { margin-top: 20px; }
@@ -231,3 +233,6 @@
 
 .deferPayment { margin: 12px 0 20px; }
 .studentCards .lessonDelete { opacity: 1; }
+
+.bookedCell > .scheduleDetails { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; overflow: hidden; font-size: 10px; line-height: 12px; box-sizing: border-box; }
+.scheduleDetails span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,11 +1,1 @@
-.summary {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  list-style: none;
-}
-.summary::-webkit-details-marker { display: none; }
-.chevron { flex-shrink: 0; }
-.label { min-width: 0; flex: 1; }
-.disclosure[open] > .summary > .chevron { transform: rotate(90deg); }
-.summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+/* Beta Disclosure delegates to the canonical shared component and styles. */

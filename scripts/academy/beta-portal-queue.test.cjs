@@ -34,7 +34,8 @@ test('runtime queue reuses Beta identities and seeds no prototype contacts or me
   assert.ok(queue.state.people.every(person => allowed.has(person.id)))
   assert.ok(!queue.state.people.some(person => ['sophie', 'ethan', 'mia', 'leo', 'alex', 'jules'].includes(person.id)))
   assert.equal(queue.state.registrations.length, 0)
-  assert.equal(queue.academy.groups.length, 0)
+  assert.ok(queue.academy.groups.length > 0)
+  assert.ok(queue.academy.groups.every(group => group.memberIds.every(id => allowed.has(id))))
   assert.equal(queue.inquiries.length, 0)
 })
 
@@ -170,4 +171,24 @@ test('account projection adds later children without duplicating existing studen
   assert.ok(next.students.some(item => item.id === 'new-child'))
   assert.equal(next.accounts.find(item => item.id === 'kim').holderId, account.holderId)
   assert.equal(withQueueAccounts(next, queue).students.length, next.students.length)
+})
+
+
+test('unnamed enrollments stay live in memory but never enter session backup or reload', () => {
+  const model = load(path.join(root, 'beta-source/lib/academy-workflow-drafts.ts'))
+  const bands = load(path.join(root, 'beta-source/lib/academy-band-enrollment.ts'))
+  let saved
+  const store = createPortalStore(() => ({ getItem: () => null, setItem: (_, value) => { saved = value } }))
+  const queue = store.getSnapshot()
+  const blank = model.newWorkflowDraft('enrollment', queue.academy)
+  const named = model.newWorkflowDraft('enrollment', queue.academy)
+  named.data.draft.contact = { id: 'manual', firstName: 'Robin', lastName: 'Test', email: '', phone: '', activeTeacher: false }
+  const band = bands.newBandEnrollment(queue.state.people[0].id)
+  store.update(current => ({ ...current, drafts: [blank, named], enrollments: [bands.newBandEnrollment(), band] }))
+  assert.equal(store.getSnapshot().drafts.length, 2)
+  assert.equal(JSON.parse(saved).drafts.map(record => record.id).join(','), named.id)
+  assert.equal(JSON.parse(saved).enrollments.map(record => record.id).join(','), band.id)
+  const legacy = readPortalQueue(JSON.stringify({ ...store.getSnapshot() }))
+  assert.equal(legacy.drafts.map(record => record.id).join(','), named.id)
+  assert.equal(legacy.enrollments.length, 1)
 })

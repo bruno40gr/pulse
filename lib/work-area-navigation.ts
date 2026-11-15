@@ -10,7 +10,7 @@ export function canAccessBeta(access: NavigationAccess) {
   return access.roleKey === 'owner' || access.roleKey === 'admin'
 }
 
-export type WorkAreaId = 'operations' | 'school' | 'funding' | 'website' | 'settings'
+export type WorkAreaId = 'operations' | 'school' | 'onboarding' | 'funding' | 'website' | 'settings'
 export type NavigationLink = { href: string; label: string }
 export type WorkArea = { id: WorkAreaId; label: string; description: string; links: NavigationLink[] }
 
@@ -35,6 +35,9 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
     ] },
     { id: 'school', label: 'School Setup', description: 'Manage your school’s teaching team', links: [
       { href: '/dashboard/staff', label: 'Teachers & staff' },
+    ] },
+    { id: 'onboarding', label: 'School onboarding', description: 'Set up your school', links: [
+      { href: '/odeon-demo/school-setup', label: 'School onboarding' },
     ] },
     { id: 'funding', label: 'Funding', description: 'Manage funded students and programs', links: [
       { href: '/dashboard/funding/students', label: 'Funded students' },
@@ -63,6 +66,7 @@ export function settingsLinks(access: NavigationAccess): NavigationLink[] {
 }
 
 export function workAreaForPath(pathname: string): WorkAreaId {
+  if (pathname === '/odeon-demo/school-setup' || pathname === '/school-setup') return 'onboarding'
   if (pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/')) return 'settings'
   if (pathname === '/dashboard/staff' || pathname.startsWith('/dashboard/staff/')) return 'school'
   if (pathname.startsWith('/dashboard/funding/') || pathname === '/dashboard/funded-cases') return 'funding'

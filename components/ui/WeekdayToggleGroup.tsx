@@ -1,7 +1,7 @@
 'use client'
 
 import { ControlButton } from './ControlButton'
-import { colors, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, spacing, typography } from '@/lib/tokens'
 
 export const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const
 
@@ -19,7 +19,7 @@ export function WeekdayToggleGroup({ label = 'Select days', value, onChange }: {
         return <ControlButton key={day} kind="toggle" type="button" selected={selected} aria-pressed={selected} aria-label={day}
           onClick={() => onChange(weekdays.filter(item => item === day ? !selected : value.includes(item)))}
           style={{ padding: 0, minWidth: 0, width: '100%', minHeight: 44, background: 'transparent', color: colors.text, fontWeight: typography.weightMedium }}>
-          <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: '100%', maxWidth: 44, aspectRatio: '1', borderRadius: '50%', background: selected ? colors.action : 'transparent', color: selected ? colors.surface : colors.text }}>{day[0]}</span>
+          <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: '100%', maxWidth: 44, aspectRatio: '1', borderRadius: '50%', background: selected ? interaction.selected : 'transparent', color: selected ? interaction.onSelected : colors.text }}>{day[0]}</span>
         </ControlButton>
       })}
     </div>

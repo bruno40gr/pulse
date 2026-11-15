@@ -9,7 +9,7 @@ import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import { TablePersonName } from '@/components/ui/TablePersonName'
-import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
+import { TableContextActionBar, TableResultCount, TableSearchControl, TableFiltersButton } from '@/components/ui/TableWorkspaceControls'
 import { RichDataTable } from '@/components/ui/RichDataTable'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle, type TablePersonView } from '@/components/ui/TablePersonViewToggle'
@@ -30,6 +30,7 @@ import { loadAccountContext } from '@/lib/account-context-client'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LeadInlineEditor } from './LeadInlineEditor'
+import { PageContainer } from '@/components/ui/PageContainer'
 import { matchesLeadInquirySearch } from '@/lib/lead-inquiry-search'
 import { leadStudentDetailRows, leadStudentsPatch, readLeadStudents, syncStudentContact } from '@/lib/lead-students'
 import type { LeadStudent } from '@/lib/lead-students'
@@ -709,6 +710,9 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
   })
 
   const [inquirySearch, setInquirySearch] = useState('')
+  const [searchDraft, setSearchDraft] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterDraft, setFilterDraft] = useState({ name: '', status: 'all' })
   const [tablePage, setTablePage] = useState(1)
   const pageSize = tablePreferences.preferences.pageSize || 50
   const [personView, setPersonView] = useState<TablePersonView>('family')
@@ -1438,10 +1442,6 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
     [isMobileLayout, tabCounts],
   )
 
-  const subtitle = useMemo(() => {
-    if (loading) return 'Loading leads...'
-    return `${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}`
-  }, [loading, leads.length])
   const selectedCount = selectedIds.size
   const allVisibleSelected = pagedLeads.length > 0 && pagedLeads.every((lead) => selectedIds.has(lead.id))
   const deleteRecordLabel = activeTab === 'job_application' ? 'application' : 'lead'
@@ -1978,10 +1978,20 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
 
   return (
     <>
-      <div style={{ padding: matching ? 0 : spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+      <SlidePanel isOpen={showFilters} onClose={() => setShowFilters(false)} fullScreen={isMobileLayout} width="min(100vw, 380px)">
+        <SlidePanelHeader title="Filters" onClose={() => setShowFilters(false)} />
+        <form onSubmit={event => { event.preventDefault(); setInquirySearch(filterDraft.name); setSearchDraft(filterDraft.name); setStatusFilter(filterDraft.status); setShowFilters(false) }} style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, padding: spacing.lg }}>
+          <Input label="Name" placeholder="Student or account-holder name" value={filterDraft.name} onChange={event => setFilterDraft(current => ({ ...current, name: event.target.value }))} />
+          <Select label="Status" value={filterDraft.status} onChange={event => setFilterDraft(current => ({ ...current, status: event.target.value }))}>
+            {getStatusOptionsForTab(activeTab).map(option => <option key={option} value={option}>{option === 'all' ? 'Any status' : formatLabel(option)}</option>)}
+          </Select>
+          <Button type="button" variant="secondary" onClick={() => setFilterDraft({ name: '', status: 'all' })}>Clear filters</Button>
+          <Button type="submit">Submit search</Button>
+        </form>
+      </SlidePanel>
+      <PageContainer style={matching ? { padding: 0 } : undefined}>
         {!matching && <PageHeader
           title="Leads"
-          subtitle={subtitle}
           right={(
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.sm, flexWrap: 'wrap' }}>
               <LeadEmailSync onSynced={async () => {
@@ -2007,54 +2017,28 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
           </div>
         </div>}
 
-        {!matching && <div style={{ overflowX: 'auto', marginBottom: spacing.lg }}>
-          <Tabs
-            items={leadTabItems}
-            activeKey={activeTab}
-            onChange={tab => { setStatusFilter('all'); setActiveTab(tab) }}
-            style={isMobileLayout ? { width: 'max-content', minWidth: '100%' } : undefined}
-          />
-        </div>}
-
-        {error && <MessageBox>{error}</MessageBox>}
-        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
-
-        <div role="group" aria-label="Opportunity search and creation" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
-          <div style={{ flex: '1 1 160px', minWidth: 0 }}><Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} /></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, flexWrap: 'wrap' }}>
+          {!matching && <div style={{ flex: '1 1 320px', minWidth: 0, overflowX: 'auto' }}>
+            <Tabs items={leadTabItems} activeKey={activeTab} onChange={tab => { setStatusFilter('all'); setActiveTab(tab) }} style={isMobileLayout ? { width: 'max-content', minWidth: '100%' } : undefined} />
+          </div>}
           {activeTab === 'winback'
             ? <Button type="button" onClick={() => setIsWinbackImportOpen(true)}>Import students</Button>
-            : <Button type="button" onClick={openAddLead}>+ Add Lead</Button>}
+            : <Button type="button" onClick={openAddLead}>+ Add lead</Button>}
         </div>
 
         {error && <MessageBox>{error}</MessageBox>}
         {summaryError && <p role="status" style={subtleTextStyle}>{summaryError}</p>}
-        {inquirySearch.trim() && <p style={subtleTextStyle}>{visibleLeads.length} matching loaded inquiries. Search includes contacts and students; load more to search additional inquiries.</p>}
 
-        <div style={{ marginBottom: spacing.sm }}><Input aria-label="Search contacts and students" placeholder="Search contacts or students" value={inquirySearch} onChange={event => setInquirySearch(event.target.value)} /></div>
 
         <RichDataTable
           preferenceSchema={LEAD_TABLE_SCHEMA}
           preferenceState={tablePreferences}
           columnLabels={{ signal: 'Signal' }}
-          displayToolbar={<TablePersonViewToggle ariaLabel="Lead view" individualLabel="Account holders" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
-          toolbar={<>
-          <Button type="button" variant="secondary" size="toolbar" onClick={exportLeads} disabled={exporting}>
-            {exporting ? 'Exporting…' : 'Export CSV'}
-          </Button>
-          <Select
-            aria-label="Filter leads by status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            controlSize="toolbar"
-            fullWidth={false}
-            wrapperStyle={filterSelectWrapStyle}
-          >
-            {getStatusOptionsForTab(activeTab).map((option) => (
-              <option key={option} value={option}>{activeTab === 'winback' ? `Disenrolled: ${formatLabel(option)}` : `Status: ${formatLabel(option)}`}</option>
-            ))}
-          </Select>
-          </>}
-          contextualToolbarPlacement="replace"
+          displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Lead view" individualLabel="Students" value={personView} onChange={view => { setPersonView(view); setSelectedIds(new Set()) }} />}
+          search={<TableSearchControl label="Search contacts and students" placeholder="Search contacts or students" value={searchDraft} onChange={setSearchDraft} onSearch={() => setInquirySearch(searchDraft)} onClear={() => { setSearchDraft(''); setInquirySearch('') }} />}
+          filters={<TableFiltersButton count={statusFilter === 'all' ? 0 : 1} onClick={() => { setFilterDraft({ name: inquirySearch, status: statusFilter }); setShowFilters(true) }} />}
+          preferenceActions={[{ id: 'export', label: exporting ? 'Exporting…' : 'Export CSV', onClick: exportLeads, disabled: exporting }]}
+          contextualToolbarPlacement="below"
           contextualToolbar={selectedCount > 0 ? <TableContextActionBar selectedCount={selectedCount}
             resultLabel={matching ? `${visibleLeads.length} ${visibleLeads.length === 1 ? 'student' : 'students'}` : `${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`} selectionNoun={matching ? 'students' : undefined}
             onClear={() => setSelectedIds(new Set())}
@@ -2064,7 +2048,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
               { id: 'email', label: 'Send email', onClick: () => openBulkComposer('email') },
               ...(isOwner ? [{ id: 'delete', label: 'Delete', onClick: openDeleteModal }] : []),
             ]} /> : undefined}
-          beforeTable={<TableResultCount>{loading ? 'Loading leads…' : `Viewing ${visibleLeads.length} loaded ${visibleLeads.length === 1 ? 'inquiry' : 'inquiries'}`}</TableResultCount>}
+          beforeTable={<TableResultCount>{loading ? 'Loading leads…' : `${visibleLeads.length} ${matching ? (visibleLeads.length === 1 ? 'student' : 'students') : (visibleLeads.length === 1 ? 'inquiry' : 'inquiries')}`}</TableResultCount>}
           groupedRows={personView === 'family'}
           rows={pagedLeads}
           columns={leadColumns}
@@ -2114,7 +2098,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
         {hasMore && <Button type="button" variant="secondary" onClick={loadMoreLeads} disabled={loading || loadingMore} style={{ marginTop: spacing.lg }}>
           {loadingMore ? 'Loading…' : 'Load more leads'}
         </Button>}
-      </div>
+      </PageContainer>
 
       <SlidePanel isOpen={isAddLeadOpen} onClose={closeAddLead} width="min(92vw, 640px)">
         <SlidePanelHeader
@@ -3091,10 +3075,7 @@ const manualLeadSessionHintStyle: React.CSSProperties = {
   fontFamily: typography.fontSans,
 }
 
-const filterSelectWrapStyle: React.CSSProperties = {
-  width: 'auto',
-  flex: '0 0 auto',
-}
+
 
 const emptyActivityStyle: React.CSSProperties = {
   border: `1px dashed ${colors.border}`,

@@ -1,7 +1,7 @@
 'use client'
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
 
 interface PillProps {
   options: { value: string; label: string }[]
@@ -22,13 +22,14 @@ export function Pill({ options, value, onChange, disabled = [], style }: PillPro
             key={option.value}
             onClick={() => !isDisabled && onChange(option.value)}
             disabled={isDisabled}
+            aria-pressed={isSelected}
             style={{
               flex: 1,
               padding: '6px 10px',
               borderRadius: radius.md,
-              border: `1px solid ${isSelected ? colors.espresso : colors.border}`,
-              background: isSelected ? colors.espresso : colors.surface,
-              color: isSelected ? 'white' : isDisabled ? colors.textMuted : colors.text,
+              border: `1px solid ${isSelected ? interaction.selected : colors.border}`,
+              background: isSelected ? interaction.selected : colors.surface,
+              color: isSelected ? interaction.onSelected : isDisabled ? colors.textMuted : colors.text,
               fontSize: typography.sizeBase,
               fontWeight: typography.weightMedium,
               fontFamily: typography.fontSans,

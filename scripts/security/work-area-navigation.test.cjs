@@ -29,6 +29,15 @@ test('area routing separates website, staff, funding, settings and operations', 
   for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'school'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)
 })
 
+test('school onboarding is a parallel workspace with a standalone destination', () => {
+  const { workAreaForPath, workAreasForAccess, rememberedAreaHref } = load()
+  assert.equal(workAreaForPath('/odeon-demo/school-setup'), 'onboarding')
+  assert.equal(workAreaForPath('/school-setup'), 'onboarding')
+  const onboarding = workAreasForAccess({}).find(area => area.id === 'onboarding')
+  assert.equal(onboarding.label, 'School onboarding')
+  assert.equal(rememberedAreaHref(onboarding, null), '/odeon-demo/school-setup')
+})
+
 test('website and settings links retain existing access gates', () => {
   const { workAreasForAccess, settingsLinks } = load()
   const staff = workAreasForAccess({}).find(area => area.id === 'website')

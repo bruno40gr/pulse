@@ -10,12 +10,14 @@ interface PageHeaderProps {
   onBack?: () => void
   backLabel?: string
   singleLine?: boolean
+  density?: 'default' | 'compact'
 }
 
-export function PageHeader({ title, subtitle, right, titleAction, onBack, backLabel = 'Back', singleLine = false }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, right, titleAction, onBack, backLabel = 'Back', singleLine = false, density = 'default' }: PageHeaderProps) {
+  const marginBottom = density === 'compact' ? spacing.lg : spacing['3xl']
   if (right) {
     return (
-      <div style={{ marginBottom: spacing['3xl'], display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, flexWrap: singleLine ? 'nowrap' : 'wrap' }}>
+      <div style={{ marginBottom, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg, flexWrap: singleLine ? 'nowrap' : 'wrap' }}>
         <div style={{ flex: singleLine ? '1 1 auto' : '1 1 420px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{onBack && <BackControl label={backLabel} onClick={onBack} />}<div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.lg, minWidth: 0 }}><h1 style={{ ...typography.h1, color: colors.text, margin: 0 }}>{title}</h1>{titleAction}</div></div>
           {subtitle && (
@@ -30,7 +32,7 @@ export function PageHeader({ title, subtitle, right, titleAction, onBack, backLa
   }
 
   return (
-    <div style={{ marginBottom: spacing['3xl'] }}>
+    <div style={{ marginBottom }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{onBack && <BackControl label={backLabel} onClick={onBack} />}<div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.lg, minWidth: 0 }}><h1 style={{ ...typography.h1, color: colors.text, margin: 0 }}>{title}</h1>{titleAction}</div></div>
       {subtitle && (
         <p style={{ color: colors.textSecondary, fontSize: typography.sizeMd, marginTop: spacing.xs, marginBottom: 0 }}>

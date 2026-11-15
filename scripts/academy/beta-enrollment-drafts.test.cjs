@@ -21,6 +21,30 @@ function load(file) {
 }
 const domain = load(path.join(root, 'beta-source/lib/academy-enrollment-drafts.ts'))
 const enrollment = load(path.join(root, 'beta-source/lib/academy-staff-enrollment.ts'))
+test('person field errors identify missing details without requiring optional student contact info', () => {
+  const empty = enrollment.personFieldErrors(null, true)
+  assert.ok(empty.firstName)
+  assert.ok(empty.lastName)
+  assert.ok(empty.email)
+  assert.ok(empty.phone)
+  const person = { id: 'test', firstName: 'Riley', lastName: 'Park', email: '', phone: '', activeTeacher: false }
+  assert.ok(Object.values(enrollment.personFieldErrors(person)).every(value => !value))
+  assert.ok(Object.values(enrollment.personFieldErrors({ ...person, phone: '5551234567' }, true)).every(value => !value))
+  assert.ok(enrollment.personFieldErrors({ ...person, email: 'invalid' }).email)
+  assert.ok(enrollment.personFieldErrors({ ...person, birthday: '2999-01-01' }).birthday)
+})
+
+test('person picker renders accessible field errors only after an unsuccessful attempt', () => {
+  const { PersonPicker } = load(path.join(root, 'beta-source/app/content-studio-prototype/enrollment/StaffEnrollment.tsx'))
+  const props = { title: '', value: null, people: [], onChange() {}, onAdd() {}, requireContact: true, studentLookup: false }
+  const untouched = renderToStaticMarkup(React.createElement(PersonPicker, props))
+  assert.doesNotMatch(untouched, /aria-invalid="true"/)
+  const attempted = renderToStaticMarkup(React.createElement(PersonPicker, { ...props, showErrors: true }))
+  assert.equal((attempted.match(/aria-invalid="true"/g) || []).length, 4)
+  assert.match(attempted, /Enter a first name/)
+  assert.match(attempted, /Enter an email or phone number/)
+  assert.match(attempted, /aria-describedby=/)
+})
 const plain = value => JSON.parse(JSON.stringify(value))
 const now = '2026-10-30T12:00:00.000Z'
 const lead = { id: 'one', status: 'won', intake_type: 'lesson_inquiry', updated_at: now, program_label: 'Private · Guitar', contact: { full_name: 'Jamie Park', email: 'jamie@example.invalid', phone: '' }, payload: { student_name: 'Riley Park', student_preferences: { preferred_days: ['Tuesday'], preferred_times: ['evening'] }, siblings: [{ name: 'Morgan Park', instrument_interest: 'Voice', student_preferences: { preferred_days: ['Friday'] } }] } }
@@ -187,4 +211,11 @@ test('review progress alone never establishes payment or completed booking', () 
   assert.equal(domain.enrollmentPaymentLabel(record), 'Not paid')
   assert.throws(() => domain.completeEnrollmentDraft(record, now), /contact/)
   assert.equal(record.completedAt, undefined)
+})
+
+test('connected academy teacher names are not rejected by the sample teacher directory', () => {
+ const student=enrollment.enrollmentPeople[0]
+ const draft={...enrollment.newStaffEnrollment(),contact:student,student,lessons:[{...enrollment.newLesson('connected'),studentId:student.id,teacher:'Owen Patel',start:'2026-11-10',time:'12:00'}]}
+ assert.equal(enrollment.enrollmentStepError(draft,2),null)
+ assert.match(enrollment.enrollmentStepError({...draft,lessons:[{...draft.lessons[0],teacher:''}]},2),/teacher/)
 })

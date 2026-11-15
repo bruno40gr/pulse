@@ -1,6 +1,41 @@
 # Beta integration progress — November 13, 2026
 
-## Current status (supersedes historical checkpoint notes below)
+## Current status — promotion review, November 14, 2026
+
+- The user requested promotion of all recent Beta work: calendar, enrollment,
+  bands, onboarding, navigation, contextual sample-parent impersonation and shared
+  UI. These changes are being preserved together on `integration/beta-20261113`.
+  **Not merged into main, pushed or deployed.**
+- Live remote `main` was checked and remains `9d5c5cc`, matching local main.
+  Main's original dirty working files are preserved; the existing `e003edf`
+  integration checkpoint includes that pending performance work. Protected Odeon
+  refs and the other worktrees remain untouched.
+- Fresh full domain/security run: **1,097 tests; 1,085 passed, 12 failed**.
+  Seven failures reproduce against main's archived working state: Undo-copy,
+  Settings layout, and five Settings rendering/access assertions. Five additional
+  failures need resolution on the integration: two ControlButton harness failures
+  (missing interaction-token mock), Contact insights transport assertion, Contacts
+  toolbar contract, and Leads effect-dependency assertion. Do not weaken assertions
+  or classify all failures as baseline without evidence.
+- Explicit TypeScript check passed. Edited/new-code ESLint passed with warnings
+  (zero errors). `git diff --check` passed. Production build compiled and passed
+  type validation, then failed collecting `/api/account/access` because
+  `supabaseUrl` is required. Approved nonproduction Supabase configuration is
+  still unavailable; no production secrets were copied or dummy credentials used.
+- Backup and recovery gate passed for all five local branches and all four
+  worktrees, including ignored/untracked source files and hash-verified replay.
+  See `docs/beta-promotion-review.md` for durable evidence and exact locations.
+- Shared school storage remains unprovisioned. The migration is source only and
+  has not been applied. Impersonation remains sample-only; no live authentication,
+  payment activation, contact import or live-school mutation is approved here.
+- Release remains blocked by the failing suite and incomplete production build.
+  Fresh navigation and onboarding/impersonation browser runs passed at 1440/390px;
+  enrollment/band completion rerun failed reading a null persisted `snapshot` and
+  is also a release blocker. Historical completion passes do not supersede it.
+  Do not delete the active integration worktree/branch before an approved merge
+  and a refreshed backup/recovery gate.
+
+## Historical status — November 13 checkpoint (superseded)
 
 - Working directory: `/Users/brunowong/pulse-beta-integration`; branch
   `integration/beta-20261113`. Main remains `9d5c5cc` and matches the live remote
@@ -21,7 +56,11 @@
   supporting primitives remain dirty/untracked WIP. TypeScript passing does not
   establish those unfinished screens as functional or approved. Preserve this
   WIP; do not publish it or include it in a documentation-only commit.
-- Staff navigation placement remains a user decision. Keep the prototype access
+- Beta sidebar wiring now exposes Contacts, Opportunities, Enroll & Book,
+  Bands & ensembles, Events and the existing Staff, plus Parent portal and
+  School Setup. Exact wording of the user's latest dictated labels remains
+  unconfirmed; no Contracts screen or replacement Staff screen was invented.
+  Keep the prototype access
   guard, operational API routes, main's newer calendar and permission/security
   behavior. Real contacts and transactions remain disconnected.
 - Full production build is still blocked by missing approved nonproduction
@@ -30,6 +69,156 @@
   audit in this documentation/hygiene pass.
 - Ongoing principles are in `docs/integration-principles.md`. Hygiene details and
   recovery locations are in `docs/beta-hygiene-20261113.md`.
+
+## Workflow completion validation and Beta projection — uncommitted WIP
+
+Validated the three items that were previously unproven, in the isolated review
+host (`http://127.0.0.1:3231/odeon-demo`, no production middleware):
+
+- **Enrollment/booking completion.** The four-step wizard completes from
+  Contacts, records the booking as Booked with the correct payment state
+  (paid for card, unpaid for "add payment later"). It previously stopped there:
+  the booking never reached Beta's student record, lessons, Parent portal or
+  Staff. The Explorer now reports a finished booking once and the Beta workspace
+  writes it into the family's own records through
+  `beta-source/lib/beta-workflow-projection.ts`, which validates every field and
+  writes nothing when anything is invalid.
+- **Band completion.** Band creation, candidate requests, the band enrollment
+  wizard (student, band, policies, payment) and confirmation all work: the
+  member becomes confirmed, the candidate list clears, the inquiry moves to
+  Enrolled, and the membership is now recorded on the student's program list.
+- **Staff/Setup sharing.** Setup edits already persisted and reached the
+  Explorer's teacher lists, but the Staff screen kept its own copy of the team
+  and attributed students by teacher name. Staff now reads the same School Setup
+  teacher records, and students are attributed by teacher identity
+  (`PreviewEnrollment.teacherId`), with the sample seed carrying that id.
+
+Resulting behavior: a booked lesson appears on the student record, in the
+family's lessons and in the Parent portal; a confirmed band membership appears
+as the student's program. Sibling isolation holds — a booking for one student
+never touches a sibling or another family.
+
+Open gap that matters for the academy calendar: the lesson scheduling grid
+still assigned the prototype's own teachers (Jordan Vale, Robin Ellis, …) rather
+than the academy's School Setup staff, so a booked lesson's teacher was not a
+Staff member and the projected record had no teacher identity. That is now
+reconciled — see the schedule source section below.
+
+Checks: TypeScript, focused lint and whitespace pass. 152/152 academy, Beta
+access and shared-control tests pass, including six new projection tests.
+Repeatable browser regressions: `scripts/security/beta-workspace-navigation-
+browser.cjs` (eight destinations, two widths) and
+`scripts/security/beta-workflow-completion-browser.cjs` (card booking, unpaid
+booking and band membership) pass with no page errors, `/api/` requests or
+horizontal overflow. Evidence: `/tmp/odeon-final-{types,lint,tests}.log`,
+`/tmp/odeon-nav-regression.log`, `/tmp/odeon-completion-regression.log`,
+`/tmp/odeon-band-staff-isolation.log`, `/tmp/odeon-staff-unified.log`.
+
+Nothing committed, merged, pushed or deployed. Full build still requires
+approved nonproduction Supabase configuration.
+
+## School Setup is the single schedule source
+
+Per the user's decision, the academy's School Setup is now the only source for
+teachers, rooms and availability. `beta-source/lib/beta-academy-schedule.ts`
+derives the staff roster (programs taught, weekly hours, location) and the
+academy's rooms from the setup records, and reads the teaching already booked
+from the academy's own enrollment and lesson records.
+
+- The enrollment wizard offers those staff, with slots limited to the hours
+  they keep, the programs they teach, and no overlap with their own teaching
+  or the student's existing lessons. The prototype's own roster remains the
+  fallback for academies without configured staff, and the parent's own
+  self-scheduling flows are unchanged.
+- A completed booking now records the academy teacher's identity and a room
+  from the academy's locations. Verified in the browser: the booking shows
+  "Maya Chen" with teacher id `demo:teacher-1` in room "Keys classroom", and
+  the Staff screen attributes the student to that teacher (eight students
+  instead of seven).
+- The wizard's step validation previously re-checked the slot against the
+  prototype roster, so an academy teacher could never pass it. Validation now
+  uses the same availability source the grid renders.
+
+Checks: TypeScript, focused lint and whitespace pass; 157/157 academy, Beta
+access and shared-control tests pass, including five new schedule tests and the
+completion regression for card booking, unpaid booking and band membership.
+Evidence: `/tmp/odeon-final3-{types,lint,tests,completion}.log`,
+`/tmp/odeon-academy-booking-proof.log`.
+
+Still open for the academy calendar: the calendar's own shape (day or week
+first, what a row shows, whether staff can edit from it) and its place in the
+Beta navigation. The calendar can now read one consistent source for lessons,
+bands, teachers and rooms.
+
+## Academy calendar — full screen, Beta's daily view
+
+Built to the user's brief: a full-screen calendar for the academy's today and
+week, filterable by staff, group, room and service, with block details, owner
+actions and booking from the grid. It is a new Beta destination
+(`/odeon-demo?screen=calendar`) and the first item in the sidebar.
+
+- **What shows.** Lessons come from the academy's own enrollment and lesson
+  records through the same recurring expansion the family portal uses, so both
+  views agree. Band rehearsals come from a band's own weekly schedule and
+  event sessions from an event's dates and daily schedule. Each block carries
+  the student, teacher, room, program and service type.
+- **Filters and staff view.** Staff, group, room and service filters narrow the
+  week; choosing a staff member shows that person's teaching, which answers
+  "who is working which days". Day view and previous/next week are available.
+- **Block details.** Clicking a block shows what the lesson is, who the student
+  is, who the teacher is, the room and the status, with quick access to the
+  student's record.
+- **Actions.** Cancel marks the lesson cancelled and keeps it visible; Reschedule
+  moves it to another date, time or teacher; Message opens the shared composer
+  for the family by SMS or email.
+- **Booking.** Clicking an empty slot opens the existing enrollment wizard
+  prefilled with that date and time. The student is chosen first, the family's
+  contact pays, and the flow can create an ongoing subscription or an à-la-carte
+  lesson. The completed booking is written into the family's own records by the
+  same projection the Contacts flow uses, and appears on the calendar at once.
+
+Checks: TypeScript, focused lint and whitespace pass; 162/162 academy, Beta
+access and shared-control tests pass, including five new calendar tests.
+`scripts/security/beta-academy-calendar-browser.cjs` passes at 1440px and
+390px: full-screen week, staff filter, block details and actions, booking from
+a slot and cancelling it, with no page errors, `/api/` requests or overflow.
+Evidence: `/tmp/odeon-final4-{types,lint,tests}.log`,
+`/tmp/odeon-cal-regression.log`, `/tmp/odeon-calendar-full.log`.
+
+Known limits, stated plainly: a booking is a lesson or service for one student
+at one time; reserving a room for a fixed window (for example the performance
+room from 4:00 to 6:00) is a room booking, which the academy does not model
+yet. Blocks are not draggable, and the calendar does not yet show staff
+availability for unbooked hours.
+
+## Connected sidebar validation — uncommitted WIP
+
+- Embedded Explorer uses the Beta shell rather than a second sidebar. Contacts
+  selected-account actions expand to student IDs for enrollment, opportunities
+  and band creation. Existing Staff remains the Beta Staff view.
+- Fixed embedded Parent portal covering and disabling the Beta navigation:
+  embedded mode now stays in document flow and does not make shell siblings
+  inert or lock body scrolling. Standalone preview isolation remains the default.
+- Fresh checks: TypeScript, focused wiring/Parent/browser-test lint and whitespace
+  checks pass; 146/146 academy, Beta access and shared-control tests pass.
+- Repeatable browser regression:
+  `scripts/security/beta-workspace-navigation-browser.cjs` passes at 1440px and
+  390px across all eight sidebar destinations, including leaving Parent portal.
+  No page errors, `/api/` requests or horizontal overflow in those runs.
+- Parent enrollment open/save/resume regression passes at both widths. Contacts
+  actions were also exercised locally: Alex Adams expands to Emma Adams in all
+  three workflows; band review/save preserves Emma's ID and enrollment selects
+  Alex as account contact and Emma as student. No API requests or page errors
+  in that action run. Opportunity creation was opened, not submitted.
+- Evidence: `/tmp/odeon-beta-resume-{types,lint,parent-lint,tests,browser,actions,
+  parent-browser,navigation-regression}.log`. Review host remains isolated and
+  omits production middleware; these results do not establish deployment safety.
+- Remaining: end-to-end enrollment/booking and band completion, shared Staff/
+  Setup edit validation, sibling isolation after those completions, and audit of
+  sample-to-queue merging for stale IDs and workflow-field overwrites. Do not
+  treat the existing merge as a proven synchronization solution.
+- Nothing committed, merged, pushed or deployed in this continuation. Full build
+  still requires approved nonproduction Supabase configuration.
 
 ## Sample-data correction — existing Beta directory wins
 
@@ -188,3 +377,19 @@ and `/tmp/odeon-beta-dependency-tree-final.log`.
    reassess remaining development-tooling findings without blind forced upgrades.
 6. Review final diff, release evidence and rollback checkpoints before merging
    or publishing. Real contacts, live bookings and payments remain out of scope.
+
+### Front-end layout reconciliation
+
+Supersedes the earlier full-screen calendar presentation. Calendar now remains inside the dashboard shell and uses the existing page container/header. PageContainer is nesting-aware; Leads no longer adds a second inset and Contacts uses the same component rather than duplicating its styles. The Beta PageContainer re-exports the canonical component.
+
+Lesson/trial, band enrollment, event registration and create-band editors share EnrollmentLayout (header, stepper spacing, focus). Removed title back chevrons, retaining explicit close/save and step-level navigation. Single lesson/trial now enters the existing enrollment wizard with à-la-carte cadence, instead of the separate two-card editor. No database, API or billing-rule changes.
+
+Validation: desktop/mobile shared-axis and duplicate-search browser assertions; calendar actions and card/pay-later/band completion regressions; TypeScript; focused lint; 172 academy/Beta tests pass. The broader security suite also reports nine failures in lead automation/profile/settings/loading source assertions; it is not all-green.
+
+### Interaction-color/component-library reconciliation
+
+Established shared `interaction` roles (blue selected/on/progress/focus; pale-blue selection surfaces; espresso primary actions; separate outcome/brand colors). The root layout publishes these roles as CSS variables, and legacy native controls inherit them. Reconciled Beta primitives delegate to canonical shared implementations. Added InteractionShowcase to `/dashboard/design` and an isolated `/interaction-review` route on the local review host.
+
+Migrated enrollment raw self/deferred-payment checkboxes and duration/cadence/trial/payer fields; normalized table selection, weekdays, switches, radio cards, pills, tabs, both steppers, Setup progress and teacher/slot selection styling. Removed duplicate focus rings. See `docs/ui-interaction-colors.md` for the audit inventory and intentional exceptions; this is not a claim that every custom component or neutral hex literal has been eliminated.
+
+Validation: 177 academy/Beta/interaction tests pass; TypeScript clean; focused lint clean (broader edited-tree lint retains warnings). Desktop/mobile interaction colors/keyboard/forced-colors, shared layout, calendar actions and enrollment/band completion browser regressions pass. No database/API/billing-rule changes.

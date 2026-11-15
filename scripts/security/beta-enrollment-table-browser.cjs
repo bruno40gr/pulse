@@ -1,0 +1,46 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Isolated fictional browser regression. */
+const assert = require('node:assert/strict')
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.BASE_URL || 'http://127.0.0.1:3231'
+assert.match(base, /^http:\/\/127\.0\.0\.1:/)
+;(async () => {
+  const browser = await chromium.launch({ channel: 'chrome' })
+  try {
+    for (const width of [1440, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 1000 } })
+      page.setDefaultTimeout(8000)
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.goto(`${base}/odeon-demo?screen=book`)
+      await page.getByRole('button', { name: 'Enroll', exact: true }).click()
+      await page.getByRole('button', { name: 'Choose Private lessons', exact: true }).click()
+      await page.getByRole('radio', { name: 'New contact', exact: true }).check()
+      await page.getByLabel('Email', { exact: true }).fill('unnamed@example.invalid')
+      await page.getByRole('button', { name: 'Save & close', exact: true }).click()
+      const persisted = await page.evaluate(() => JSON.parse(sessionStorage.getItem('odeon:beta-enrollment-portal:v2')))
+      assert.equal(persisted.drafts.length, 0, 'No named person, no saved enrollment')
+      await page.getByRole('button', { name: 'Enroll', exact: true }).click()
+      await page.getByRole('button', { name: 'Choose Band', exact: true }).click()
+      await page.getByRole('button', { name: 'Save & close', exact: true }).click()
+      assert.equal((await page.evaluate(() => JSON.parse(sessionStorage.getItem('odeon:beta-enrollment-portal:v2')))).enrollments.length, 0)
+      await page.getByRole('button', { name: 'Enroll', exact: true }).click()
+      await page.getByRole('button', { name: 'Choose Band', exact: true }).click()
+      await page.getByRole('button', { name: 'Find existing student', exact: true }).count().then(count => assert.equal(count, 0))
+      await page.getByLabel('First name', { exact: true }).fill('Band')
+      await page.getByLabel('Last name', { exact: true }).fill('Learner')
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await page.getByRole('button', { name: 'Save & close', exact: true }).click()
+      await page.getByText('Band enrollment', { exact: true }).first().waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Continue band enrollment', exact: true }).count(), 0)
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await page.getByRole('heading', { name: 'Band enrollment', exact: true }).waitFor()
+      await page.reload()
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await page.getByRole('heading', { name: 'Band enrollment', exact: true }).waitFor()
+      assert.deepEqual(errors, [])
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
+      console.log(`PASS ${width}: unnamed lesson/band drafts discarded, band row in shared table resumes after reload, no student lookup action`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exitCode = 1 })

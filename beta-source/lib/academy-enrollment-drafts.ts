@@ -3,6 +3,11 @@ import { readLeadStudents, type StudentPreferences } from '@/lib/lead-students'
 import { isLessonLead } from '@/lib/lead-lesson-details'
 
 export type EnrollmentDraftRecord = {
+  fromCalendar?: boolean
+  calendarRequest?: {
+    accountId: string; recipientName: string; recipientEmail: string; sentAt?: string
+    acknowledgedSubscriptionIds: string[]; completedBy?: 'staff' | 'family'; enrollmentIds?: string[]
+  }
   completedAt?: string
   paymentStatus?: 'unpaid' | 'paid'
 

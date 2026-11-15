@@ -1,12 +1,13 @@
 import type { FamilyPreviewData } from './academy-family-preview'
 import { movePreviewLesson, cancelPreviewReplacement, recordPreviewAbsence, type MakeupPreviewState, type PreviewMakeup } from './academy-makeup-preview'
+import { detachParticipantOccurrence } from './academy-session'
 
 export type FamilyMoves = Record<string, NonNullable<PreviewMakeup['booking']>>
 
 /** Project only explicit changes; selected-but-unchanged lessons stay occupied. */
 export function projectFamilyMoves(data: FamilyPreviewData, state: MakeupPreviewState, moves: FamilyMoves) {
   return {
-    data: { ...data, lessons: data.lessons.map(item => moves[item.id] ? { ...item, ...moves[item.id], originalDate: item.originalDate || item.date } : item) },
+    data: { ...data, lessons: data.lessons.map(item => moves[item.id] ? { ...detachParticipantOccurrence(item), ...moves[item.id], originalDate: item.originalDate || item.date } : item) },
     state: { ...state, items: state.items.map(item => moves[item.id] && item.booking ? { ...item, booking: moves[item.id] } : item) },
   }
 }

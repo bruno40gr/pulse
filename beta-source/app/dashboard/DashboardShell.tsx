@@ -20,6 +20,8 @@ import { getActiveTenantId } from '@/beta-source/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/beta-source/lib/conversation-display'
 import { LEAD_COUNT_EVENT } from '@/beta-source/lib/lead-count'
 import { startVisiblePolling } from '@/beta-source/lib/visible-polling'
+import { betaNavigation, type BetaScreen } from '@/beta-source/lib/beta-workspace-navigation'
+import WorkAreaNavigation from '@/components/layout/WorkAreaNavigation'
 
 const CONVERSATION_COUNT_EVENT = 'pulse:conversation-count-changed'
 
@@ -64,7 +66,7 @@ function isNavLinkActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export default function DashboardLayout({ children, sample = false }: { children: React.ReactNode; sample?: boolean }) {
+export default function DashboardShell({ children, sample = false, sampleScreen, hideNavigation = false }: { children: React.ReactNode; sample?: boolean; sampleScreen?: BetaScreen; hideNavigation?: boolean }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -95,14 +97,14 @@ export default function DashboardLayout({ children, sample = false }: { children
     <DashboardIdentity sample={sample}>
     <div style={{ display: 'flex', width: '100%', minWidth: 0, minHeight: '100vh', fontFamily: typography.fontSans }}>
       {/* Desktop sidebar */}
-      {!isMobile && (
+      {!hideNavigation && !isMobile && (
         <aside style={{ width: '220px', background: colors.action, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, height: '100vh', overflow: 'hidden' }}>
-          <SidebarBody onNavigate={closeMenu} sample={sample} />
+          <SidebarBody onNavigate={closeMenu} sample={sample} sampleScreen={sampleScreen} />
         </aside>
       )}
 
       {/* Mobile top bar */}
-      {isMobile && (
+      {!hideNavigation && isMobile && (
         <header style={{ position: 'fixed', top: 0, left: 0, right: 0, minHeight: '72px', background: colors.action, display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 16px', boxSizing: 'border-box', zIndex: 30 }}>
           <ControlButton kind="icon" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" >
             <Menu size={22} />
@@ -113,7 +115,7 @@ export default function DashboardLayout({ children, sample = false }: { children
       )}
 
       {/* Mobile drawer */}
-      {isMobile && menuOpen && (
+      {!hideNavigation && isMobile && menuOpen && (
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} onClick={closeMenu} />
           <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 'min(280px, 85vw)', background: colors.action, zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -121,13 +123,13 @@ export default function DashboardLayout({ children, sample = false }: { children
               <TenantBrand height={32} maxWidth="70%" width="70%" />
               <ControlButton kind="close" type="button" onClick={closeMenu} aria-label="Close menu"  />
             </div>
-            <SidebarBody onNavigate={closeMenu} showBrand={false} sample={sample} />
+            <SidebarBody onNavigate={closeMenu} showBrand={false} sample={sample} sampleScreen={sampleScreen} />
           </div>
         </>
       )}
 
       {/* Main content */}
-      <main style={{ marginLeft: isMobile ? 0 : '220px', paddingTop: isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
+      <main style={{ marginLeft: hideNavigation || isMobile ? 0 : '220px', paddingTop: !hideNavigation && isMobile ? '72px' : 0, flex: '1 1 0%', minWidth: 0, maxWidth: hideNavigation || isMobile ? '100%' : 'calc(100% - 220px)', background: colors.background, color: colors.text }}>
         {!sample && <DemoBanner />}
         {children}
       </main>
@@ -141,7 +143,7 @@ function DashboardIdentity({ sample, children }: { sample: boolean; children: Re
   return sample ? <>{children}</> : <IdentityProvider>{children}</IdentityProvider>
 }
 
-function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavigate: () => void; showBrand?: boolean; sample?: boolean }) {
+function SidebarBody({ onNavigate, showBrand = true, sample = false, sampleScreen = 'contacts' }: { onNavigate: () => void; showBrand?: boolean; sample?: boolean; sampleScreen?: BetaScreen }) {
   const [canPublishWebsite, setCanPublishWebsite] = useState(false)
   useEffect(() => {
     if (sample) return
@@ -234,15 +236,21 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
         {sample ? <Button variant="destructive" size="sm" style={{ width: '100%' }} onClick={() => { const href = `/dashboard?tenant=${encodeURIComponent(search.get('tenant') || getActiveTenantId())}`; onNavigate(); window.location.assign(href) }}><ArrowLeft size={15} aria-hidden="true" />Back to Headliner</Button> : <NotificationBell inverse variant="user" onNavigate={onNavigate} />}
       </div>
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 8px' }}>
-        {(sample ? [{ label: 'BETA', links: [{ href: '/odeon-demo', label: 'Contacts' }, { href: '/odeon-demo?view=parent&account=demo%3Afamily-1', label: 'Parent portal' }, { href: '/odeon-demo/school-setup?experience=configured', label: 'School Setup' }] }] : NAV_GROUPS).map(group => (
+        {sample && <WorkAreaNavigation access={{}} leadCount={0} conversationCount={0} onNavigate={onNavigate} switcherOnly />}
+        {(sample ? [{ label: 'BETA', links: betaNavigation }] : NAV_GROUPS).map(group => (
           <div key={group.label} style={{ marginTop: spacing.md }}>
             <div style={{ padding: '0 12px 6px', color: 'rgba(255,255,255,0.48)', fontSize: typography.sizeXs, fontWeight: typography.weightSemibold }}>{group.label}</div>
             {group.links.filter(link => link.href !== '/dashboard/website-content' || canPublishWebsite).map(({ href, label }) => {
-              const active = sample ? href.includes('screen=staff') ? search.get('screen') === 'staff' : href.includes('view=parent') ? search.get('view') === 'parent' : href.includes('school-setup') ? pathname.endsWith('/school-setup') : pathname === '/odeon-demo' && !search.get('screen') && search.get('view') !== 'parent' : isNavLinkActive(href, pathname)
+              const active = sample ? betaNavigation.find(link => link.href === href)?.screen === sampleScreen : isNavLinkActive(href, pathname)
+              // Sample navigation must not inherit the surrounding dashboard's tenant.
+              const workspaceTenant = sample ? search.get('tenant') : null
+              const destination = href.startsWith('/odeon-demo') && workspaceTenant
+                ? `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(workspaceTenant)}`
+                : href
               return (
                 <Link
                   key={href}
-                  href={href.startsWith('/odeon-demo') ? `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(sample ? search.get('tenant') || getActiveTenantId() : getActiveTenantId())}` : href}
+                  href={destination}
                   onClick={event => {
                     if (href === '/dashboard/inbox' && pathname === href && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                       event.preventDefault()
@@ -280,7 +288,7 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
         {!sample && canPublishWebsite && (
           <div style={{ padding: '0 4px', marginBottom: spacing.sm }}>
             <Link
-              href={`/odeon-demo?tenant=${encodeURIComponent(getActiveTenantId())}`}
+              href="/odeon-demo?screen=calendar"
               onClick={onNavigate}
               aria-label="BETA academy preview"
               style={{
@@ -304,7 +312,7 @@ function SidebarBody({ onNavigate, showBrand = true, sample = false }: { onNavig
           </div>
         )}
         <Link
-          href={sample ? '/odeon-demo/school-setup?experience=configured' : '/dashboard/settings'}
+          href="/dashboard/settings"
           onClick={onNavigate}
           style={{
             ...navLinkStyle,

@@ -1,4 +1,4 @@
-import { createPortalQueue, readPortalQueue, portalQueueKey, type PortalQueue } from './academy-portal-queue'
+import { createPortalQueue, readPortalQueue, resumablePortalQueue, portalQueueKey, type PortalQueue } from './academy-portal-queue'
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>
 
@@ -28,7 +28,7 @@ export function createPortalStore(storage: () => Storage | undefined) {
       const next = change(snapshot)
       if (next === snapshot) return
       snapshot = next
-      try { storage()?.setItem(portalQueueKey, JSON.stringify(next)) } catch { /* Session backup is optional; all subscribers still update. */ }
+      try { storage()?.setItem(portalQueueKey, JSON.stringify(resumablePortalQueue(next))) } catch { /* Session backup is optional; all subscribers still update. */ }
       listeners.forEach(listener => listener())
     },
   }

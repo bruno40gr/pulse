@@ -22,7 +22,6 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
     <aside className={styles.controls} aria-label="Booking controls">
       {rightControls || <>
       {sidebar}
-      <p className={styles.summary}>Family calendar · All children’s lessons and booked makeups stay visible. Sibling lessons may overlap when a suitable teacher is available.</p>
       {(moving || booking) && <SurfacePanel appearance="flat"><section aria-label={moving ? 'Move summary' : 'Makeup summary'} className={styles.moveSummary} aria-live="polite">
         {studentName && <p>{studentName}</p>}
         <p>{moving ? 'Original lesson' : 'Makeup credit'}: {program} · {formatScheduleDate(makeup.date)} · {makeup.teacher}</p>

@@ -43,9 +43,11 @@ test('shared results slot overlays count and actions with matching reserved resp
   assert.match(source('components/ui/RichDataTable.tsx'), /<TableResultsSlot result=\{beforeTable\} contextual=\{contextualToolbar\}/)
 })
 
-test('Leads replaces controls with shared blue bar and owner-only delete', () => {
+test('Leads shares Contacts results placement and segmented control with owner-only delete', () => {
   const leads = source('components/leads/LeadsView.tsx')
-  assert.match(leads, /contextualToolbarPlacement="replace"/)
+  assert.match(leads, /contextualToolbarPlacement="below"/)
+  assert.match(leads, /<TablePersonViewToggle variant="segmented"/)
+  assert.doesNotMatch(leads, /subtitle=\{subtitle\}|Viewing \$\{visibleLeads.length\} loaded/)
   assert.match(leads, /contextualToolbar=\{selectedCount > 0 \? <TableContextActionBar/)
   assert.match(leads, /beforeTable=\{<TableResultCount>/)
   assert.match(leads, /onClear=\{\(\) => setSelectedIds\(new Set\(\)\)\}/)
@@ -55,6 +57,24 @@ test('Leads replaces controls with shared blue bar and owner-only delete', () =>
   assert.match(leads, /isOwner \? \[\{ id: 'delete'/)
   assert.match(leads, /id: 'delete', label: 'Delete', onClick: openDeleteModal/)
   assert.doesNotMatch(leads, /bulkActionBarStyle|bulkActionTextStyle/)
+})
+
+test('Contacts and Leads compose the same discovery controls and preference action menu', () => {
+  for (const file of ['app/dashboard/contacts/page.tsx', 'components/leads/LeadsView.tsx']) {
+    const page = source(file)
+    assert.match(page, /search=\{<TableSearchControl/)
+    assert.match(page, /filters=\{<TableFiltersButton/)
+    assert.match(page, /<TablePersonViewToggle variant="segmented"/)
+  }
+  const leads = source('components/leads/LeadsView.tsx')
+  assert.doesNotMatch(leads, /aria-label="Filter leads by status"|Opportunity search and creation/)
+  assert.match(leads, /preferenceActions=\{\[\{ id: 'export'/)
+  const table = source('components/ui/RichDataTable.tsx')
+  assert.match(table, /<TableDiscoveryToolbar search=\{search\} filters=\{filters\}/)
+  const preferences = source('components/ui/TableDisplayControls.tsx')
+  assert.match(preferences, /label = 'Table preferences'/)
+  assert.match(preferences, /<Table2 size=\{16\}/)
+  assert.match(preferences, /actions.map\(action => <Button/)
 })
 
 test('replacement bar overlays discovery without contributing height or covering its bottom gap', () => {
@@ -102,7 +122,7 @@ test('both surfaces consume the rich table and shared parent/detail name rules',
   const shared = source('components/ui/RichDataTable.tsx')
   assert.match(shared, /<TableDisplayControls/)
   assert.match(leads, /<TablePersonViewToggle/)
-  assert.match(leads, /individualLabel="Account holders"/)
+  assert.match(leads, /individualLabel="Students"/)
   assert.match(leads, /rows=\{pagedLeads\}/)
   assert.doesNotMatch(leads, /tableStudent/)
   assert.match(leads, /<TablePagination/)

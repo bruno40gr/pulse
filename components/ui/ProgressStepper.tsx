@@ -3,7 +3,7 @@
 import { useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
 import styles from './ProgressStepper.module.css'
 
 export type ProgressStep = { id: string; label: string; complete: boolean }
@@ -29,8 +29,8 @@ export function ProgressStepper({ steps, currentStep, label, notStarted = false 
       {steps.map((step, index) => {
         const active = !notStarted && !complete && index === current
         return <li key={step.id} aria-current={active ? 'step' : undefined} aria-label={`${step.label}: ${step.complete ? 'complete' : active ? 'current' : 'incomplete'}`} style={{ display: 'flex', alignItems: 'center' }}>
-          {index > 0 && <span aria-hidden="true" style={{ width: spacing.xl, height: 1, background: steps[index - 1].complete ? colors.teal : colors.border }} />}
-          <span tabIndex={0} aria-label={`Step ${index + 1}: ${step.label}`} aria-describedby={tooltip?.index === index ? tooltipId : undefined} onMouseEnter={event => showTooltip(index, event.currentTarget)} onMouseLeave={() => setTooltip(null)} onFocus={event => showTooltip(index, event.currentTarget)} onBlur={() => setTooltip(null)} onKeyDown={event => { if (event.key === 'Escape') setTooltip(null) }} className={styles.circle} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: spacing.xl, height: spacing.xl, borderRadius: radius.full, border: `1px solid ${step.complete || active ? colors.teal : colors.border}`, background: step.complete ? colors.teal : colors.surface, color: step.complete ? colors.surface : active ? colors.teal : colors.textMuted, fontSize: typography.sizeXs, fontWeight: typography.weightBold }}>
+          {index > 0 && <span aria-hidden="true" style={{ width: spacing.xl, height: 1, background: steps[index - 1].complete ? interaction.selected : colors.border }} />}
+          <span tabIndex={0} aria-label={`Step ${index + 1}: ${step.label}`} aria-describedby={tooltip?.index === index ? tooltipId : undefined} onMouseEnter={event => showTooltip(index, event.currentTarget)} onMouseLeave={() => setTooltip(null)} onFocus={event => showTooltip(index, event.currentTarget)} onBlur={() => setTooltip(null)} onKeyDown={event => { if (event.key === 'Escape') setTooltip(null) }} className={styles.circle} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: spacing.xl, height: spacing.xl, borderRadius: radius.full, border: `1px solid ${step.complete || active ? interaction.selected : colors.border}`, background: step.complete ? interaction.selected : colors.surface, color: step.complete ? interaction.onSelected : active ? interaction.selectedText : colors.textMuted, fontSize: typography.sizeXs, fontWeight: typography.weightBold }}>
             {step.complete ? <Check size={12} aria-hidden="true" /> : index + 1}
           </span>
         </li>

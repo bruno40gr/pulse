@@ -18,6 +18,7 @@ import CurriculumSection from './CurriculumSection'
 import DiscountsPanel from './DiscountsPanel'
 import DurationPricing from './DurationPricing'
 import TeacherEditor from './TeacherEditor'
+import type { BookingContext } from '@/beta-source/lib/academy-calendar-booking'
 import RoomTable from './RoomTable'
 import HeadlinerLogo from '@/beta-source/components/layout/HeadlinerLogo'
 import ClosureTable from './ClosureTable'
@@ -25,6 +26,7 @@ import { policyEditorValues, validatePolicyDraft } from './policy-content'
 import PolicyEditor from './PolicyEditor'
 import AgreementsPanel from './AgreementsPanel'
 import styles from './school-setup.module.css'
+import WorkAreaNavigation from '@/components/layout/WorkAreaNavigation'
 
 const icons = [Settings, MapPin, Wallet, BookOpen, Users, CalendarDays]
 const theme = { '--setup-cream': colors.cream, '--setup-ink': colors.espresso, '--setup-border': colors.border, '--setup-muted': colors.textSecondary, '--setup-surface': colors.surface, fontFamily: typography.fontSans } as CSSProperties
@@ -45,7 +47,7 @@ function createEditor(area: SetupArea, data: Record<string, SetupRecord[]>, reco
   return { curriculum, materials, id: record?.id || `new-${area.id}`, values, rooms, fresh: !record, title: record?.values.name || '', initial: JSON.stringify({ values, rooms, curriculum, materials }) }
 }
 
-export default function SchoolSetup({ configuredData, onConfiguredChange, configuredDiscounts, configuredDiscountPolicy, onDiscountsChange, demo = false, embedded = false, companySettings, offeringTypes, billingSettings, companyName, onExit }: { configuredDiscountPolicy?: DiscountPolicy; configuredDiscounts?: SetupDiscount[]; onDiscountsChange?: (discounts: SetupDiscount[], policy: DiscountPolicy) => void; configuredData?: Record<string, SetupRecord[]>; onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void; demo?: boolean; embedded?: boolean; companySettings?: ReactNode; offeringTypes?: ReactNode; billingSettings?: ReactNode; companyName?: string; onExit?: () => void } = {}) {
+export default function SchoolSetup({ configuredData, onConfiguredChange, configuredDiscounts, configuredDiscountPolicy, onDiscountsChange, demo = false, embedded = false, companySettings, offeringTypes, billingSettings, companyName, onExit }: { bookingContext?: BookingContext; configuredDiscountPolicy?: DiscountPolicy; configuredDiscounts?: SetupDiscount[]; onDiscountsChange?: (discounts: SetupDiscount[], policy: DiscountPolicy) => void; configuredData?: Record<string, SetupRecord[]>; onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void; demo?: boolean; embedded?: boolean; companySettings?: ReactNode; offeringTypes?: ReactNode; billingSettings?: ReactNode; companyName?: string; onExit?: () => void } = {}) {
   const hasOfferingTypes = Boolean(offeringTypes)
   const [view, setView] = useState('overview')
   const [experience, setExperience] = useState<SetupExperience>(embedded ? 'configured' : 'new')
@@ -144,7 +146,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
     <a href="#setup-content" className={styles.skip}>Skip to setup content</a>
     <header className={styles.topbar}><a href={backHref} className={styles.brand} onClick={event => { if (!canLeave()) event.preventDefault() }}>{demo ? <HeadlinerLogo height={28} /> : <><GraduationCap size={23} aria-hidden="true" /><strong>odeon.</strong></>}</a><span>School Setup</span><div className={styles.exit}><Button variant="destructive" size="sm" onClick={() => { if (canLeave()) { if (onExit) onExit(); else window.location.assign(backHref) } }}><ArrowLeft size={15} aria-hidden="true" />{embedded ? 'Back to operations' : demo ? 'Back to Headliner' : 'Back to Odeon'}</Button></div></header>
     <div className={styles.layout}>
-      <aside className={styles.sidebar}><div className={styles.identity}><h2>{companyName || data.school[0]?.values.name || 'Your school'}</h2></div><nav aria-label="School setup sections">
+      <aside className={styles.sidebar}><WorkAreaNavigation access={{}} leadCount={0} conversationCount={0} switcherOnly light onBeforeNavigate={canLeave} onNavigate={() => {}} /><div className={styles.identity}><h2>{companyName || data.school[0]?.values.name || 'Your school'}</h2></div><nav aria-label="School setup sections">
         <ControlButton kind="navigation" selected={view === 'overview'} aria-current={view === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>Overview</ControlButton>
         {setupAreas.map((item, index) => { const Icon = icons[index]; return <Fragment key={item.id}>
           <ControlButton kind="navigation" selected={view === item.id} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon size={17} aria-hidden="true" />{embedded && item.id === 'school' ? 'Company settings' : item.title}</ControlButton>
@@ -170,7 +172,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
           {area.id === 'locations' && <h2 className={styles.sectionTitle}>Location Details</h2>}
           {area.id === 'plans' && <p className={styles.sectionDescription} role="status">{pricingName(editor.values)}</p>}
           {area.id === 'plans' && editor.values.kind === 'Subscription' && editor.values.basis === 'Per scheduled lesson' && <DurationPricing values={editor.values} onChange={value => updateValue('durationPrices', value)} />}
-          {area.id === 'teachers' && <TeacherEditor values={editor.values} services={data.services} locations={data.locations} levels={Object.fromEntries(enabledLevels[experience].map(id => [id, schoolLevels[experience][id]]))} onChange={values => { setEditor({ ...editor, values }); setError('') }} />}
+          {area.id === 'teachers' && <TeacherEditor bookingDefaults={data.policies[0]?.values} values={editor.values} services={data.services} locations={data.locations} levels={Object.fromEntries(enabledLevels[experience].map(id => [id, schoolLevels[experience][id]]))} onChange={values => { setEditor({ ...editor, values }); setError('') }} />}
           {area.id === 'policies' && (view === 'calendar' ? <ClosureTable values={editor.values} locations={data.locations} onChange={value => updateValue('closures', value)} /> : <PolicyEditor values={editor.values} onChange={values => { setEditor({ ...editor, values }); setError('') }} />)}
           {!['services', 'teachers', 'policies'].includes(area.id) && <div className={area.id === 'policies' || area.id === 'plans' ? styles.policyFields : undefined}><FieldGrid>{visibleFields(area, editor.values).map(item => {
             const references = item.key === 'service' ? data.services : item.key === 'location' ? data.locations : null

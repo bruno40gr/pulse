@@ -6,16 +6,23 @@ import type { BandEnrollmentRequest } from './academy-band-requests'
 import type { BandEnrollment } from './academy-band-enrollment'
 import type { ProgramTask, ProgramBooking } from './academy-program-proposals'
 import type { WorkflowDraft } from './academy-workflow-drafts'
+import { hasEnrollmentName } from './academy-workflow-drafts'
 import type { FamilyPreviewData } from './academy-family-preview'
+import { demoBandGroups } from './academy-demo-groups'
 
 // Separate from the discarded prototype directory; do not hydrate its contacts.
 export const portalQueueKey = 'odeon:beta-enrollment-portal:v2'
 export type PortalQueue = {
+  demoDatasetVersion?: number;
   state: ReturnType<typeof createExplorerState>; academy: AcademySettings; inquiries: ExplorerInquiry[];
   requests: BandEnrollmentRequest[]; enrollments: BandEnrollment[]; tasks: ProgramTask[]; bookings: ProgramBooking[]; drafts: WorkflowDraft[];
 }
 export function createPortalQueue(data: FamilyPreviewData = createDemoWorkspace().data): PortalQueue {
-  return { state: { ...createExplorerState(), people: betaEnrollmentPeople(data), registrations: [] }, academy: { ...academySettings('music'), groups: [], singleLessons: [] }, inquiries: [], requests: [], enrollments: [], tasks: [], bookings: [], drafts: [] }
+  return { demoDatasetVersion: data.datasetVersion, state: { ...createExplorerState(), people: betaEnrollmentPeople(data), registrations: [] }, academy: { ...academySettings('music'), groups: demoBandGroups(data), singleLessons: [] }, inquiries: [], requests: [], enrollments: [], tasks: [], bookings: [], drafts: [] }
+}
+/** Active blank editors remain in memory, but are not resumable session records. */
+export function resumablePortalQueue(queue: PortalQueue): PortalQueue {
+  return { ...queue, drafts: queue.drafts.filter(record => hasEnrollmentName(record, queue.state.people)), enrollments: queue.enrollments.filter(record => !!queue.state.people.find(person => person.id === record.studentId)?.name.trim()) }
 }
 /** Validate the persisted envelope before restoring it. This is crash recovery,
  * not a security boundary: all records here are fictional and browser-editable.
@@ -32,7 +39,7 @@ export function readPortalQueue(saved?: string | null): PortalQueue {
       !['music', 'martial', 'tutoring'].includes(value.academy.kind) ||
       !['inquiries', 'requests', 'enrollments', 'tasks', 'bookings', 'drafts'].every(key => records(value[key]))) return fallback
     // Whitelist the envelope; do not merge arbitrary storage keys into app state.
-    return { state: value.state, academy: value.academy, inquiries: value.inquiries, requests: value.requests, enrollments: value.enrollments, tasks: value.tasks, bookings: value.bookings, drafts: value.drafts }
+    return resumablePortalQueue({ demoDatasetVersion: typeof value.demoDatasetVersion === 'number' ? value.demoDatasetVersion : undefined, state: value.state, academy: value.academy, inquiries: value.inquiries, requests: value.requests, enrollments: value.enrollments, tasks: value.tasks, bookings: value.bookings, drafts: value.drafts })
   } catch { return fallback }
 }
 

@@ -10,7 +10,14 @@ export type EnrollmentPerson = {
 export const enrollmentServices = ['Private', 'Semi-private', 'Group'] as const
 export const enrollmentInstruments = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet'] as const
 export const enrollmentGroupPrograms = ['Tiny Keys', 'Little Rockers', 'Band Program'] as const
+export function validLessonDuration(instrument: string, duration: number) {
+  return ['Band', 'Band Program', 'Band rehearsal'].includes(instrument)
+    ? Number.isInteger(duration) && duration >= 30 && duration <= 720 && duration % 30 === 0
+    : [30, 45, 60].includes(duration)
+}
 export type LessonChoice = {
+  roomId?: string
+  serviceId?: string
   service: typeof enrollmentServices[number]
   trialDiscount?: number
   addedLesson?: boolean
@@ -82,6 +89,19 @@ export function lessonPrice(lesson: LessonChoice, person: EnrollmentPerson | nul
   const discount = Math.round(base * percent / 100)
   return { base, discount, total: base - discount }
 }
+/** Field feedback shares the same requirements as the enrollment step guard. */
+export function personFieldErrors(person: EnrollmentPerson | null, requireContact = false) {
+  return {
+    firstName: !person?.firstName.trim() ? 'Enter a first name.' : undefined,
+    lastName: !person?.lastName.trim() ? 'Enter a last name.' : undefined,
+    email: person?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim())
+      ? 'Enter a valid email address.'
+      : requireContact && !person?.email.trim() && !person?.phone.trim() ? 'Enter an email or phone number.' : undefined,
+    phone: requireContact && !person?.email.trim() && !person?.phone.trim() ? 'Enter an email or phone number.' : undefined,
+    birthday: person?.birthday && !validBirthday(person.birthday) ? 'Enter a valid birthday, not a future date.' : undefined,
+  }
+}
+
 export function personDetailsError(person: EnrollmentPerson | null): string | null {
   if (!person?.firstName.trim() || !person.lastName.trim()) return 'Enter a first and last name.'
   if (person.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim())) return 'Enter a valid email address.'
@@ -106,10 +126,11 @@ export function enrollmentStepError(draft: StaffEnrollment, step: number): strin
     if (!draft.lessons.length) return 'Add a lesson.'
     if (draft.lessons.some(lesson => !lessonStudent(draft, lesson))) return 'Choose a student for each lesson.'
     if (enrollmentStudents(draft).some(person => !draft.lessons.some(lesson => lessonStudent(draft, lesson)?.id === person.id))) return 'Add a lesson for each student.'
-    if (draft.lessons.some(lesson => !lesson.instrument.trim() || !['30', '45', '60'].includes(lesson.duration) || !['Monthly subscription', 'À-la-carte'].includes(lesson.frequency))) return 'Choose an instrument, cadence and length for each lesson.'
+    if (draft.lessons.some(lesson => !lesson.instrument.trim() || !validLessonDuration(lesson.instrument, Number(lesson.duration)) || !['Monthly subscription', 'À-la-carte'].includes(lesson.frequency))) return 'Choose an instrument, cadence and length for each lesson.'
     if (draft.lessons.some(lesson => lesson.service === 'Group' && ['Tiny Keys', 'Little Rockers'].includes(lesson.instrument) && lesson.duration !== '45')) return 'Tiny Keys and Little Rockers last 45 minutes.'
     if (draft.lessons.some(lesson => !enrollmentServices.includes(lesson.service) || !(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).some(program => program === lesson.instrument))) return 'Choose a service and program for each lesson.'
-    if (step === 2 && draft.lessons.some(lesson => !enrollmentTeachers.some(teacher => teacher === lesson.teacher) || !lesson.time || !lesson.start)) return 'Choose a teacher, start date and time for each lesson.'
+    // Connected academies supply their own teachers; availability is checked by the caller.
+    if (step === 2 && draft.lessons.some(lesson => !lesson.teacher.trim() || !lesson.time || !lesson.start)) return 'Choose a teacher, start date and time for each lesson.'
   }
   if (step === 3 && draft.payer === 'manager' && !draft.manager) return 'Choose a parent or guardian to pay.'
   if (step === 3 && draft.payer === 'other') {

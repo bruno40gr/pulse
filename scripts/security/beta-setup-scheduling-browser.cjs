@@ -1,0 +1,48 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Local fictional UI checks. */
+const assert = require('node:assert/strict')
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.BASE_URL || 'http://127.0.0.1:3231'
+assert.match(base, /^http:\/\/127\.0\.0\.1:/)
+;(async () => {
+  const browser = await chromium.launch({ channel: 'chrome' })
+  try {
+    for (const width of [1440, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 1000 } })
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.goto(`${base}/odeon-demo?screen=setup&section=policies`)
+      await page.getByText('Booking settings', { exact: true }).waitFor()
+      await page.getByLabel('Maximum gap between lessons', { exact: true }).selectOption('90')
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+      assert.equal(await page.getByLabel('Teaching before a required break', { exact: true }).isDisabled(), true)
+      assert.equal(await page.getByLabel('Teaching before a required break', { exact: true }).inputValue(), '240')
+      assert.equal(await page.getByLabel('Required rest break', { exact: true }).count(), 0)
+      assert.equal(await page.getByRole('button', { name: 'Add unavailable time', exact: true }).count(), 0)
+      await page.getByRole('switch', { name: 'Available for self-booking links', exact: true }).uncheck()
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+      await page.screenshot({ path: `/tmp/odeon-setup-policy-${width}.png` })
+      await page.goto(`${base}/odeon-demo?screen=setup&section=teachers`)
+      await page.getByRole('button', { name: 'Edit Maya Chen', exact: true }).click()
+      await page.getByText('Booking rules', { exact: true }).waitFor()
+      assert.equal(await page.getByLabel('Maximum gap between lessons', { exact: true }).inputValue(), '')
+      assert.equal(await page.getByRole('switch', { name: 'Available for self-booking links', exact: true }).isChecked(), false)
+      await page.getByRole('switch', { name: 'Available for self-booking links', exact: true }).check()
+      await page.getByLabel('Pronouns', { exact: true }).fill('she/they')
+      await page.getByLabel('Maximum gap between lessons', { exact: true }).selectOption('120')
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+      await page.reload()
+      await page.getByRole('button', { name: 'Edit Maya Chen', exact: true }).click()
+      assert.equal(await page.getByLabel('Maximum gap between lessons', { exact: true }).inputValue(), '120')
+      assert.equal(await page.getByLabel('Pronouns', { exact: true }).inputValue(), 'she/they')
+      assert.equal(await page.getByRole('switch', { name: 'Available for self-booking links', exact: true }).isChecked(), true)
+      assert.equal(await page.getByText('Teacher & room blocks', { exact: true }).count(), 0)
+      assert.equal(await page.getByLabel('Public bookings from', { exact: true }).count(), 0)
+      await page.getByText('Booking rules', { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({ path: `/tmp/odeon-setup-teacher-${width}.png` })
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
+      assert.deepEqual(errors, [])
+      console.log(`PASS ${width}: fixed break setting, self-booking toggle, pronouns and teacher settings persistence, no overflow/errors`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exitCode = 1 })

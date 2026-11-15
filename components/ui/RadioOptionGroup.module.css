@@ -1,6 +1,2 @@
-.option:focus-within {
-  outline: 2px solid var(--radio-focus-color, #0090aa);
-  outline-offset: 2px;
-}
-
+/* The native radio uses the shared focus ring; do not add a second row ring. */
 .radio { flex-shrink: 0; }
