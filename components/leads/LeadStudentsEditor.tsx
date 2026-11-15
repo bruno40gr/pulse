@@ -28,12 +28,13 @@ function StudentProgram({ value, index, onChange }: { value: string; index: numb
   </>
 }
 
-export function LeadStudentsEditor({ students, onChange, disabled = false, onSave, dirty = false, contact }: {
+export function LeadStudentsEditor({ students, onChange, disabled = false, onSave, dirty = false, contact, programScope = 'lessons' }: {
   students: LeadStudent[]
   onChange: (students: LeadStudent[]) => void
   disabled?: boolean
   onSave?: () => void
   dirty?: boolean
+  programScope?: 'lessons' | 'band'
   contact?: InquiryStudentContact
 }) {
   const [confirmStudent, setConfirmStudent] = useState<number | null>(null)
@@ -74,7 +75,7 @@ export function LeadStudentsEditor({ students, onChange, disabled = false, onSav
           </Select>}
         </div>
         <div role="group" aria-label={`Student ${index + 1} lesson preferences`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: spacing.sm, marginTop: spacing.md }}>
-          <StudentProgram value={student.instrument_interest} index={index} onChange={value => update(index, { instrument_interest: value })} />
+          {programScope === 'band' ? <Input label="Instrument interests" aria-label={`Student ${index + 1} instrument interests`} value={student.instrument_interest} onChange={event => update(index, { instrument_interest: event.target.value })} /> : <StudentProgram value={student.instrument_interest} index={index} onChange={value => update(index, { instrument_interest: value })} />}
           <Select label="Experience" aria-label={`Student ${index + 1} experience`} value={student.preferences?.experience || ''} onChange={event => update(index, { preferences: { ...emptyStudentPreferences(), ...student.preferences, experience: event.target.value } })}>
             <option value="">Not provided</option>
             {student.preferences?.experience && !['Beginner', 'Intermediate', 'Advanced'].includes(student.preferences.experience) && <option value={student.preferences.experience}>{student.preferences.experience} (previously recorded)</option>}

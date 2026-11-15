@@ -5,7 +5,8 @@ import { familyActionConfirmation, useActionConfirmation } from './useActionConf
 import { ConfirmActionButton } from './ConfirmActionButton'
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Mail, MessageSquare, Phone, Pencil } from 'lucide-react'
+import { Mail, MessageSquare, Phone, Pencil, UserRound } from 'lucide-react'
+import { ControlButton } from '@/beta-source/components/ui/ControlButton'
 import { SlidePanelActionBar } from '@/beta-source/components/ui/SlidePanelActionBar'
 import { Button, DenseSectionPanel, DetailField, PageHeader, SlidePanel, SlidePanelHeader, Tabs } from '@/beta-source/components/ui'
 import { formatScheduleDate, shiftDate, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
@@ -41,7 +42,7 @@ import { expandPreviewCalendar, previewCalendarLessons, movePreviewLesson, resch
 
 export type WorkspaceContactsRenderer = (props: { data: ReturnType<typeof createFamilyPreview>; onOpen: (accountId: string, studentId?: string) => void }) => ReactNode
 
-export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts, initialData, initialMakeups, onDemoChange }: { inlineTasks?: boolean; renderContacts?: WorkspaceContactsRenderer; initialData?: FamilyPreviewData; initialMakeups?: MakeupPreviewState; onDemoChange?: (data: FamilyPreviewData, makeups: MakeupPreviewState) => void }) {
+export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts, initialData, initialMakeups, onDemoChange, initialLocation, onClose }: { inlineTasks?: boolean; renderContacts?: WorkspaceContactsRenderer; initialData?: FamilyPreviewData; initialMakeups?: MakeupPreviewState; onDemoChange?: (data: FamilyPreviewData, makeups: MakeupPreviewState) => void; initialLocation?: WorkspaceLocation; onClose?: () => void }) {
   const { confirm, confirmation } = useActionConfirmation()
   const [data, setData] = useState(() => expandPreviewCalendar(initialData || createFamilyPreview(), '2027-02-03'))
   const [makeups, setMakeups] = useState(initialMakeups || createScheduledMakeupPreview)
@@ -58,7 +59,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   const [bookedDate, setBookedDate] = useState<string | null>(null)
   const [makeupId, setMakeupId] = useState<string | null>(null)
   const makeupReturn = useRef<WorkspaceLocation | null>(null)
-  const [location, setLocation] = useState<WorkspaceLocation>(workspaceInitial)
+  const [location, setLocation] = useState<WorkspaceLocation>(initialLocation || workspaceInitial)
   const [ready, setReady] = useState(false)
   const [search, setSearch] = useState('')
   const [lessonId, setLessonId] = useState<string | null>(null)
@@ -85,13 +86,14 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   useEffect(() => { if (inlineTasks) sectionNavigation.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [inlineTasks, location.section])
   const panelReturn = useRef<WorkspaceLocation | null>(null)
   useEffect(() => {
+    if (initialLocation) { setReady(true); return }
     const restore = () => { setTogether([]); setFamilyCanvas(null); setLocation(workspaceLocationFromSearch(window.location.search)); setLessonId(null); setIntent(null); setMakeupId(null); setCalendarOpen(false); setMoveId(null); setReplacementCancelId(null) }
     restore(); setReady(true)
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
-  }, [])
+  }, [initialLocation])
   function navigate(next: WorkspaceLocation) {
-    window.history.pushState({ ...window.history.state }, '', `${window.location.pathname}${workspaceLocationSearch(next, window.location.search)}`)
+    if (!initialLocation) window.history.pushState({ ...window.history.state }, '', `${window.location.pathname}${workspaceLocationSearch(next, window.location.search)}`)
     setTogether([]); setFamilyCanvas(null); setLocation(next); setLessonId(null); setIntent(null); setCalendarOpen(false); setMoveId(null); setRecurringMove(false); setMakeupId(null); setReplacementCancelId(null); setBookedDate(null)
   }
   function update(patch: Partial<WorkspaceLocation>) {
@@ -100,7 +102,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
     if (location.view === 'quick' && view === 'staff') panelReturn.current = location
     navigate({ ...location, view, ...patch })
   }
-  function closeWorkspace() { setMakeupId(null); navigate({ ...workspaceInitial, view: 'contacts' }) }
+  function closeWorkspace() { if (onClose) { onClose(); return }; setMakeupId(null); navigate({ ...workspaceInitial, view: 'contacts' }) }
   function backToPanel() { const target = panelReturn.current; if (inlineTasks) panelReturn.current = null; setMakeupId(null); navigate(target || { ...location, view: 'quick', section: quick ? location.section : 'profile', enrollmentId: '' }) }
   function manage(next: ManagementIntent) {
     setRecurringMove(false)
@@ -221,7 +223,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
     params.delete('portal')
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}`)
     navigate({ ...workspaceInitial, view: 'contacts' })
-  }} />
+  }} embedded={Boolean(renderContacts)} />
   return <div className={styles.root} style={{ padding: renderContacts ? 0 : isMobile ? spacing.lg : spacing['3xl'], color: colors.text, fontFamily: typography.fontSans, background: colors.background, minHeight: '100dvh' }}>
     {confirmation}
     {renderContacts ? renderContacts({ data, onOpen: (accountId, studentId) => navigate({ ...workspaceInitial, accountId, studentId: studentId || '', view: 'quick', section: 'profile' }) }) : <ContactsTable data={data} search={search} onSearch={setSearch} onOpen={(accountId, studentId) => navigate({ ...workspaceInitial, accountId, studentId: studentId || '', view: 'quick', section: 'profile' })} />}
@@ -234,7 +236,13 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
           <Button aria-label="Send SMS" variant="secondary" disabled={inlineTasks && !activeContact?.phone?.trim()} onClick={() => openCommunication('sms')} title="Open SMS conversation preview"><MessageSquare size={16} aria-hidden="true" />Send SMS{inlineTasks && <span className={v3Styles.contactValue}>{activeContact?.phone || 'Not added'}</span>}</Button>
           <Button aria-label="Send email" variant="secondary" disabled={inlineTasks && !activeContact?.email?.trim()} onClick={() => openCommunication('email')} title="Open email conversation preview"><Mail size={16} aria-hidden="true" />Send email{inlineTasks && <span className={v3Styles.contactValue}>{activeContact?.email || 'Not added'}</span>}</Button>
         </div>
-        {inlineTasks && <Button variant="ghost" style={{ marginLeft: isMobile ? 0 : 'auto' }} onClick={() => { setIntent(null); setCalendarOpen(false); setMoveId(null); setLessonId(null); setMakeupId(null); setReplacementCancelId(null); setFamilyCanvas('edit') }}><Pencil size={14} aria-hidden="true" />Edit Contact</Button>}
+        {inlineTasks && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginLeft: isMobile ? 0 : 'auto' }}><Button variant="ghost" onClick={() => { setIntent(null); setCalendarOpen(false); setMoveId(null); setLessonId(null); setMakeupId(null); setReplacementCancelId(null); setFamilyCanvas('edit') }}><Pencil size={14} aria-hidden="true" />Edit Contact</Button>
+          {data.demoSchool && <ControlButton kind="icon" aria-label={`Impersonate ${account.holderName}`} title={`Impersonate ${account.holderName} · Parent portal`} onClick={() => {
+            const returnTo = `/odeon-demo${workspaceLocationSearch({ ...location, view: 'quick' }, '')}`
+            const params = new URLSearchParams({ view: 'parent', account: account.id, impersonateReturn: returnTo })
+            window.location.assign(`/odeon-demo?${params}`)
+          }}><UserRound size={16} aria-hidden="true" /></ControlButton>}
+        </div>}
       </SlidePanelActionBar>
       <div ref={sectionNavigation} className={styles.panelNavigation}>{inlineTasks ? sectionTabs : panelTabs}</div></>}
       <div ref={panelContent} data-workspace-content="" className={[styles.panelContent, inlineTasks ? v3Styles.content : '', communicationActive ? styles.communicationContent : ''].filter(Boolean).join(' ')} style={{ background: colors.surfaceMuted }}>

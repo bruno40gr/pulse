@@ -1,5 +1,19 @@
 # Table toolbars
 
+## Shared discovery composition
+
+- Contacts and Leads pass `search` and `filters` to `RichDataTable`, which owns
+  `TableDiscoveryToolbar`: search, Filters, student/family view and preferences
+  share one desktop row and wrap on mobile. Use `TableSearchControl` and
+  `TableFiltersButton`; pages own query/filter semantics, not control geometry.
+- Leads' Add lead action belongs beside its lifecycle tabs, not in discovery.
+  Status filtering belongs inside the Filters drawer, not a standalone dropdown.
+- `TableDisplayControls` defaults to **Table preferences**, with a leading table
+  icon. Supply optional `preferenceActions` through `RichDataTable` for actions
+  such as Leads' Export CSV; do not create a page-specific preferences menu.
+- Search presentation is shared, but capabilities must stay truthful: Contacts
+  retains its existing search backend; Leads currently searches loaded inquiries.
+
 ## Page header (zone 1)
 
 - The header carries the title and the primary page action, never the record count.
@@ -15,7 +29,7 @@
 
 ## Contextual selection mode
 
-- `RichDataTable.contextualToolbar` supplies the domain action bar. Contacts uses
+- `RichDataTable.contextualToolbar` supplies the domain action bar. Contacts and Leads use
   `contextualToolbarPlacement="below"`: discovery controls remain visible and usable,
   with `TableResultsSlot` below them: the count and blue bar share one grid cell,
   so selecting/clearing never inserts height or moves the table. Reserve 42px on
@@ -32,7 +46,7 @@
   pass the matching-result label to `TableContextActionBar.resultLabel`. Both
   states use the same base font size and medium weight. The hidden normal count
   is inert and aria-hidden. Do not render two announced counts at once.
-  Never show disabled messaging actions in discovery mode. Contacts uses the shared toolbar-sized segmented view control (View students / View families). Its AI search field grows to about 820px on desktop so
+  Never show disabled messaging actions in discovery mode. Contacts and Leads use the shared toolbar-sized segmented view control (View students or View account holders / View families). Keep the selected border fully inset with token-based padding, explicit border-box sizing and content-driven height. Both result counts use muted base-size, medium-weight text; omit counts beneath page titles and verbose “Viewing loaded” prefixes. Contacts' AI search field grows to about 820px on desktop so
   it remains the primary control, and Filters sits directly beside it.
 - Clear selection must not clear query, applied filters, sorting, view or table
   preferences. Contacts selections persist across pagination; select-all toggles

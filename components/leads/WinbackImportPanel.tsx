@@ -1,4 +1,5 @@
 'use client'
+import { useLeadWorkspaceRequest } from './LeadWorkspaceContext'
 
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
@@ -27,6 +28,7 @@ interface WinbackImportPanelProps {
 }
 
 export default function WinbackImportPanel({ onClose, onImported }: WinbackImportPanelProps) {
+  const request = useLeadWorkspaceRequest()
   const inputRef = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<SourceRow[]>([])
   const [fileName, setFileName] = useState('')
@@ -57,7 +59,7 @@ export default function WinbackImportPanel({ onClose, onImported }: WinbackImpor
     setImporting(true)
     setError('')
     try {
-      const response = await fetch('/api/leads/winback-import', {
+      const response = await request('/api/leads/winback-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows }),

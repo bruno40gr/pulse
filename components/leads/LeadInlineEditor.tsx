@@ -1,4 +1,5 @@
 'use client'
+import { useLeadWorkspaceRequest } from './LeadWorkspaceContext'
 
 import { useState, type ReactNode } from 'react'
 import { Button, DenseSectionPanel, Input, Modal, ModalBody, ModalFooter, ModalHeader, SectionTitle, Select, SlidePanelHeader } from '@/components/ui'
@@ -18,6 +19,7 @@ export function LeadInlineEditor({ lead, onClose, onSaved, renderHeader }: {
   onSaved: () => Promise<void>
   renderHeader?: (onRequestClose: () => void) => ReactNode
 }) {
+  const request = useLeadWorkspaceRequest()
   const [type, setType] = useState(lead.intake_type)
   const [contact, setContact] = useState({ name: lead.contact?.full_name || '', email: lead.contact?.email || '', phone: lead.contact?.phone || '' })
   const [students, setStudents] = useState(() => readLeadStudents(lead.payload, lead.program_label))
@@ -38,7 +40,7 @@ export function LeadInlineEditor({ lead, onClose, onSaved, renderHeader }: {
     setError('')
     try {
       const studentPatch = isLessonLead(type) ? leadStudentsPatch(students, lead.payload) : {}
-      const response = await fetch(`/api/leads/${lead.id}`, {
+      const response = await request(`/api/leads/${lead.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expected_updated_at: lead.updated_at, intake_type: type,
           full_name: contact.name.trim(), email: contact.email.trim(), phone: contact.phone.trim(), ...studentPatch }),

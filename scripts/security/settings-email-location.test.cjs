@@ -8,7 +8,6 @@ const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 
-const root = path.resolve(__dirname, '../..')
 const source = fs.readFileSync(path.join(__dirname, '../../app/dashboard/settings/SettingsClient.tsx'), 'utf8')
 const owner = { canManageRoles: true, canManageIntegrations: true, canManageBrand: true, canAccessDesignSystem: false, canUpdateCredentials: false, email: 'owner@example.com' }
 
@@ -27,12 +26,17 @@ function render(tab, context = owner, runtime = {}) {
     'react/jsx-runtime': require('react/jsx-runtime'),
     'next/link': { default: wrapper },
     '@/lib/tenant': { getActiveTenantId: () => 'synthetic-tenant', getTenantBrand: () => ({}) },
+    '@/lib/account-context-client': { loadAccountContext: async tenant => {
+      assert.equal(tenant, 'synthetic-tenant')
+      if (runtime.contextError) throw new Error('Account context unavailable')
+      return context
+    } },
     '@/components/ui': { Button: wrapper, PageContainer: wrapper, PageHeader: () => null },
     '@/components/ui/ControlButton': { ControlButton: ({ children }) => React.createElement('button', null, children) },
     '@/components/access/AccessManagementClient': { default: panel('access') },
     '@/lib/supabase/client': { createClient: () => { throw new Error('No auth calls expected') } },
     '@/lib/display-preferences': {},
-    '@/lib/tokens': { colors: {}, typography: { body: {}, h2: {}, helper: {} }, radius: {}, spacing: {} },
+    '@/lib/tokens': { interaction: {}, colors: {}, typography: { body: {}, h2: {}, helper: {} }, radius: {}, spacing: {} },
   }
   for (const name of ['GmailConnections', 'PersonalEmailSignoff', 'OrganisationEmailSettings', 'EmailSignatureSettings']) {
     dependencies[`@/components/settings/${name}`] = { default: panel(name) }
@@ -52,6 +56,23 @@ test('Account groups all email panels in their existing order; navigation lives 
   assert.deepEqual(panels, ['GmailConnections', 'EmailSignatureSettings', 'OrganisationEmailSettings'])
   assert.ok(!html.includes('data-panel="PersonalEmailSignoff"'))
   assert.ok(html.includes('Email &amp; password'))
+})
+
+test('Settings access fails closed when account context cannot load', async () => {
+  const effects = [], tabs = []
+  render('account', owner, { search: '?tab=roles', effects, contextError: true, onTab: tab => tabs.push(tab) })
+  effects[0]()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(tabs, [])
+})
+
+test('Settings ignores account context returned after unmount', async () => {
+  const effects = [], tabs = []
+  render('account', owner, { search: '?tab=roles', effects, onTab: tab => tabs.push(tab) })
+  const cleanup = effects[0]()
+  cleanup()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(tabs, [])
 })
 
 test('Integrations retains Twilio without any email panels', () => {

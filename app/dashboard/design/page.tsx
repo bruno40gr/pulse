@@ -11,6 +11,7 @@ import { Pill } from '@/components/ui/Pill'
 import { FieldRow } from '@/components/ui/FieldRow'
 import { ModalShowcase } from '@/components/design-system/ModalShowcase'
 import { LeadToolbarShowcase } from '@/components/design-system/LeadToolbarShowcase'
+import { InteractionShowcase } from '@/components/design-system/InteractionShowcase'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export default function DesignPage() {
@@ -20,6 +21,7 @@ export default function DesignPage() {
       <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '48px' }}>Component library — built on Headliner brand tokens.</p>
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/back-navigation" style={{ color: colors.link }}>Open Back navigation lab →</a></p>
 
+      <InteractionShowcase />
       <ModalShowcase />
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/contacts-table" style={{ color: colors.link }}>Open interactive Contacts table shell →</a></p>
       <LeadToolbarShowcase />

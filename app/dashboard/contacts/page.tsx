@@ -1,9 +1,11 @@
 'use client'
 
+import { PageContainer } from '@/components/ui/PageContainer'
+
 import { useContext } from 'react'
 import { ContactSampleContext, ContactPrototypeContext, ContactNameOpenContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
-import { TableContextActionBar, TableResultCount } from '@/components/ui/TableWorkspaceControls'
+import { TableContextActionBar, TableResultCount, TableSearchControl, TableFiltersButton } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { tableRowSelection, type SelectionModifiers } from '@/lib/table-row-selection'
 
@@ -13,7 +15,7 @@ import { PersonName } from '@/components/ui/PersonName'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { SlidersHorizontal, X, RefreshCw, Sparkles } from 'lucide-react'
+import { RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
@@ -29,7 +31,7 @@ import CSVImporter from '@/components/contacts/CSVImporter'
 import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
@@ -119,7 +121,7 @@ function formatFilterSummary(explanation: string, resultCount: number | null) {
 }
 
 export default function ContactsPage() {
-  const { contacts: sampleContacts, onOpen: onOpenSample } = useContext(ContactSampleContext)
+  const { contacts: sampleContacts, onOpen: onOpenSample, onEnroll, onCreateOpportunity, onCreateBand } = useContext(ContactSampleContext)
   const contextOpenContact = useContext(ContactNameOpenContext)
   const onOpenContact = onOpenSample || contextOpenContact
   const prototype = useContext(ContactPrototypeContext)
@@ -506,7 +508,7 @@ export default function ContactsPage() {
   ]
 
   return (
-    <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+    <PageContainer>
       {/* Header */}
       <PageHeader title="Contacts" singleLine={!isMobile} right={<div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             {!loading && (
@@ -529,7 +531,7 @@ export default function ContactsPage() {
             )}
             <Button variant="secondary" size="toolbar" disabled={Boolean(sampleContacts)} onClick={() => setIsImporterOpen(true)}>Import Contacts</Button>
             {/* Navigation, not an action: the anchor keeps middle-click and open-in-new-tab working. */}
-            <Link aria-disabled={Boolean(sampleContacts)} onClick={event => { if (sampleContacts) event.preventDefault() }} href={sampleContacts ? "#" : ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
+            <Link aria-disabled={Boolean(sampleContacts) && !onEnroll} onClick={event => { if (sampleContacts) { event.preventDefault(); onEnroll?.([]) } }} href={sampleContacts ? "#" : ENROLLMENT_PATH} style={{ ...buttonVariantStyles.primary, ...buttonSizeStyles.toolbar, borderRadius: radius.sm, fontFamily: typography.fontSans, fontWeight: typography.weightMedium, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>Enroll new student</Link>
           </div>} />
 
       {/* Stale data banner */}
@@ -632,9 +634,13 @@ export default function ContactsPage() {
         <FamilyListTable
           key={contactView}
           renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
-          preferencesLabel="Table Preferences"
+          preferencesLabel="Table preferences"
           contextualToolbarPlacement="below"
-          contextualToolbar={!sampleContacts && selectedIds.size > 0 ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={[
+          contextualToolbar={selectedIds.size > 0 && (!sampleContacts || onEnroll || onCreateOpportunity || onCreateBand) ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={sampleContacts ? [
+            ...(onEnroll ? [{ id: 'enroll', label: 'Enroll', onClick: () => onEnroll([...selectedIds]) }] : []),
+            ...(onCreateOpportunity ? [{ id: 'opportunity', label: 'Create opportunity', onClick: () => onCreateOpportunity([...selectedIds]) }] : []),
+            ...(onCreateBand ? [{ id: 'band', label: 'Create band', onClick: () => onCreateBand([...selectedIds]) }] : []),
+          ] : [
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}
@@ -647,44 +653,8 @@ export default function ContactsPage() {
           setContactView(view)
           setLastSelectedIndex(-1)
         }} />}
-          toolbar={<>
-        <div style={{ flex: '1 1 640px', maxWidth: 820, minWidth: 0, display: 'flex', alignItems: 'center', background: colors.surface, border: `1px solid ${colors.textSecondary}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, gap: spacing.sm }}>
-          <span style={{ fontSize: typography.sizeLg }}>✦</span>
-          <input
-            type="text"
-            aria-label="Search contacts"
-            value={query}
-            onChange={e => {
-              setQuery(e.target.value)
-            }}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]}
-            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: typography.sizeMd, fontFamily: typography.fontSans, background: 'transparent', transition: 'opacity 0.4s ease-in-out' }}
-            onFocus={e => { e.target.style.opacity = '1' }}
-            onBlur={e => { e.target.style.opacity = '1' }}
-          />
-          {query && (
-            <ControlButton kind="icon" aria-label="Clear search" onClick={clearSearch} >
-              <X size={15} />
-            </ControlButton>
-          )}
-          <Button variant="primary" size="sm"
-            onClick={handleSearch}
-            disabled={aiLoading || !query.trim()}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {aiLoading ? 'Searching...' : 'Search'}
-          </Button>
-        </div>
-        <Button variant="secondary" size="toolbar" aria-label="Filters"
-          onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }}
-
-        >
-          <span style={{ position: 'relative', display: 'inline-flex' }}><SlidersHorizontal size={14} />
-            {appliedFilterCount > 0 && <span aria-label={`${appliedFilterCount} filters applied`} style={{ position: 'absolute', top: -10, right: -10, minWidth: 16, height: 16, padding: '0 3px', boxSizing: 'border-box', borderRadius: radius.full, background: colors.link, color: colors.surface, fontSize: 10, lineHeight: '16px', textAlign: 'center', fontWeight: typography.weightSemibold }}>{appliedFilterCount}</span>}
-          </span> Filters
-        </Button>
-          </>}
+          search={<TableSearchControl label="Search contacts" placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]} value={query} onChange={setQuery} onSearch={handleSearch} onClear={clearSearch} busy={aiLoading} />}
+          filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} />}
           groups={visibleFamilies.map(group => {
             const holderPerson = group.parent
             return {
@@ -844,7 +814,7 @@ export default function ContactsPage() {
               <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
                 <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>
                 {CONTACT_CLIENT_TYPES.map(type => <label key={type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 32, ...typography.bodySmall }}>
-                  <input type="checkbox" style={{ accentColor: colors.link }}
+                  <input type="checkbox" style={{ accentColor: interaction.selected }}
                     checked={(filterDraft.client_types || '').split('|').includes(type)}
                     onChange={event => {
                       const selected = (filterDraft.client_types || '').split('|').filter(Boolean)
@@ -879,6 +849,6 @@ export default function ContactsPage() {
           fetch(`/api/contacts?tenant=${tenantId}`).then(r => r.json()).then(data => setContacts(data))
         }}
       />
-    </div>
+    </PageContainer>
   )
 }

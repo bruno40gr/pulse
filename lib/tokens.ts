@@ -6,6 +6,9 @@ export const colors = {
   cream: '#FAF6F0',
   teal: '#00A8C8',
   tealDark: '#0090AA',
+  tealElectric: '#00BEDF',
+  tealLight: '#E6F9FC',
+  tealInk: '#00677A',
   yellow: '#F5A623',
   green: '#3D8B5F',
   greenDark: '#1F5C3A',
@@ -19,8 +22,8 @@ export const colors = {
   borderLight: '#F3F4F6',
   surface: '#FFFFFF',
   surfaceMuted: '#f6f8f8',
-  surfaceSelected: '#F5F8FF',
-  tableRowHover: 'rgba(37, 99, 235, 0.08)',
+  surfaceSelected: '#E6F9FC',
+  tableRowHover: 'rgba(0, 190, 223, 0.08)',
   background: '#fbfdfc',
   backgroundSecondary: '#F3F4F6',
 
@@ -28,7 +31,7 @@ export const colors = {
   action: '#1A130F',
   link: '#2563EB',
 
-  // Info blue shared by status badges, notices and the table selection bar.
+  // Semantic info blue for status badges/notices; selection uses interaction roles.
   info: '#1D4ED8',
   infoSurface: '#EFF6FF',
 
@@ -37,6 +40,40 @@ export const colors = {
   success: '#16A34A',
   warning: '#92400E',
 }
+
+/** Electric teal interactions; deeper teal keeps text and focus legible on white. */
+export const interaction = {
+  selected: colors.tealElectric,
+  selectedSurface: colors.tealLight,
+  selectedText: colors.tealInk,
+  onSelected: colors.espresso,
+  focus: colors.tealInk,
+  off: colors.textMuted,
+  primary: colors.action,
+} as const
+
+/** Student identity, never availability, status or interaction state. */
+export const calendarStudentPalette = [
+  { surface: '#F3E8FF', border: '#8B5AB5', text: '#542777' },
+  { surface: '#EDEBFF', border: '#6860AE', text: '#38316B' },
+  { surface: '#F3EAF3', border: '#91688E', text: '#634460' },
+  { surface: '#E9EDF3', border: '#718096', text: '#38465A' },
+  { surface: '#E7F0FF', border: '#507CB8', text: '#274C7C' },
+  { surface: '#F7E9F9', border: '#A462AC', text: '#683570' },
+  { surface: '#EBEFFF', border: '#6378B8', text: '#354777' },
+  { surface: '#F0E9FF', border: '#9170C4', text: '#5D4088' },
+] as const
+
+/** Academy calendar service categories; unrelated to selection and attendance status. */
+export const calendarServicePalette = {
+  frontDesk: { surface: '#CDE8DC', border: '#38745B', text: '#214D3B' },
+  admin: { surface: '#E2DED2', border: '#807454', text: '#504832' },
+  group: { surface: '#D5EBF8', border: '#28759D', text: '#174863' },
+  band: { surface: '#F9DFB8', border: '#A36A20', text: '#67400D' },
+  recording: { surface: '#DBD1F2', border: '#7251A0', text: '#49306C' },
+  rehearsal: { surface: '#EEDCCB', border: '#92623E', text: '#603F25' },
+  event: { surface: '#DBE4EA', border: '#586F80', text: '#334957' },
+} as const
 
 export const semanticColors = {
   accent: { background: colors.teal, text: colors.surface, border: colors.teal },

@@ -10,5 +10,7 @@ test('optional AI highlights cannot block contact profile or notes', () => {
   const loading = source.indexOf('{insightsLoading ? (')
   assert.ok(loading > source.indexOf('AI highlights</SectionTitle>'))
   assert.ok(source.includes('Loading AI highlights…'))
-  assert.equal((source.match(/fetch\('\/api\/contact-insights'/g) || []).length, 1)
+  assert.match(source, /const request = useLeadWorkspaceRequest\(\)/)
+  assert.equal((source.match(/request\('\/api\/contact-insights'/g) || []).length, 1)
+  assert.doesNotMatch(source, /fetch\('\/api\/contact-insights'/)
 })

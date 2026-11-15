@@ -3,7 +3,7 @@
 import type { ComponentPropsWithRef, CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { ButtonBase } from './ButtonBase'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
 import styles from './ControlButton.module.css'
 
 export type ControlKind = 'close' | 'icon' | 'link' | 'name' | 'row' | 'tab' | 'navigation' | 'toggle' | 'swatch'
@@ -27,7 +27,7 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
       style={{
         '--control-active-background': inverse ? 'rgba(255,255,255,0.08)' : colors.surfaceMuted,
         '--control-active-color': inverse ? colors.surface : colors.text,
-        '--control-focus-color': colors.tealDark,
+        '--control-focus-color': interaction.focus,
         fontFamily: typography.fontSans,
         fontSize: typography.sizeBase,
         fontWeight: typography.weightMedium,
@@ -49,13 +49,13 @@ export function ControlButton({ kind, selected = false, inverse = false, swatchC
         ...(kind === 'tab' ? { padding: `${spacing.sm} ${spacing.md}`, border: `1px solid ${colors.border}` } : {}),
         ...(kind === 'toggle' ? { padding: `${spacing.xs} ${spacing.sm}` } : {}),
         ...(selected && kind !== 'swatch' ? {
-          background: inverse ? 'rgba(255,255,255,0.08)' : colors.surfaceMuted,
-          color: inverse ? colors.surface : colors.text,
+          background: inverse ? 'rgba(255,255,255,0.08)' : interaction.selectedSurface,
+          color: inverse ? colors.surface : interaction.selectedText,
           fontWeight: typography.weightSemibold,
         } : {}),
         ...(kind === 'swatch' ? {
           width: 20, height: 20, padding: 0, borderRadius: '50%', background: swatchColor,
-          border: `2px solid ${selected ? colors.espresso : colors.border}`,
+          border: `2px solid ${selected ? interaction.selected : colors.border}`,
         } : {}),
         ...style,
         ...(kind === 'link' ? { color: colors.link, textDecoration: 'none' } : {}),

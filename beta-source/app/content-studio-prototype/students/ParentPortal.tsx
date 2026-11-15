@@ -1,5 +1,7 @@
 'use client'
 
+import { ParentEnrollmentQueue } from './ParentEnrollmentQueue'
+
 import { familyActionConfirmation, useActionConfirmation } from './useActionConfirmation'
 
 import { ConfirmActionButton } from './ConfirmActionButton'
@@ -37,7 +39,7 @@ type Section = 'home' | 'lessons' | 'billing' | 'payment-methods' | 'account' | 
 type Props = { notes: Record<string, PreviewNote[]>; onSaveNote: (studentId: string, text: string, id?: string, links?: NoteAttachment[]) => boolean; data: FamilyPreviewData; account: PreviewAccount; makeups: MakeupPreviewState; onData: (data: FamilyPreviewData) => void; onMakeups: (state: MakeupPreviewState) => void; onExit: () => void }
 
 /** Fictional self-service surface. Receives no access to live payment or identity APIs. */
-export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData, onMakeups, onExit }: Props) {
+export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData, onMakeups, onExit, embedded = false }: Props & { embedded?: boolean }) {
   const [section, setSection] = useState<Section>(() => {
     const value = new URLSearchParams(window.location.search).get('portal')
     return value === 'makeups' || value === 'notes' || value === 'account' || value === 'lessons' || value === 'billing' || value === 'payment-methods' ? value : 'home'
@@ -78,7 +80,8 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
 
   useEffect(() => {
     const hidden: { element: HTMLElement; inert: boolean }[] = []
-    let branch: HTMLElement | null = document.querySelector('[data-parent-portal]')
+    // Standalone preview isolates its background; embedded Beta keeps its shell usable.
+    let branch: HTMLElement | null = embedded ? null : document.querySelector('[data-parent-portal]')
     while (branch?.parentElement && branch.parentElement !== document.body) {
       for (const sibling of Array.from(branch.parentElement.children)) {
         if (sibling !== branch && sibling instanceof HTMLElement && !['SCRIPT', 'STYLE', 'LINK'].includes(sibling.tagName)) {
@@ -88,7 +91,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
       branch = branch.parentElement
     }
     const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (!embedded) document.body.style.overflow = 'hidden'
     const restore = () => {
       const value = new URLSearchParams(window.location.search).get('portal')
       setSection(value === 'makeups' || value === 'notes' || value === 'account' || value === 'lessons' || value === 'billing' || value === 'payment-methods' ? value : 'home')
@@ -96,7 +99,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
     }
     window.addEventListener('popstate', restore)
     return () => { document.body.style.overflow = previous; hidden.forEach(({ element, inert }) => { element.inert = inert }); window.removeEventListener('popstate', restore) }
-  }, [])
+  }, [embedded])
 
   useEffect(() => {
     const heading = contentRef.current?.querySelector<HTMLElement>('h1, h2')
@@ -147,7 +150,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
   const billingActions = <Button variant="secondary" onClick={() => navigate('payment-methods')}>Payment methods</Button>
   const paymentModal = <Modal isOpen={Boolean(payment)} onClose={() => setPayment(null)} ariaLabel="Pay"><ModalHeader title="Pay" onClose={() => setPayment(null)} /><ModalBody>{payment && <PayInvoiceForm key={`${payment.kind}:${payment.invoiceId || ''}`} data={visible} account={account} intent={payment} payerOptions={payers} onApply={apply} onClose={() => setPayment(null)} onOpenBillingAccount={() => navigate('payment-methods')} />}</ModalBody></Modal>
 
-  return <InlineWorkspaceContext.Provider value={true}><div className={styles.portal} data-parent-portal="" style={{ fontFamily: typography.fontSans }}>
+  return <InlineWorkspaceContext.Provider value={true}><div className={styles.portal} data-parent-portal="" style={{ fontFamily: typography.fontSans, ...(embedded ? { position: 'relative', inset: 'auto', zIndex: 'auto', minHeight: '100dvh' } : {}) }}>
     <header className={styles.topbar}><div className={styles.topbarInner}>
       <div className={styles.brand}><HeadlinerLogo height={28} /><div className={styles.identity}>Parent portal · {account.holderName}</div></div>
       <nav className={styles.nav} aria-label="Parent portal navigation">{([{ key: 'home', label: 'Home' }, { key: 'lessons', label: 'Lessons' }, { key: 'notes', label: 'Notes' }, { key: 'billing', label: 'Billing' }, { key: 'account', label: 'Account' }] as const).map(item => <Button key={item.key} variant={(section === 'payment-methods' ? 'billing' : section === 'makeups' ? 'lessons' : section) === item.key ? 'primary' : 'ghost'} aria-current={(section === 'payment-methods' ? 'billing' : section === 'makeups' ? 'lessons' : section) === item.key ? 'page' : undefined} onClick={() => navigate(item.key)}>{item.label}</Button>)}</nav>
@@ -162,6 +165,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
       }} /> : section === 'makeups' && !selectedLesson ? <><BackControl label="Back to lessons" showLabel onClick={() => navigate('lessons')} /><div className={styles.intro}><h1>Schedule a makeup</h1></div><div className={styles.makeupLayout}>{makeupBlocks}<WeeklySchedule data={visible} makeups={credits} location={{ ...location, studentId }} taskLayout week={week} onWeek={setWeek} onEnsure={through => onData(expandPreviewCalendar(data, through))} onLesson={openLesson} onMove={startMove} compact /></div></> : selectedLesson ? <LessonPreview key={selectedLesson.id} lesson={selectedLesson} parent absence={makeups.absences.find(item => item.lessonId === selectedLesson.id)} onBack={() => setLessonId(null)} onSchedule={id => { setLessonId(null); setMakeupId(id) }} onCancel={() => {
         try { const next = recordPreviewAbsence(data, makeups, account.id, selectedLesson.id, false, true); onData(next.data); onMakeups(next.state); confirm('I’ve cancelled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
       }} /> : selectedInvoice ? <InvoicePreview invoice={selectedInvoice} onBack={() => setInvoiceId(null)} onPay={selectedInvoice.status === 'Open' ? () => setPayment({ kind: 'pay', invoiceId: selectedInvoice.id }) : undefined} /> : section === 'home' ? <>
+        <ParentEnrollmentQueue accountId={account.id} />
         <div className={styles.intro}><div><h1>Hi, {account.holderName.split(' ')[0]}.</h1><p>Your children’s lessons and your account, in one place.</p></div></div>
         <div className={styles.grid}><DenseSectionPanel title="Upcoming lessons" headingLevel="h2" actions={<Button variant="secondary" size="sm" onClick={() => navigate('lessons')}>View all lessons</Button>}>{renderLessons(4)}</DenseSectionPanel><div className={styles.stack}>
           <DenseSectionPanel title="Your balance" headingLevel="h2" actions={<Button variant={hasOverdueInvoices ? 'destructive' : 'secondary'} size="sm" onClick={() => navigate('billing')}>View billing</Button>}><p className={styles.amount}>{previewMoney(balance, 'USD')}</p>{nextPayment && <p className={styles.muted}>Next payment · {formatScheduleDate(nextPayment)}</p>}<span className={styles.muted}>{open.length ? `${open.length} unpaid invoice${open.length === 1 ? '' : 's'} billed to you` : 'You’re all paid up.'}</span></DenseSectionPanel>

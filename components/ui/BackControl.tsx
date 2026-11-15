@@ -23,6 +23,6 @@ export function BackControl({ label, onClick, href }: BackControlProps) {
   return <span className="pulse-back-wrap" style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
     {href !== undefined ? <a {...props} href={href}>{icon}</a> : <ControlButton {...props} kind="icon" type="button" onClick={onClick}>{icon}</ControlButton>}
     <span id={tooltipId} role="tooltip" className="pulse-back-tooltip" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: colors.espresso, color: colors.surface, borderRadius: radius.sm, padding: '6px 10px', fontSize: typography.sizeSm, fontFamily: typography.fontSans, maxWidth: 'min(260px, 70vw)', width: 'max-content', pointerEvents: 'none' }}>{accessibleLabel}</span>
-    <style>{`.pulse-back-tooltip{visibility:hidden;opacity:0}.pulse-back-wrap:hover>.pulse-back-tooltip,.pulse-back-wrap:focus-within>.pulse-back-tooltip{visibility:visible;opacity:1}.pulse-back-control:focus-visible{outline:2px solid #0090AA;outline-offset:2px}`}</style>
+    <style>{`.pulse-back-tooltip{visibility:hidden;opacity:0}.pulse-back-wrap:hover>.pulse-back-tooltip,.pulse-back-wrap:focus-within>.pulse-back-tooltip{visibility:visible;opacity:1}.pulse-back-control:focus-visible{outline:2px solid var(--interaction-focus);outline-offset:2px}`}</style>
   </span>
 }

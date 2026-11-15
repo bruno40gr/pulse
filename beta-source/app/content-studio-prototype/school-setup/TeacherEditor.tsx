@@ -12,12 +12,14 @@ import styles from './teacher-editor.module.css'
 
 import TeacherSchedule from './TeacherSchedule'
 import TeacherPhoto from './TeacherPhoto'
+import SchedulingRules from './SchedulingRules'
 type Assignment = { serviceId: string; maxLevel: number }
 function parse<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T } catch { return fallback } }
 
-export default function TeacherEditor({ values, services, locations, levels, onChange }: {
+export default function TeacherEditor({ values, services, locations, levels, onChange, bookingDefaults }: {
   values: Record<string, string>; services: SetupRecord[]; locations: SetupRecord[]; levels: Record<string, string>
   onChange: (values: Record<string, string>) => void
+  bookingDefaults?: Record<string, string>
 }) {
   const assignments = parse<Assignment[]>(values.assignments, [{ serviceId: values.service, maxLevel: Math.max(1, selection(values.levelIds).length) }])
   const setAssignments = (next: Assignment[]) => onChange({ ...values, assignments: JSON.stringify(next), service: next[0]?.serviceId || '', levelIds: JSON.stringify(Object.keys(levels).slice(0, Math.max(0, ...next.map(item => item.maxLevel)))) })
@@ -27,6 +29,7 @@ export default function TeacherEditor({ values, services, locations, levels, onC
     <TeacherPhoto value={values.photo || ''} onChange={photo => onChange({ ...values, photo })} />
     <FieldGrid>
       <Input label="Teacher name" required value={values.name} onChange={event => onChange({ ...values, name: event.target.value })} />
+      <Input label="Pronouns" value={values.pronouns || ''} onChange={event => onChange({ ...values, pronouns: event.target.value })} />
     </FieldGrid>
     <FieldGrid>
       <Input label="Teacher email" type="email" required value={values.email || ''} onChange={event => onChange({ ...values, email: event.target.value })} />
@@ -44,6 +47,11 @@ export default function TeacherEditor({ values, services, locations, levels, onC
       </div>
     })}
     </DenseSectionPanel>
+    <DenseSectionPanel title="Additional duties" headingLevel="h2">
+      <Checkbox label="Can cover front desk" checked={values.canCoverFrontDesk === 'yes'} onChange={event => onChange({ ...values, canCoverFrontDesk: event.target.checked ? 'yes' : 'no' })} />
+      <Checkbox label="Can perform admin duties" description="Scheduled office work only. This does not grant application permissions." checked={values.canPerformAdmin === 'yes'} onChange={event => onChange({ ...values, canPerformAdmin: event.target.checked ? 'yes' : 'no' })} />
+    </DenseSectionPanel>
     <TeacherSchedule values={values} onChange={onChange} />
+    <SchedulingRules teacher values={values} defaults={bookingDefaults} onChange={onChange} />
   </div>
 }

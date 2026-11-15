@@ -1,10 +1,19 @@
 import type { NoteAttachment } from './note-links'
+import type { SubscriptionRevision } from './academy-subscription-history'
 
 /** Fictional product-design fixtures, never canonical people or live enrollments. */
 export type PreviewFamilyMember = { id: string; name: string; relationship: string; email?: string; phone?: string; studentId?: string }
 export type PreviewEnrollment = {
   level: 1 | 2 | 3
+  serviceId?: string
+  payerDetails?: { name: string; email: string; phone: string }
+  seriesId?: string
+  end?: string
+  autopay?: boolean
+  initialPaymentStatus?: 'paid' | 'unpaid'
+  history?: SubscriptionRevision[]
   id: string; studentId: string; program: string; service: string; teacher: string
+  teacherId?: string
   day: string; time: string; duration: number; start: string; frequency: 'Weekly' | 'One-off'
   amountMinor: number; currency: string; priceUnit: string; collection: string
   payerId: string; paymentMethod: string; status: 'active' | 'pending'
@@ -12,7 +21,8 @@ export type PreviewEnrollment = {
   monthlyQuantity?: number
   recurringSchedule?: { start: string; time: string; teacher: string; changes: { from: string; date: string; time: string; teacher: string }[] }
 }
-export type PreviewLesson = { id: string; enrollmentId: string; date: string; time: string; room: string; status: string; teacher?: string; originalDate?: string }
+export type AttendanceOutcome = 'Present' | 'No-show' | 'Excused absence'
+export type PreviewLesson = { id: string; enrollmentId: string; occurrenceId?: string; attendance?: AttendanceOutcome; date: string; time: string; room: string; status: string; teacher?: string; originalDate?: string }
 export type PreviewNote = { id: string; text: string; timestamp: string; actor_name: string; actor_id?: string; audience?: 'family' | 'internal'; edited_at?: string; links?: NoteAttachment[]; completed_at?: string | null; mentions?: string[] }
 export type PreviewMessage = { id: string; channel: 'email' | 'sms'; direction: 'inbound' | 'outbound'; timestamp: string; subject?: string; text: string }
 export type PreviewStudent = {

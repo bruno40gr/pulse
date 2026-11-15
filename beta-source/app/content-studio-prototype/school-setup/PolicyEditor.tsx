@@ -7,6 +7,7 @@ import { Select } from '@/beta-source/components/ui/Select'
 import { Switch } from '@/beta-source/components/ui/Switch'
 import { spacing } from '@/beta-source/lib/tokens'
 import styles from './school-setup.module.css'
+import SchedulingRules from './SchedulingRules'
 
 const selfServiceChoices = [['familyCancel', 'Cancel lessons'], ['familyReschedule', 'Reschedule lessons'], ['familyMakeup', 'Book makeups']] as const
 
@@ -34,6 +35,7 @@ export default function PolicyEditor({ values, onChange }: { values: Record<stri
   const toggle = (key: string, label: string, enabled: string, disabled: string) => <div className={styles.settingSwitch}><Switch label={label} description={!values[key] ? 'Not configured yet' : undefined} checked={values[key] === enabled} onChange={event => set(key, event.target.checked ? enabled : disabled)} /></div>
   const layout = { display: 'grid', gap: spacing.lg }
   return <div style={layout}>
+    <SchedulingRules values={values} onChange={onChange} />
     <DenseSectionPanel title="Family self-service" headingLevel="h2" contentStyle={{ minWidth: 0 }}>
       <p className={styles.sectionDescription}>Choose which actions families can manage. Staff handle actions that are turned off.</p>
       <div className={styles.settingRows}>{selfServiceChoices.map(([key, label]) => <div key={key} className={styles.settingSwitch}><Switch label={label} checked={values[key] !== 'off'} onChange={event => set(key, event.target.checked ? 'on' : 'off')} /></div>)}</div>

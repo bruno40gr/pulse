@@ -2,7 +2,7 @@
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
 import { ComponentPropsWithRef, CSSProperties } from 'react'
-import { colors, typography, radius, spacing } from '@/lib/tokens'
+import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'teal'
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'toolbar'
@@ -13,7 +13,7 @@ export interface ButtonProps extends ComponentPropsWithRef<'button'> {
 }
 
 export const buttonVariantStyles: Record<ButtonVariant, CSSProperties> = {
-  primary: { background: colors.espresso, color: 'white', border: 'none' },
+  primary: { background: interaction.primary, color: 'white', border: 'none' },
   secondary: { background: 'transparent', color: colors.text, border: `1px solid ${colors.border}` },
   ghost: { background: 'transparent', color: colors.textSecondary, border: 'none' },
   destructive: { background: colors.error, color: 'white', border: 'none' },

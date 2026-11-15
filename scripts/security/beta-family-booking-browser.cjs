@@ -43,7 +43,7 @@ async function hold(page, button) {
       await hold(page, panel.getByRole('button', { name: 'Reschedule lesson', exact: true }))
       await panel.getByRole('button', { name: 'Calendar', exact: true }).waitFor()
       assert.match(await panel.innerText(), /Nov 9–Nov 14/)
-      const savedMove = await page.evaluate(() => JSON.parse(sessionStorage.getItem('odeon:app-sample:v2')))
+      const savedMove = await page.evaluate(() => JSON.parse(localStorage.getItem('odeon:app-sample:v2')))
       const moved = savedMove.snapshot.data.lessons.find(item => item.id === 'demo:enrollment-11:calendar:2026-11-04')
       assert.notEqual(moved.date, '2026-11-04')
 
@@ -58,7 +58,7 @@ async function hold(page, button) {
       await page.screenshot({ path: `/tmp/beta-family-makeup-${width}.png` })
       await hold(page, panel.getByRole('button', { name: 'Book makeup', exact: true }))
       await panel.getByRole('button', { name: 'Calendar', exact: true }).waitFor()
-      const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('odeon:app-sample:v2')))
+      const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('odeon:app-sample:v2')))
       assert.ok(saved.snapshot.makeups.items.find(item => item.id === 'demo:makeup-3').booking)
       assert.deepEqual(errors, [])
       assert.deepEqual(writes, [])

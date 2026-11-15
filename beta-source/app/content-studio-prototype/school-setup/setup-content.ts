@@ -1,4 +1,5 @@
 /** Fictional records, not live configuration. */
+import { validateSchedulingPolicy } from '@/beta-source/lib/academy-scheduling-policy'
 export type TeacherAvailability = { id: string; day: number; from: number; to: number }
 export type TeacherDateOverride = { date: string; blocks: TeacherAvailability[] }
 export type TeacherWeekSchedule = { week: string; blocks: TeacherAvailability[] }
@@ -19,6 +20,8 @@ export function teacherAvailabilityForDate(base: TeacherAvailability[], override
   return blocks
 }
 export function validateTeacherExceptions(values: Record<string, string>): string | null {
+  const schedulingError = validateSchedulingPolicy(values)
+  if (schedulingError) return schedulingError
   const validDate = (value: string) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
   const validTimes = (block: TeacherAvailability) => block && Number.isInteger(block.from) && Number.isInteger(block.to) && block.from >= 360 && block.to <= 1320 && block.from < block.to
   try {
@@ -29,7 +32,6 @@ export function validateTeacherExceptions(values: Record<string, string>): strin
     const timeOff: TeacherTimeOff[] = JSON.parse(values.timeOff || '[]')
     if (!Array.isArray(timeOff) || timeOff.some(item => !item || !item.id || (item.sickLeave !== undefined && typeof item.sickLeave !== 'boolean') || !validDate(item.start) || !validDate(item.end) || item.end < item.start || typeof item.allDay !== 'boolean' || (!item.allDay && !validTimes(item as unknown as TeacherAvailability)))) return 'Check time-off dates, hours and sick-leave selection.'
   } catch { return 'Check date-specific availability and time off.' }
-  if (values.restBreakMinutes && !['10', '30'].includes(values.restBreakMinutes)) return 'Choose a 10- or 30-minute rest break.'
   if (values.mealBreakMinutes && !['30', '45', '60'].includes(values.mealBreakMinutes)) return 'Choose a meal break of at least 30 minutes.'
   return null
 }

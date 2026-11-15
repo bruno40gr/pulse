@@ -1,5 +1,7 @@
 # Shared UI layout rules
 
+Control selection/focus colors and primitive ownership follow `docs/ui-interaction-colors.md`.
+
 ## Flat surfaces
 
 - Use `spacing.lg` for peer-card gutters in the lead detail surface: summary cards, vertical card stacks, column separation and the content inset below the toolbar. Align Notes and summary-card top edges; do not add a Notes-only inset or extra column-side padding. Internal field spacing is independent of card gutters.
@@ -51,3 +53,11 @@ Do not replace the Students section with a family-count stepper or a single gene
 Component/style migrations must preserve conditional visibility, default state, draft retention and submitted values. Record those behaviors in regression tests before replacing form structure. A rendering test alone is not evidence of behavioral parity. Do not invent missing historical conditions when they cannot be recovered; identify that gap explicitly.
 
 Student details are saved as inquiry payload (`student_requests`), not canonical identities or enrollment. First-student summary fields and existing family/sibling projections remain populated for current lead readers. The current legacy edit/detail forms do not yet provide a complete per-student birthday/service editor; do not claim that migration is complete.
+## Page and enrollment layout ownership
+
+- Use the shared `PageContainer` and `PageHeader` for dashboard page geometry; do not reproduce their inset or heading spacing in individual pages. A nested `PageContainer` inherits its parent's inset (it does not add padding). The Beta export delegates to the same component.
+- Use `EnrollmentLayout` for lesson/trial, band enrollment and workflow editors. It owns a horizontally centered, top-aligned task column inside the existing page inset: 800px focused by default, 1100px expanded for scheduling. Editors select the width mode, not local max-widths or extra page padding. Dashboard workspaces remain full-width and left-aligned.
+- Wizard headers use shared `PageHeader` compact density; title/actions, stepper and content share the task column. Preserve normal field/button sizing while reducing framing and whitespace. On mobile, show the compact step summary, progress bar and accessible numbered navigation instead of squeezing desktop labels. Workflow summaries stack below the form instead of consuming a sidebar in the focused column.
+- Step transitions retain heading focus and existing validation/draft behavior. Scheduling may expand the column; do not animate or vertically center the task. Repeated wide/narrow workflows should use a stable expanded frame rather than repeated resizing.
+- Enrollment titles have no back chevron. Keep explicit Close / Save & close and step-level Back / Continue controls. Calendar stays inside `DashboardShell`, rather than using a viewport-fixed root.
+- Main enrollment contact selection uses the shared vertical radio group: Existing contact (default, collapsed search dropdown below) / New contact (detail fields below). Student cards do not repeat the radio group; they use detail fields with an optional Find existing student action. Search results open only on click, typing or arrow keys, and close on Escape, the close button, outside click or selection. Preserve entered values between modes. The contact step starts with Add a contact, followed by the vertical choices without a visible group legend. Separate search/details with spacing tokens; use the shared label role for Search for a contact and subordinate heading role for Contact details. Classes are for this person uses the shared inline Switch beside its text, only after an existing contact is selected or manual name/contact details are valid; student cards and Add another student appear only when off. Existing family/account selections retain their inferred students. Toggling back to separate students restores their draft details. Do not apply generic field-label layout rules to checkbox/radio/switch labels.

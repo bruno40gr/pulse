@@ -1,9 +1,11 @@
 'use client'
+
+import { CheckboxInput } from './Checkbox'
 import { ButtonBase } from '@/components/ui/ButtonBase'
 
 
 import { useEffect, useRef, type CSSProperties, type ChangeEvent, type MouseEvent, type ReactNode } from 'react'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import styles from './DataGridTable.module.css'
 
@@ -92,7 +94,7 @@ function IndeterminateCheckbox({
     if (ref.current) ref.current.indeterminate = indeterminate
   }, [indeterminate])
 
-  return <input ref={ref} type="checkbox" {...props} />
+  return <CheckboxInput ref={ref} {...props} />
 }
 
 function isInteractiveTarget(target: EventTarget | null, container: EventTarget | null) {
@@ -290,8 +292,7 @@ export function ResponsiveDataTable<Row, SortKey extends string>({
                     style={desktopSelectionCellStyle}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {(selection.showCheckbox?.(row) ?? true) && <input
-                      type="checkbox"
+                    {(selection.showCheckbox?.(row) ?? true) && <CheckboxInput
                       checked={selected}
                       disabled={!selectable}
                       onChange={(event) => selection.onToggle(row, index, event)}
@@ -376,6 +377,6 @@ const sortableHeaderStyle: CSSProperties = { display: 'inline-flex', alignItems:
 const mobileTableScrollerStyle: CSSProperties = { touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }
 const stickyHeaderViewportStyle: CSSProperties = { position: 'sticky', zIndex: 3, overflow: 'hidden', borderRadius: `${radius.xl} ${radius.xl} 0 0`, background: colors.surfaceMuted, boxShadow: `0 1px 0 ${colors.border}` }
 const tableBodyScrollerStyle: CSSProperties = { overflowX: 'auto', borderRadius: `0 0 ${radius.xl} ${radius.xl}` }
-const checkboxStyle: CSSProperties = { width: 18, height: 18, margin: 0, cursor: 'pointer' }
+const checkboxStyle: CSSProperties = { accentColor: interaction.selected, width: 18, height: 18, margin: 0, cursor: 'pointer' }
 const emptyStyle: CSSProperties = { padding: '48px 24px', textAlign: 'center', color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeBase }
 const skeletonBlockStyle: CSSProperties = { height: 14, borderRadius: radius.sm, background: colors.borderLight, animation: 'skeletonPulse 1.4s ease-in-out infinite' }

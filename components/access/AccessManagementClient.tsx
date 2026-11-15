@@ -8,7 +8,7 @@ import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, LockKeyhole, Plus, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { Avatar, Badge, Button, Input, PageContainer, PageHeader, Select, SlidePanel, SlidePanelHeader, SurfacePanel } from '@/components/ui'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
 
@@ -731,7 +731,7 @@ function RolesPanel({
                             checked={checked}
                             disabled={isOwnerRole}
                             onChange={() => onTogglePermission(permission.id)}
-                            style={{ width: 18, height: 18, marginTop: 2, accentColor: colors.teal }}
+                            style={{ width: 18, height: 18, marginTop: 2, accentColor: interaction.selected }}
                           />
                           <span>
                             <span style={{ display: 'block', color: colors.text, fontWeight: typography.weightMedium }}>{permission.key.split('.').slice(1).join(' ')}</span>

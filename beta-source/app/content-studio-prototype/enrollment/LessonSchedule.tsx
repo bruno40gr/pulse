@@ -1,30 +1,33 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
+import { CalendarBookingBlock } from './CalendarBookingBlock'
 import { CalendarTimeGrid } from './CalendarTimeGrid'
 import { CalendarWeekToolbar } from './CalendarWeekToolbar'
 import type { EnrollmentPerson, LessonChoice } from '@/beta-source/lib/academy-staff-enrollment'
 import {
   availableScheduleTeachers, familyAppointments, formatScheduleDate, formatScheduleTime,
-  lessonOccursOn, overlap, sampleWeek, scheduleTimes, selectScheduleSlot, shiftDate, weekDates, weekStart,
+  lessonOccursOn, overlap, sampleWeek, selectScheduleSlot, shiftDate, weekDates, weekStart,
 } from '@/beta-source/lib/academy-enrollment-schedule'
 import { placeCalendarBlocks as placeBlocks } from '@/beta-source/lib/academy-calendar-layout'
 import styles from './enrollment.module.css'
+import { calendarStudentStyle } from '@/lib/calendar-appearance'
 
 type CalendarBlock = {
   id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean
-  teachers?: readonly { name: string }[]
+  teachers?: readonly { name: string }[]; studentId?: string
 }
 
-export default function LessonSchedule({ lesson, lessons, student, students = [], manager, onChange, onSelectLesson, availability, initialDate, compactCopy = false, teacherPreference = '', referenceLessons = [], replacementMode = false, onWeek, toolbarActions, detailedReplacementSlots = false, chooseTeacherOnClick = false }: {
+export default function LessonSchedule({ lesson, lessons, student, students = [], calendarStudentIds, manager, onChange, onSelectLesson, availability, initialDate, compactCopy = false, teacherPreference = '', referenceLessons = [], replacementMode = false, onWeek, toolbarActions, detailedReplacementSlots = false, chooseTeacherOnClick = false }: {
   lesson: LessonChoice; lessons: readonly LessonChoice[]; student: EnrollmentPerson | null
   students?: readonly EnrollmentPerson[]; manager: EnrollmentPerson | null; onChange: (value: Partial<LessonChoice>) => void
+  calendarStudentIds?: readonly string[]
   onSelectLesson?: (id: string) => void
-  availability?: (date: string, time: string) => readonly { name: string }[]
+  availability?: (date: string, time: string, lesson: LessonChoice) => readonly { name: string }[]
   initialDate?: string
   teacherPreference?: string
   compactCopy?: boolean
-  referenceLessons?: readonly { id: string; date: string; time: string; duration: number; label: string; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean }[]
+  referenceLessons?: readonly { id: string; studentId?: string; date: string; time: string; duration: number; label: string; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean }[]
   replacementMode?: boolean
   chooseTeacherOnClick?: boolean
   detailedReplacementSlots?: boolean
@@ -50,38 +53,47 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   const family = replacementMode ? [] : [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
 
   const name = (id?: string) => { const person = students.find(item => item.id === id) || (student?.id === id ? student : null); return person ? `${person.firstName} ${person.lastName}` : 'Student' }
-  const availableTeachers = (date: string, time: string) => availability ? availability(date, time) : availableScheduleTeachers(lesson, date, time, student, lessons)
+  const colorIds = calendarStudentIds || [student?.id || '', ...students.map(person => person.id), ...referenceLessons.map(item => item.studentId || ''), ...lessons.map(item => item.studentId || '')]
+  const availableTeachers = (date: string, time: string) => availability ? availability(date, time, lesson) : availableScheduleTeachers(lesson, date, time, student, lessons)
   const matchesPreference = (teacher: { name: string }) => !teacherPreference || teacher.name === teacherPreference
   const choices = choice ? availableTeachers(choice.date, choice.time).filter(teacher => choice.editing || matchesPreference(teacher)) : []
+  // A calendar proposal can start before the legacy 2pm sample grid.
+  const firstMinute = Math.min(14 * 60, ...lessons.filter(item => item.time).map(item => Number(item.time.slice(0, 2)) * 60 + Number(item.time.slice(3))))
+  const lastMinute = Math.max(19 * 60, ...lessons.filter(item => item.time).map(item => Number(item.time.slice(0, 2)) * 60 + Number(item.time.slice(3)) + Number(item.duration)))
+  const gridTimes = Array.from({ length: (lastMinute - firstMinute) / 15 }, (_, index) => {
+    const minute = firstMinute + index * 15
+    return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
+  })
 
-  return <div className={`${styles.schedule} ${replacementMode ? styles.replacementCalendar : ''}`} data-replacement-calendar={replacementMode ? '' : undefined}>
+  return <div className={`${styles.schedule} ${replacementMode ? styles.replacementCalendar : ''}`} style={calendarStudentStyle(lesson.studentId || student?.id || '', colorIds)} data-replacement-calendar={replacementMode ? '' : undefined}>
     <div className={styles.calendarColumn}><CalendarWeekToolbar week={week} lastDate={dates[dates.length - 1]} onWeek={date => { setWeek(date); onWeek?.(date); setChoice(null) }}>{toolbarActions}</CalendarWeekToolbar>
     {!compactCopy && lesson.service !== 'Private' && <p className={styles.teacherNote}>{lesson.service === 'Group' ? 'Fictional scheduled group sessions only. Places and capacity are not managed in this demo.' : 'Fictional semi-private times. Partner matching and shared enrollment are not managed in this demo.'}</p>}
-    <CalendarTimeGrid dates={dates} times={scheduleTimes} label="Available lesson times" renderDay={date => {
+    <CalendarTimeGrid dates={dates} times={gridTimes} label="Available lesson times" renderDay={date => {
           const planned = lessons.filter(item => lessonOccursOn(item, date))
           const existing = family.filter(event => event.date === date)
           const booked: CalendarBlock[] = [
             ...referenceLessons.filter(item => item.date === date).map(item => ({ ...item, booked: true })),
-            ...planned.map(item => ({ id: item.id, time: item.time, duration: Number(item.duration), label: item.id === lesson.id ? name(item.studentId || student?.id) : `${name(item.studentId || student?.id)}, ${item.instrument} with ${item.teacher.split(' ')[0]}`, booked: true, active: item.id === lesson.id })),
-            ...existing.map(event => ({ id: event.id, time: event.time, duration: event.duration, label: `${event.studentName}, ${event.instrument} with ${event.teacher.split(' ')[0]}`, booked: true })),
+            ...planned.map(item => ({ id: item.id, time: item.time, duration: Number(item.duration), label: item.id === lesson.id ? name(item.studentId || student?.id) : `${name(item.studentId || student?.id)}, ${item.instrument} with ${item.teacher.split(' ')[0]}`, lines: [item.instrument, name(item.studentId || student?.id), `${item.time} · ${item.teacher}`], booked: true, active: item.id === lesson.id })),
+            ...existing.map(event => ({ id: event.id, studentId: event.studentId, time: event.time, duration: event.duration, label: `${event.studentName}, ${event.instrument} with ${event.teacher.split(' ')[0]}`, booked: true })),
           ]
           const open: CalendarBlock[] = []
-          for (const time of scheduleTimes) {
+          for (const time of gridTimes) {
             if ([...booked, ...open].some(item => item.blocksAvailability !== false && overlap(time, Number(lesson.duration), item.time, item.duration))) continue
             const available = availableTeachers(date, time).filter(matchesPreference)
             if (available.length) open.push({ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available })
           }
-          const layout = placeBlocks([...booked, ...open])
-          return <div className={styles.daySlots} style={{ gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
+          const layout = placeBlocks([...booked, ...open], firstMinute)
+          return <div className={styles.daySlots} style={{ gridTemplateRows: `repeat(${gridTimes.length}, var(--calendar-slot-height))`, gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
             {layout.blocks.map(block => {
-              const position = { gridRow: `${block.row + 1} / span ${block.duration / 15}`, gridColumn: block.lane + 1 }
+              const personId = block.studentId || lessons.find(item => item.id === block.id)?.studentId || student?.id || ''
+              const position = { gridRow: `${block.row + 1} / span ${block.duration / 15}`, gridColumn: block.lane + 1, ...calendarStudentStyle(personId, colorIds) }
               const label = `${block.label}, ${formatScheduleDate(date)}, ${formatScheduleTime(block.time)}–${formatScheduleTime(endTime(block.time, String(block.duration)))}`
               if (block.booked) {
                 const interactive = (!replacementMode && block.active) || (onSelectLesson && planned.some(item => item.id === block.id))
                 const editing = block.active && choice?.editing && choice.date === date
                 const booking = interactive
-                  ? <button type="button" className={`${styles.bookedSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
-                  : <div className={`${styles.bookedSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? replacementMode ? styles.replacementSlot : styles.activeBookedSlot : replacementMode ? block.proposed ? styles.replacementSlot : styles.familyReferenceSlot : ''}`} style={position} aria-label={label} title={label} data-calendar-time={block.time} data-calendar-date={date} data-family-reference={block.lines ? '' : undefined} data-proposed-reference={block.proposed ? '' : undefined} data-selected-replacement={replacementMode && block.active ? '' : undefined}>{replacementMode && block.active ? detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{lesson.teacher}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : `${formatScheduleTime(block.time)} · ${lesson.teacher}` : detailedReplacementSlots && block.lines ? block.lines.map((line, index) => <span key={index}>{line}</span>) : block.label}</div>
+                  ? <CalendarBookingBlock interactive className={`${styles.bookedSlot} ${block.lines ? styles.scheduleDetails : ''} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} title={block.lines?.join(' · ') || label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.lines ? block.lines.map((line, index) => <span key={index}>{line}</span>) : block.label}</CalendarBookingBlock>
+                  : <CalendarBookingBlock className={`${styles.bookedSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''} ${block.active ? replacementMode ? styles.replacementSlot : styles.activeBookedSlot : replacementMode ? block.proposed ? styles.replacementSlot : styles.familyReferenceSlot : ''}`} style={position} aria-label={label} title={label} data-calendar-time={block.time} data-calendar-date={date} data-family-reference={block.lines ? '' : undefined} data-proposed-reference={block.proposed ? '' : undefined} data-selected-replacement={replacementMode && block.active ? '' : undefined}>{replacementMode && block.active ? detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{lesson.teacher}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : `${formatScheduleTime(block.time)} · ${lesson.teacher}` : detailedReplacementSlots && block.lines ? block.lines.map((line, index) => <span key={index}>{line}</span>) : block.label}</CalendarBookingBlock>
                 return <div key={block.id} className={styles.bookedCell} style={position} data-booking-menu={editing ? '' : undefined}>{booking}{editing && <div className={styles.bookingPopover} role="group" aria-label="Change teacher">
                   <strong>Change teacher</strong>
                   {choices.map(teacher => <button key={teacher.name} type="button" aria-pressed={teacher.name === lesson.teacher} onClick={() => { onChange({ teacher: teacher.name }); setChoice(null) }}>{teacher.name}</button>)}

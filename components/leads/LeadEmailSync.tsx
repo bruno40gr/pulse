@@ -1,4 +1,5 @@
 'use client'
+import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 
 import { useEffect, useRef, useState } from 'react'
 import { SyncButton } from '@/components/ui/SyncButton'
@@ -7,6 +8,7 @@ import { colors, spacing, typography } from '@/lib/tokens'
 type SyncResult = { recorded: number; review: number; busy: number; failed: number; more: boolean; error?: string }
 
 export function LeadEmailSync({ onSynced }: { onSynced: () => Promise<void> }) {
+  const request = useLeadWorkspaceRequest()
   const [available, setAvailable] = useState(false)
   const [connected, setConnected] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -16,14 +18,14 @@ export function LeadEmailSync({ onSynced }: { onSynced: () => Promise<void> }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/leads/sync', { signal: controller.signal, cache: 'no-store' })
+    request('/api/leads/sync', { signal: controller.signal, cache: 'no-store' })
       .then(async response => {
         if (!response.ok) return
         const data = await response.json()
         if (!controller.signal.aborted) { setAvailable(true); setConnected(Boolean(data.connected)) }
       }).catch(() => {})
     return () => controller.abort()
-  }, [])
+  }, [request])
 
   async function sync() {
     if (running.current) return
@@ -32,7 +34,7 @@ export function LeadEmailSync({ onSynced }: { onSynced: () => Promise<void> }) {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 180000)
     try {
-      const response = await fetch('/api/leads/sync', { method: 'POST', signal: controller.signal })
+      const response = await request('/api/leads/sync', { method: 'POST', signal: controller.signal })
       const data: SyncResult = await response.json()
       if (!response.ok) throw new Error(data.error || 'Email sync failed. Please retry or check Gmail in Settings → Integrations.')
       setFailed(data.failed > 0)

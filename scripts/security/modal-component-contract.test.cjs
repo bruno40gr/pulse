@@ -74,7 +74,7 @@ test('Contacts shares a reserved results slot and contextual actions', () => {
   const modes = source('components/ui/TableWorkspaceControls.tsx')
   assert.match(modes, /inert=\{active\}/)
   assert.match(modes, /aria-label="Clear selection"/)
-  assert.match(modes, /background: colors.link/)
+  assert.match(modes, /background: interaction.selected/)
   const statusBadge = source('components/ui/StatusBadge.tsx')
   assert.match(statusBadge, /background: colors.infoSurface/)
   assert.match(statusBadge, /color: colors.info/)
@@ -84,7 +84,8 @@ test('Contacts shares a reserved results slot and contextual actions', () => {
   assert.match(modes, /variant="ghost"/)
   assert.match(source('components/ui/Button.tsx'), /ghost: \{ background: 'transparent'[^}]*border: 'none'/)
   assert.match(contacts, /<SlidePanel isOpen=\{showFilters\}/)
-  assert.match(contacts, /Submit search/)
+  assert.match(contacts, /search=\{<TableSearchControl label="Search contacts"/)
+  assert.match(modes, /<Button type="submit"/)
 })
 
 test('fullscreen modal owns viewport sizing without drawer geometry', () => {

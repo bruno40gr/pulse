@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { loadAccountContext } from '@/lib/account-context-client'
 import Link from 'next/link'
 import { SyncButton } from '@/components/ui/SyncButton'
 import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl } from '@/lib/tenant'
@@ -218,10 +219,11 @@ export default function DashboardPage() {
   useEffect(() => {
     setGreeting(getGreetingForTime())
     const tenantId = getActiveTenantId()
-    fetch(`/api/account/me?tenant=${tenantId}`)
-      .then(response => response.ok ? response.json() : null)
-      .then(data => setCanManageHighlights(Boolean(data?.canManageBrand)))
+    let cancelled = false
+    void loadAccountContext(tenantId)
+      .then(data => { if (!cancelled && getActiveTenantId() === tenantId) setCanManageHighlights(Boolean(data.canManageBrand)) })
       .catch(() => setCanManageHighlights(false))
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

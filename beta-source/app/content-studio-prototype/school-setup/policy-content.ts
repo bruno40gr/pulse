@@ -1,5 +1,8 @@
 /** In-memory editor validation; does not enforce booking or billing outcomes. */
+import { validateSchedulingPolicy } from '@/beta-source/lib/academy-scheduling-policy'
 export function validatePolicyDraft(values: Record<string, string>): string | null {
+  const schedulingError = validateSchedulingPolicy(values)
+  if (schedulingError) return schedulingError
   const positive = (key: string) => /^\d+$/.test(values[key] || '') && Number(values[key]) > 0
   if (values.notice && (!/^\d+$/.test(values.notice) || Number(values.notice) < 0)) return 'Enter a whole number of cancellation notice hours.'
   if (values.makeupExpiry === 'After a number of days' && !positive('makeupExpiryDays')) return 'Enter a positive makeup expiry in days.'

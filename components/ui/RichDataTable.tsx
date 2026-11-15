@@ -1,9 +1,9 @@
 'use client'
 
-import { TableResultsSlot, TableToolbarMode } from './TableWorkspaceControls'
+import { TableDiscoveryToolbar, TableResultsSlot, TableToolbarMode } from './TableWorkspaceControls'
 import type { ReactNode } from 'react'
 import { ResponsiveDataTable, type ResponsiveDataTableProps } from './DataGridTable'
-import { TableDisplayControls, useTablePreferences } from './TableDisplayControls'
+import { TableDisplayControls, useTablePreferences, type TablePreferenceAction } from './TableDisplayControls'
 import type { TablePreferenceSchema } from '@/lib/table-preferences'
 import { spacing } from '@/lib/tokens'
 
@@ -15,6 +15,9 @@ export type RichDataTableProps<Row, SortKey extends string> = Omit<ResponsiveDat
   contextualToolbar?: ReactNode
   contextualToolbarPlacement?: 'replace' | 'below'
   preferencesLabel?: string
+  preferenceActions?: TablePreferenceAction[]
+  search?: ReactNode
+  filters?: ReactNode
   toolbar?: ReactNode
   displayToolbar?: ReactNode
   beforeTable?: ReactNode
@@ -33,18 +36,18 @@ function UncontrolledRichDataTable<Row, SortKey extends string>(props: RichDataT
   return <RichDataTableSurface {...props} preferenceState={preferenceState} />
 }
 
-function RichDataTableSurface<Row, SortKey extends string>({ preferenceSchema, preferenceState, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, contextualToolbarPlacement, preferencesLabel, ...table }: RichDataTableProps<Row, SortKey> & { preferenceState: ReturnType<typeof useTablePreferences> }) {
+function RichDataTableSurface<Row, SortKey extends string>({ preferenceSchema, preferenceState, toolbar, displayToolbar, beforeTable, columnLabels, columns, getDetailRows, contextualToolbar, contextualToolbarPlacement, preferencesLabel, preferenceActions, search, filters, ...table }: RichDataTableProps<Row, SortKey> & { preferenceState: ReturnType<typeof useTablePreferences> }) {
   const { preferences, updatePreferences } = preferenceState
   const visibleColumns = columns.filter(column => preferences.columns.includes(column.id))
   const visibleIndexes = visibleColumns.map(column => columns.indexOf(column))
   const minWidth = (table.selection ? 48 : 0) + 32 + visibleColumns.reduce((width, column) => width + Number(column.width.match(/\d+/)?.[0] || 100) + 16, 0)
+  const preferencesControl = <TableDisplayControls columns={columns.map(column => ({ id: column.id, label: columnLabels?.[column.id] || String(column.header) }))} label={preferencesLabel} actions={preferenceActions} schema={preferenceSchema} preferences={preferences} onChange={updatePreferences} />
   return <>
-    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbarPlacement === 'below' ? undefined : contextualToolbar} discovery={<div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.sm }}>
+    <TableToolbarMode placement={contextualToolbarPlacement} contextual={contextualToolbarPlacement === 'below' ? undefined : contextualToolbar} discovery={search ? <TableDiscoveryToolbar search={search} filters={filters} view={displayToolbar} preferences={preferencesControl} /> : <div data-table-toolbar style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', minHeight: 58, marginBottom: spacing.sm }}>
       {toolbar}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
         {displayToolbar}
-        <TableDisplayControls columns={columns.map(column => ({ id: column.id, label: columnLabels?.[column.id] || String(column.header) }))}
-          label={preferencesLabel} schema={preferenceSchema} preferences={preferences} onChange={updatePreferences} />
+        {preferencesControl}
       </div>
     </div>} />
     {contextualToolbarPlacement === 'below' ? <TableResultsSlot result={beforeTable} contextual={contextualToolbar} /> : beforeTable}

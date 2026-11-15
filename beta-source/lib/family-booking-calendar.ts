@@ -12,7 +12,7 @@ export function familyBookingReferences(data: FamilyPreviewData, state: MakeupPr
   return previewCalendarLessons({ ...data, students }, state.items.filter(item => studentIds.has(item.studentId)), { ...workspaceInitial, accountId: account.id })
     .filter(item => item.status === 'Scheduled')
     .map(item => ({
-      id: `family:${item.id}`, date: item.date, time: item.time, duration: item.duration,
+      id: `family:${item.id}`, studentId: item.student.id, date: item.date, time: item.time, duration: item.duration,
       lines: [item.student.firstName, item.program, formatScheduleTime(item.time)],
       proposed: false,
       label: `${previewStudentName(item.student)} · ${item.program} · ${item.teacher}${item.makeup ? ' · Makeup' : ''}${item.id === movingId ? ' · Original lesson' : ''}`,

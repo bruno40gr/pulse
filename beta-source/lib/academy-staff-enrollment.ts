@@ -1,16 +1,25 @@
 /** Local enrollment design data. No identity verification, scheduling or billing. */
-import { validBirthday } from './lead-birthday'
-export const enrollmentSteps = ['Family', 'Lessons', 'Times', 'Pricing & payment'] as const
+import { validBirthday } from '@/lib/lead-birthday'
+export const enrollmentSteps = ['Student', 'Lessons', 'Times', 'Pricing & payment'] as const
 // Retained separately for a future self-enrollment surface; staff never records acceptance.
 export const selfEnrollmentSteps = ['Family', 'Lessons', 'Times', 'Terms & communication', 'Pricing & payment'] as const
 export type EnrollmentPerson = {
+  accountId?: string; accountHolder?: boolean
   id: string; firstName: string; lastName: string; email: string; phone: string; birthday?: string; activeTeacher: boolean
 }
 export const enrollmentServices = ['Private', 'Semi-private', 'Group'] as const
 export const enrollmentInstruments = ['Piano', 'Voice', 'Guitar', 'Violin', 'Drums', 'Ukulele', 'Bass', 'Cello', 'Saxophone', 'Flute', 'Clarinet', 'Trumpet'] as const
 export const enrollmentGroupPrograms = ['Tiny Keys', 'Little Rockers', 'Band Program'] as const
+export function validLessonDuration(instrument: string, duration: number) {
+  return ['Band', 'Band Program', 'Band rehearsal'].includes(instrument)
+    ? Number.isInteger(duration) && duration >= 30 && duration <= 720 && duration % 30 === 0
+    : [30, 45, 60].includes(duration)
+}
 export type LessonChoice = {
+  roomId?: string
+  serviceId?: string
   service: typeof enrollmentServices[number]
+  trialDiscount?: number
   addedLesson?: boolean
   studentId?: string
   id: string; instrument: string; teacher: string; day: string; time: string
@@ -38,10 +47,10 @@ export const enrollmentTeachers = ['Jordan Vale', 'Robin Ellis', 'Maya Chen', 'L
 export function newLesson(id: string): LessonChoice {
   return { id, service: 'Private', instrument: 'Piano', teacher: '', day: 'Tuesday', time: '', start: '', duration: '30', frequency: 'Monthly subscription' }
 }
-export function ensureStudentLessons(draft: StaffEnrollment): LessonChoice[] {
-  const lessons = draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId ?? draft.student?.id }))
+export function ensureStudentLessons(draft: StaffEnrollment, entryLesson: Partial<LessonChoice> = {}): LessonChoice[] {
+  const lessons = draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId || draft.student?.id }))
   for (const person of enrollmentStudents(draft)) {
-    if (!lessons.some(lesson => lesson.studentId === person.id)) lessons.push({ ...newLesson(`lesson-${person.id}`), studentId: person.id })
+    if (!lessons.some(lesson => lesson.studentId === person.id)) lessons.push({ ...newLesson(`lesson-${person.id}`), ...entryLesson, studentId: person.id })
   }
   return lessons
 }
@@ -55,6 +64,20 @@ export function enrollmentStudents(draft: StaffEnrollment): EnrollmentPerson[] {
 export function lessonStudent(draft: StaffEnrollment, lesson: LessonChoice) {
   return enrollmentStudents(draft).find(person => person.id === (lesson.studentId ?? draft.student?.id)) || null
 }
+/** Resolve only explicit account membership; shared names/email never establish identity. */
+export function selectEnrollmentContact(draft: StaffEnrollment, contact: EnrollmentPerson | null, people: readonly EnrollmentPerson[]): StaffEnrollment {
+  if (!contact) return { ...draft, contact: null, student: null, manager: null, contactIsStudent: true, additionalStudents: [], lessons: [], studentRelationships: {} }
+  const account = contact.accountId
+  const holder = contact.accountHolder ? contact : account ? people.find(person => person.accountHolder && person.accountId === account) : undefined
+  const children = contact.accountHolder && account ? people.filter(person => person.accountId === account && !person.accountHolder) : []
+  const students = contact.accountHolder ? children : [contact]
+  const ids = new Set(students.map(person => person.id))
+  return { ...draft, contact: holder || contact, contactIsStudent: !holder, manager: holder || null, student: students[0] || null,
+    additionalStudents: students.slice(1), payer: holder ? 'manager' : 'student',
+    studentRelationships: Object.fromEntries(students.map(person => [person.id, holder ? 'Child' : 'Self'])),
+    lessons: draft.lessons.filter(lesson => !lesson.studentId || ids.has(lesson.studentId)).map(lesson => ({ ...lesson, studentId: lesson.studentId || students[0]?.id, teacher: '', start: '', time: '' })) }
+}
+
 export function searchEnrollmentPeople(query: string, people: readonly EnrollmentPerson[] = enrollmentPeople) {
   const text = query.trim().toLowerCase()
   if (!text) return []
@@ -62,8 +85,23 @@ export function searchEnrollmentPeople(query: string, people: readonly Enrollmen
 }
 export function lessonPrice(lesson: LessonChoice, person: EnrollmentPerson | null) {
   const base = Number(lesson.duration) === 60 ? 10000 : 5000
-  return { base, discount: person?.activeTeacher ? base / 2 : 0, total: person?.activeTeacher ? base / 2 : base }
+  const percent = lesson.trialDiscount ?? (person?.activeTeacher ? 50 : 0)
+  const discount = Math.round(base * percent / 100)
+  return { base, discount, total: base - discount }
 }
+/** Field feedback shares the same requirements as the enrollment step guard. */
+export function personFieldErrors(person: EnrollmentPerson | null, requireContact = false) {
+  return {
+    firstName: !person?.firstName.trim() ? 'Enter a first name.' : undefined,
+    lastName: !person?.lastName.trim() ? 'Enter a last name.' : undefined,
+    email: person?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim())
+      ? 'Enter a valid email address.'
+      : requireContact && !person?.email.trim() && !person?.phone.trim() ? 'Enter an email or phone number.' : undefined,
+    phone: requireContact && !person?.email.trim() && !person?.phone.trim() ? 'Enter an email or phone number.' : undefined,
+    birthday: person?.birthday && !validBirthday(person.birthday) ? 'Enter a valid birthday, not a future date.' : undefined,
+  }
+}
+
 export function personDetailsError(person: EnrollmentPerson | null): string | null {
   if (!person?.firstName.trim() || !person.lastName.trim()) return 'Enter a first and last name.'
   if (person.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim())) return 'Enter a valid email address.'
@@ -83,14 +121,16 @@ export function enrollmentStepError(draft: StaffEnrollment, step: number): strin
     if (draft.manager && personDetailsError(draft.manager)) return personDetailsError(draft.manager)
     if ([draft.student, ...draft.additionalStudents].some(person => person && person.id === draft.manager?.id)) return 'Choose another person as the contact, or select classes for this person.'
   }
+  if (step > 0 && draft.lessons.some(lesson => lesson.trialDiscount !== undefined && (!Number.isFinite(lesson.trialDiscount) || lesson.trialDiscount < 0 || lesson.trialDiscount > 100 || lesson.frequency !== 'À-la-carte'))) return 'Trial discounts apply to one-session bookings and must be between 0 and 100%.'
   if (step === 1 || step === 2) {
     if (!draft.lessons.length) return 'Add a lesson.'
     if (draft.lessons.some(lesson => !lessonStudent(draft, lesson))) return 'Choose a student for each lesson.'
     if (enrollmentStudents(draft).some(person => !draft.lessons.some(lesson => lessonStudent(draft, lesson)?.id === person.id))) return 'Add a lesson for each student.'
-    if (draft.lessons.some(lesson => !lesson.instrument.trim() || !['30', '45', '60'].includes(lesson.duration) || !['Monthly subscription', 'À-la-carte'].includes(lesson.frequency))) return 'Choose an instrument, cadence and length for each lesson.'
+    if (draft.lessons.some(lesson => !lesson.instrument.trim() || !validLessonDuration(lesson.instrument, Number(lesson.duration)) || !['Monthly subscription', 'À-la-carte'].includes(lesson.frequency))) return 'Choose an instrument, cadence and length for each lesson.'
     if (draft.lessons.some(lesson => lesson.service === 'Group' && ['Tiny Keys', 'Little Rockers'].includes(lesson.instrument) && lesson.duration !== '45')) return 'Tiny Keys and Little Rockers last 45 minutes.'
     if (draft.lessons.some(lesson => !enrollmentServices.includes(lesson.service) || !(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).some(program => program === lesson.instrument))) return 'Choose a service and program for each lesson.'
-    if (step === 2 && draft.lessons.some(lesson => !enrollmentTeachers.some(teacher => teacher === lesson.teacher) || !lesson.time || !lesson.start)) return 'Choose a teacher, start date and time for each lesson.'
+    // Connected academies supply their own teachers; availability is checked by the caller.
+    if (step === 2 && draft.lessons.some(lesson => !lesson.teacher.trim() || !lesson.time || !lesson.start)) return 'Choose a teacher, start date and time for each lesson.'
   }
   if (step === 3 && draft.payer === 'manager' && !draft.manager) return 'Choose a parent or guardian to pay.'
   if (step === 3 && draft.payer === 'other') {
@@ -100,6 +140,7 @@ export function enrollmentStepError(draft: StaffEnrollment, step: number): strin
   return null
 }
 export function saveLocalEnrollment(draft: StaffEnrollment): StaffEnrollment {
+  if (draft.lessons.some(lesson => lesson.trialDiscount !== undefined && (!Number.isFinite(lesson.trialDiscount) || lesson.trialDiscount < 0 || lesson.trialDiscount > 100 || lesson.frequency !== 'À-la-carte'))) throw new Error('Trial discounts apply to one-session bookings and must be between 0 and 100%.')
   for (const step of [0, 1, 2, 3]) {
     const error = enrollmentStepError(draft, step)
     if (error) throw new Error(error)

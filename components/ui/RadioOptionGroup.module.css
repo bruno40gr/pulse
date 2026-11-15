@@ -1,0 +1,2 @@
+/* The native radio uses the shared focus ring; do not add a second row ring. */
+.radio { flex-shrink: 0; }

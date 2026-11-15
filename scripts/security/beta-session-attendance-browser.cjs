@@ -1,0 +1,50 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Local fictional workflow regression. */
+const assert = require('node:assert/strict')
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const base = process.env.BASE_URL || 'http://127.0.0.1:3231'
+assert.match(base, /^http:\/\/127\.0\.0\.1:/)
+
+;(async () => {
+  const browser = await chromium.launch({ channel: 'chrome' })
+  try {
+    for (const width of [1440, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 1100 } })
+      page.setDefaultTimeout(30000)
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.goto(`${base}/odeon-demo?screen=calendar`)
+      console.log(`CHECK ${width}: calendar loaded`)
+      await page.getByRole('group', { name: 'View by', exact: true }).waitFor()
+      await page.getByRole('button', { name: 'Week', exact: true }).click()
+      await page.getByRole('group', { name: 'View by', exact: true }).getByRole('button', { name: 'Service', exact: true }).click()
+      await page.getByLabel('Week service', { exact: true }).selectOption({ label: 'Tiny Keys' })
+      console.log(`CHECK ${width}: Tiny Keys week selected`)
+      const blocks = page.locator('[data-booking-id]')
+      await blocks.first().waitFor()
+      assert.equal(await blocks.count(), 1, 'One class, not one block per participant')
+      await blocks.first().click()
+      const inspector = page.getByRole('dialog', { name: 'Booking details', exact: true })
+      const attendance = inspector.getByRole('group', { name: /^Attendance ·/ })
+      assert.ok(await attendance.count() > 1, 'Full class roster')
+      await attendance.first().getByRole('button', { name: 'Present', exact: true }).click()
+      assert.equal(await attendance.nth(1).getByRole('button', { name: 'Present', exact: true }).getAttribute('aria-pressed'), 'false')
+      assert.equal(await attendance.first().getByRole('button', { name: 'Present', exact: true }).getAttribute('aria-pressed'), 'true')
+      assert.equal(await inspector.getByRole('button', { name: 'Reschedule whole session', exact: true }).count(), 1)
+      await page.reload()
+      await page.getByRole('group', { name: 'View by', exact: true }).waitFor()
+      await page.getByRole('button', { name: 'Week', exact: true }).click()
+      await page.getByRole('group', { name: 'View by', exact: true }).getByRole('button', { name: 'Service', exact: true }).click()
+      await page.getByLabel('Week service', { exact: true }).selectOption({ label: 'Tiny Keys' })
+      await page.locator('[data-booking-id]').first().click()
+      assert.equal(await page.getByRole('group', { name: /^Attendance ·/ }).first().getByRole('button', { name: 'Present', exact: true }).getAttribute('aria-pressed'), 'true', 'Attendance survives reload')
+      await page.getByRole('button', { name: 'Cancel whole session', exact: true }).click()
+      assert.equal(await page.locator('[data-booking-id]').count(), 1)
+      assert.equal(await page.locator('[data-booking-id]').getAttribute('data-cancelled'), 'true')
+      assert.ok(!(await page.locator('[data-booking-id]').innerText()).includes('Cancelled'), 'Cancellation does not add a row')
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
+      assert.deepEqual(errors, [])
+      console.log(`PASS ${width}: shared roster, independent attendance, persistence and whole-session cancellation`)
+      await page.close()
+    }
+  } finally { await browser.close() }
+})().catch(error => { console.error(error); process.exitCode = 1 })

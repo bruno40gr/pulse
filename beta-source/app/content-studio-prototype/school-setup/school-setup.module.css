@@ -7,7 +7,7 @@
 .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--setup-ink); }
 .brand strong { font-size: 26px; letter-spacing: -1px; }
 .exit { margin-left: auto; display: flex; align-items: center; }
-.brand:focus-visible { outline: 2px solid #0090aa; outline-offset: 5px; }
+.brand:focus-visible { outline: 2px solid var(--interaction-focus); outline-offset: 5px; }
 .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1600px; margin: auto; min-height: calc(100dvh - 80px); }
 .sidebar { padding: 34px 20px; border-right: 1px solid var(--setup-border); }
 .identity { padding: 0 10px 28px; }
@@ -42,10 +42,10 @@
 .editorTitle h1 { overflow-wrap: anywhere; }
 .progress { max-width: 900px; margin: 0 0 24px; }
 .progress > div { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; }
-.progress progress { appearance: none; display: block; width: 100%; height: 8px; border: 0; border-radius: 8px; overflow: hidden; background: var(--setup-border); accent-color: #2563eb; }
+.progress progress { appearance: none; display: block; width: 100%; height: 8px; border: 0; border-radius: 8px; overflow: hidden; background: var(--setup-border); accent-color: var(--interaction-selected); }
 .progress progress::-webkit-progress-bar { background: var(--setup-border); }
-.progress progress::-webkit-progress-value { background: var(--setup-ink); border-radius: 8px; }
-.progress progress::-moz-progress-bar { background: var(--setup-ink); border-radius: 8px; }
+.progress progress::-webkit-progress-value { background: var(--interaction-selected); border-radius: 8px; }
+.progress progress::-moz-progress-bar { background: var(--interaction-selected); border-radius: 8px; }
 .formSection { margin-top: 18px; }
 .formStack { display: grid; gap: 12px; }
 .conditionStack { display: grid; gap: 12px; margin-top: 18px; margin-bottom: 18px; }
@@ -53,7 +53,7 @@
 .sectionTitle { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
 .levelRow, .formatRow { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(160px, 1fr); gap: 18px; align-items: center; margin-bottom: 16px; }
 .formatRow > label, .checkOption { display: flex; align-items: center; gap: 10px; min-height: 42px; font-size: 14px; }
-.checkOption input, .formatRow input[type='checkbox'] { width: 18px; height: 18px; accent-color: #2563eb; }
+.checkOption input, .formatRow input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--interaction-selected); }
 .facts + .facts { margin-top: 24px; }
 .serviceSections { display: flex; flex-direction: column; gap: 20px; }
 .serviceSettings { display: flex; flex-direction: column; gap: 16px; }
@@ -61,7 +61,7 @@
 .stackedChoices { display: flex; flex-direction: column; gap: 6px; }
 .schedulingChoices { display: flex; flex-direction: column; gap: 16px; }
 .schedulingChoice { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
-.schedulingChoice input { width: 18px; height: 18px; flex-shrink: 0; margin: 2px 0 0; accent-color: #2563eb; }
+.schedulingChoice input { width: 18px; height: 18px; flex-shrink: 0; margin: 2px 0 0; accent-color: var(--interaction-selected); }
 .schedulingChoice small { display: block; margin-top: 3px; font-size: 13px; color: var(--setup-muted); }
 .materialList { padding: 0; margin: 0; list-style: none; }
 .materialLine { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 4px 0; }
@@ -73,7 +73,7 @@ a.materialLabel:focus-visible { outline: 2px solid var(--setup-ink); outline-off
 .materialSearch > button { align-self: flex-start; }
 .materialSearchHint { margin: 0; font-size: 13px; color: var(--setup-muted); }
 .levelToggle { display: inline-flex; gap: 10px; align-items: center; min-height: 32px; }
-.levelToggle input { width: 18px; height: 18px; accent-color: #2563eb; }
+.levelToggle input { width: 18px; height: 18px; accent-color: var(--interaction-selected); }
 .materialCost { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fileMetadata { display: block; color: var(--setup-muted); font-size: 12px; margin-top: 6px; overflow-wrap: anywhere; }
 .serviceOverview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(100px, .65fr) minmax(0, 1.2fr); gap: 28px; }
@@ -100,7 +100,7 @@ a.materialLabel:focus-visible { outline: 2px solid var(--setup-ink); outline-off
 .serviceChoices { border: 0; padding: 0; margin: 20px 0 0; }
 .serviceChoices legend { font-size: 13px; margin-bottom: 12px; }
 .serviceChoices label { display: inline-flex; align-items: center; gap: 8px; margin: 0 20px 8px 0; font-size: 14px; min-height: 32px; }
-.serviceChoices input { width: 18px; height: 18px; accent-color: #2563eb; }
+.serviceChoices input { width: 18px; height: 18px; accent-color: var(--interaction-selected); }
 .serviceChoices p { font-size: 13px; color: var(--setup-muted); }
 .logoPreview { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
 .logoPreview img { max-width: 180px; max-height: 100px; object-fit: contain; }
@@ -165,4 +165,17 @@ a.materialLabel:focus-visible { outline: 2px solid var(--setup-ink); outline-off
 .serviceImageChoices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; }
 .serviceImageChoice { flex-direction: column; align-items: stretch !important; text-align: left; min-width: 0; max-width: 260px; }
 .serviceImageChoice img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; }
-.serviceImageChoice[aria-pressed="true"] { outline: 2px solid var(--setup-ink); outline-offset: 2px; }
+.serviceImageChoice[aria-pressed="true"] { outline: 2px solid var(--interaction-selected); outline-offset: 2px; }
+
+.embedded { min-height: 0; }
+.embedded .layout { grid-template-columns: 210px minmax(0, 1fr); min-height: 0; }
+.embedded .main { padding: 24px; }
+.embedded .topbar { display: none; }
+@media (max-width: 1000px) {
+ .embedded .layout { grid-template-columns: minmax(0, 1fr); }
+ .embedded .sidebar { border-right: 0; padding: 12px; }
+ .embedded .sidebar nav { flex-direction: row; overflow-x: auto; }
+ .embedded .sidebar nav button { flex-shrink: 0; width: auto !important; }
+ .embedded .identity { display: none; }
+ .embedded .main { padding: 18px 12px; }
+}

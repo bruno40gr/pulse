@@ -18,6 +18,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { applyDisplayFontSize, readDisplayFontSize } from '@/lib/display-preferences'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import { getActiveTenantId } from '@/lib/tenant'
+import { loadAccountContext } from '@/lib/account-context-client'
 import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 import { startVisiblePolling } from '@/lib/visible-polling'
 import { useDialogLayer } from '@/lib/useDialogLayer'
@@ -102,11 +103,12 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
   const [leadCount, setLeadCount] = useState(0)
 
   useEffect(() => {
-    const controller = new AbortController()
-    fetch(`/api/account/me?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })
-      .then(async response => { if (response.ok) setNavigationAccess(await response.json()) })
+    let cancelled = false
+    const tenant = getActiveTenantId()
+    void loadAccountContext(tenant)
+      .then(data => { if (!cancelled && getActiveTenantId() === tenant) setNavigationAccess(data) })
       .catch(() => {})
-    return () => controller.abort()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

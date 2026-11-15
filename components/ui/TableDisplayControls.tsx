@@ -1,26 +1,39 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useContext, useEffect, useId, useRef, useState } from 'react'
+import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
+import { ChevronDown, Table2 } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
+import { loadAccountContext } from '@/lib/account-context-client'
 import { normalizeTablePreferences, tablePreferenceKey, type TablePreferences, type TablePreferenceSchema } from '@/lib/table-preferences'
 
 export function useTablePreferences(schema: TablePreferenceSchema) {
+  const prototype = useContext(ContactPrototypeContext)
   const [preferences, setPreferences] = useState(() => normalizeTablePreferences(null, schema))
   const [storageKey, setStorageKey] = useState<string | null>(null)
   const changed = useRef(false)
   const latestPreferences = useRef(preferences)
   useEffect(() => {
-    const controller = new AbortController()
+    if (prototype) {
+      const key = tablePreferenceKey(schema, 'explorer-local', 'sample')
+      try {
+        const stored = window.localStorage.getItem(key)
+        if (stored) {
+          const restored = normalizeTablePreferences(JSON.parse(stored), schema)
+          latestPreferences.current = restored
+          setPreferences(restored)
+        }
+      } catch { /* Keep defaults when local storage is unavailable. */ }
+      setStorageKey(key)
+      return
+    }
+    let cancelled = false
     const tenant = getActiveTenantId()
-    const timeout = window.setTimeout(() => controller.abort(), 10000)
-    void fetch(`/api/account/me?tenant=${encodeURIComponent(tenant)}`, { cache: 'no-store', signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) return
-        const data = await response.json()
-        if (controller.signal.aborted || typeof data.membershipId !== 'string' || data.tenantId !== tenant) return
+    void loadAccountContext(tenant)
+      .then(data => {
+        if (cancelled || getActiveTenantId() !== tenant) return
         const key = tablePreferenceKey(schema, tenant, data.membershipId)
         try {
           const stored = window.localStorage.getItem(key)
@@ -33,9 +46,8 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
         } catch { /* Keep defaults if storage is unavailable or malformed. */ }
         setStorageKey(key)
       }).catch(() => { /* Preferences still work for this visit without verified identity. */ })
-      .finally(() => window.clearTimeout(timeout))
-    return () => { controller.abort(); window.clearTimeout(timeout) }
-  }, [schema])
+    return () => { cancelled = true }
+  }, [schema, prototype])
 
   function updatePreferences(next: TablePreferences) {
     next = normalizeTablePreferences(next, schema)
@@ -49,8 +61,11 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
   return { preferences, updatePreferences }
 }
 
-export function TableDisplayControls({ columns, schema, preferences, onChange, label = 'Columns & spacing' }: {
+export type TablePreferenceAction = { id: string; label: string; onClick: () => void; disabled?: boolean }
+
+export function TableDisplayControls({ columns, schema, preferences, onChange, label = 'Table preferences', actions = [] }: {
   label?: string
+  actions?: TablePreferenceAction[]
   columns: { id: string; label: string }[]
   schema: TablePreferenceSchema
   preferences: TablePreferences
@@ -77,7 +92,7 @@ export function TableDisplayControls({ columns, schema, preferences, onChange, l
         trigger.current?.focus()
       }
     }}>
-      <Button ref={trigger} type="button" variant="secondary" size="toolbar" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>{label} <ChevronDown size={16} aria-hidden="true" /></Button>
+      <Button ref={trigger} type="button" variant="secondary" size="toolbar" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}><Table2 size={16} aria-hidden="true" />{label} <ChevronDown size={16} aria-hidden="true" /></Button>
       {open && <div id={panelId} role="group" aria-label="Table display options" style={{ position: 'absolute', right: 0, top: '100%', marginTop: spacing.xs, zIndex: 10, width: 'min(300px, calc(100vw - 48px))', maxHeight: '65vh', overflowY: 'auto', padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.sm, fontFamily: typography.fontSans, fontSize: typography.sizeBase }}>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Visible columns</legend>
@@ -91,6 +106,9 @@ export function TableDisplayControls({ columns, schema, preferences, onChange, l
           <option value="comfortable">Comfortable</option>
           <option value="compact">Compact</option>
         </Select>
+        {actions.length > 0 && <div role="group" aria-label="Table actions" style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTop: `1px solid ${colors.border}`, display: 'grid', gap: spacing.sm }}>
+          {actions.map(action => <Button key={action.id} type="button" variant="secondary" size="toolbar" disabled={action.disabled} onClick={() => { action.onClick(); setOpen(false); trigger.current?.focus() }}>{action.label}</Button>)}
+        </div>}
       </div>}
     </div>
   )

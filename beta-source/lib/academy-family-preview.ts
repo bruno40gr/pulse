@@ -3,6 +3,8 @@ import { enrollmentGroupPrograms, enrollmentInstruments, enrollmentServices, enr
 import { availableScheduleTeachers } from './academy-enrollment-schedule'
 import { validBirthday } from './lead-birthday'
 import { billingDate, monthCoverage, previewBillingSchedule, priceBillingSegment, rangesOverlap, splitBillingMonths, subtractBillingCoverage, validateBillingRanges, validateBillingSchedule, type BillingArrangement, type BillingConflict, type BillingSelection } from './academy-billing'
+import { recordPaymentAttempt, recordPaymentRefund, type PaymentAttempt, type PaymentReceipt, type PaymentRefund } from './academy-payment-ledger'
+import { reviseSubscription, type SubscriptionTerms } from './academy-subscription-history'
 
 /** Local, fictional account membership. It is not an authorization or canonical family model. */
 export type PreviewAccount = { id: string; name: string; holderId: string; holderName: string; email: string; studentIds: string[]; dependentRelationships?: Record<string, string>; parentAddedStudentIds?: string[]; followUp?: { date: string; note: string }; studentFollowUps?: Record<string, { date: string; note: string } | undefined> }
@@ -24,9 +26,10 @@ export type PreviewInvoice = {
   lines: { enrollmentId: string; studentId: string; studentName: string; program: string; quantity: number; unitMinor: number; period?: string; sourceInvoiceId?: string; serviceStart?: string; serviceEnd?: string; pricingBasis?: string }[]
 }
 export type PreviewContact = { id: string; firstName: string; lastName: string; email: string; phone: string; birthday?: string; memberSince?: string }
-export type FamilyPreviewData = ReturnType<typeof createConnectedPreview> & { demoSchool?: boolean; contacts?: PreviewContact[]; accounts: PreviewAccount[]; cards: PreviewCard[]; invoices: PreviewInvoice[]; billingArrangements?: BillingArrangement[]; billingDrafts?: { id: string; accountId: string; selections: BillingSelection[]; expiresAt: string }[] }
+export type FamilyPreviewData = ReturnType<typeof createConnectedPreview> & { calendarBookings?: import('./academy-calendar-booking').CalendarBooking[]; demoSchool?: boolean; modelVersion?: number; datasetVersion?: number; paymentAttempts?: PaymentAttempt[]; payments?: PaymentReceipt[]; paymentRefunds?: PaymentRefund[]; contacts?: PreviewContact[]; accounts: PreviewAccount[]; cards: PreviewCard[]; invoices: PreviewInvoice[]; billingArrangements?: BillingArrangement[]; billingDrafts?: { id: string; accountId: string; selections: BillingSelection[]; expiresAt: string }[] }
 export type FlexibleInvoiceRequest = { accountId: string; id: string; requestKey: string; selections: BillingSelection[]; payerId: string; billTo?: string; billingDetails?: string; date: string; due: string; proration: 'whole-month' | 'calendar-days'; arrangement?: BillingArrangement; reservationId?: string; expectedLines?: string; replacementInvoiceIds?: string[]; expectedReplacement?: string; fullBillingMonths?: boolean }
 export type FamilyAction =
+  | { kind: 'payment-attempt'; accountId: string; attempt: PaymentAttempt }
   | ({ kind: 'flexible-invoice' } & FlexibleInvoiceRequest)
   | { kind: 'billing-arrangement-state'; accountId: string; id: string; status: BillingArrangement['status'] }
   | { kind: 'update-billing-arrangement'; accountId: string; id: string; schedule: BillingArrangement['schedule'] }
@@ -313,6 +316,10 @@ export function previewContacts(data: FamilyPreviewData): PreviewContact[] {
 export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction, actor?: { role: 'admin' | 'staff' | 'parent'; holderId?: string }): FamilyPreviewData {
   const account = data.accounts.find(item => item.id === action.accountId)
   if (!account) throw new Error('Account unavailable.')
+  if (action.kind === 'payment-attempt') {
+    if (actor?.role === 'parent' || action.attempt.accountId !== account.id || !accountPayers(data, account).some(item => item.id === action.attempt.payerId)) throw new Error('Only staff can record a payment attempt for an account payer.')
+    return recordPaymentAttempt(data, action.attempt)
+  }
   if (['flexible-invoice', 'billing-arrangement-state', 'update-billing-arrangement', 'generate-billing-arrangement', 'reserve-billing-draft', 'release-billing-draft', 'partial-invoice-payment', 'void-billing-invoice'].includes(action.kind) && actor?.role === 'parent') throw new Error('Only staff can manage billing schedules and invoices.')
   if (action.kind === 'release-billing-draft') return { ...data, billingDrafts: (data.billingDrafts || []).filter(item => item.id !== action.id || item.accountId !== account.id) }
   if (action.kind === 'reserve-billing-draft') {
@@ -367,8 +374,7 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
   if (action.kind === 'partial-invoice-payment') {
     const invoice = data.invoices.find(item => item.id === action.invoiceId && item.accountId === account.id && item.status === 'Open' && !item.voided)
     if (!invoice || !Number.isSafeInteger(action.amountMinor) || action.amountMinor <= 0 || action.amountMinor > invoiceTotal(invoice) - (invoice.paidMinor || 0)) throw new Error('Choose a valid outstanding payment amount.')
-    const paidMinor = (invoice.paidMinor || 0) + action.amountMinor
-    return { ...data, invoices: data.invoices.map(item => item.id === invoice.id ? { ...item, paidMinor, status: paidMinor === invoiceTotal(invoice) ? 'Paid' : 'Open' } : item) }
+    return recordPaymentAttempt(data, { id: `partial:${crypto.randomUUID()}`, accountId: account.id, invoiceId: invoice.id, payerId: invoice.payerId, amountMinor: action.amountMinor, outcome: 'succeeded', recordedAt: new Date().toISOString(), method: 'Simulated manual payment' })
   }
   if (action.kind === 'void-billing-invoice') {
     const invoice = data.invoices.find(item => item.id === action.invoiceId && item.accountId === account.id && item.status === 'Open' && !item.voided)
@@ -438,6 +444,10 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
   const enrollment = 'enrollmentId' in action ? students.flatMap(student => student.enrollments).find(item => item.id === action.enrollmentId) : undefined
   const payer = 'payerId' in action ? accountPayers(data, account).find(item => item.id === action.payerId) : undefined
   const updateEnrollment = (id: string, patch: Partial<PreviewEnrollment>) => ({ ...data, students: data.students.map(student => ({ ...student, enrollments: student.enrollments.map(item => item.id === id ? { ...item, ...patch } : item) })) })
+  const reviseEnrollment = (item: PreviewEnrollment, patch: Partial<SubscriptionTerms>, reason: string) => {
+    const recordedAt = new Date().toISOString()
+    return updateEnrollment(item.id, reviseSubscription(item, patch, { id: `revision:${crypto.randomUUID()}`, effectiveFrom: recordedAt.slice(0, 10) < item.start ? item.start : recordedAt.slice(0, 10), recordedAt, actor: actor?.role || 'staff', reason }))
+  }
   switch (action.kind) {
     case 'invoice-details': {
       if (!data.invoices.some(invoice => invoice.id === action.invoiceId && invoice.accountId === account.id)) throw new Error('Invoice unavailable.')
@@ -447,10 +457,10 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
     }
     case 'subscription-state':
       if (!enrollment || enrollment.lifecycle === 'cancelled' || !['active', 'frozen', 'cancelled'].includes(action.state)) throw new Error('Subscription unavailable for this change.')
-      return updateEnrollment(enrollment.id, { lifecycle: action.state === 'active' ? undefined : action.state })
+      return reviseEnrollment(enrollment, { lifecycle: action.state === 'active' ? undefined : action.state }, `Subscription ${action.state}`)
     case 'update-subscription':
       if (!enrollment || enrollment.lifecycle === 'cancelled' || ![1, 2, 3].includes(action.level) || ![30, 45, 60].includes(action.duration)) throw new Error('Check subscription level and duration.')
-      return updateEnrollment(enrollment.id, { level: action.level, duration: action.duration })
+      return reviseEnrollment(enrollment, { level: action.level, duration: action.duration }, 'Subscription terms updated')
     case 'child': {
       if (!action.firstName.trim() || !action.lastName.trim() || !action.id.startsWith('preview:') || data.students.some(student => student.id === action.id)) throw new Error('Enter a first and last name for a new child.')
       if (action.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(action.email.trim())) throw new Error('Check the child’s email address.')
@@ -477,7 +487,8 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
       if (!enrollment || !payer || !['Monthly · 1st of the month', 'Per lesson'].includes(action.collection)) throw new Error('Choose an enrollment, payer and billing frequency in this account.')
       const card = action.cardId ? data.cards.find(item => item.id === action.cardId && item.accountId === account.id && item.payerId === payer.id) : data.cards.find(item => item.accountId === account.id && item.payerId === payer.id && item.isDefault)
       if (action.cardId && !card) throw new Error('Choose a card on file for this payer.')
-      return updateEnrollment(enrollment.id, { payerId: payer.id, collection: action.collection, paymentMethod: card?.label || 'Not added' })
+      const revised = reviseEnrollment(enrollment, { payerId: payer.id, collection: action.collection }, 'Billing responsibility or collection updated')
+      return { ...revised, students: revised.students.map(student => ({ ...student, enrollments: student.enrollments.map(item => item.id === enrollment.id ? { ...item, paymentMethod: card?.label || 'Not added' } : item) })) }
     }
     case 'combine-invoices': {
       if (actor?.role === 'parent') throw new Error('Only staff can combine invoices.')
@@ -497,14 +508,22 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
       if (!invoice || invoice.status !== 'Paid' || invoice.refund || invoice.id.startsWith('STATEMENT')) throw new Error('Only a paid invoice can be refunded once.')
       const reason = action.reason.trim()
       if (!reason || reason.length > 1000 || invoiceTotal(invoice) <= 0) throw new Error('Enter a refund reason of 1–1000 characters for a paid amount.')
-      return { ...data, invoices: data.invoices.map(item => item.id === invoice.id ? { ...item, status: 'Refunded', refund: { amountMinor: invoiceTotal(invoice), reason, date: new Date().toISOString().slice(0, 10) } } : item) }
+      const recordedAt = new Date().toISOString()
+      // Legacy paid invoices may predate the ledger; retain that fact without inventing payments.
+      let next = data
+      for (const payment of data.payments || []) for (const allocation of payment.allocations.filter(item => item.invoiceId === invoice.id)) {
+        const already = (data.paymentRefunds || []).filter(item => item.paymentId === payment.id && item.invoiceId === invoice.id).reduce((sum, item) => sum + item.amountMinor, 0)
+        if (allocation.amountMinor > already) next = recordPaymentRefund(next, { id: `refund:${crypto.randomUUID()}`, paymentId: payment.id, invoiceId: invoice.id, amountMinor: allocation.amountMinor - already, reason, recordedAt })
+      }
+      return { ...next, invoices: next.invoices.map(item => item.id === invoice.id ? { ...item, status: 'Refunded', refund: { amountMinor: invoiceTotal(invoice), reason, date: recordedAt.slice(0, 10) } } : item) }
     }
     case 'pay-invoice': {
       const invoice = data.invoices.find(item => item.id === action.invoiceId && item.accountId === account.id)
       if (!invoice || invoice.status !== 'Open') throw new Error('This invoice is not open.')
       const card = data.cards.find(item => item.id === action.cardId && item.accountId === account.id && item.payerId === action.payerId)
       if (!payer || !card) throw new Error('Choose a payer and a card on file.')
-      return { ...data, invoices: data.invoices.map(item => item.id === invoice.id ? { ...item, status: 'Paid', paidById: payer.id, paidByName: payer.name, paymentMethod: card.label } : item) }
+      const next = recordPaymentAttempt(data, { id: `payment:${crypto.randomUUID()}`, accountId: account.id, invoiceId: invoice.id, payerId: payer.id, amountMinor: invoiceOutstanding(invoice), outcome: 'succeeded', recordedAt: new Date().toISOString(), method: card.label })
+      return { ...next, invoices: next.invoices.map(item => item.id === invoice.id ? { ...item, paidByName: payer.name } : item) }
     }
     case 'pay-invoices': {
       const ids = new Set(action.invoiceIds)
@@ -513,7 +532,7 @@ export function applyFamilyAction(data: FamilyPreviewData, action: FamilyAction,
       if (invoices.length !== ids.size || invoices.some(item => item.status !== 'Open')) throw new Error('Every selected invoice must be open and belong to this account.')
       const card = data.cards.find(item => item.id === action.cardId && item.accountId === account.id && item.payerId === action.payerId)
       if (!payer || !card) throw new Error('Choose a payer and a card on file.')
-      return { ...data, invoices: data.invoices.map(item => ids.has(item.id) ? { ...item, status: 'Paid', paidById: payer.id, paidByName: payer.name, paymentMethod: card.label } : item) }
+      return invoices.reduce((current, invoice) => applyFamilyAction(current, { kind: 'pay-invoice', accountId: account.id, invoiceId: invoice.id, payerId: payer.id, cardId: card.id }, actor), data)
     }
     case 'add-card': {
       if (!payer || !action.id.startsWith('preview:') || data.cards.some(card => card.id === action.id) || !['visa', 'mastercard'].includes(action.preset)) throw new Error('Choose a payer and fictional card.')

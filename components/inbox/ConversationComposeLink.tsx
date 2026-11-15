@@ -1,5 +1,8 @@
 'use client'
 
+import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
+import ContactBulkComposer from './ContactBulkComposer'
+import { getActiveTenantId } from '@/lib/tenant'
 import { lazy, Suspense, useContext, useState } from 'react'
 import { Mail, MessageCircle } from 'lucide-react'
 import { Button, SlidePanel, SlidePanelHeader } from '@/components/ui'
@@ -14,6 +17,7 @@ const Conversations = lazy(() => import('@/components/inbox/Conversations'))
 export default function ConversationComposeLink({ recipient, channel, disabled = false, unavailableReason, backDestination }: {
   recipient: string; channel: ConversationChannel; disabled?: boolean; unavailableReason?: string; backDestination: 'lead' | 'contact'
 }) {
+  const simulated = useContext(ContactPrototypeContext)
   const contextualCompose = useContext(ConversationComposeContext)
   const [open, setOpen] = useState(false)
   const mobile = useIsMobile()
@@ -25,7 +29,7 @@ export default function ConversationComposeLink({ recipient, channel, disabled =
     </Button>
     {open && <SlidePanel isOpen onClose={() => setOpen(false)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH} ariaLabel={`${label} composer`}>
       <SlidePanelHeader title={channel === 'email' ? 'Send Email' : 'Send a Text Message'} onBack={() => setOpen(false)} backLabel={`Back to ${backDestination}`} onClose={() => setOpen(false)} />
-      <Suspense fallback={<ProfilePanelSkeleton />}><Conversations embedded={{ recipient, channel, onClose: () => setOpen(false) }} /></Suspense>
+      <Suspense fallback={<ProfilePanelSkeleton />}>{simulated ? <ContactBulkComposer tenantId={getActiveTenantId()} contactIds={[recipient.split(':').slice(1).join(':')]} channel={channel === 'email' ? 'email' : 'sms'} onClose={() => setOpen(false)} /> : <Conversations embedded={{ recipient, channel, onClose: () => setOpen(false) }} />}</Suspense>
     </SlidePanel>}
   </>
 }

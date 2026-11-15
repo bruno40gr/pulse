@@ -3,12 +3,13 @@ import { ButtonBase } from '@/components/ui/ButtonBase'
 
 
 import type { CSSProperties } from 'react'
-import { colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
 
 export interface TabItem<T extends string = string> {
   key: T
   label: string
   count?: number
+  countAppearance?: 'bubble'
 }
 
 interface TabsProps<T extends string = string> {
@@ -34,7 +35,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
       padding: prominent ? spacing.xs : 0,
       borderRadius: prominent ? radius.lg : 0,
       background: prominent ? colors.surfaceMuted : 'transparent',
-      ...(toolbar ? { padding: 2, gap: 2, border: `1px solid ${colors.border}`, borderRadius: radius.sm, boxSizing: 'border-box', minHeight: 42 } : {}),
+      ...(toolbar ? { padding: spacing.xs, gap: 2, border: `1px solid ${colors.border}`, borderRadius: radius.md, boxSizing: 'border-box', minHeight: 46, height: 'auto', alignItems: 'stretch', flexShrink: 0 } : {}),
       ...style,
     }}>
       {items.map((tab) => {
@@ -46,16 +47,16 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
             onClick={() => onChange(tab.key)}
             aria-pressed={active}
             style={{
-              background: prominent && active ? colors.surface : 'transparent',
-              border: prominent ? `1px solid ${active ? colors.border : 'transparent'}` : 'none',
-              borderBottom: prominent ? undefined : `2px solid ${active ? colors.crimson : 'transparent'}`,
+              background: prominent && active ? interaction.selectedSurface : 'transparent',
+              border: prominent ? `1px solid ${active ? interaction.selected : 'transparent'}` : 'none',
+              ...(!prominent ? { borderBottom: `2px solid ${active ? interaction.selected : 'transparent'}` } : {}),
               borderRadius: prominent ? radius.md : 0,
               boxShadow: prominent && active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
               marginBottom: prominent ? 0 : '-1px',
               padding: compact ? `${spacing.sm} ${spacing.xs}` : prominent ? `${spacing.md} ${spacing.xl}` : `${spacing.md} ${spacing.lg}`,
               fontSize: typography.sizeMd,
               fontWeight: active ? typography.weightSemibold : typography.weightMedium,
-              color: active ? colors.text : colors.textMuted,
+              color: active ? interaction.selectedText : colors.textMuted,
               cursor: 'pointer',
               fontFamily: typography.fontSans,
               display: 'inline-flex',
@@ -65,17 +66,17 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
               flex: compact || prominent ? '1 1 0' : undefined,
               minWidth: 0,
               whiteSpace: 'nowrap',
-              ...(toolbar ? { padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, minHeight: 36 } : {}),
+              ...(toolbar ? { padding: `${spacing.xs} ${spacing.sm}`, fontSize: typography.sizeBase, lineHeight: 1.4, minHeight: 36, height: 'auto', boxSizing: 'border-box', borderRadius: radius.sm, margin: 0, boxShadow: 'none', flex: '1 0 auto' } : {}),
             }}
           >
             <span>{tab.label}</span>
-            {!compact && typeof tab.count === 'number' && (
+            {(!compact || tab.countAppearance === 'bubble') && typeof tab.count === 'number' && (
               <span style={{
                 color: active ? colors.textSecondary : colors.textMuted,
                 fontSize: typography.sizeSm,
-                padding: prominent ? '1px 6px' : 0,
+                padding: prominent || tab.countAppearance === 'bubble' ? '1px 6px' : 0,
                 borderRadius: radius.full,
-                background: prominent ? colors.backgroundSecondary : 'transparent',
+                background: prominent || tab.countAppearance === 'bubble' ? colors.backgroundSecondary : 'transparent',
               }}>{tab.count}</span>
             )}
           </ButtonBase>

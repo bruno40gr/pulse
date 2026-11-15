@@ -3,8 +3,11 @@ import { availableScheduleTeachers, formatScheduleDate, overlap, scheduleTimes, 
 import { workspaceOccurrences, type WorkspaceLocation } from './academy-student-preview'
 import { newLesson, type LessonChoice } from './academy-staff-enrollment'
 import { createOdeonDemo, demoHours, demoMinutes, demoServices } from './odeon-demo'
+import { subscriptionScheduledOn } from './academy-subscription-history'
+import { detachParticipantOccurrence } from './academy-session'
 
 export const makeupPreviewNow = '2026-11-03T12:00:00-08:00'
+let demoTeacherCache: ReturnType<typeof createOdeonDemo>['teachers'] | undefined
 export type PreviewMakeup = { id: string; lessonId: string; studentId: string; enrollmentId: string; date: string; duration: number; program: string; teacher: string; service: string; booking?: { date: string; time: string; teacher: string; program: string } }
 export type AbsenceRecord = { lessonId: string; makeupId: string | null; teacherNotification: 'Queued locally' }
 export type MakeupPreviewState = { items: PreviewMakeup[]; absences: AbsenceRecord[] }
@@ -27,16 +30,28 @@ export function absenceEligible(date: string, time: string) {
 /** Local recurring preview expansion; preserves explicit overrides and absences. */
 export function expandPreviewCalendar(data: FamilyPreviewData, through: string): FamilyPreviewData {
   const lessons = [...data.lessons]
+  const byEnrollment = new Map<string, typeof lessons>()
+  const occupied = new Set<string>()
+  for (const lesson of lessons) {
+    const list = byEnrollment.get(lesson.enrollmentId) || []
+    list.push(lesson); byEnrollment.set(lesson.enrollmentId, list)
+    occupied.add(`${lesson.enrollmentId}:${lesson.originalDate || lesson.date}`)
+  }
   for (const student of data.students) for (const enrollment of student.enrollments) {
-    if (enrollment.frequency !== 'Weekly' || enrollment.status !== 'active') continue
-    const existing = lessons.filter(item => item.enrollmentId === enrollment.id)
+    if (enrollment.frequency !== 'Weekly') continue
+    const existing = byEnrollment.get(enrollment.id) || []
     const first = existing.filter(item => (item.originalDate || item.date) >= enrollment.start).sort((a, b) => (a.originalDate || a.date).localeCompare(b.originalDate || b.date))[0]
     if (!first) continue
     for (let date = enrollment.recurringSchedule?.start || first.originalDate || first.date; date <= through; date = shiftDate(date, 7)) {
+      if (!subscriptionScheduledOn(enrollment, date)) continue
       const change = enrollment.recurringSchedule?.changes.filter(item => item.from <= date).at(-1)
       const targetDate = change ? shiftDate(change.date, Math.round((Date.parse(date) - Date.parse(change.from)) / 86400000)) : date
       if (targetDate > through) continue
-      if (!lessons.some(item => item.enrollmentId === enrollment.id && (item.originalDate || item.date) === date)) lessons.push({ id: `${enrollment.id}:calendar:${date}`, enrollmentId: enrollment.id, date: targetDate, originalDate: targetDate !== date ? date : undefined, time: change?.time || enrollment.recurringSchedule?.time || enrollment.time, teacher: change?.teacher || enrollment.recurringSchedule?.teacher || enrollment.teacher, room: first.room, status: 'Scheduled' })
+      const key = `${enrollment.id}:${date}`
+      if (!occupied.has(key)) {
+        lessons.push({ id: `${enrollment.id}:calendar:${date}`, enrollmentId: enrollment.id, occurrenceId: enrollment.seriesId ? `${change ? enrollment.id : enrollment.seriesId}:${date}` : undefined, date: targetDate, originalDate: targetDate !== date ? date : undefined, time: change?.time || enrollment.recurringSchedule?.time || enrollment.time, teacher: change?.teacher || enrollment.recurringSchedule?.teacher || enrollment.teacher, room: first.room, status: 'Scheduled' })
+        occupied.add(key)
+      }
     }
   }
   return { ...data, lessons }
@@ -81,7 +96,7 @@ export function reschedulePreviewSubscription(data: FamilyPreviewData, state: Ma
     students: expanded.students.map(person => ({ ...person, enrollments: person.enrollments.map(item => item.id === enrollment.id ? { ...item, teacher: booking.teacher, day: formatScheduleDate(booking.date, { weekday: 'long' }), time: booking.time, recurringSchedule: { ...recurringSchedule, changes: [...recurringSchedule.changes.filter(change => change.from < from), { from, date: booking.date, time: booking.time, teacher: booking.teacher }] } } : item) })),
     lessons: expanded.lessons.map(item => {
       const target = targets.get(item.id)
-      return target ? { ...item, ...target, originalDate: item.originalDate || item.date } : item.enrollmentId === enrollment.id ? { ...item, teacher: item.teacher || enrollment.teacher } : item
+      return target ? { ...detachParticipantOccurrence(item), ...target, originalDate: item.originalDate || item.date } : item.enrollmentId === enrollment.id ? { ...item, teacher: item.teacher || enrollment.teacher } : item
     }),
   }
 }
@@ -108,7 +123,7 @@ export function movePreviewLesson(data: FamilyPreviewData, state: MakeupPreviewS
   const availabilityData = { ...data, lessons: data.lessons.filter(item => item.id !== id) }
   const availabilityState = { ...state, items: state.items.filter(item => item.id !== id) }
   if (!makeupSlots(availabilityData, availabilityState, makeup, booking.date, booking.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error('Choose an available lesson time.')
-  return replacement ? { data, state: { ...state, items: state.items.map(item => item.id === id ? { ...item, booking } : item) } } : { data: { ...data, lessons: data.lessons.map(item => item.id === id ? { ...item, originalDate: item.originalDate || item.date, date: booking.date, time: booking.time, teacher: booking.teacher } : item) }, state }
+  return replacement ? { data, state: { ...state, items: state.items.map(item => item.id === id ? { ...item, booking } : item) } } : { data: { ...data, lessons: data.lessons.map(item => item.id === id ? { ...detachParticipantOccurrence(item), originalDate: item.originalDate || item.date, date: booking.date, time: booking.time, teacher: booking.teacher } : item) }, state }
 }
 export function cancelPreviewReplacement(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, id: string) {
   const item = state.items.find(makeup => makeup.id === id && makeup.booking)
@@ -128,10 +143,15 @@ export function recordPreviewAbsence(data: FamilyPreviewData, state: MakeupPrevi
   const grant = absenceEligible(lesson.date, lesson.time) || grantLate
   const makeup: PreviewMakeup = { id: `preview:makeup:${lessonId}`, lessonId, studentId: student.id, enrollmentId: enrollment.id, date: lesson.date, duration: enrollment.duration, program: enrollment.program, teacher: lesson.teacher || enrollment.teacher, service: enrollment.service }
   return {
-    data: { ...data, lessons: data.lessons.map(item => item.id === lessonId ? { ...item, status: 'Absent' } : item) },
+    data: { ...data, lessons: data.lessons.map(item => item.id === lessonId ? { ...item, status: 'Absent', attendance: 'Excused absence' as const } : item) },
     state: { items: grant ? [...state.items, makeup] : state.items, absences: [...state.absences, { lessonId, makeupId: grant ? makeup.id : null, teacherNotification: 'Queued locally' as const }] },
   }
 }
+/** Staff occupancy applies to family makeup/reschedule paths as well as the main calendar. */
+function staffOccupied(data: FamilyPreviewData, date: string, time: string, duration: number, teacher: string) {
+  return (data.calendarBookings || []).some(booking => booking.status !== 'Cancelled' && booking.teacherName === teacher && (booking.repeat === 'weekly' ? date >= booking.date && date <= booking.until && new Date(`${date}T12:00:00Z`).getUTCDay() === new Date(`${booking.date}T12:00:00Z`).getUTCDay() : booking.date === date) && overlap(time, duration, booking.time, booking.duration))
+}
+
 export function makeupSlots(data: FamilyPreviewData, state: MakeupPreviewState, makeup: PreviewMakeup, date: string, program: string, sameTeacher: boolean) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`)) || date <= makeupPreviewNow.slice(0, 10)) return []
   if (!['Private', 'Semi-private', 'Group'].includes(makeup.service)) return []
@@ -139,21 +159,27 @@ export function makeupSlots(data: FamilyPreviewData, state: MakeupPreviewState, 
     if (program !== makeup.program || date > '2027-04-01') return []
     const day = new Date(`${date}T12:00:00Z`).getUTCDay(), hours = demoHours.find(item => item.day === day)
     if (!hours) return []
-    const seed = createOdeonDemo(), service = demoServices.find(item => item.name === program)
+    const service = demoServices.find(item => item.name === program)
     if (!service) return []
-    const teachers = seed.teachers.filter(item => item.serviceIds.includes(service.id) && item.days.includes(day) && (!sameTeacher || item.name === makeup.teacher))
+    demoTeacherCache ??= createOdeonDemo().teachers
+    const teachers = demoTeacherCache.filter(item => item.serviceIds.includes(service.id) && item.days.includes(day) && (!sameTeacher || item.name === makeup.teacher))
     const enrollment = data.students.flatMap(student => student.enrollments).find(item => item.id === makeup.enrollmentId), room = data.lessons.find(item => item.enrollmentId === enrollment?.id)?.room
+    const owners = new Map(data.students.flatMap(student => student.enrollments.map(other => [other.id, { student, other }] as const)))
+    const bookings = data.lessons.filter(lesson => lesson.date === date && lesson.status !== 'Cancelled').flatMap(lesson => {
+      const owner = owners.get(lesson.enrollmentId)
+      return owner ? [{ lesson, ...owner }] : []
+    })
     return Array.from({ length: Math.floor((demoMinutes(hours.to) - demoMinutes(hours.from)) / 15) }, (_, index) => demoMinutes(hours.from) + index * 15).filter(minute => minute + makeup.duration <= demoMinutes(hours.to)).flatMap(minute => {
       const time = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
-      return teachers.filter(teacher => !data.lessons.some(lesson => {
-        const student = data.students.find(item => item.enrollments.some(value => value.id === lesson.enrollmentId)), other = student?.enrollments.find(item => item.id === lesson.enrollmentId)
-        return lesson.date === date && lesson.status === 'Scheduled' && other && (student?.id === makeup.studentId || (lesson.teacher || other.teacher) === teacher.name || lesson.room === room) && overlap(time, makeup.duration, lesson.time, other.duration)
+      return teachers.filter(teacher => !staffOccupied(data, date, time, makeup.duration, teacher.name) && !bookings.some(({ lesson, student, other }) => {
+        return (student.id === makeup.studentId || (lesson.teacher || other.teacher) === teacher.name || lesson.room === room) && overlap(time, makeup.duration, lesson.time, other.duration)
       }) && !state.items.some(item => item.booking?.date === date && (item.studentId === makeup.studentId || item.booking.teacher === teacher.name) && overlap(time, makeup.duration, item.booking.time, item.duration))).map(teacher => ({ date, time, teacher: teacher.name, program }))
     })
   }
   const choice: LessonChoice = { ...newLesson(makeup.id), studentId: makeup.studentId, instrument: program, duration: String(makeup.duration), service: makeup.service as LessonChoice['service'], frequency: 'À-la-carte' }
   return scheduleTimes.flatMap(time => availableScheduleTeachers(choice, date, time, null, []).filter(teacher => {
     if (sameTeacher && teacher.name !== makeup.teacher) return false
+    if (staffOccupied(data, date, time, makeup.duration, teacher.name)) return false
     const conflicts = data.lessons.flatMap(lesson => {
       const student = data.students.find(person => person.enrollments.some(item => item.id === lesson.enrollmentId))
       const enrollment = student?.enrollments.find(item => item.id === lesson.enrollmentId)

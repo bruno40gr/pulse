@@ -1,0 +1,51 @@
+.root { --explore-gap: 18px; min-height: 100vh; background: var(--explore-background); color: var(--explore-text); font-family: var(--explore-font); }
+.stack { display: flex; flex-direction: column; gap: var(--explore-gap); min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.toolbar > :first-child { flex: 1 1 230px; }
+.tabs { overflow-x: auto; max-width: 100%; padding-bottom: 3px; }
+.tabs > div { min-width: max-content; }
+.tabs button { flex-shrink: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--explore-gap); }
+.stat { display: block; font-size: 26px; font-weight: 600; margin-top: 8px; }
+.muted { color: var(--explore-secondary); font-size: 14px; line-height: 1.6; margin: 0; }
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--explore-gap); }
+.hero { border-radius: 8px; width: 100%; max-height: 260px; object-fit: cover; }
+.code { display: block; width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 13px; background: var(--explore-background); padding: 12px; box-sizing: border-box; }
+.link { color: var(--explore-link); }
+@media (max-width: 760px) {
+  .stats { gap: 8px; }
+  .choices { grid-template-columns: minmax(0, 1fr); }
+}
+
+.contactFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--explore-gap); margin: 0; }
+.contactFacts dt { color: var(--explore-secondary); font-size: 14px; margin-bottom: 6px; }
+.contactFacts dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .contactFacts { grid-template-columns: minmax(0, 1fr); } }
+
+.selectorAction { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; min-width: 0; }
+.selectorAction > :first-child { flex: 1 1 260px; }
+.selectorAction > button { flex: 0 0 auto; min-height: 42px; }
+
+/* Enrollment editor geometry; compact progress belongs to queue rows, not editors. */
+.workflowContainer { width: 100%; box-sizing: border-box; }
+.workflowLayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 750px) { .workflowLayout { grid-template-columns: minmax(0, 1fr); } }
+
+.inlineActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.availabilityDay { position: relative; height: 960px; display: grid; grid-template-rows: repeat(32, 30px); }
+.availabilitySlot { background: transparent; border: 0; border-bottom: 1px solid #e5e7eb; width: 100%; cursor: pointer; }
+.availabilitySlot:hover, .availabilitySlot:focus-visible { background: #eff6ff; outline: 1px solid #93c5fd; }
+.availabilityBlock { position: absolute; left: 3px; right: 3px; background: #dcfce7; border: 1px solid #86efac; border-radius: 5px; font: inherit; font-size: 12px; cursor: pointer; overflow: hidden; }
+
+.workflowSingle { display: grid; grid-template-columns: minmax(0, 1fr); }
+.eventReviewImage { display: block; width: 100%; height: auto; object-fit: cover; }
+
+.eventDepositRow { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 180px); align-items: end; gap: 16px; max-width: 436px; min-height: 68px; }
+.eventDepositRow > label { min-width: 0; }
+.eventDepositAmount { width: 100%; min-width: 0; }
+@media (max-width: 600px) { .eventDepositRow { grid-template-columns: minmax(0, 1fr) 88px; gap: 12px; } }
+.eventPreview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
+.eventPreviewImage { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; border-radius: 8px; }
+.eventPreviewContent { display: grid; align-content: center; gap: 16px; min-width: 0; }
+.eventPreviewFact { display: flex; align-items: flex-start; gap: 8px; }
+.eventPreviewFact svg { flex-shrink: 0; margin-top: 2px; }
