@@ -10,7 +10,7 @@ export function canAccessBeta(access: NavigationAccess) {
   return access.roleKey === 'owner' || access.roleKey === 'admin'
 }
 
-export type WorkAreaId = 'operations' | 'onboarding' | 'funding' | 'website' | 'settings'
+export type WorkAreaId = 'operations' | 'beta' | 'onboarding' | 'funding' | 'website' | 'settings'
 export type NavigationLink = { href: string; label: string }
 export type WorkArea = { id: WorkAreaId; label: string; description: string; links: NavigationLink[] }
 
@@ -26,10 +26,6 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
   return [
     { id: 'operations', label: 'Operations', description: 'Run your day-to-day work', links: [
       { href: '/dashboard', label: 'Overview' },
-      ...(canAccessBeta(access) ? [
-        { href: '/odeon-demo?screen=teacher', label: 'Teacher day' },
-        { href: '/odeon-demo?screen=calendar', label: 'Calendar' },
-      ] : []),
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/leads', label: 'Leads' },
       { href: '/dashboard/contacts', label: 'Contacts' },
@@ -38,6 +34,17 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
       { href: '/dashboard/rsvps', label: 'Event RSVPs' },
       { href: '/dashboard/staff', label: 'Teachers & staff' },
     ] },
+    // Beta screens use fictional sample data. They belong here, never in Operations,
+    // where navigation means the real school and its real records.
+    ...(canAccessBeta(access) ? [{
+      id: 'beta' as const,
+      label: 'Beta',
+      description: 'Preview with fictional sample data — never a real school',
+      links: [
+        { href: '/odeon-demo?screen=teacher', label: 'Teacher day' },
+        { href: '/odeon-demo?screen=calendar', label: 'Calendar' },
+      ],
+    }] : []),
     { id: 'onboarding', label: 'School onboarding', description: 'Set up your school', links: [
       { href: '/odeon-demo/school-setup', label: 'School onboarding' },
     ] },
@@ -69,6 +76,7 @@ export function settingsLinks(access: NavigationAccess): NavigationLink[] {
 
 export function workAreaForPath(pathname: string): WorkAreaId {
   if (pathname === '/odeon-demo/school-setup' || pathname === '/school-setup') return 'onboarding'
+  if (pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')) return 'beta'
   if (pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/')) return 'settings'
   if (pathname.startsWith('/dashboard/funding/') || pathname === '/dashboard/funded-cases') return 'funding'
   if (pathname === '/dashboard/community' || pathname.startsWith('/dashboard/community/') || pathname === '/dashboard/website-content' || pathname.startsWith('/dashboard/website-content/')) return 'website'

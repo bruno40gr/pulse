@@ -1,5 +1,18 @@
 # Beta integration progress — November 13, 2026
 
+## Beta leaves the main navigation — November 16, 2026
+
+- Teacher day and Calendar no longer sit in **Operations**. Operations means the
+  real app and real records, so the beta screens now live in their own **Beta**
+  work area, still owner/admin gated, described as "Preview with fictional sample
+  data — never a real school". `/odeon-demo` and `/beta` route to that area.
+- The teacher screen states its data source: with sample data it prints "Sample
+  school · these are fictional teachers and students, not a real school"; with a
+  tenant selected it is absent and the screen uses the signed-in staff identity.
+- Verified: `work-area-navigation.test.cjs` asserts Operations contains no
+  `/odeon-demo` link and Beta owns Teacher day then Calendar; signed into the real
+  app, neither link appears on `/dashboard`. Suite 1,159/1,159.
+
 ## UI truth, scheduling access and the teacher day — November 15, 2026
 
 - **Test suite is green again: 1,158/1,158.** The six previously failing UI and

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Check, ChevronDown, Globe, GraduationCap, LayoutDashboard, Settings, Wallet } from 'lucide-react'
+import { Check, ChevronDown, FlaskConical, Globe, GraduationCap, LayoutDashboard, Settings, Wallet } from 'lucide-react'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -11,7 +11,7 @@ import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
 import { activeNavigationLink, canAccessBeta, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
 import styles from './WorkAreaNavigation.module.css'
 
-const icons = { operations: LayoutDashboard, onboarding: GraduationCap, funding: Wallet, website: Globe }
+const icons = { operations: LayoutDashboard, beta: FlaskConical, onboarding: GraduationCap, funding: Wallet, website: Globe }
 
 export default function WorkAreaNavigation({ access, leadCount, conversationCount, onNavigate, switcherOnly = false, light = false, onBeforeNavigate }: {
   access: NavigationAccess; leadCount: number; conversationCount: number; onNavigate: () => void; switcherOnly?: boolean; light?: boolean; onBeforeNavigate?: () => boolean

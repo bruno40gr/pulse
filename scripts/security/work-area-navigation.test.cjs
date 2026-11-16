@@ -29,13 +29,19 @@ test('area routing separates website, staff, funding, settings and operations', 
   for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'operations'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)
 })
 
-test('Operations owns staff and authorized teacher/calendar links without duplicate School Setup', () => {
-  const { workAreasForAccess } = load()
+test('Beta screens live in their own area and never in Operations', () => {
+  const { workAreasForAccess, workAreaForPath } = load()
   const areas = workAreasForAccess({ roleKey: 'owner' })
   assert.equal(areas.some(area => area.id === 'school' || area.label === 'School Setup'), false)
-  const links = areas.find(area => area.id === 'operations').links
-  assert.equal(links.findIndex(link => link.label === 'Teacher day') + 1, links.findIndex(link => link.label === 'Calendar'))
-  assert.ok(links.some(link => link.href === '/dashboard/staff'))
+  const operations = areas.find(area => area.id === 'operations')
+  assert.equal(operations.links.some(link => link.href.startsWith('/odeon-demo')), false, 'Operations means the real school and real data')
+  assert.ok(operations.links.some(link => link.href === '/dashboard/staff'))
+  const beta = areas.find(area => area.id === 'beta')
+  assert.equal(beta.label, 'Beta')
+  assert.equal(beta.links.map(link => link.label).join(' > '), 'Teacher day > Calendar')
+  assert.equal(workAreaForPath('/odeon-demo'), 'beta')
+  assert.equal(workAreaForPath('/beta'), 'beta')
+  assert.equal(workAreasForAccess({ roleKey: 'staff' }).some(area => area.id === 'beta'), false)
   assert.equal(workAreasForAccess({ roleKey: 'staff' }).flatMap(area => area.links).some(link => link.href.startsWith('/odeon-demo?')), false)
 })
 
