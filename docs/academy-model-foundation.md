@@ -1,3 +1,24 @@
+# Workspace storage applied to staging — November 16, 2026
+
+- `supabase/migrations/202611140001_academy_workspace.sql` is now applied to the
+  staging project (`xpnygavujqmzkdmcktdm`) by the repo owner through the Supabase
+  SQL editor. This closes the deployment prerequisite recorded on November 14.
+- Verified against the live database with the service-role key, from the app's
+  own REST/RPC surface rather than by inspection:
+  - `academy_workspaces` reads 200 and starts empty; `tenants` reachable.
+  - `anon` is refused both on the table (401, `permission denied for table
+    academy_workspaces`) and on the function (401, `permission denied for
+    function save_academy_workspace`), so snapshots are never publicly readable.
+  - First save at revision 0 returns `{"revision":1}` and stores the state.
+  - A stale save at revision 0 returns `{"conflict":true,"revision":1}` and
+    leaves the stored state **unchanged** — no silent overwrite.
+  - Probe rows were deleted afterwards; only the empty tenant-1 row created by
+    the conflict probe remains, which is what provisioning would create anyway.
+- Still unproven: the app's own round trip through `/api/academy/workspace` with a
+  real authenticated staff session (needs a signed-in membership), and
+  provisioning a first empty workspace from the UI. Route contract tests cover
+  the logic; the live multi-user check is the next step.
+
 # Payments direction — decided November 16, 2026
 
 - **Each school uses its own payment-processor account.** Headliner is not the
