@@ -27,6 +27,7 @@ export type CalendarOccurrence = {
   groupId?: string
   eventId?: string
   status: string
+  originalDate?: string
   locationId?: string
   notes?: string
   bookingId?: string
@@ -34,6 +35,17 @@ export type CalendarOccurrence = {
 
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3))
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
+
+/** Minutes since midnight for a preview `HH:MM` value. */
+export const betaMinutes = minutes
+
+/** The first date on or after `from` that falls on the named weekday. */
+export function betaNextWeekday(dayName: string, from: string) {
+  const target = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(dayName)
+  if (target < 0) return ''
+  const current = new Date(`${from}T12:00:00Z`).getUTCDay()
+  return betaShiftDate(from, (target - current + 7) % 7)
+}
 
 /** The academy's preview day, matching the fictional November 2026 records. */
 export const betaPreviewToday = '2026-11-04'
@@ -78,7 +90,7 @@ export function betaLessonOccurrences(data: FamilyPreviewData): CalendarOccurren
       teacherId: !lesson.teacher || lesson.teacher === enrollment.teacher ? enrollment.teacherId : undefined, teacherName: lesson.teacher || enrollment.teacher,
       studentIds: [student.id], studentNames: [`${student.firstName} ${student.lastName}`.trim()],
       serviceId: enrollment.serviceId, participantLessonIds: [lesson.id],
-      enrollmentId: enrollment.id, status: lesson.status === 'Cancelled' ? 'Cancelled' : 'Scheduled',
+      enrollmentId: enrollment.id, status: lesson.status === 'Cancelled' ? 'Cancelled' : 'Scheduled', originalDate: lesson.originalDate,
     })
   }
   return [...occurrences.values()]
@@ -88,7 +100,8 @@ export function betaLessonOccurrences(data: FamilyPreviewData): CalendarOccurren
 export function betaBandOccurrences(groups: readonly AcademyGroup[], data: FamilyPreviewData, dates: readonly string[]): CalendarOccurrence[] {
   return groups.flatMap(group => {
     // Linked service series already own their session occupancy and participant roster.
-    if (group.seriesId && data.students.some(student => student.enrollments.some(enrollment => enrollment.seriesId === group.seriesId))) return []
+    const seriesId = group.seriesId || group.id
+    if (data.students.some(student => student.enrollments.some(enrollment => enrollment.seriesId === seriesId))) return []
     const schedule = group.dailySchedule
     if (!schedule?.days?.length || !schedule.from || !schedule.to) return []
     const members = group.memberIds.map(id => data.students.find(student => student.id === id)).filter(Boolean)

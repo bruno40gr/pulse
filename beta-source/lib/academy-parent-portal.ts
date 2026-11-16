@@ -1,5 +1,5 @@
 import { applyFamilyAction, parentFamilyProjection, previewContacts, type FamilyAction, type FamilyPreviewData, type PreviewAccount } from './academy-family-preview'
-import { absenceEligible, bookPreviewMakeup, cancelPreviewReplacement, movePreviewLesson, previewCalendarLessons, type MakeupPreviewState, type PreviewMakeup } from './academy-makeup-preview'
+import { absenceEligible, bookPreviewMakeup, cancelPreviewReplacement, makeupSlots, movePreviewLesson, previewCalendarLessons, type MakeupPreviewState, type MakeupSlotResolver, type PreviewMakeup } from './academy-makeup-preview'
 import { editPreviewNote, workspaceInitial, type PreviewNote } from './academy-student-preview'
 
 /** Local simulation only. A real portal must enforce grants and mutations on the server. */
@@ -16,7 +16,7 @@ export function parentPortalProjection(data: FamilyPreviewData, account: Preview
 }
 
 /** One-occurrence self-service only. Validate against full data for teacher conflicts. */
-export function applyParentScheduleAction(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, action: { kind: 'move' | 'book'; id: string; booking: NonNullable<PreviewMakeup['booking']> } | { kind: 'cancel-makeup'; id: string }) {
+export function applyParentScheduleAction(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, action: { kind: 'move' | 'book'; id: string; booking: NonNullable<PreviewMakeup['booking']> } | { kind: 'cancel-makeup'; id: string }, availableSlots: MakeupSlotResolver = makeupSlots) {
   const account = data.accounts.find(item => item.id === accountId && (data.demoSchool || item.id === 'preview:kim'))
   if (!account) throw new Error('Schedule unavailable in this portal.')
   const visible = parentPortalProjection(data, account)
@@ -25,7 +25,7 @@ export function applyParentScheduleAction(data: FamilyPreviewData, state: Makeup
     const credit = state.items.find(item => item.id === action.id && !item.booking && visible.students.some(student => student.id === item.studentId && student.enrollments.some(enrollment => enrollment.id === item.enrollmentId && !enrollment.lifecycle)))
     if (!credit) throw new Error('Makeup unavailable in this portal.')
     if (action.booking.program !== credit.program) throw new Error('A makeup must keep its original program.')
-    return { data, state: bookPreviewMakeup(data, state, accountId, action.id, action.booking) }
+    return { data, state: bookPreviewMakeup(data, state, accountId, action.id, action.booking, availableSlots) }
   }
   const lesson = lessons.find(item => item.id === action.id && item.status === 'Scheduled')
   if (!lesson) throw new Error('Lesson unavailable in this portal.')
@@ -34,7 +34,7 @@ export function applyParentScheduleAction(data: FamilyPreviewData, state: Makeup
     return { data, state: cancelPreviewReplacement(data, state, accountId, action.id) }
   }
   if (!absenceEligible(lesson.date, lesson.time)) throw new Error('Rescheduling less than 24 hours before a lesson requires staff approval. Contact the academy.')
-  return movePreviewLesson(data, state, accountId, action.id, action.booking)
+  return movePreviewLesson(data, state, accountId, action.id, action.booking, availableSlots)
 }
 
 export function parentSharedNotes(data: FamilyPreviewData, account: PreviewAccount, notes: Record<string, PreviewNote[]>, studentId: string): PreviewNote[] {

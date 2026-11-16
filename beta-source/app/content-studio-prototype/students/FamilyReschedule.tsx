@@ -1,9 +1,11 @@
 'use client'
 
+import { useRescheduleAvailability } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
+
 import { useState } from 'react'
 import { Button, DenseSectionPanel } from '@/beta-source/components/ui'
 import { formatScheduleDate, formatScheduleTime, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
-import { makeupSlots, type MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
+import type { MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import type { FamilyPreviewData } from '@/beta-source/lib/academy-family-preview'
 import { projectFamilyMoves, type FamilyMoves } from '@/beta-source/lib/family-reschedule'
 import { MoveLesson } from './MoveLesson'
@@ -17,6 +19,7 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
   items: ScheduledClassItem[]; data: FamilyPreviewData; state: MakeupPreviewState; accountName: string; week: string
   onWeek: (week: string) => void; onBack: () => void; onConfirm: (moves: FamilyMoves) => string | null
 }) {
+  const resolveSlots = useRescheduleAvailability()
   const [activeId, setActiveId] = useState(items[0]?.id)
   const [focusVersion, setFocusVersion] = useState(0)
   const [moves, setMoves] = useState<FamilyMoves>({})
@@ -60,6 +63,6 @@ export function FamilyReschedule({ items, data, state, accountName, week, onWeek
 {error && <p role="alert">{error}</p>}</div>} draftBooking={moves[activeId] || null} onDraftChange={booking => {
       if (!booking || (booking.date === active.date && booking.time === active.time && booking.teacher === active.teacher)) { undo(activeId); return }
       setMoves(current => ({ ...current, [activeId]: booking })); setError('')
-    }} availableSlots={date => makeupSlots(slotData, slotState, { id: active.id, lessonId: active.id, studentId: active.student.id, enrollmentId: active.enrollmentId, date: active.date, duration: active.duration, program: active.program, teacher: active.teacher, service: active.enrollment.service }, date, active.program, false)} onMove={() => null} />
+    }} availableSlots={date => resolveSlots(slotData, slotState, { id: active.id, lessonId: active.id, studentId: active.student.id, enrollmentId: active.enrollmentId, date: active.date, duration: active.duration, program: active.program, teacher: active.teacher, service: active.enrollment.service }, date, active.program, false)} onMove={() => null} />
   </section>
 }

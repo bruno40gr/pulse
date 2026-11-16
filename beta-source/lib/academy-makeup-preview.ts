@@ -11,6 +11,7 @@ let demoTeacherCache: ReturnType<typeof createOdeonDemo>['teachers'] | undefined
 export type PreviewMakeup = { id: string; lessonId: string; studentId: string; enrollmentId: string; date: string; duration: number; program: string; teacher: string; service: string; booking?: { date: string; time: string; teacher: string; program: string } }
 export type AbsenceRecord = { lessonId: string; makeupId: string | null; teacherNotification: 'Queued locally' }
 export type MakeupPreviewState = { items: PreviewMakeup[]; absences: AbsenceRecord[] }
+export type MakeupSlotResolver = (data: FamilyPreviewData, state: MakeupPreviewState, makeup: PreviewMakeup, date: string, program: string, sameTeacher: boolean) => NonNullable<PreviewMakeup['booking']>[]
 export function createMakeupPreview(): MakeupPreviewState {
   return { items: ['2026-10-13', '2026-10-20'].map((date, index) => ({ id: `preview:makeup:${index}`, lessonId: `preview:past:${index}`, studentId: 'preview:sophie', enrollmentId: 'preview:sophie-piano', date, duration: 30, program: 'Piano', teacher: 'Jordan Vale', service: 'Private' })), absences: [] }
 }
@@ -41,15 +42,17 @@ export function expandPreviewCalendar(data: FamilyPreviewData, through: string):
     if (enrollment.frequency !== 'Weekly') continue
     const existing = byEnrollment.get(enrollment.id) || []
     const first = existing.filter(item => (item.originalDate || item.date) >= enrollment.start).sort((a, b) => (a.originalDate || a.date).localeCompare(b.originalDate || b.date))[0]
-    if (!first) continue
-    for (let date = enrollment.recurringSchedule?.start || first.originalDate || first.date; date <= through; date = shiftDate(date, 7)) {
+    // A new weekly enrollment (for example a band membership) has a schedule but no seeded lessons yet.
+    const scheduledStart = enrollment.recurringSchedule?.start || first?.originalDate || first?.date || (/^\d{4}-\d{2}-\d{2}$/.test(enrollment.start) ? enrollment.start : '')
+    if (!scheduledStart || (!first && !enrollment.time)) continue
+    for (let date = scheduledStart; date <= through; date = shiftDate(date, 7)) {
       if (!subscriptionScheduledOn(enrollment, date)) continue
       const change = enrollment.recurringSchedule?.changes.filter(item => item.from <= date).at(-1)
       const targetDate = change ? shiftDate(change.date, Math.round((Date.parse(date) - Date.parse(change.from)) / 86400000)) : date
       if (targetDate > through) continue
       const key = `${enrollment.id}:${date}`
       if (!occupied.has(key)) {
-        lessons.push({ id: `${enrollment.id}:calendar:${date}`, enrollmentId: enrollment.id, occurrenceId: enrollment.seriesId ? `${change ? enrollment.id : enrollment.seriesId}:${date}` : undefined, date: targetDate, originalDate: targetDate !== date ? date : undefined, time: change?.time || enrollment.recurringSchedule?.time || enrollment.time, teacher: change?.teacher || enrollment.recurringSchedule?.teacher || enrollment.teacher, room: first.room, status: 'Scheduled' })
+        lessons.push({ id: `${enrollment.id}:calendar:${date}`, enrollmentId: enrollment.id, occurrenceId: enrollment.seriesId ? `${change ? enrollment.id : enrollment.seriesId}:${date}` : undefined, date: targetDate, originalDate: targetDate !== date ? date : undefined, time: change?.time || enrollment.recurringSchedule?.time || enrollment.time, teacher: change?.teacher || enrollment.recurringSchedule?.teacher || enrollment.teacher, room: first?.room || '', status: 'Scheduled' })
         occupied.add(key)
       }
     }
@@ -69,7 +72,7 @@ export function recurringMoveCount(data: FamilyPreviewData, lessonId: string, ta
 
 /** Local-only recurring change. Validate every loaded occurrence and at least 52 weeks;
  * preserve occurrence identity, past lessons, absences, makeup credits and invoices. */
-export function reschedulePreviewSubscription(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, lessonId: string, booking: NonNullable<PreviewMakeup['booking']>) {
+export function reschedulePreviewSubscription(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, lessonId: string, booking: NonNullable<PreviewMakeup['booking']>, availableSlots: MakeupSlotResolver = makeupSlots) {
   const account = data.accounts.find(item => item.id === accountId)
   const lesson = data.lessons.find(item => item.id === lessonId && item.status === 'Scheduled')
   const student = data.students.find(person => account?.studentIds.includes(person.id) && person.enrollments.some(item => item.id === lesson?.enrollmentId))
@@ -86,7 +89,7 @@ export function reschedulePreviewSubscription(data: FamilyPreviewData, state: Ma
   const makeup: PreviewMakeup = { id: lesson.id, lessonId: lesson.id, studentId: student.id, enrollmentId: enrollment.id, date: lesson.date, duration: enrollment.duration, program: enrollment.program, teacher: lesson.teacher || enrollment.teacher, service: enrollment.service }
   const targets = new Map(future.map(item => {
     const date = shiftDate(booking.date, Math.round((Date.parse(item.originalDate || item.date) - Date.parse(from)) / 86400000))
-    if (!makeupSlots(availableData, state, makeup, date, enrollment.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error(recurringScheduleConflict)
+    if (!availableSlots(availableData, state, makeup, date, enrollment.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error(recurringScheduleConflict)
     return [item.id, { date, time: booking.time, teacher: booking.teacher }]
   }))
   const first = expanded.lessons.filter(item => item.enrollmentId === enrollment.id).sort((a, b) => (a.originalDate || a.date).localeCompare(b.originalDate || b.date))[0]
@@ -109,7 +112,7 @@ export function previewCalendarLessons(data: FamilyPreviewData, makeups: Preview
   })
   return [...recurring, ...replacements].filter(item => !item.enrollment.lifecycle && `${item.date}T${item.time}:00-08:00` >= makeupPreviewNow).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))
 }
-export function movePreviewLesson(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, id: string, booking: NonNullable<PreviewMakeup['booking']>) {
+export function movePreviewLesson(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, id: string, booking: NonNullable<PreviewMakeup['booking']>, availableSlots: MakeupSlotResolver = makeupSlots) {
   const account = data.accounts.find(item => item.id === accountId)
   const replacement = state.items.find(item => item.id === id && item.booking)
   const lesson = data.lessons.find(item => item.id === id && item.status === 'Scheduled')
@@ -122,7 +125,7 @@ export function movePreviewLesson(data: FamilyPreviewData, state: MakeupPreviewS
   const makeup: PreviewMakeup = replacement || { id, lessonId: id, studentId: student.id, enrollmentId: enrollment.id, date: original.date, duration: enrollment.duration, program: enrollment.program, teacher: original.teacher || enrollment.teacher, service: enrollment.service }
   const availabilityData = { ...data, lessons: data.lessons.filter(item => item.id !== id) }
   const availabilityState = { ...state, items: state.items.filter(item => item.id !== id) }
-  if (!makeupSlots(availabilityData, availabilityState, makeup, booking.date, booking.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error('Choose an available lesson time.')
+  if (!availableSlots(availabilityData, availabilityState, makeup, booking.date, booking.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error('Choose an available lesson time.')
   return replacement ? { data, state: { ...state, items: state.items.map(item => item.id === id ? { ...item, booking } : item) } } : { data: { ...data, lessons: data.lessons.map(item => item.id === id ? { ...detachParticipantOccurrence(item), originalDate: item.originalDate || item.date, date: booking.date, time: booking.time, teacher: booking.teacher } : item) }, state }
 }
 export function cancelPreviewReplacement(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, id: string) {
@@ -188,10 +191,10 @@ export function makeupSlots(data: FamilyPreviewData, state: MakeupPreviewState, 
     return !conflicts.some(item => item.date === date && (item.studentId === makeup.studentId || item.teacher === teacher.name) && overlap(time, makeup.duration, item.time, item.duration))
   }).map(teacher => ({ date, time, teacher: teacher.name, program })))
 }
-export function bookPreviewMakeup(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, makeupId: string, booking: NonNullable<PreviewMakeup['booking']>) {
+export function bookPreviewMakeup(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, makeupId: string, booking: NonNullable<PreviewMakeup['booking']>, availableSlots: MakeupSlotResolver = makeupSlots) {
   const makeup = state.items.find(item => item.id === makeupId && !item.booking)
   const account = data.accounts.find(item => item.id === accountId)
   if (!makeup || !account?.studentIds.includes(makeup.studentId) || !data.students.some(person => person.id === makeup.studentId && person.enrollments.some(item => item.id === makeup.enrollmentId))) throw new Error('Makeup unavailable.')
-  if (!makeupSlots(data, state, makeup, booking.date, booking.program, false).some(item => item.time === booking.time && item.teacher === booking.teacher)) throw new Error('Choose an available lesson.')
+  if (!availableSlots(data, state, makeup, booking.date, booking.program, false).some(item => item.time === booking.time && item.teacher === booking.teacher)) throw new Error('Choose an available lesson.')
   return { ...state, items: state.items.map(item => item.id === makeupId ? { ...item, booking } : item) }
 }

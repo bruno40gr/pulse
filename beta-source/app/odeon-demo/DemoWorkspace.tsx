@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import EventExplorer, { type BetaWorkflowCompletion } from '@/beta-source/app/content-studio-prototype/event-explorer/EventExplorer'
 import AcademyCalendar from '@/beta-source/app/odeon-demo/AcademyCalendar'
 import TeacherExperience from '@/beta-source/app/odeon-demo/TeacherExperience'
-import { betaPreviewToday, betaShiftDate, betaCalendarOccurrences } from '@/beta-source/lib/beta-academy-calendar'
+import { academyRescheduleAvailability } from '@/beta-source/lib/academy-reschedule-availability'
+import { betaPreviewToday, betaShiftDate, betaCalendarOccurrences, betaNextWeekday, betaMinutes } from '@/beta-source/lib/beta-academy-calendar'
 import { projectBetaBandMembership, projectBetaEnrollment } from '@/beta-source/lib/beta-workflow-projection'
 import { enrollmentBillingPreview } from '@/beta-source/lib/academy-enrollment-pricing'
 import { betaAcademyRooms, betaAcademyTeachers, betaRoomFor, betaTeachingLoad } from '@/beta-source/lib/beta-academy-schedule'
@@ -199,7 +200,10 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
         }
         const band = completion.band
         const account = current.data.accounts.find(item => item.studentIds.includes(completion.record.studentId))
-        return { ...current, data: projectBetaBandMembership(current.data, { enrollmentId: `beta:band:${completion.record.id}`, studentId: completion.record.studentId, payerId: account?.holderId || '', paymentMethod: completion.record.paymentMethod === 'demo_card' ? 'Demo Visa ···· 4242' : 'Add payment later', amountMinor: Math.round(Number(completion.record.monthlyPrice || 0) * 100), paid: completion.record.paymentStatus === 'succeeded', bandName: band?.name || 'Band program', teacher: band?.leader || 'Staff team', teacherId: teacherIdForName(band?.leader || '') }) }
+        // The band's own weekly schedule becomes the enrollment series, so Calendar and Contacts read one record.
+        const bandStart = band?.dailySchedule?.days?.length ? betaNextWeekday(band.dailySchedule.days[0], betaPreviewToday) : undefined
+        const bandDuration = band?.dailySchedule ? betaMinutes(band.dailySchedule.to) - betaMinutes(band.dailySchedule.from) : undefined
+        return { ...current, data: projectBetaBandMembership(current.data, { enrollmentId: `beta:band:${completion.record.id}`, studentId: completion.record.studentId, payerId: account?.holderId || '', paymentMethod: completion.record.paymentMethod === 'demo_card' ? 'Demo Visa ···· 4242' : 'Add payment later', amountMinor: Math.round(Number(completion.record.monthlyPrice || 0) * 100), paid: completion.record.paymentStatus === 'succeeded', bandName: band?.name || 'Band program', teacher: band?.leader || 'Staff team', teacherId: teacherIdForName(band?.leader || ''), seriesId: band?.id, time: band?.dailySchedule?.from, duration: bandDuration, start: bandStart }) }
       } catch { return current }
     })
   }, [teacherIdForName, academyTeachers, academyRooms, teachingLoad, queue, snapshot.data, setup, updateQueue])
@@ -212,6 +216,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     if (action === 'staff') { const next = new URLSearchParams(params.toString()); next.delete('view'); next.set('screen', 'book'); next.set('draft', result.id); router.push(`/odeon-demo?${next}`) }
   }
   const enrollmentAdapter = {
+    rescheduleAvailability: academyRescheduleAvailability({ setup, groups: queue.academy.groups, events: queue.state.events }),
     teachers: academyTeachers,
     availability: (date: string, time: string, lesson: import('@/beta-source/lib/academy-staff-enrollment').LessonChoice) => {
       if (!date || !time) return []
@@ -233,14 +238,14 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/odeon-demo?screen=calendar">Open sample calendar</a></Notice>
   if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
   return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent}>
-    {!parent && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · {tenant ? 'School account storage' : 'Saved on this browser · Not shared with other testers'}</div>}
+    {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · {tenant ? 'School account storage' : 'Saved on this browser · Not shared with other testers'}</div>}
     {storageError && <Notice variant="error">{storageError}</Notice>}
     {saveStatus && <span role="status" style={{ padding: '0 24px', fontSize: 12 }}>{saveStatus}</span>}
     {parent && params.get('impersonateReturn') && <div role="status" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap', background: colors.cream }}><span>Impersonating {snapshot.data.accounts.find(account => account.id === params.get('account'))?.holderName || 'parent'} · Sample parent portal</span><Button size="sm" variant="secondary" onClick={() => {
       const target = params.get('impersonateReturn') || ''
       window.location.assign(target.startsWith('/odeon-demo?') ? target : '/odeon-demo')
     }}>Exit impersonation</Button></div>}
-    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} /> : calendar ? <AcademyCalendar
+    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample /> : calendar ? <AcademyCalendar
     data={snapshot.data}
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}

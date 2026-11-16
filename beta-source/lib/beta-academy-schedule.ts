@@ -7,6 +7,8 @@ import { readSchedulingPolicy, teachingPolicyReason } from './academy-scheduling
 export type BetaAcademyTeacher = {
   id: string
   name: string
+  /** Raw School Setup values, so the teacher workspace can reuse the setup editors. */
+  values: Record<string, string>
   instruments: string[]
   location: string
   blocks: { day: number; from: number; to: number }[]
@@ -65,7 +67,7 @@ export function betaAcademyTeachers(setup: Record<string, SetupRecord[]>): BetaA
       const booking = parseJson<{ teacherId: string; date: string; time: string; duration: number; repeat: string; until: string; publicOnly: boolean; status: string } | null>(item.values.booking, null)
       return booking?.teacherId === record.id ? [booking] : []
     })
-    return [{ id: record.id, name, instruments, location: record.values.location || '', blocks, availabilityValues: record.values, policyValues: setup.policies?.[0]?.values || {}, blockedTimes }]
+    return [{ id: record.id, name, values: record.values, instruments, location: record.values.location || '', blocks, availabilityValues: record.values, policyValues: setup.policies?.[0]?.values || {}, blockedTimes }]
   })
 }
 

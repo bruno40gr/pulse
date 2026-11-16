@@ -1,5 +1,7 @@
 'use client'
 
+import { useRescheduleAvailability } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
+
 import { AccountWorkspace, InlineWorkspaceContext } from './AccountWorkspace'
 import styles from './StudentWorkspace.module.css'
 import bookingStyles from './CalendarBookingLayout.module.css'
@@ -16,6 +18,7 @@ import { spacing, typography } from '@/beta-source/lib/tokens'
 import { familyBookingReferences } from '@/beta-source/lib/family-booking-calendar'
 
 export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountName, profileSubtitle, availableSlots, sidebar, initialDate, onWeek }: { initialDate?: string; onWeek?: (week: string) => void; sidebar?: ReactNode; availableSlots?: (date: string) => ReturnType<typeof makeupSlots>; accountName?: string; profileSubtitle?: string; data: FamilyPreviewData; state: MakeupPreviewState; makeup: PreviewMakeup; onBack: () => void; onBook: (booking: NonNullable<PreviewMakeup['booking']>) => string | null }) {
+  const resolveSlots = useRescheduleAvailability()
   const inline = useContext(InlineWorkspaceContext)
   const [program, setProgram] = useState(makeup.program)
   const [sameTeacher, setSameTeacher] = useState(true)
@@ -27,7 +30,7 @@ export function MakeupWorkspace({ data, state, makeup, onBack, onBook, accountNa
   const person = { ...student, activeTeacher: false }
   const daySlots = new Map<string, ReturnType<typeof makeupSlots>>()
   const availability = (date: string, time: string) => {
-    if (!daySlots.has(date)) daySlots.set(date, availableSlots ? availableSlots(date).filter(slot => !sameTeacher || slot.teacher === makeup.teacher) : makeupSlots(data, state, makeup, date, program, sameTeacher))
+    if (!daySlots.has(date)) daySlots.set(date, availableSlots ? availableSlots(date).filter(slot => !sameTeacher || slot.teacher === makeup.teacher) : resolveSlots(data, state, makeup, date, program, sameTeacher))
     return daySlots.get(date)!.filter(slot => slot.time === time && (!inline || sameTeacher || !teacher || slot.teacher === teacher)).map(slot => ({ name: slot.teacher }))
   }
   if (inline) return <AccountWorkspace profileSubtitle={profileSubtitle} title={`Schedule ${makeup.program} makeup · ${makeup.duration} min`} accountName={accountName || previewStudentName(student)} onBack={onBack}>

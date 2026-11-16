@@ -29,11 +29,14 @@ test('non-enrollment room booking persists with no student or enrollment', () =>
  const {context,draft}=fixture(); const next=booking.saveCalendarBooking(context,draft)
  assert.equal(next.calendarBookings.length,1); assert.equal(next.students[0].enrollments.length,0); assert.equal(next.calendarBookings[0].roomName,'Room')
 })
-test('lesson requires one student and only 30/60 minutes', () => {
+test('lesson requires one student and a duration the service offers', () => {
  const {context,draft}=fixture(); const lesson={...draft,kind:'lesson',teacherId:'t'}
  assert.match(booking.bookingReason(context,lesson), /one student/)
- assert.match(booking.bookingReason(context,{...lesson,studentIds:['s'],duration:90}), /30- or 60/)
+ assert.match(booking.bookingReason(context,{...lesson,studentIds:['s'],duration:90}), /this service offers/)
  assert.equal(booking.bookingReason(context,{...lesson,studentIds:['s']}),null)
+ context.setup.services[0].values.durations='45'
+ assert.equal(booking.bookingReason(context,{...lesson,studentIds:['s'],duration:45}),null, 'configured 45-minute lessons are accepted')
+ assert.match(booking.bookingReason(context,{...lesson,studentIds:['s'],duration:60}), /this service offers/)
 })
 test('hard blocks apply for whole duration independently of overlays', () => {
  const {context,draft}=fixture(); context.setup.resourceBlocks=[{id:'hard',values:{booking:JSON.stringify({...draft,id:'hard',kind:'block',time:'12:30',duration:30})}}]

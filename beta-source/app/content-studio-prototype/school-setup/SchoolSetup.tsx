@@ -53,7 +53,7 @@ function createEditor(area: SetupArea, data: Record<string, SetupRecord[]>, reco
 export default function SchoolSetup({ configuredData, onConfiguredChange, configuredDiscounts, configuredDiscountPolicy, onDiscountsChange, demo = false, embedded = false, companySettings, offeringTypes, billingSettings, companyName, onExit }: { bookingContext?: BookingContext; configuredDiscountPolicy?: DiscountPolicy; configuredDiscounts?: SetupDiscount[]; onDiscountsChange?: (discounts: SetupDiscount[], policy: DiscountPolicy) => void; configuredData?: Record<string, SetupRecord[]>; onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void; demo?: boolean; embedded?: boolean; companySettings?: ReactNode; offeringTypes?: ReactNode; billingSettings?: ReactNode; companyName?: string; onExit?: () => void } = {}) {
   const hasOfferingTypes = Boolean(offeringTypes)
   const [view, setView] = useState('overview')
-  const [experience, setExperience] = useState<SetupExperience>(embedded ? 'configured' : 'new')
+  const [experience, setExperience] = useState<SetupExperience>(embedded || configuredData ? 'configured' : 'new')
   const [experiences, setExperiences] = useState(() => ({ new: createSetupData('new'), configured: configuredData || createSetupData('configured') }))
   useEffect(() => { onConfiguredChange?.(experiences.configured) }, [experiences.configured, onConfiguredChange])
   const data = experiences[experience]
@@ -75,7 +75,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
   const [backHref, setBackHref] = useState('/content-studio-prototype/students?prototype=v3')
   const mainRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    const sync = () => { const params = new URLSearchParams(window.location.search); const id = params.get('section'); setExperience(embedded || params.get('experience') === 'configured' ? 'configured' : 'new'); setView((id === 'calendar' || id === 'curriculum' || (hasOfferingTypes && id === 'offering-types') || setupAreas.some(area => area.id === id)) ? id! : 'overview'); setEditor(null); setCurriculumDirty(false); setError(''); setNotice('') }
+    const sync = () => { const params = new URLSearchParams(window.location.search); const id = params.get('section'); setExperience(embedded || configuredData || params.get('experience') === 'configured' ? 'configured' : 'new'); setView((id === 'calendar' || id === 'curriculum' || (hasOfferingTypes && id === 'offering-types') || setupAreas.some(area => area.id === id)) ? id! : 'overview'); setEditor(null); setCurriculumDirty(false); setError(''); setNotice('') }
     sync()
     const url = new URL(demo ? '/dashboard' : window.location.pathname === '/school-setup' ? '/students' : '/content-studio-prototype/students', window.location.origin)
     url.searchParams.set('prototype', 'v3')
@@ -84,7 +84,7 @@ export default function SchoolSetup({ configuredData, onConfiguredChange, config
     setBackHref(url.pathname + url.search)
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
-  }, [demo, embedded, hasOfferingTypes])
+  }, [demo, embedded, hasOfferingTypes, configuredData])
   function canLeave() { return !(dirty || curriculumDirty) || window.confirm('Discard unsaved changes?') }
   function navigate(next: string) {
     if (!canLeave()) return

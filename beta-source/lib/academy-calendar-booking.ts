@@ -68,7 +68,11 @@ export function bookingReason(context: BookingContext, booking: CalendarBooking,
   const duty = isStaffDuty(booking.kind)
   const from = timeMinutes(booking.time), to = from + booking.duration
   if (!/^\d{4}-\d{2}-\d{2}$/.test(booking.date) || !Number.isFinite(Date.parse(booking.date)) || new Date(booking.date).toISOString().slice(0, 10) !== booking.date) return 'Choose a valid date.'
-  if (!/^(?:[01]\d|2[0-3]):(?:00|30)$/.test(booking.time) || !Number.isInteger(booking.duration) || booking.duration < 30 || booking.duration % 30 || from < 360 || to > 1320) return 'Choose 30-minute increments between 6am and 10pm.'
+  // Configured services may teach 45-minute classes; their duration must still align to 15 minutes.
+  const configuredDurations = (booking.serviceId ? setup.services?.find(item => item.id === booking.serviceId)?.values.durations || '' : '').split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0)
+  const offeredDuration = configuredDurations.includes(booking.duration)
+  const duration = Number.isInteger(booking.duration) && booking.duration >= 30 && (booking.duration % 30 === 0 || (booking.duration % 15 === 0 && offeredDuration))
+  if (!/^(?:[01]\d|2[0-3]):(?:00|30)$/.test(booking.time) || !duration || from < 360 || to > 1320) return 'Choose 30-minute increments between 6am and 10pm.'
   if (booking.repeat === 'weekly' && (!booking.until || booking.until < booking.date || booking.until > shiftBookingDate(booking.date, 364))) return 'Choose an end date within one year for the weekly block.'
   const teacher = setup.teachers?.find(item => item.id === booking.teacherId)
   const room = roomRecords(setup).find(item => item.id === booking.roomId)
@@ -93,7 +97,7 @@ export function bookingReason(context: BookingContext, booking: CalendarBooking,
     if (booking.kind === 'lesson' && !service) return 'Choose a service.'
     if (booking.kind === 'event' && (!Number.isInteger(booking.requiredCapacity) || Number(booking.requiredCapacity) < 1)) return 'Enter the required event capacity.'
     if (!room) return 'Choose a room.'
-    if (booking.kind === 'lesson' && (!teacher || studentIds.length !== 1 || ![30, 60].includes(booking.duration))) return 'Lessons need one student, a teacher, and a 30- or 60-minute length.'
+    if (booking.kind === 'lesson' && (!teacher || studentIds.length !== 1 || !(configuredDurations.length ? configuredDurations : [30, 60]).includes(booking.duration))) return 'Lessons need one student, a teacher, and a length this service offers.'
     if (booking.repeat !== 'once') return 'Use a single booking here. Weekly recurrence is available for blocks.'
   }
   if (teacher && booking.kind !== 'block') {

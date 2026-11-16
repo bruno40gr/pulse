@@ -1,5 +1,7 @@
 'use client'
 
+import { useRescheduleAvailability } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
+
 import { ConfirmActionButton } from './ConfirmActionButton'
 
 import { AccountWorkspace, InlineWorkspaceContext } from './AccountWorkspace'
@@ -19,6 +21,7 @@ import LessonSchedule from '../enrollment/LessonSchedule'
 import { familyBookingReferences } from '@/beta-source/lib/family-booking-calendar'
 
 export function MoveLesson({ item, data, state, onBack, onMove, accountName, profileSubtitle, initialDate, onWeek, recurring = false, onRecurring, availableSlots, draftBooking, onDraftChange, rightControls, referenceLessons: calendarReferences }: { referenceLessons?: ReturnType<typeof familyBookingReferences>; rightControls?: ReactNode; draftBooking?: NonNullable<PreviewMakeup['booking']> | null; onDraftChange?: (booking: NonNullable<PreviewMakeup['booking']> | null) => void; availableSlots?: (date: string) => ReturnType<typeof makeupSlots>; recurring?: boolean; onRecurring?: (booking: NonNullable<PreviewMakeup['booking']>) => string | null; onWeek?: (week: string) => void; initialDate?: string; accountName?: string; profileSubtitle?: string; item: ScheduledClassItem; data: FamilyPreviewData; state: MakeupPreviewState; onBack: () => void; onMove: (booking: NonNullable<PreviewMakeup['booking']>) => string | null }) {
+  const resolveSlots = useRescheduleAvailability()
   const inline = useContext(InlineWorkspaceContext)
   const [localSelected, setSelected] = useState<NonNullable<PreviewMakeup['booking']> | null>(null)
   const selected = onDraftChange ? draftBooking || null : localSelected
@@ -31,7 +34,7 @@ export function MoveLesson({ item, data, state, onBack, onMove, accountName, pro
     if (!recurring || !onRecurring) { setError(onMove(selected) || ''); return }
     const account = data.accounts.find(value => value.studentIds.includes(item.student.id))
     try {
-      reschedulePreviewSubscription(data, state, account?.id || '', item.id, selected)
+      reschedulePreviewSubscription(data, state, account?.id || '', item.id, selected, resolveSlots)
       setError(''); setConfirmRecurring(true)
     } catch (error) { setError(error instanceof Error ? error.message : 'Unable to change recurring schedule.') }
   }
@@ -41,7 +44,7 @@ export function MoveLesson({ item, data, state, onBack, onMove, accountName, pro
   const availableState = { ...state, items: state.items.filter(value => value.id !== item.id) }
   const slots = new Map<string, ReturnType<typeof makeupSlots>>()
   const referenceLessons = calendarReferences || familyBookingReferences(data, state, item.student.id, item.id)
-  const calendar = <LessonSchedule calendarStudentIds={data.accounts.find(account => account.studentIds.includes(item.student.id))?.studentIds} referenceLessons={referenceLessons} toolbarActions={inline ? <><label className={bookingStyles.checkbox}><input type="checkbox" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); select(null); setError('') }} />Same teacher</label></> : undefined} onWeek={onWeek} lesson={lesson} lessons={inline && selected ? [lesson] : []} replacementMode={inline} detailedReplacementSlots={inline} chooseTeacherOnClick={inline && !sameTeacher} teacherPreference={inline ? sameTeacher ? item.teacher : '' : ''} student={{ ...item.student, activeTeacher: false }} manager={null} initialDate={initialDate || item.date} compactCopy availability={(date, time) => { if (!slots.has(date)) slots.set(date, availableSlots ? availableSlots(date) : makeupSlots(availableData, availableState, makeup, date, item.program, false)); return slots.get(date)!.filter(value => value.time === time).map(value => ({ name: value.teacher })) }} onChange={patch => { const next = { ...lesson, ...patch }; select(next.start && next.time && next.teacher ? { date: next.start, time: next.time, teacher: next.teacher, program: item.program } : null); setError('') }} />
+  const calendar = <LessonSchedule calendarStudentIds={data.accounts.find(account => account.studentIds.includes(item.student.id))?.studentIds} referenceLessons={referenceLessons} toolbarActions={inline ? <><label className={bookingStyles.checkbox}><input type="checkbox" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); select(null); setError('') }} />Same teacher</label></> : undefined} onWeek={onWeek} lesson={lesson} lessons={inline && selected ? [lesson] : []} replacementMode={inline} detailedReplacementSlots={inline} chooseTeacherOnClick={inline && !sameTeacher} teacherPreference={inline ? sameTeacher ? item.teacher : '' : ''} student={{ ...item.student, activeTeacher: false }} manager={null} initialDate={initialDate || item.date} compactCopy availability={(date, time) => { if (!slots.has(date)) slots.set(date, availableSlots ? availableSlots(date) : resolveSlots(availableData, availableState, makeup, date, item.program, false)); return slots.get(date)!.filter(value => value.time === time).map(value => ({ name: value.teacher })) }} onChange={patch => { const next = { ...lesson, ...patch }; select(next.start && next.time && next.teacher ? { date: next.start, time: next.time, teacher: next.teacher, program: item.program } : null); setError('') }} />
   if (inline) return <AccountWorkspace backLabel="Back to schedule" profileSubtitle={profileSubtitle} title={recurring ? `Change ${item.program} recurring schedule · ${item.duration} min` : `Reschedule ${item.program} lesson · ${item.duration} min`} accountName={accountName || previewStudentName(item.student)} onBack={onBack}>
     <CalendarBookingLayout rightControls={rightControls} hideConfirm={Boolean(onDraftChange)} moving studentName={previewStudentName(item.student)} makeup={makeup} program={item.program} sameTeacher={sameTeacher} onSameTeacher={value => { setSameTeacher(value); select(null); setError('') }} teacher="" onTeacher={() => {}} selected={selected} onConfirm={confirm} error={error}>
       {calendar}

@@ -70,6 +70,10 @@ export type BetaBandCompletion = {
   teacher?: string
   teacherId?: string
   start?: string
+  /** The band class is the enrollment's series; Calendar reads one session source. */
+  seriesId?: string
+  time?: string
+  duration?: number
 }
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/
@@ -155,10 +159,11 @@ export function projectBetaBandMembership(data: FamilyPreviewData, completion: B
   const enrollment: PreviewEnrollment = {
     id: completion.enrollmentId, studentId: student.id, program: completion.bandName, service: 'Band',
     teacher: completion.teacher || 'Staff team', ...(completion.teacherId ? { teacherId: completion.teacherId } : {}),
-    level: 1, day: weekdayLabel(start), time: '', duration: 45, start, frequency: 'Weekly',
+    level: 1, day: weekdayLabel(start), time: completion.time || '', duration: completion.duration || 45, start, frequency: 'Weekly',
     amountMinor: completion.amountMinor, currency: 'USD', priceUnit: 'per month',
     collection: 'Monthly · 1st of the month', payerId, paymentMethod: completion.paymentMethod,
     status: 'active', initialPaymentStatus: completion.paid ? 'paid' : 'unpaid',
+    ...(completion.seriesId ? { seriesId: completion.seriesId } : {}),
   }
   return { ...data, students: data.students.map(item => item.id === student.id ? { ...item, enrollments: [...item.enrollments, initialSubscriptionHistory(enrollment)] } : item) }
 }

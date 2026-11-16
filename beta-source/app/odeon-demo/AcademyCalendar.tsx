@@ -110,6 +110,8 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const resourceFilter = perspective === 'teacher' ? filters.staff : perspective === 'room' ? filters.room : filters.service
   const shownResources = resources.filter(resource => !resourceFilter.length || resourceFilter.includes(resource.id))
   const activeResource = weekResource ? shownResources.find(resource => resource.id === weekResource) : undefined
+  const filterCount = filters.staff.length + filters.room.length + filters.service.length + Number(!showUnavailable) + Number(Boolean(weekResource))
+  const resetFilters = () => { setFilters(blankFilters); setWeekResource(''); setShowUnavailable(true); setSelected(null) }
   const allWeek = !dayMode && !activeResource
   const columns = dayMode
     ? shownResources.map(resource => ({ id: resource.id, date: focusDate, resource }))
@@ -222,11 +224,12 @@ return (
         {!dayMode && !mobile && <div style={{ width: 230 }}><Select controlSize="toolbar" aria-label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select></div>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
-        {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filters.staff.length + filters.room.length + filters.service.length + Number(!showUnavailable) + Number(Boolean(weekResource)) > 0 ? ` (${filters.staff.length + filters.room.length + filters.service.length + Number(!showUnavailable) + Number(Boolean(weekResource))})` : ''}</Button> : <>
+        {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</Button> : <>
         <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
         <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
         <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
         <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
+        {filterCount > 0 && <Button size="toolbar" variant="secondary" onClick={resetFilters}>Reset filters</Button>}
         </>}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <ControlButton kind="icon" aria-label={`Previous ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? -1 : -7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronLeft size={18} /></ControlButton>
@@ -245,7 +248,7 @@ return (
             {calendarResources(field === 'staff' ? 'teacher' : field, setup, occurrences).map(option => <Checkbox key={option.id} label={option.name} checked={filters[field].includes(option.id)} onChange={() => setFilters(current => ({ ...current, [field]: current[field].includes(option.id) ? current[field].filter(id => id !== option.id) : [...current[field], option.id] }))} />)}
           </fieldset>)}
           <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
-          <Button variant="secondary" onClick={() => { setFilters(blankFilters); setWeekResource(''); setShowUnavailable(true) }}>Reset filters</Button>
+          <Button variant="secondary" onClick={resetFilters}>Reset filters</Button>
           <Button onClick={() => setFiltersOpen(false)}>Done</Button>
         </div>
       </SlidePanel>}

@@ -34,21 +34,38 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/, 'Use an isolated review host only'
       // Staff filter narrows the week to one teacher.
       await page.getByRole('button', { name: 'Close', exact: true }).last().click()
       await page.waitForTimeout(200)
-      await page.getByRole('button', { name: 'Staff: All', exact: true }).click()
-      await page.getByRole('group', { name: 'Staff filters' }).getByRole('checkbox').nth(1).check()
-      await page.keyboard.press('Escape')
+      if (width === 390) {
+        // Narrow screens keep the same filters in the shared slide panel.
+        await page.getByRole('button', { name: 'Filters', exact: true }).click()
+        const panel = page.getByRole('dialog', { name: 'Calendar filters', exact: true })
+        await panel.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^Staff$/ }) }).getByRole('checkbox').nth(1).check()
+        await panel.getByRole('button', { name: 'Done', exact: true }).click()
+        await panel.waitFor({ state: 'hidden' })
+      } else {
+        await page.getByRole('button', { name: 'Staff: All', exact: true }).click()
+        await page.getByRole('group', { name: 'Staff filters' }).getByRole('checkbox').nth(1).check()
+        await page.keyboard.press('Escape')
+      }
       await page.waitForTimeout(300)
       const narrowed = Number((await page.locator('body').innerText()).match(/(\d+) scheduled/)?.[1])
       assert.ok(narrowed < scheduled && narrowed > 0, 'The staff filter narrows the week')
-      await page.getByRole('button', { name: 'Clear filters', exact: true }).click()
+      if (width === 390) {
+        await page.getByRole('button', { name: 'Filters (1)', exact: true }).click()
+        const panel = page.getByRole('dialog', { name: 'Calendar filters', exact: true })
+        await panel.getByRole('button', { name: 'Reset filters', exact: true }).click()
+        await page.keyboard.press('Escape')
+        await panel.waitFor({ state: 'hidden' })
+      } else {
+        await page.getByRole('button', { name: 'Reset filters', exact: true }).click()
+      }
 
       // Lesson proposals hand off to enrollment; room reservations remain direct.
       await page.getByRole('button', { name: 'Add booking', exact: true }).click()
       const modal = page.getByRole('dialog', { name: 'Add booking', exact: true })
       await modal.getByRole('button', { name: 'Choose Studio booking', exact: true }).click()
-      await modal.getByLabel('Room', { exact: true }).selectOption({ label: 'Studio 1 · capacity 1' })
       await modal.getByLabel('Booking date', { exact: true }).fill('2026-11-04')
       await modal.getByLabel('Start time', { exact: true }).selectOption('14:00')
+      await modal.getByLabel('Room', { exact: true }).selectOption({ index: 1 })
       await modal.getByRole('button', { name: 'Add booking', exact: true }).click()
       await modal.waitFor({ state: 'detached' })
       assert.ok(await page.locator('[data-booking-id*="beta:booking:"]').count(), 'The new booking appears on its selected date')

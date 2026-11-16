@@ -1,5 +1,7 @@
 'use client'
 
+import { useRescheduleAvailability } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
+
 import { ParentEnrollmentQueue } from './ParentEnrollmentQueue'
 
 import { familyActionConfirmation, useActionConfirmation } from './useActionConfirmation'
@@ -17,7 +19,7 @@ import { formatScheduleDate, formatScheduleTime } from '@/beta-source/lib/academ
 import { applyParentPortalAction, applyParentScheduleAction, parentPortalProjection } from '@/beta-source/lib/academy-parent-portal'
 import { invoiceOutstanding, nextPreviewPaymentDate, type FamilyAction, type FamilyPreviewData, type PreviewAccount } from '@/beta-source/lib/academy-family-preview'
 import { previewMoney, previewStudentName, workspaceInitial, type PreviewNote } from '@/beta-source/lib/academy-student-preview'
-import { absenceEligible, makeupSlots, expandPreviewCalendar, previewCalendarLessons, makeupPreviewNow, recordPreviewAbsence, type MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
+import { absenceEligible, expandPreviewCalendar, previewCalendarLessons, makeupPreviewNow, recordPreviewAbsence, type MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import { Cards, PayInvoiceForm, type ManagementIntent } from './WorkspaceManagement'
 import { InvoiceHistoryFilter, filterInvoiceHistory, type InvoiceHistoryView } from './InvoiceHistoryFilter'
 import { InvoiceCard, InvoicePreview } from './InvoicePreview'
@@ -52,6 +54,7 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
   const [invoiceView, setInvoiceView] = useState<InvoiceHistoryView>('all')
   const [payment, setPayment] = useState<ManagementIntent | null>(null)
+  const resolveSlots = useRescheduleAvailability()
   const { confirm, confirmation } = useActionConfirmation()
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [view, setView] = useState<'list' | 'calendar'>('list')
@@ -158,10 +161,10 @@ export function ParentPortal({ data, account, makeups, notes, onSaveNote, onData
     </div></header>
     <main ref={contentRef} className={styles.content} aria-label="Parent portal">
       {confirmation}
-      {moving ? <MoveLesson availableSlots={date => makeupSlots({ ...data, lessons: data.lessons.filter(item => item.id !== moving.id) }, { ...makeups, items: makeups.items.filter(item => item.id !== moving.id) }, { id: moving.id, lessonId: moving.id, studentId: moving.student.id, enrollmentId: moving.enrollmentId, date: moving.date, program: moving.program, duration: moving.duration, teacher: moving.teacher, service: moving.enrollment.service }, date, moving.program, false)} key={moving.id} item={moving} data={visible} state={makeups} initialDate={moving.date} accountName={previewStudentName(moving.student)} onBack={() => setMoveId(null)} onMove={booking => {
-        try { const next = applyParentScheduleAction(data, makeups, account.id, { kind: 'move', id: moving.id, booking }); onData(next.data); onMakeups(next.state); setMoveId(null); confirm('I’ve rescheduled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to reschedule lesson.' }
-      }} /> : selectedMakeup ? <MakeupWorkspace sidebar={makeupBlocks} availableSlots={date => makeupSlots(data, makeups, selectedMakeup, date, selectedMakeup.program, false)} key={selectedMakeup.id} data={visible} state={makeups} makeup={selectedMakeup} accountName={visible.students.find(student => student.id === selectedMakeup.studentId) ? previewStudentName(visible.students.find(student => student.id === selectedMakeup.studentId)!) : account.holderName} onBack={() => { setMakeupId(null); if (section === 'makeups') navigate('lessons') }} onBook={booking => {
-        try { onMakeups(applyParentScheduleAction(data, makeups, account.id, { kind: 'book', id: selectedMakeup.id, booking }).state); setMakeupId(null); if (section === 'makeups') navigate('lessons'); confirm('I’ve booked the makeup lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to book makeup.' }
+      {moving ? <MoveLesson availableSlots={date => resolveSlots({ ...data, lessons: data.lessons.filter(item => item.id !== moving.id) }, { ...makeups, items: makeups.items.filter(item => item.id !== moving.id) }, { id: moving.id, lessonId: moving.id, studentId: moving.student.id, enrollmentId: moving.enrollmentId, date: moving.date, program: moving.program, duration: moving.duration, teacher: moving.teacher, service: moving.enrollment.service }, date, moving.program, false)} key={moving.id} item={moving} data={visible} state={makeups} initialDate={moving.date} accountName={previewStudentName(moving.student)} onBack={() => setMoveId(null)} onMove={booking => {
+        try { const next = applyParentScheduleAction(data, makeups, account.id, { kind: 'move', id: moving.id, booking }, resolveSlots); onData(next.data); onMakeups(next.state); setMoveId(null); confirm('I’ve rescheduled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to reschedule lesson.' }
+      }} /> : selectedMakeup ? <MakeupWorkspace sidebar={makeupBlocks} availableSlots={date => resolveSlots(data, makeups, selectedMakeup, date, selectedMakeup.program, false)} key={selectedMakeup.id} data={visible} state={makeups} makeup={selectedMakeup} accountName={visible.students.find(student => student.id === selectedMakeup.studentId) ? previewStudentName(visible.students.find(student => student.id === selectedMakeup.studentId)!) : account.holderName} onBack={() => { setMakeupId(null); if (section === 'makeups') navigate('lessons') }} onBook={booking => {
+        try { onMakeups(applyParentScheduleAction(data, makeups, account.id, { kind: 'book', id: selectedMakeup.id, booking }, resolveSlots).state); setMakeupId(null); if (section === 'makeups') navigate('lessons'); confirm('I’ve booked the makeup lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to book makeup.' }
       }} /> : section === 'makeups' && !selectedLesson ? <><BackControl label="Back to lessons" showLabel onClick={() => navigate('lessons')} /><div className={styles.intro}><h1>Schedule a makeup</h1></div><div className={styles.makeupLayout}>{makeupBlocks}<WeeklySchedule data={visible} makeups={credits} location={{ ...location, studentId }} taskLayout week={week} onWeek={setWeek} onEnsure={through => onData(expandPreviewCalendar(data, through))} onLesson={openLesson} onMove={startMove} compact /></div></> : selectedLesson ? <LessonPreview key={selectedLesson.id} lesson={selectedLesson} parent absence={makeups.absences.find(item => item.lessonId === selectedLesson.id)} onBack={() => setLessonId(null)} onSchedule={id => { setLessonId(null); setMakeupId(id) }} onCancel={() => {
         try { const next = recordPreviewAbsence(data, makeups, account.id, selectedLesson.id, false, true); onData(next.data); onMakeups(next.state); confirm('I’ve cancelled the lesson.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
       }} /> : selectedInvoice ? <InvoicePreview invoice={selectedInvoice} onBack={() => setInvoiceId(null)} onPay={selectedInvoice.status === 'Open' ? () => setPayment({ kind: 'pay', invoiceId: selectedInvoice.id }) : undefined} /> : section === 'home' ? <>

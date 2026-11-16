@@ -284,11 +284,15 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
       if (existing && !existing.formation && new Set([...existing.memberIds, ...plan.memberIds]).size > existing.capacity) throw new Error('This program does not have enough capacity.')
       const groupId = existing?.id || crypto.randomUUID()
       const schedule = `${plan.date} · ${plan.time} · ${plan.duration} min${plan.mode === 'ongoing' ? ' · Weekly' : ' · One session'}`
+      // Structured weekly schedule so the academy calendar can render the class without parsing prose.
+      const endMinute = Number(plan.time.slice(0, 2)) * 60 + Number(plan.time.slice(3)) + Number(plan.duration)
+      const dailySchedule = plan.mode === 'ongoing' ? { days: [new Date(`${plan.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })], from: plan.time, to: `${String(Math.floor(endMinute / 60)).padStart(2, '0')}:${String(endMinute % 60).padStart(2, '0')}` } : undefined
       if (academy.kind !== 'music') setAcademy(current => ({ ...current, groups: existing ? current.groups.map(group => group.id === groupId ? { ...group, memberIds: [...new Set([...group.memberIds, ...plan.memberIds])], schedule: plan.mode === 'ongoing' ? schedule : group.schedule } : group) : [...current.groups, { id: groupId, typeId: current.groupTypes.find(type => type.enabled)?.id || '', name: plan.name, leader: plan.leader, capacity: Math.max(12, plan.memberIds.length), trialMax: 2, memberIds: [...plan.memberIds], schedule, resources: [], eventIds: [], message: '' }] }))
       if (academy.kind === 'music') {
         const band = existing || { id: groupId, typeId: academy.groupTypes.find(type => type.enabled)?.id || '', name: plan.name, leader: plan.leader, capacity: Math.max(12, plan.memberIds.length), trialMax: 2, memberIds: [], formation: true, schedule: '', resources: [], eventIds: [], message: '' }
         const scheduled = scheduleBandParticipants(band, plan.memberIds, schedule, state.people, inquiries)
-        setAcademy(current => ({ ...current, groups: existing ? current.groups.map(group => group.id === groupId ? scheduled.group : group) : [...current.groups, scheduled.group] })); setInquiries(scheduled.inquiries)
+        const scheduledGroup = { ...scheduled.group, dailySchedule: dailySchedule || scheduled.group.dailySchedule, ...(dailySchedule ? { seriesId: groupId } : {}) }
+        setAcademy(current => ({ ...current, groups: existing ? current.groups.map(group => group.id === groupId ? scheduledGroup : group) : [...current.groups, scheduledGroup] })); setInquiries(scheduled.inquiries)
       }
       setBookings(current => [...current, { id: crypto.randomUUID(), institution: academy.kind, proposalId: record.id, groupId, plan: structuredClone(plan), totalPerPerson: programTotal(plan) }])
       setState(current => ({ ...current, people: current.people.map(person => plan.memberIds.includes(person.id) ? { ...person, roles: [...new Set([...person.roles, 'Student'])], customer: true, enrolled: (academy.kind !== 'music' && plan.mode === 'ongoing') || person.enrolled } : person) }))
