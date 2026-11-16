@@ -1,5 +1,14 @@
 # Beta integration progress — November 13, 2026
 
+## Main navigation trimmed — November 16, 2026
+
+- **Event RSVPs** is removed from Operations: that event has passed. **Campaigns**
+  is hidden for now, not deleted. Both routes still render at `/dashboard/rsvps`
+  and `/dashboard/history`, so nothing is lost and either can be re-linked in one
+  line when it earns its place.
+- Operations is now: Overview, Notes, Leads, Contacts, Communications, Teachers &
+  staff (plus Settings). Verified on the signed-in app; suite 1,159/1,159.
+
 ## Beta leaves the main navigation — November 16, 2026
 
 - Teacher day and Calendar no longer sit in **Operations**. Operations means the
