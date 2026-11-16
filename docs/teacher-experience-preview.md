@@ -6,22 +6,43 @@ this is not a teacher login or a production teacher permission boundary.
 
 ## Scope
 
-- Mobile calendar: no pointer drawing on narrow screens or touch pointers. Use
-  **Add booking**; existing booking inspection and keyboard activation remain.
-- Mobile calendar filters are inside the shared accessible slide panel, including
-  staff, room, service, unavailable time and the week-resource selector. Date
-  navigation and both tab sets remain outside. Desktop filtering is unchanged.
-- Teacher mockup: day/week agenda and roster from preview records, participant
-  attendance controls, lesson-note tasks, family-message drafts, configured
-  teaching hours and availability proposals. Schedule cards reuse the extracted
-  Contacts `LessonCard` composition with **Take attendance**, **Leave notes** and
-  **Message family** actions. Messaging offers SMS/email within the lesson dialog;
-  there is no Families tab. Desktop uses two columns; mobile
-  stacks the same components.
-- All teacher edits are component-local and disappear on exit/reload. Nothing is
-  sent, no API mutations are made, and no shared sample records are changed.
-  The selected-period task queue is not an overdue/due-date calculation. Live
-  inbox, note publication and approval submission are not connected.
+- The screen is a working day view, not an annotated mockup: no prototype banner,
+  no "design preview" footer, and no sample-data strip above a teacher's own
+  screen (the parent portal is treated the same way).
+- **Owner-only preview selector.** The Teacher picker renders from
+  `/api/account/me` `roleKey === 'owner'`. A signed-in teacher gets no selector
+  and sees only their own schedule. Real teacher sign-in still needs the
+  staff→teacher identity mapping listed below.
+- **Range controls are mode-specific.** Day shows **Today** plus a date picker;
+  Week shows previous/next week, **This week** and the week-of label. Only one
+  set is shown at a time.
+- **Four summary cards**: sessions, students, attendance to mark and lesson
+  notes to add for the selected period (4/4/4/4 in the sample).
+- **Schedule** starts with one plain date heading, `Today, Wed Nov 4` (or
+  `Wednesday, Nov 4` outside today), and never repeats the date inside a card.
+  A card shows only `4:00–4:30 pm`, the student(s), the class and the room; the
+  teacher name is not repeated. Attendance is three toggle buttons —
+  **Present**, **No-show**, **Excused absence** — from the shared
+  `attendanceOutcomes`, with `aria-pressed` state and no modal.
+- **Cancelled and rescheduled lessons** reuse the Calendar/Contacts card
+  treatment exactly: dashed border, 65% opacity, struck title and a
+  `Cancelled`/`Rescheduled` badge. Plain scheduled lessons carry no badge, so
+  the status is signal rather than noise.
+- **Student roster** keeps the list and adds **Add note** and **Send message**
+  per student, both opening the lesson note/message dialogs.
+- **To do** lists only outstanding work: a lesson's card disappears once both
+  attendance and notes exist. Attendance is the same toggle group used on the
+  schedule; notes open the lesson-note dialog. Sticky notes that mention the
+  teacher are listed with the shared sticky-note appearance (`noteBackground`,
+  `NOTE_INK`) rather than bespoke styling.
+- **Availability is the School Setup editor itself** (`TeacherSchedule`), bound
+  to the teacher's record — the earlier weekday/from/to proposal form and its
+  sample proposal list are gone. Edits write through to the sample school
+  record and persist with the rest of the workspace.
+- **Profile**: name, email, photo (`TeacherPhoto`) and teaching skills by level,
+  saved to the teacher record.
+- Attendance marks, lesson notes and message drafts stay in the screen and are
+  discarded on reload; nothing is sent and no API writes are made.
 
 ## Product direction
 
@@ -34,26 +55,41 @@ direction in `docs/Odeon-AI-vision.md`.
 
 Before live use: server-resolved teacher identity/assignments, roster and family
 visibility permissions, auditable per-participant attendance, lesson-linked notes
-with explicit audience, authorized communication threads/delivery, and effective-
-dated availability requests with conflict checks and office approval. Do not
-mistake the preview selector for authorization or temporary proposals for school
-availability. Further cosmetic iteration should be deferred until teachers review
-the daily workflow; it displaces reliable rescheduling and live permission work.
+with explicit audience, authorized communication threads/delivery, and an
+effective-dated availability record with conflict checks (today availability
+edits write straight to the sample school record). Do not mistake the owner
+preview selector for authorization or these sample writes for multi-teacher
+storage. Further cosmetic iteration should be deferred until teachers review the
+daily workflow; it displaces reliable rescheduling and live permission work.
 
 ## Validation
 
-- 1,100/1,100 academy/security tests passed after the navigation revision.
-- Production build passed (Next.js 15.5.29), TypeScript check and targeted ESLint
-  passed; no dependency or migration changes.
-- `beta-mobile-teacher-browser.cjs`: 390px and 1440px, calendar filter controls,
-  focus restoration, touch/narrow drawing disabled, explicit Add booking,
-  teacher schedule/tasks/notes/drafts/availability validation, no API writes or
-  sample-record changes, no browser errors or horizontal page overflow.
+- Full suite **1,158/1,158**, including the six UI/navigation source assertions
+  that previously failed for unrelated reasons. Production build passed (exit
+  0); TypeScript and lint report no errors.
+- `beta-mobile-teacher-browser.cjs`: 390px and 1440px — no demo banner on the
+  teacher screen, one `Today, Wed Nov 4` heading, four summary cards reading
+  4/4/4/4, Date picker only in Day and week controls only in Week, inline
+  attendance state, To-do filtering, notes/messages, setup-based availability,
+  profile fields, no API writes, no cancelled or moved sample lessons, no
+  browser errors or horizontal overflow.
+- Rescheduling regressions (`beta-reschedule-availability.test.cjs`,
+  `beta-plumbing-availability-browser.cjs`) prove onboarding opens configured
+  records by default, Contacts reschedule uses Calendar’s configured hours and
+  excludes booked staff time, and time off/date overrides apply.
+- 45-minute classes: `calendar-booking-policy.test.cjs` and
+  `beta-booking-policy-browser.cjs` prove the lesson dialog lists only the
+  configured length (Tiny Keys and Little Rockers offer 45, private lessons keep
+  30/45/60) and that a 45-minute lesson is accepted by the shared validator.
+- `beta-academy-calendar-browser.cjs` (1440/390) covers the week view, staff
+  filter narrowing and **Reset filters** in both the desktop toolbar and the
+  mobile panel, block inspection, direct room reservation and cancelled-lesson
+  rendering.
+- Screenshots and command logs saved under `/tmp/{odeon-teacher,t2-*,teacher-*}`.
+  Local preview validation does not establish hosted deployment readiness.
 - Existing desktop calendar controls/profile/booking regression and desktop/mobile
   Beta navigation regressions passed. Mobile-specific filter checks now reside
   in the new browser script rather than the desktop toolbar geometry test.
-- Screenshots and command logs saved under `/tmp/odeon-{teacher,mobile-teacher}*`.
-  Local preview validation does not establish hosted deployment readiness.
 - Removed the duplicate School Setup work area; Teachers & staff is retained in
   Operations. School onboarding keeps the configuration workflows and URL, with
   an app-aligned 252px left-pinned sidebar, full-width content, and a 72px mobile

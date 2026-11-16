@@ -1,3 +1,23 @@
+# Storage migration working rules — November 15, 2026
+
+These rules govern how the durable-workspace work below is executed. They exist
+because a stale browser regression script cost nearly three hours of repair
+across five failed runs before it was reported.
+
+- **Report staleness in 30 seconds, then move on.** When a regression script no
+  longer matches the product (renamed fixtures, removed controls, a changed
+  storage key, a different nav pattern), say "this script is stale", state what
+  changed in one line, and skip it. Do not repair it inside a feature slice.
+- **Timebox each slice.** Every storage slice has a stated time budget before it
+  starts. When the budget is spent, stop and report what is done, what is left
+  and what is blocking — do not continue on momentum.
+- **The first time something is stale or blocked, stop and report instead of
+  grinding.** Repeatedly re-running a failing check, or widening scope to make it
+  pass, is the failure mode to avoid. One diagnostic attempt, then a report.
+- **Infrastructure stops are hard stops.** Applying a migration to a hosted
+  project, minting a real authenticated staff token, and production cutover each
+  require explicit approval. Park at the boundary and ask; never infer consent.
+
 # Staff duties and durable workspace storage — November 14, 2026
 
 - Teacher onboarding includes independent `canCoverFrontDesk` and `canPerformAdmin` eligibility. Admin means scheduled office work, not an account role or permission grant.

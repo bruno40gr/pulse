@@ -1,5 +1,112 @@
 # Beta integration progress — November 13, 2026
 
+## UI truth, scheduling access and the teacher day — November 15, 2026
+
+- **Test suite is green again: 1,158/1,158.** The six previously failing UI and
+  navigation assertions split into two kinds of problem and were fixed at the
+  right layer rather than deleted:
+  - *Moved behaviour*: `notification-navigation` and `task-notification` now
+    read note links and the daily composer from `components/notes/DashboardNotes.tsx`,
+    where that code lives after the page became a wrapper. `event-rsvps` failed
+    only because the harness transpiled without `esModuleInterop`, so the CSS
+    module import resolved to `undefined`; the rendered markup was always
+    correct. `task-notification`'s token stub was missing `interaction`.
+  - *Real violations*: the ten native `<button>` elements now use
+    `Button`/`ControlButton`, and the 33 call-site style overrides were replaced
+    with shared control kinds (`slot`, `row`, `toggle`, `swatch`, `block`,
+    `card`, `subtle`, `link`) instead of being allowlisted. `ControlButton` owns
+    the appearances; call sites keep event semantics.
+- **Reset filters is back on desktop.** The calendar toolbar shows **Reset
+  filters** only while a filter, hidden unavailability or a week resource is
+  active, and it clears all of them — the same payload the mobile panel uses.
+  The `calendar-appearance` assertion still forbids the old `Clear filters`
+  wording.
+- **45-minute classes are creatable, not just reschedulable.** Lesson durations
+  now come from the selected service: Tiny Keys and Little Rockers offer only
+  45 minutes and select it automatically, private lessons keep 30/45/60, and a
+  service change adopts its first configured length instead of leaving an
+  invalid one selected. Start times stay on `:00`/`:30`, and switching from a
+  lesson to a room booking no longer carries the lesson's 45 minutes into a
+  room reservation.
+- **Band enrollments reach the calendar.** Scheduling a band now stores a
+  structured `dailySchedule` (weekday and from/to) next to the display string,
+  the band is marked as the series owner, and the completed membership records
+  `seriesId`, `time`, `duration` and a first date. `expandPreviewCalendar`
+  materialises the weekly series from that record, and band blocks are
+  suppressed once an enrollment owns the series (`group.seriesId || group.id`),
+  so a completed band appears exactly once with its members — and a band with
+  no enrollment yet still renders from `dailySchedule`.
+- **Teacher day rebuilt as a working screen.** Owner-only preview selector,
+  mode-specific Day/Week controls, four summary cards, one `Today, Wed Nov 4`
+  heading with time-only lesson cards (student, class, room; no repeated teacher
+  or date), inline three-button attendance, Calendar's cancelled/rescheduled
+  treatment, To-do cards that disappear when attendance and notes are both done,
+  sticky notes that mention the teacher, availability reusing the School Setup
+  editor with write-through, and a profile tab for name, email, photo and
+  teaching skills by level. The prototype banner and sample-data strip no longer
+  appear above a teacher's own screen.
+- Evidence: `beta-mobile-teacher-browser.cjs` (1440/390 — banner absence, heading
+  text, 4/4/4/4 summary, mode-specific controls, attendance state, To-do, notes,
+  messages, availability, profile, no writes/errors/overflow);
+  `beta-booking-policy-browser.cjs` (service-driven durations, 45-minute
+  acceptance, saved room and block bookings, 1440/390);
+  `beta-academy-calendar-browser.cjs` (staff filter, Reset filters in toolbar and
+  mobile panel, block actions, room reservation, cancelled lesson) — both
+  previously stale scripts repaired (renamed rooms, removed `Clear filters`,
+  `View by` segmented control, current storage key, mobile filter panel);
+  `beta-reschedule-availability.test.cjs` (10 contracts including the band
+  series and the 4/4/4/4 teacher summary assumptions).
+- Remaining red flags: live school storage is still unprovisioned (the
+  migration and API exist but have not been applied, and there is no
+  staff→teacher identity mapping, so a real teacher cannot sign in to "their"
+  schedule yet); attendance, notes and message drafts remain unsent screen
+  state; Calendar's own reschedule panel keeps its parallel slot loop for band
+  occurrences and remains slated for the shared enrollment-and-booking
+  unification.
+
+## Plumbing audit — November 15, 2026
+
+- **Onboarding now opens the academy’s existing configuration by default.** The
+  Beta shell already passed its saved sample setup into School Setup, but the
+  component still defaulted to the empty “new school” fixture until
+  `experience=configured` was present. It now selects the configured records
+  whenever setup data is supplied, on first render and on history navigation.
+  Sample-only; no migration, tenant provisioning or permission change.
+- **One availability calculation for rescheduling.** Added
+  `beta-source/lib/academy-reschedule-availability.ts`, which resolves slots
+  through the same `bookingReason` policy Calendar uses: configured services and
+  durations, teacher assignments, weekly/date-specific hours, time off, rooms,
+  closures, teaching-policy breaks and existing occupancy. `DemoWorkspace`
+  publishes it through `CalendarEnrollmentContext`; Contacts reschedule,
+  recurring change, makeup booking, family batch reschedule, the parent portal
+  and its validation all use it. Standalone callers without a configured context
+  keep the previous fixture resolver as a default.
+- **Teacher day reads date-specific hours.** The Availability panel now shows
+  `teaching hours · <date>` from the same `teacherHours` helper the Calendar
+  validator uses, plus the base weekly hours as a secondary list. Proposals
+  remain component-local and are still not submitted.
+- **45-minute configured classes are schedulable.** `bookingReason` now accepts
+  a duration that is a multiple of 15 minutes when the selected service lists
+  it, while start times stay on `:00`/`:30`. The sample Tiny Keys classes are 45
+  minutes and were previously rejected by the shared validator, so neither
+  Calendar nor Contacts could move them.
+- Evidence: full suite **1,150/1,156**; the same six pre-existing, unrelated
+  UI/navigation source assertions fail before and after this change
+  (`button-boundary`, presentation, DataGridTable guest table,
+  notification-navigation, swatch shape, daily composer colors). Production
+  build passed (exit 0). `beta-reschedule-availability.test.cjs` (8 contracts)
+  covers configured hours, booked slots, time off/date overrides, service
+  assignment, 45-minute classes, move validation, onboarding defaults and shared
+  wiring. `beta-plumbing-availability-browser.cjs` passes at 1440/390px with no
+  page errors or horizontal overflow; mobile teacher, family reschedule, setup
+  scheduling and onboarding shell regressions also pass.
+- Remaining red flags: Calendar’s own reschedule panel still runs a parallel slot
+  loop (needed for band occurrences without an enrollment); the lesson dialog
+  still offers only 30/60-minute new bookings, so configured 45-minute classes
+  are reschedulable but not creatable there; teacher availability proposals,
+  notes and messages remain unsubmitted previews; the larger shared
+  enrollment-and-booking unification remains separate agreed backlog work.
+
 ## Current status — merged and pushed, November 15, 2026
 
 - Merge `61ce7bb` landed the validated integration on main and was pushed;
