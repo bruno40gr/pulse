@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       canUpdateCredentials: hasMatchingPersonalSession,
       email: hasMatchingPersonalSession ? authData.user?.email || person?.email || null : person?.email || null,
       membershipId: result.context.membershipId,
+      personId: result.context.personId,
       tenantId,
     })
   } catch (error) {

@@ -10,9 +10,13 @@ this is not a teacher login or a production teacher permission boundary.
   no "design preview" footer, and no sample-data strip above a teacher's own
   screen (the parent portal is treated the same way).
 - **Owner-only preview selector.** The Teacher picker renders from
-  `/api/account/me` `roleKey === 'owner'`. A signed-in teacher gets no selector
-  and sees only their own schedule. Real teacher sign-in still needs the
-  staff→teacher identity mapping listed below.
+  `/api/account/me` `roleKey === 'owner'`. Any other signed-in staff member is
+  locked to their own staff record: `/api/account/me` now returns `personId`, and
+  the screen matches the teaching record by `values.personId` (falling back to
+  the staff email for records created before person linking). A staff account
+  with no matching record sees only "this login is not connected to a teaching
+  profile yet" and never another teacher's day. Linking a login to a staff
+  record is still done outside the UI, and needs live storage to matter.
 - **Range controls are mode-specific.** Day shows **Today** plus a date picker;
   Week shows previous/next week, **This week** and the week-of label. Only one
   set is shown at a time.

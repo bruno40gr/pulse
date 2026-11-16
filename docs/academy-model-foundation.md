@@ -1,3 +1,21 @@
+# Payments direction — decided November 16, 2026
+
+- **Each school uses its own payment-processor account.** Headliner is not the
+  merchant of record and does not collect-and-payout, so there is no platform
+  (Connect-style) build: no payouts, no per-school KYC, no fee splitting. The
+  school's account charges the school's families.
+- **Use the processor's hosted checkout.** Card data never touches this app,
+  which keeps PCI scope at the lightest tier. Do not build a custom card form.
+- **Nothing charges today.** Payments in the sample are labels only
+  (`Simulated · Visa ···· 4242`); the ledger model exists in
+  `beta-source/lib/academy-payment-ledger.ts` and `academy-billing.ts`, but no
+  processor, checkout, webhook or refund execution is wired. Real charges stay
+  off until the school-by-school setup described below is done.
+- Sequencing for real money: shared storage → school provisioning → staff
+  accounts → processor connection per school → webhook operations
+  (idempotency, retries/dunning, refunds, reconciliation, receipts) → money
+  policy (tax, refund rules, card-failure grace) → audit and cutover.
+
 # Storage migration working rules — November 15, 2026
 
 These rules govern how the durable-workspace work below is executed. They exist

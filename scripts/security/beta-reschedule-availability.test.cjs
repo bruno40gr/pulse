@@ -143,3 +143,12 @@ test('teacher day, contacts and calendar rescheduling share one availability sou
   const workspace = read('beta-source/app/odeon-demo/DemoWorkspace.tsx')
   assert.match(workspace, /rescheduleAvailability: academyRescheduleAvailability\(\{ setup, groups: queue\.academy\.groups, events: queue\.state\.events \}\)/)
 })
+
+test('a teacher account is locked to its own staff record', () => {
+  const me = read('app/api/account/me/route.ts')
+  assert.match(me, /personId: result\.context\.personId/, 'The session exposes the signed-in person')
+  const teacherDay = read('beta-source/app/odeon-demo/TeacherExperience.tsx')
+  assert.match(teacherDay, /item\.values\.personId === me\.personId/, 'Teacher records map through the person id')
+  assert.match(teacherDay, /not connected to a teaching profile/, 'An unlinked account never sees another teacher')
+})
+

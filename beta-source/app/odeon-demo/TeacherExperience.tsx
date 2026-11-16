@@ -16,6 +16,7 @@ import { SurfacePanel } from '@/components/ui/SurfacePanel'
 import { FieldLabel } from '@/components/ui/FieldLabel'
 import { FieldValue } from '@/components/ui/FieldValue'
 import { Button } from '@/components/ui/Button'
+import { Notice } from '@/components/ui/Notice'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
@@ -55,14 +56,22 @@ export default function TeacherExperience({ data, groups, events, setup, today, 
   const [teacherId, setTeacherId] = useState(teachers[0]?.id || '')
   const teacher = teachers.find(item => item.id === teacherId)
   const [canChooseTeacher, setCanChooseTeacher] = useState(sample)
+  const [me, setMe] = useState<{ roleKey?: string; personId?: string; email?: string | null } | null>(null)
   useEffect(() => {
     if (sample) { setCanChooseTeacher(true); return }
     const controller = new AbortController()
     fetch('/api/account/me', { cache: 'no-store', signal: controller.signal })
-      .then(async response => { if (!response.ok) return; const result = await response.json(); setCanChooseTeacher(result.roleKey === 'owner') })
+      .then(async response => { if (!response.ok) return; const result = await response.json(); setMe(result); setCanChooseTeacher(result.roleKey === 'owner') })
       .catch(() => {})
     return () => controller.abort()
   }, [sample])
+  // A teacher account signs in as one staff record; only owners may preview someone else.
+  // Records created before person linking fall back to the staff email, which is unique per person.
+  const meEmail = (me?.email || '').trim().toLowerCase()
+  const linkedTeacher = canChooseTeacher ? undefined : teachers.find(item =>
+    (me?.personId && item.values.personId === me.personId) || (meEmail && (item.values.email || '').trim().toLowerCase() === meEmail))
+  const unlinkedTeacher = Boolean(me) && !canChooseTeacher && !linkedTeacher
+  useEffect(() => { if (linkedTeacher && linkedTeacher.id !== teacherId) setTeacherId(linkedTeacher.id) }, [linkedTeacher, teacherId])
   const [range, setRange] = useState<'Day' | 'Week'>('Day')
   const [date, setDate] = useState(today)
   const [area, setArea] = useState<Area>('schedule')
@@ -120,6 +129,14 @@ export default function TeacherExperience({ data, groups, events, setup, today, 
       actions={!cancelled ? <AttendanceChoices label={`Attendance for ${session.studentNames.join(', ') || 'this lesson'}`} value={value} onChange={outcome => setAttendance(current => { const next = { ...current }; owners.forEach(item => { next[item.id] = outcome }); return next })} /> : undefined}
       metadata={<><span className={styles.muted}>{session.title} · {session.room || 'Room unassigned'}</span>{badge !== 'Scheduled' && badge !== 'Booked' && <LessonStatus status={badge} />}</>} />
   }
+
+  // A staff account with no teaching record must never see another teacher's day.
+  if (unlinkedTeacher) return <PageContainer>
+    <div data-teacher-experience className={styles.workspace}>
+      <PageHeader title="My teaching day" subtitle="Your schedule, students and follow-through in one place." />
+      <Notice>This login is not connected to a teaching profile yet. Ask the school office to link your account to your staff record.</Notice>
+    </div>
+  </PageContainer>
 
   return <PageContainer>
     <div data-teacher-experience className={styles.workspace} style={{ '--teacher-border': colors.border, '--teacher-muted': colors.textSecondary } as React.CSSProperties}>
