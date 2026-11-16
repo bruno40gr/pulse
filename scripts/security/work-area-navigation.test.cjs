@@ -28,6 +28,17 @@ test('area routing separates website, staff, funding, settings and operations', 
   const { workAreaForPath } = load()
   for (const [path, expected] of [['/dashboard', 'operations'], ['/dashboard/leads/123', 'operations'], ['/dashboard/website-content/articles', 'website'], ['/dashboard/community', 'website'], ['/dashboard/staff', 'operations'], ['/dashboard/funding/programs/123', 'funding'], ['/dashboard/settings/brand', 'settings']]) assert.equal(workAreaForPath(path), expected)
 })
+test('the yellow BETA button is always reachable and the sidebar never assumes an area', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../components/layout/WorkAreaNavigation.tsx'), 'utf8')
+  // A Beta path for a viewer without the Beta area used to throw on `area!.links` and blank the page.
+  assert.doesNotMatch(source, /area!\.links/, 'Navigation must not assume the current area is authorized')
+  assert.match(source, /area\?\.links \?\? \[\]/)
+  assert.match(source, /icons\[areaId as keyof typeof icons\] \?\? icons\.operations/)
+  assert.match(source, /aria-label="BETA academy preview"/, 'The yellow preview button stays in the sidebar footer')
+  assert.doesNotMatch(source, /canAccessBeta\(access\) && <Link href="\/odeon-demo/, 'The preview button is not hidden from staff accounts')
+})
+
+
 
 test('Beta screens live in their own area and never in Operations', () => {
   const { workAreasForAccess, workAreaForPath } = load()

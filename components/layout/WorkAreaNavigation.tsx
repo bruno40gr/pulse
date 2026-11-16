@@ -8,7 +8,7 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { colors } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 import { CONVERSATIONS_HOME_EVENT } from '@/lib/conversation-display'
-import { activeNavigationLink, canAccessBeta, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
+import { activeNavigationLink, rememberedAreaHref, settingsLinks, workAreaForPath, workAreasForAccess, type NavigationAccess } from '@/lib/work-area-navigation'
 import styles from './WorkAreaNavigation.module.css'
 
 const icons = { operations: LayoutDashboard, beta: FlaskConical, onboarding: GraduationCap, funding: Wallet, website: Globe }
@@ -19,13 +19,13 @@ export default function WorkAreaNavigation({ access, leadCount, conversationCoun
   const pathname = usePathname()
   const areaId = workAreaForPath(pathname)
   const areas = workAreasForAccess(access)
-  const area = areas.find(item => item.id === areaId)
-  const links = areaId === 'settings' ? settingsLinks(access) : area!.links
+  const area = areas.find(item => item.id === areaId) ?? areas.find(item => item.id === 'operations')
+  const links = areaId === 'settings' ? settingsLinks(access) : area?.links ?? []
   const [open, setOpen] = useState(false)
   const [remembered, setRemembered] = useState<Record<string, string>>({})
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
-  const Icon = areaId === 'settings' ? Settings : icons[areaId]
+  const Icon = areaId === 'settings' ? Settings : icons[areaId as keyof typeof icons] ?? icons.operations
   const tenant = getActiveTenantId()
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function WorkAreaNavigation({ access, leadCount, conversationCoun
       }}>{link.label}{count > 0 && <span className={styles.count} aria-label={`${count} ${link.href === '/dashboard/leads' ? 'new leads' : 'unread messages'}`}>{count}</span>}</Link>
     })}</nav>
     <div className={styles.footer}>
-      {canAccessBeta(access) && <Link href="/odeon-demo?screen=calendar" aria-label="BETA academy preview" onClick={onNavigate} className={styles.link} style={{ justifyContent: 'space-between', background: colors.yellow, color: colors.espresso, fontWeight: 700 }}><span>BETA</span><span style={{ fontSize: 12, fontWeight: 500 }}>Academy preview</span></Link>}
+      <Link href="/odeon-demo?screen=calendar" aria-label="BETA academy preview" onClick={onNavigate} className={styles.link} style={{ justifyContent: 'space-between', background: colors.yellow, color: colors.espresso, fontWeight: 700 }}><span>BETA</span><span style={{ fontSize: 12, fontWeight: 500 }}>Academy preview</span></Link>
       <Link href="/dashboard/settings" className={styles.link} aria-current={areaId === 'settings' ? 'page' : undefined} onClick={onNavigate}><Settings size={16} />Settings</Link>
     </div></>}
   </div>

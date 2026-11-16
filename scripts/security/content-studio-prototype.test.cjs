@@ -51,8 +51,8 @@ test('prototype route is covered by existing account-administrator middleware ga
   const middleware = readFileSync('middleware.ts', 'utf8')
   assert.match(middleware, /pathname === '\/content-studio-prototype'/)
   assert.match(middleware, /pathname\.startsWith\('\/content-studio-prototype\/'\)/)
-  const gatedBlock = middleware.slice(middleware.indexOf("if (isBetaPath || pathname === '/dashboard/design'"), middleware.indexOf("if (host === 'heycohen"))
-  assert.match(gatedBlock, /requireAccountAdministrator/)
+  const gatedBlock = middleware.slice(middleware.indexOf("} else if (pathname === '/dashboard/design'"), middleware.indexOf("if (host === 'heycohen"))
+  assert.match(gatedBlock, /requireAccountAdministrator/, 'Design, Website content and the prototype lab stay administrator-gated')
 })
 test('event theme suggestions use details and allow explicit staff overrides', () => {
   const { suggestedEventTheme, eventTreatment } = studio()

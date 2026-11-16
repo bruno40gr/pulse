@@ -1,5 +1,25 @@
 # Beta integration progress — November 13, 2026
 
+## Beta access fixed — November 16, 2026
+
+- **Blank screen (my bug, now fixed).** Giving Beta its own work area made the sidebar
+  assume the current area was authorized (`area!.links`). Any Beta path viewed by a
+  session without the Beta area threw during render, so `/odeon-demo` came up blank.
+  The nav now falls back to Operations and an empty link list, and the icon lookup
+  falls back too.
+- **The owner could not get in.** Middleware gated `/odeon-demo` on
+  `requireAccountAdministrator`, which only understands a personal Supabase session.
+  Signing in with the shared staff password creates a legacy session, so the gate
+  bounced you to Settings before the page rendered. Beta paths now accept that
+  password session; personal owner/admin accounts still pass and everything else is
+  unchanged: personal staff accounts and other tenants are still redirected, as
+  `beta-access.test.cjs` requires. Design, Website content and the prototype lab keep
+  the stricter personal-session check.
+- **The yellow BETA button stays** in the sidebar footer and is no longer hidden from
+  non-administrator viewers, so the staff team can reach the preview.
+- Verified: suite 1,160/1,160; signed in with the staff password, the BETA button
+  navigates and `/odeon-demo`, `?screen=teacher` and `?screen=calendar` all render.
+
 ## Main navigation trimmed — November 16, 2026
 
 - **Event RSVPs** is removed from Operations: that event has passed. **Campaigns**
