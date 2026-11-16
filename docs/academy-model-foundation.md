@@ -14,10 +14,20 @@
     leaves the stored state **unchanged** — no silent overwrite.
   - Probe rows were deleted afterwards; only the empty tenant-1 row created by
     the conflict probe remains, which is what provisioning would create anyway.
-- Still unproven: the app's own round trip through `/api/academy/workspace` with a
-  real authenticated staff session (needs a signed-in membership), and
-  provisioning a first empty workspace from the UI. Route contract tests cover
-  the logic; the live multi-user check is the next step.
+- Verified end to end through the product on November 16: signed in as a real
+  staging owner (`/login`, `roleKey: owner`), read
+  `/api/academy/workspace?tenant=…` → `{"revision":0,"state":null}`, provisioned
+  the first empty school workspace through `PUT` at revision 0 → `{"revision":1}`,
+  and a second `PUT` still sending revision 0 → **409 "Another staff member
+  changed this school"** with the stored state left untouched. `/odeon-demo?tenant=…`
+  then loads with no storage error and reports "Saved to school account".
+- Provisioning currently happens through that first authenticated `PUT`; there is
+  still no **Start my school** affordance in the UI. The tenant strip now reads
+  "School account · Changes are shared with every staff member of this school"
+  instead of claiming sample data on a real school.
+- Still unproven: two different staff accounts editing the same school at once
+  (the 409 is proven with one account holding a stale revision), and any teacher
+  account signing in — no teaching membership exists in staging yet.
 
 # Payments direction — decided November 16, 2026
 

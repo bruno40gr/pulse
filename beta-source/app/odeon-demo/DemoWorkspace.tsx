@@ -238,7 +238,9 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/odeon-demo?screen=calendar">Open sample calendar</a></Notice>
   if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
   return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent}>
-    {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>Beta · Sample data · Fictional records only · No real payments or messages · {tenant ? 'School account storage' : 'Saved on this browser · Not shared with other testers'}</div>}
+    {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{tenant
+      ? 'School account · Changes are shared with every staff member of this school'
+      : 'Beta · Sample data · Fictional records only · No real payments or messages · Saved on this browser · Not shared with other testers'}</div>}
     {storageError && <Notice variant="error">{storageError}</Notice>}
     {saveStatus && <span role="status" style={{ padding: '0 24px', fontSize: 12 }}>{saveStatus}</span>}
     {parent && params.get('impersonateReturn') && <div role="status" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap', background: colors.cream }}><span>Impersonating {snapshot.data.accounts.find(account => account.id === params.get('account'))?.holderName || 'parent'} · Sample parent portal</span><Button size="sm" variant="secondary" onClick={() => {
