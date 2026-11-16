@@ -163,7 +163,7 @@ export default function TeacherExperience({ data, groups, events, setup, today, 
           {mentioned.length ? <div className={styles.list}>{mentioned.map(({ note, student }) => <div key={note.id} style={{ background: noteBackground('yellow', Boolean(note.completed_at)), color: NOTE_INK, borderRadius: radius.md, padding: spacing.md }}><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{note.text}</p><span className={styles.muted}>{student.firstName} {student.lastName} · {note.actor_name}</span></div>)}</div> : <p className={styles.muted}>No sticky notes mention you in this period.</p>}
         </DenseSectionPanel>
       </>}
-      {area === 'availability' && (teacher ? <TeacherSchedule values={teacher.values} onChange={updateTeacher} /> : <DenseSectionPanel title="Availability"><p className={styles.muted}>Choose a teacher to edit availability.</p></DenseSectionPanel>)}
+      {area === 'availability' && (teacher ? <TeacherSchedule values={teacher.values} onChange={updateTeacher} readOnly /> : <DenseSectionPanel title="Availability"><p className={styles.muted}>No teacher selected.</p></DenseSectionPanel>)}
       {area === 'profile' && (teacher ? <TeacherProfile key={teacherId} teacher={teacher} services={setup.services || []} onSave={updateTeacher} /> : <DenseSectionPanel title="Profile"><p className={styles.muted}>Choose a teacher to edit their profile.</p></DenseSectionPanel>)}
       <Modal isOpen={Boolean(activeSession && lessonAction)} onClose={() => setLessonAction(null)} ariaLabel={lessonAction?.kind === 'notes' ? 'Leave notes' : 'Message family'}>
         <ModalHeader title={lessonAction?.kind === 'notes' ? 'Leave notes' : 'Message family'} onClose={() => setLessonAction(null)} />

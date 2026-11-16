@@ -22,10 +22,11 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:/)
       await page.getByRole('heading', { name: 'Piano', exact: true }).waitFor()
       await page.screenshot({ path: `/tmp/odeon-plumbing-onboarding-${width}.png`, fullPage: true })
 
-      // Teacher day shows the date-specific hours the calendar and contacts validate.
+      // Teacher day shows the date-specific hours the calendar and contacts validate, read-only.
       await page.goto(`${base}/odeon-demo?screen=teacher`)
       await page.getByRole('button', { name: 'Availability', exact: true }).click()
-      await page.getByRole('button', { name: 'Add availability', exact: true }).first().waitFor()
+      await page.getByText(/Published teaching hours/).waitFor()
+      assert.equal(await page.getByRole('button', { name: 'Add availability', exact: true }).count(), 0, 'Only the school office edits availability')
       assert.equal(await page.getByText('Save sample proposal', { exact: true }).count(), 0)
       await page.screenshot({ path: `/tmp/odeon-plumbing-teacher-${width}.png`, fullPage: true })
 

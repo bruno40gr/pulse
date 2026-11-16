@@ -21,7 +21,7 @@ const minute = (value: string) => value ? Number(value.slice(0, 2)) * 60 + Numbe
 function parse<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T } catch { return fallback } }
 type Edit = { date: string; block: Block; originalId?: string }
 
-export default function TeacherSchedule({ values, onChange }: { values: Record<string, string>; onChange: (values: Record<string, string>) => void }) {
+export default function TeacherSchedule({ values, onChange, readOnly = false }: { values: Record<string, string>; onChange: (values: Record<string, string>) => void; readOnly?: boolean }) {
   const base = parse<Block[]>(values.availability, days.flatMap((day, index) => values.days?.includes(day) ? [{ id: `day-${index}`, day: index, from: minute(values.from || '12:00'), to: minute(values.to || '18:00') }] : []))
   const overrides = parse<TeacherDateOverride[]>(values.availabilityOverrides, [])
   const timeOff = parse<TeacherTimeOff[]>(values.timeOff, [])
@@ -36,7 +36,7 @@ export default function TeacherSchedule({ values, onChange }: { values: Record<s
   const [message, setMessage] = useState('')
   const [draft, setDraft] = useState<Edit | null>(null)
   const drag = useRef<{ edit: Edit; start: number; mode: 'draw' | 'move' | 'resize' } | null>(null)
-  const open = (next: Edit) => { setError(''); setEdit(next) }
+  const open = (next: Edit) => { if (readOnly) { setMessage('Availability is managed by the school office.'); return } setError(''); setEdit(next) }
   const save = (current: Edit, remove = false) => {
     const block = current.block
     const pool = weeklyBase
@@ -45,11 +45,11 @@ export default function TeacherSchedule({ values, onChange }: { values: Record<s
     onChange({ ...values, availabilityWeeks: JSON.stringify([...weeks.filter(item => item.week !== week), { week, blocks: next }]), availabilityOverrides: JSON.stringify(overrides.filter(item => item.date < week || item.date > dates[6])) })
     setEdit(null); setError(''); return true
   }
-  const newOff = (date: string) => { setError(''); setOff({ id: crypto.randomUUID(), sickLeave: false, start: date, end: date, allDay: true, from: 720, to: 780 }) }
-  const restore = (date: string) => { onChange({ ...values, availabilityOverrides: JSON.stringify(overrides.filter(item => item.date !== date)) }); setMessage('Weekly availability restored.'); setEdit(null) }
+  const newOff = (date: string) => { if (readOnly) { setMessage('Time off is managed by the school office.'); return } setError(''); setOff({ id: crypto.randomUUID(), sickLeave: false, start: date, end: date, allDay: true, from: 720, to: 780 }) }
+  const restore = (date: string) => { if (readOnly) { setMessage('Availability is managed by the school office.'); return } onChange({ ...values, availabilityOverrides: JSON.stringify(overrides.filter(item => item.date !== date)) }); setMessage('Weekly availability restored.'); setEdit(null) }
   const position = (element: HTMLElement, y: number) => Math.max(360, Math.min(1320, 360 + Math.round((y - element.getBoundingClientRect().top) / element.getBoundingClientRect().height * 32) * 30))
-  return <DenseSectionPanel title="Schedule" headingLevel="h2" actions={<div className={styles.sectionHeader}><Button type="button" variant="secondary" onClick={() => newOff(week)}>Add Time Off</Button><Button type="button" variant="secondary" onClick={() => open({ date: week, block: { id: crypto.randomUUID(), day: 0, from: 720, to: 780 } })}>Add availability</Button></div>} contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
-    <p>Changes apply to this week and carry forward until you edit a later week. Earlier weeks stay unchanged.</p>
+  return <DenseSectionPanel title="Schedule" headingLevel="h2" actions={readOnly ? undefined : <div className={styles.sectionHeader}><Button type="button" variant="secondary" onClick={() => newOff(week)}>Add Time Off</Button><Button type="button" variant="secondary" onClick={() => open({ date: week, block: { id: crypto.randomUUID(), day: 0, from: 720, to: 780 } })}>Add availability</Button></div>} contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
+    <p>{readOnly ? 'Published teaching hours. The school office sets availability and time off, so your calendar always matches what the school agreed with you.' : 'Changes apply to this week and carry forward until you edit a later week. Earlier weeks stay unchanged.'}</p>
     <CalendarWeekToolbar week={week} lastDate={dates[6]} onWeek={date => { setWeek(date); setDraft(null); drag.current = null }} />
     {message && <p role="status">{message}</p>}{error && !edit && !off && <p role="alert">{error}</p>}
     <CalendarTimeGrid dates={dates} times={Array.from({ length: 64 }, (_, i) => time(360 + i * 15))} label="Weekly availability" renderDayHeading={date => <><ControlButton type="button" kind="link" aria-label={`Block ${date} all day`} onClick={() => newOff(date)}>{formatScheduleDate(date, { weekday: 'short', day: 'numeric' })}</ControlButton>{overrides.some(item => item.date === date) && <ControlButton type="button" kind="link" aria-label={`Restore weekly availability ${date}`} onClick={() => restore(date)}>Restore weekly</ControlButton>}</>} renderDay={date => {
@@ -57,6 +57,7 @@ export default function TeacherSchedule({ values, onChange }: { values: Record<s
       const visible = teacherAvailabilityForDate(weeklyBase, overrides, timeOff, date)
       const drawn = draft?.date === date ? draft : null
       return <div className={styles.day} aria-label={`${days[day]} availability grid`} onPointerDown={event => {
+        if (readOnly) { setMessage('Availability is managed by the school office.'); return }
         if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return
         const target = event.target as HTMLElement, id = target.closest('[data-block]')?.getAttribute('data-block')
         const segment = visible.find(item => item.id === id)

@@ -133,7 +133,8 @@ test('Beta onboarding opens the academy records already configured for the sampl
 
 test('teacher day, contacts and calendar rescheduling share one availability source', () => {
   const teacherDay = read('beta-source/app/odeon-demo/TeacherExperience.tsx')
-  assert.match(teacherDay, /<TeacherSchedule values={teacher.values} onChange={updateTeacher} \/>/)
+  // Availability is published by the school office; a teacher never edits it here.
+  assert.match(teacherDay, /<TeacherSchedule values=\{teacher\.values\} onChange=\{updateTeacher\} readOnly \/>/)
   assert.doesNotMatch(teacherDay, /title="Current teaching hours"/)
   for (const file of ['MoveLesson', 'MakeupWorkspace', 'FamilyReschedule', 'StudentWorkspaceV2', 'ParentPortal']) {
     const source = read(`beta-source/app/content-studio-prototype/students/${file}.tsx`)

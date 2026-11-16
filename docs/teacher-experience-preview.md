@@ -35,10 +35,13 @@ this is not a teacher login or a production teacher permission boundary.
   schedule; notes open the lesson-note dialog. Sticky notes that mention the
   teacher are listed with the shared sticky-note appearance (`noteBackground`,
   `NOTE_INK`) rather than bespoke styling.
-- **Availability is the School Setup editor itself** (`TeacherSchedule`), bound
-  to the teacher's record — the earlier weekday/from/to proposal form and its
-  sample proposal list are gone. Edits write through to the sample school
-  record and persist with the rest of the workspace.
+- **Availability is published, not editable here.** The screen renders the School
+  Setup availability editor in read-only mode, bound to the teacher's record:
+  weekly blocks, date overrides and time off are visible, but there is no **Add
+  availability**, **Add Time Off** or drag-to-draw. **Only an owner/admin sets
+  teacher availability**, in School Setup → Teachers & staff, because hours are
+  agreed with the school offline and should not change unsupervised. The earlier
+  weekday/from/to proposal form is gone.
 - **Profile**: name, email, photo (`TeacherPhoto`) and teaching skills by level,
   saved to the teacher record.
 - Attendance marks, lesson notes and message drafts stay in the screen and are
