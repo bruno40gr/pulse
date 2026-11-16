@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
-import { ButtonBase } from '@/components/ui/ButtonBase'
+import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
 export function StudentMultiSelect({ label, ariaLabel, value, options, onChange, selectionSummary, minSelected = 0, menuMinWidth, appearance = 'field', summaryLabels = [] }: {
@@ -46,20 +46,20 @@ export function StudentMultiSelect({ label, ariaLabel, value, options, onChange,
   return <div ref={root} style={{ position: 'relative', minWidth: 0, ...(appearance === 'subtle' ? { display: 'grid', width: 'max-content', maxWidth: '100%' } : {}) }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}>
     {appearance === 'subtle' && [...new Set([...options.map(option => option.label), ...summaryLabels])].map(text => <span key={text} aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden', height: 0, whiteSpace: 'nowrap', paddingInline: spacing.xs, paddingRight: 28, fontSize: typography.sizeBase, fontFamily: typography.fontSans, fontWeight: typography.weightSemibold }}>{text}</span>)}
     {label && <label id={`${id}-label`} style={{ ...typography.label, color: colors.text, display: 'block', marginBottom: spacing.xs }}>{label}</label>}
-    <ButtonBase ref={trigger} type="button" aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(current => !current)} onKeyDown={event => {
+    <ControlButton ref={trigger} type="button" kind={appearance === 'subtle' ? 'subtle' : 'row'} aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(current => !current)} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); requestAnimationFrame(() => focusOption(event.key === 'ArrowUp' ? choices.length - 1 : 0)) }
       if (event.key === 'Escape' && open) { event.stopPropagation(); setOpen(false) }
-    }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, width: '100%', textAlign: 'left', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: `${spacing.sm} ${spacing.md}`, fontSize: typography.sizeBase, fontFamily: typography.fontSans, color: colors.text, background: colors.surface, cursor: 'pointer', ...(appearance === 'subtle' ? { gridArea: '1 / 1', border: 0, background: 'transparent', padding: `${spacing.xs} ${spacing.xs}`, fontWeight: typography.weightSemibold, minWidth: 0 } : {}) }}>
+    }} style={{ gridArea: appearance === 'subtle' ? '1 / 1' : undefined, minWidth: appearance === 'subtle' ? 0 : undefined }}>
       <span>{selectionSummary ?? (selected.length ? selected.map(item => choices.find(option => option.value === item)?.label || item).join(', ') : 'Select…')}</span><ChevronDown size={16} style={{ flexShrink: 0 }} aria-hidden="true" />
-    </ButtonBase>
+    </ControlButton>
     {open && <div id={id} role="listbox" aria-label={ariaLabel} aria-multiselectable="true" style={{ position: 'absolute', top: '100%', left: 0, right: 0, minWidth: menuMinWidth ? `min(${menuMinWidth}px, calc(100vw - 80px))` : undefined, zIndex: 10, maxHeight: 240, overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md }}>
-      {choices.map((option, index) => <ButtonBase type="button" key={option.value} role="option" disabled={option.disabled} aria-disabled={option.disabled || (selected.includes(option.value) && selected.length <= minSelected) || undefined} aria-selected={selected.includes(option.value)} onClick={() => {
+      {choices.map((option, index) => <ControlButton type="button" key={option.value} role="option" kind="row" selected={selected.includes(option.value)} disabled={option.disabled} aria-disabled={option.disabled || (selected.includes(option.value) && selected.length <= minSelected) || undefined} aria-selected={selected.includes(option.value)} onClick={() => {
         if (option.disabled || (selected.includes(option.value) && selected.length <= minSelected)) return
         onChange(choices.filter(item => item.value === option.value ? !selected.includes(item.value) : selected.includes(item.value)).map(item => item.value).join(', '))
       }} onKeyDown={event => {
         if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { event.preventDefault(); focusOption(event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : index + (event.key === 'ArrowDown' ? 1 : -1)) }
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus() }
-      }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: `${spacing.sm} ${spacing.md}`, border: 0, borderBottom: `1px solid ${colors.border}`, textAlign: 'left', fontFamily: typography.fontSans, fontSize: typography.sizeBase, color: colors.text, background: selected.includes(option.value) ? colors.surfaceMuted : colors.surface, cursor: 'pointer' }}>{option.label}{selected.includes(option.value) && <Check size={16} aria-hidden="true" />}</ButtonBase>)}
+      }}>{option.label}{selected.includes(option.value) && <Check size={16} aria-hidden="true" />}</ControlButton>)}
     </div>}
   </div>
 }

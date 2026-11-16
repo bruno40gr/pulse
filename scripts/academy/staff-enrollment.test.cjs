@@ -11,6 +11,8 @@ function load(file, overrides = {}) {
   const localRequire = name => {
     if (overrides[name]) return overrides[name]
     if (name.endsWith('.module.css')) return new Proxy({}, { get: (_, key) => key === '__esModule' ? false : String(key) })
+    // The shared button boundary renders a native button; keep element assertions on behavior.
+    if (name === './ButtonBase' || name.endsWith('/ButtonBase')) return { ButtonBase: 'button' }
     if (name.startsWith('@/') || name.startsWith('.')) {
       const base = name.startsWith('@/') ? path.join(root, name.slice(2)) : path.resolve(path.dirname(file), name)
       return load(['.ts', '.tsx'].map(ext => base + ext).find(candidate => fs.existsSync(candidate)), overrides)
@@ -120,6 +122,8 @@ function hookRunner() {
 }
 function elements(tree) {
   if (!tree || typeof tree !== 'object') return []
+  // Render shared control components down to their native element so behavior stays inspectable.
+  if (typeof tree.type === 'function' && ['Button', 'ControlButton', 'LoadingButton'].includes(tree.type.name)) return elements(tree.type(tree.props))
   return [tree, ...[tree.props?.children].flat(Infinity).flatMap(elements)]
 }
 test('a time with multiple teachers opens a choice at that time', () => {
@@ -343,7 +347,7 @@ test('other booked lessons show instrument and teacher while the active lesson s
   const second = { ...domain.newLesson('second'), studentId: 'demo-riley' }
   const props = { lesson: second, lessons: [first, second], student: domain.enrollmentPeople[2], students: [domain.enrollmentPeople[0], domain.enrollmentPeople[2]], manager: null, onChange() {} }
   const tree = hooks.render(Component, props)
-  const booked = elements(tree).filter(node => node.props?.className?.includes('bookedSlot') && node.props.children === 'Avery Lane, Piano with Jordan' && node.props['aria-label']?.includes('Nov 3'))
+  const booked = elements(tree).filter(node => node.props['data-kind'] === 'slot' && node.props['data-slot'] === 'booked' && node.props.children === 'Avery Lane, Piano with Jordan' && node.props['aria-label']?.includes('Nov 3'))
   assert.equal(booked.length, 1)
   assert.equal(booked[0].props.children, 'Avery Lane, Piano with Jordan')
   assert.match(booked[0].props.style.gridRow, /span 2/)
@@ -352,7 +356,7 @@ test('other booked lessons show instrument and teacher while the active lesson s
   assert.ok(!elements(tree).some(node => node.props?.className === 'durationLegend'))
   const longTree = hooks.render(Component, { ...props, lesson: first, student: domain.enrollmentPeople[0] })
   for (const block of elements(longTree).filter(node => node.props?.className === 'slotOption')) assert.match(block.props.style.gridRow, /span 2/)
-  assert.ok(elements(longTree).some(node => node.props?.className?.includes('activeBookedSlot') && node.props.children === 'Avery Lane'))
+  assert.ok(elements(longTree).some(node => node.props['data-kind'] === 'slot' && node.props['aria-pressed'] === true && node.props.children === 'Avery Lane'))
 })
 
 test('booking replaces the available start option with a single name-only block', () => {
@@ -376,7 +380,7 @@ test('all teachers can be unchecked without hiding booked lessons', () => {
   let tree = hooks.render(Component, props)
   for (const input of elements(tree).filter(node => node.type === 'input')) input.props.onChange({ target: { checked: false } })
   tree = hooks.render(Component, props)
-  assert.ok(!elements(tree).some(node => node.props?.className?.includes('openSlot')))
+  assert.ok(!elements(tree).some(node => node.props['data-kind'] === 'slot' && node.props['data-slot'] === 'open'))
   assert.ok(elements(tree).some(node => node.props?.children === 'Avery Lane'))
 })
 
@@ -451,7 +455,7 @@ test('every displayed one-hour option selects immediately or opens inline teache
   const Source = load(file, { react: sourceHooks.react }).default
   const base = { ...domain.newLesson('hour'), duration: '60' }
   const initial = sourceHooks.render(Source, { lesson: base, lessons: [base], student: null, manager: null, onChange() {} })
-  const labels = elements(initial).filter(node => node.type === 'button' && node.props.className?.includes('openSlot')).map(node => node.props['aria-label'])
+  const labels = elements(initial).filter(node => node.type === 'button' && node.props['data-kind'] === 'slot' && node.props['data-slot'] === 'open').map(node => node.props['aria-label'])
   assert.ok(labels.length > 10)
   for (const label of labels) {
     const hooks = hookRunner()
@@ -477,10 +481,10 @@ test('draft bookings switch active lesson and existing appointments are not dead
   const first = { ...ready().lessons[0], studentId: 'demo-avery' }
   let selected = ''
   const tree = hooks.render(Component, { lesson: domain.newLesson('second'), lessons: [first], student: domain.enrollmentPeople[0], manager: null, onChange() {}, onSelectLesson(id) { selected = id } })
-  const booked = elements(tree).find(node => node.type === 'button' && node.props.className?.includes('bookedSlot'))
+  const booked = elements(tree).find(node => node.type === 'button' && node.props['data-kind'] === 'slot' && node.props['data-slot'] === 'booked')
   booked.props.onClick()
   assert.equal(selected, first.id)
-  assert.ok(elements(tree).some(node => node.type === 'div' && node.props?.className?.includes('bookedSlot')))
+  assert.ok(elements(tree).some(node => node.type === 'div' && node.props['data-kind'] === 'slot' && node.props['data-slot'] === 'booked'))
 })
 
 test('changing the first lesson teacher frees Robin for an overlapping sibling lesson', () => {
@@ -495,7 +499,7 @@ test('changing the first lesson teacher frees Robin for an overlapping sibling l
   const props = () => ({ lesson: first, lessons: [first, second], student, students: [student, sibling], manager: null, onChange(patch) { first = { ...first, ...patch } }, onSelectLesson() {} })
   let tree = hooks.render(Component, props())
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
-  elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
+  elements(tree).find(node => node.type === 'button' && node.props['data-kind'] === 'slot' && node.props['aria-pressed'] === true).props.onClick()
   tree = hooks.render(Component, props())
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   elements(group).find(node => node.props?.children === 'Jordan Vale').props.onClick()
@@ -515,7 +519,7 @@ test('clearing a guitar booking preserves the lesson and frees Robin for voice',
   const props = () => ({ lesson, lessons: [lesson, second], student, manager: null, onChange(patch) { lesson = { ...lesson, ...patch } }, onSelectLesson() {} })
   let tree = hooks.render(Component, props())
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
-  elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
+  elements(tree).find(node => node.type === 'button' && node.props['data-kind'] === 'slot' && node.props['aria-pressed'] === true).props.onClick()
   tree = hooks.render(Component, props())
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   assert.equal(elements(group).filter(node => node.type === 'button' && node.props['aria-pressed'] !== undefined).length, 1)
@@ -546,7 +550,7 @@ test('teacher editing ignores preference filters but still excludes conflicting 
   for (const input of elements(tree).filter(node => node.props?.type === 'checkbox')) input.props.onChange({ target: { checked: false } })
   tree = hooks.render(Component, props)
   assert.ok(!elements(tree).some(node => node.props?.['aria-label'] === 'Selected booking'))
-  elements(tree).find(node => node.type === 'button' && node.props.className?.includes('activeBookedSlot')).props.onClick()
+  elements(tree).find(node => node.type === 'button' && node.props['data-kind'] === 'slot' && node.props['aria-pressed'] === true).props.onClick()
   tree = hooks.render(Component, props)
   const group = elements(tree).find(node => node.props?.['aria-label'] === 'Change teacher')
   assert.ok(elements(group).some(node => node.props?.children === 'Robin Ellis'))

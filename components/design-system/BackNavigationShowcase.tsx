@@ -40,8 +40,8 @@ const muted: CSSProperties = { ...typography.bodySmall, color: colors.textSecond
 
 function DemoBack({ label, look, onClick }: { label: string; look: Look; onClick: () => void }) {
   if (look === 'chevron') return <BackControl label={label} onClick={onClick} />
-  if (look === 'outlined') return <Button type="button" variant="secondary" size="sm" onClick={onClick} style={{ minHeight: 36 }}><ArrowLeft size={16} aria-hidden="true" />{label}</Button>
-  return <ControlButton type="button" kind="link" onClick={onClick} style={{ minHeight: 36, textDecoration: look === 'plain' ? 'none' : 'underline', textAlign: 'left', justifyContent: 'flex-start' }}><ArrowLeft size={16} aria-hidden="true" />{label}</ControlButton>
+  if (look === 'outlined') return <Button type="button" variant="secondary" size="sm" onClick={onClick}><ArrowLeft size={16} aria-hidden="true" />{label}</Button>
+  return <ControlButton type="button" kind="link" onClick={onClick}><ArrowLeft size={16} aria-hidden="true" />{look === 'plain' ? label : <span style={{ textDecoration: 'underline' }}>{label}</span>}</ControlButton>
 }
 
 function Content({ kind, mobile }: { kind: Example['content']; mobile: boolean }) {

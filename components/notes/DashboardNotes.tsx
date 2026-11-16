@@ -111,7 +111,7 @@ function NoteCard(props: NoteCardProps) {
       </div>}
     </div>
     {note.follow_up && <div onClick={event => event.stopPropagation()} style={{ marginTop: spacing.lg }}>
-      <ControlButton kind="name" type="button" onClick={props.onTask} aria-label={`Task assigned to ${owner?.name || 'Unavailable staff member'}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, color: NOTE_MUTED_INK }}>
+      <ControlButton kind="name" type="button" onClick={props.onTask} aria-label={`Task assigned to ${owner?.name || 'Unavailable staff member'}`}>
         <Avatar firstName={owner?.name || 'Staff'} lastName="" size={28} style={{ background: colors.espresso, color: colors.surface, fontSize: 14 }} /><span>{owner?.name.replace(' (me)', '')}</span>
         <CalendarDays size={16} aria-hidden="true" /><time dateTime={note.follow_up.dueDate}>{due}</time>
         {overdue ? <Badge variant="error" style={{ background: '#FFE3E3', color: '#8F1717' }}>Overdue</Badge> : note.completed_at ? <Badge variant="success" style={{ background: '#E0F3E5', color: '#1F5C3A' }}>Done</Badge> : note.follow_up.dueDate === localNoteDate() ? <Badge variant="neutral" style={{ background: '#FFFFFF', color: NOTE_INK }}>Today</Badge> : null}
@@ -120,12 +120,12 @@ function NoteCard(props: NoteCardProps) {
     <div onClick={event => event.stopPropagation()} style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.md, paddingTop: spacing.sm }}>
       {editing && <div className={styles.swatches} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: spacing.sm }}>{NOTE_COLOR_KEYS.map(color => <ColorSwatch key={color} color={NOTE_COLORS[color]} selected={note.color === color} label={`Set color to ${color}`} onClick={() => props.onColor(color)} />)}<ControlButton kind="icon" aria-label="Delete note" onClick={props.onDelete}><Trash2 size={16} /></ControlButton></div>}
       {!note.follow_up && editing && mentionedTaskOwners(props.editBody, props.owners).length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md }}>
-        <Button variant="secondary" className={styles.secondary} size="sm" onClick={props.onSaveEdit}>Keep as note</Button>
-        <Button variant="primary" className={styles.primary} size="sm" onClick={props.onTask}>Convert to task</Button>
+        <Button variant="secondary" size="sm" onClick={props.onSaveEdit}>Keep as note</Button>
+        <Button variant="primary" size="sm" onClick={props.onTask}>Convert to task</Button>
       </div>}
       {note.is_private && <div style={{ fontSize: 11, color: NOTE_MUTED_INK }}><Lock size={12} /> Private · {note.participant_count} person</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }}>
-        <Button variant="ghost" className={styles.reply} size="sm" onClick={props.onReply}><MessageCircle size={16} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
+        <Button variant="ghost" size="sm" onClick={props.onReply}><MessageCircle size={16} />{note.reply_count ? `Replies ${note.reply_count}` : 'Reply'}</Button>
         <div style={{ fontSize: 12, color: NOTE_MUTED_INK }}>{note.created_by} · <time dateTime={note.created_at} title={formatFullTimestamp(note.created_at)}>{new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</time></div>
       </div>
     </div>
@@ -336,9 +336,9 @@ export default function DashboardNotes() {
       }}>
         <option value="all">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">Last week</option><option value="range">Date range</option>
       </Select>
-      {dateFilter === 'range' && <Button variant="secondary" className={styles.secondary} onClick={() => setRangeOpen(true)}>Edit date range</Button>}
+      {dateFilter === 'range' && <Button variant="secondary" onClick={() => setRangeOpen(true)}>Edit date range</Button>}
       <div role="group" aria-label="View" style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
-        {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} className={filter === view.key ? styles.primary : styles.secondary} aria-pressed={filter === view.key} onClick={() => setFilter(view.key)}>{view.label}</Button>)}
+        {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} aria-pressed={filter === view.key} onClick={() => setFilter(view.key)}>{view.label}</Button>)}
       </div>
       <div style={{ marginLeft: 'auto', minHeight: 42, display: 'flex', alignItems: 'center' }}>
         <ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" />
@@ -411,10 +411,10 @@ export default function DashboardNotes() {
               </span>
             </ControlButton>
             <div style={{ flex: 1 }} />
-            <Button className={mentionedTeammate || (!draftTitle.trim() && !draftBody.trim()) ? styles.secondary : styles.primary} variant={mentionedTeammate ? 'secondary' : 'primary'} size="sm" onClick={() => void handleAdd()} disabled={saving} aria-disabled={!draftTitle.trim() && !draftBody.trim()}>
+            <Button variant={mentionedTeammate ? 'secondary' : 'primary'} size="sm" onClick={() => void handleAdd()} disabled={saving} aria-disabled={!draftTitle.trim() && !draftBody.trim()}>
               {mentionedTeammate ? 'Keep as note' : 'Add as note'}
             </Button>
-            {mentionedTeammate && <Button variant="primary" className={styles.primary} size="sm" disabled={saving} onClick={() => void handleAdd(true)}>Create a task</Button>}
+            {mentionedTeammate && <Button variant="primary" size="sm" disabled={saving} onClick={() => void handleAdd(true)}>Create a task</Button>}
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: spacing.lg, paddingTop: spacing.md, color: NOTE_MUTED_INK, fontSize: 13 }}>
             {mentionedTeammate ? <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={mentionedTeammate.name} lastName="" size={28} style={{ background: colors.espresso, color: colors.surface, fontSize: 14 }} /><span>Suggested owner: {mentionedTeammate.name}</span></div> : <em>Mention a teammate with @ to create a task.</em>}

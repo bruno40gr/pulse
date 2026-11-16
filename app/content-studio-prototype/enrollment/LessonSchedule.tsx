@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { ControlButton } from '@/components/ui/ControlButton'
 import type { EnrollmentPerson, LessonChoice } from '@/lib/academy-staff-enrollment'
 import {
   availableScheduleTeachers, familyAppointments, formatScheduleDate, formatScheduleTime,
@@ -89,21 +90,21 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
                 const interactive = block.active || (onSelectLesson && planned.some(item => item.id === block.id))
                 const editing = block.active && choice?.editing && choice.date === date
                 const booking = interactive
-                  ? <button type="button" className={`${styles.bookedSlot} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label} aria-pressed={block.active} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</button>
-                  : <div className={`${styles.bookedSlot} ${block.active ? styles.activeBookedSlot : ''}`} style={position} aria-label={label}>{block.label}</div>
-                return <div key={block.id} className={styles.bookedCell} style={position} data-booking-menu={editing ? '' : undefined}>{booking}{editing && <div className={styles.bookingPopover} role="group" aria-label="Change teacher">
+                  ? <ControlButton type="button" kind="slot" slotState="booked" selected={block.active} aria-pressed={block.active} style={{ gridRow: position.gridRow, gridColumn: position.gridColumn }} aria-label={label} aria-expanded={block.active ? Boolean(editing) : undefined} onClick={() => { setChoice(block.active && !editing ? { date, time: block.time, editing: true } : null); onSelectLesson?.(block.id) }}>{block.label}</ControlButton>
+                  : <div className={`${styles.bookedSlot} ${block.active ? styles.activeBookedSlot : ''}`} style={{ gridRow: position.gridRow, gridColumn: position.gridColumn }} data-kind="slot" data-slot="booked" aria-label={label}>{block.label}</div>
+                return <div key={block.id} className={styles.bookedCell} style={{ gridRow: position.gridRow, gridColumn: position.gridColumn }} data-booking-menu={editing ? '' : undefined}>{booking}{editing && <div className={styles.bookingPopover} role="group" aria-label="Change teacher">
                   <strong>Change teacher</strong>
-                  {choices.map(teacher => <button key={teacher.name} type="button" aria-pressed={teacher.name === lesson.teacher} onClick={() => { onChange({ teacher: teacher.name }); setChoice(null) }}>{teacher.name}</button>)}
-                  <button className={styles.clearSlot} type="button" onClick={() => { onChange({ teacher: '', start: '', time: '', day: '' }); setChoice(null) }}>Clear time slot</button>
+                  {choices.map(teacher => <ControlButton key={teacher.name} type="button" kind="toggle" selected={teacher.name === lesson.teacher} aria-pressed={teacher.name === lesson.teacher} onClick={() => { onChange({ teacher: teacher.name }); setChoice(null) }}>{teacher.name}</ControlButton>)}
+                  <ControlButton kind="link" type="button" onClick={() => { onChange({ teacher: '', start: '', time: '', day: '' }); setChoice(null) }}>Clear time slot</ControlButton>
                 </div>}</div>
               }
               const choosing = !choice?.editing && choice?.date === date && choice.time === block.time
-              return <div key={block.id} className={styles.slotOption} style={position}>
-                <button type="button" className={`${styles.openSlot} ${block.duration === 60 ? styles.longLesson : styles.shortLesson}`} aria-label={block.label} aria-pressed={choosing} aria-expanded={block.teachers && block.teachers.length > 1 ? choosing : undefined} onClick={() => {
+              return <div key={block.id} className={styles.slotOption} style={{ gridRow: position.gridRow, gridColumn: position.gridColumn }}>
+                <ControlButton type="button" kind="slot" slotState="open" selected={choosing} aria-pressed={choosing} style={{ gridRow: position.gridRow, gridColumn: position.gridColumn }} aria-label={block.label} aria-expanded={block.teachers && block.teachers.length > 1 ? choosing : undefined} onClick={() => {
                   if (block.teachers?.length === 1) { onChange(selectScheduleSlot(lesson, date, block.time, block.teachers[0].name)); setChoice(null) }
                   else setChoice(choosing ? null : { date, time: block.time })
-                }}><span>{formatScheduleTime(block.time)}–{formatScheduleTime(endTime(block.time, String(block.duration)))}</span><span>{block.duration} min · {block.teachers?.length} {block.teachers?.length === 1 ? 'teacher' : 'teachers'}</span></button>
-                {choosing && <div className={styles.inlineTeachers} role="group" aria-label={`Teachers at ${formatScheduleTime(block.time)}`}>{choices.map(teacher => <button key={teacher.name} type="button" onClick={() => { onChange(selectScheduleSlot(lesson, date, block.time, teacher.name)); setChoice(null) }}>{teacher.name}</button>)}</div>}
+                }}><span>{formatScheduleTime(block.time)}–{formatScheduleTime(endTime(block.time, String(block.duration)))}</span><span>{block.duration} min · {block.teachers?.length} {block.teachers?.length === 1 ? 'teacher' : 'teachers'}</span></ControlButton>
+                {choosing && <div className={styles.inlineTeachers} role="group" aria-label={`Teachers at ${formatScheduleTime(block.time)}`}>{choices.map(teacher => <ControlButton key={teacher.name} type="button" kind="toggle" onClick={() => { onChange(selectScheduleSlot(lesson, date, block.time, teacher.name)); setChoice(null) }}>{teacher.name}</ControlButton>)}</div>}
               </div>
             })}
           </div></div>

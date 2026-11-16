@@ -49,7 +49,7 @@ test('ButtonBase forwards native properties without adding defaults or wrappers'
 })
 
 test('screens use approved controls and only layout overrides', () => {
-  const allowed = new Set(['position', 'top', 'right', 'bottom', 'left', 'inset', 'zIndex', 'width', 'maxWidth', 'minWidth', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'justifySelf', 'gridColumn', 'gridRow', 'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'whiteSpace', 'overflow', 'textOverflow'])
+  const allowed = new Set(['position', 'top', 'right', 'bottom', 'left', 'inset', 'zIndex', 'width', 'maxWidth', 'minWidth', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'justifySelf', 'gridColumn', 'gridRow', 'gridArea', 'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'whiteSpace', 'overflow', 'textOverflow'])
   const violations = []
   function walk(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {

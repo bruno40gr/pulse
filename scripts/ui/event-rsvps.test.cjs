@@ -20,7 +20,7 @@ function renderPage(workspace, busy = false, error = '') {
     const module = { exports: {} }
     cache.set(filename, module)
     const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
+      compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
     }).outputText
     function localRequire(id) {
       if (id === 'react' && relative === pagePath) return { ...React, useState: () => [states.shift(), () => {}] }

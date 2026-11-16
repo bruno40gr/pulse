@@ -3,6 +3,7 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode, type CSSProperties } from 'react'
 import { CalendarDays, Clock, Megaphone, Newspaper, Link as LinkIcon, ArrowLeft, Guitar, Drum, Mic, NotebookPen } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { ControlButton } from '@/components/ui/ControlButton'
 import { ConfirmActionButton } from '@/components/ui/ConfirmActionButton'
 import { ActionConfirmation } from '@/components/ui/ActionConfirmation'
 import { SectionTitle } from '@/components/ui/SectionTitle'
@@ -226,7 +227,7 @@ export default function ContentStudio({ connected = false, contentKind }: { conn
     {!draft ? <>
       {!connected && <div className={styles.choices}>{enabledKinds.map(type => {
         const Icon = icons[contentKinds.findIndex(kind => kind.kind === type.kind)]
-        return <button className={styles.choice} key={type.kind} disabled={!ready || busy} onClick={() => startDraft(type.kind)}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></button>
+        return <ControlButton type="button" kind="card" key={type.kind} disabled={!ready || busy} onClick={() => startDraft(type.kind)}><Icon size={24} aria-hidden="true" /><strong>{type.label}</strong><span>{type.description}</span></ControlButton>
       })}</div>}
       {connected && !ready && !errors.length && <p role="status">Loading content…</p>}
       {connected && ready && !visibleItems.length && <p>No {activeView?.label.toLowerCase() || 'content'} yet.{activeView ? ` Create your first ${activeView.singular} to get started.` : ' Choose a content type in the sidebar to get started.'}</p>}
@@ -269,7 +270,7 @@ export default function ContentStudio({ connected = false, contentKind }: { conn
         <section className={`${styles.panel} ${styles.fields}`} aria-label="Content design">
           {banner && !connected && <div className={styles.actions}>{(['template', 'upload'] as const).map(value => <Button key={value} variant={draft.artwork === value ? 'primary' : 'secondary'} aria-pressed={draft.artwork === value} onClick={() => update({ artwork: value })}>{value === 'template' ? 'Use Template' : 'Upload artwork'}</Button>)}</div>}
           {banner && draft.artwork === 'upload' ? <>{imageUpload(true)}{(draft.artworkImage ?? draft.image) && <div><label htmlFor="studio-artworkAlt">Image description</label><Input id="studio-artworkAlt" value={draft.artworkAlt ?? draft.imageAlt} onChange={event => update({ artworkAlt: event.target.value })} /></div>}</> : <>
-            {banner && <><label><input type="checkbox" checked={draft.includeLogo !== false} onChange={event => update({ includeLogo: event.target.checked })} /> Include Logo</label><div><label>Design</label><div className={styles.designPicker}>{eventThemes.map(theme => <button type="button" key={theme.id} aria-label={`Choose ${theme.label} design`} aria-pressed={eventTreatment(draft).id === theme.id} onClick={() => update({ designId: theme.id, posterLayout: undefined })}><div className={styles.designThumbnail} style={{ background: theme.background, color: theme.foreground }}><strong>{theme.label}</strong>{theme.layout === 'workshop' ? <NotebookPen /> : theme.layout === 'portrait' ? <Mic /> : <Guitar />}</div><span>{theme.label}</span></button>)}</div></div></>}
+            {banner && <><label><input type="checkbox" checked={draft.includeLogo !== false} onChange={event => update({ includeLogo: event.target.checked })} /> Include Logo</label><div><label>Design</label><div className={styles.designPicker}>{eventThemes.map(theme => <ControlButton type="button" kind="toggle" key={theme.id} aria-label={`Choose ${theme.label} design`} aria-pressed={eventTreatment(draft).id === theme.id} selected={eventTreatment(draft).id === theme.id} onClick={() => update({ designId: theme.id, posterLayout: undefined })}><div className={styles.designThumbnail} style={{ background: theme.background, color: theme.foreground }}><strong>{theme.label}</strong>{theme.layout === 'workshop' ? <NotebookPen /> : theme.layout === 'portrait' ? <Mic /> : <Guitar />}</div><span>{theme.label}</span></ControlButton>)}</div></div></>}
             {imageFields}
             {banner && imageLayoutControls}
           </>}

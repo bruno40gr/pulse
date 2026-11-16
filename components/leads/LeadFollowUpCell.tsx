@@ -48,8 +48,8 @@ export function LeadFollowUpCell({ name, field, date, reminder, dateLabel, dateS
         <ControlButton kind="icon" aria-label={`Cancel follow-up ${field} edit`} title="Cancel" disabled={saving} onClick={close}><X size={16} /></ControlButton>
       </div>
       {error && <span role="alert" style={{ ...typography.bodySmall, color: colors.error }}>{error}</span>}
-    </div> : <ControlButton key={field} ref={field === 'date' ? dateTrigger : noteTrigger} kind="name" className={styles.trigger} aria-label={`Edit follow-up ${field} for ${name}`} title={field === 'reminder' ? reminder || 'Edit follow-up reminder' : 'Edit follow-up date'} disabled={editing !== null} onClick={() => start(field)} style={field === 'date' ? dateStyle : undefined}>
-      <span className={field === 'reminder' ? styles.preview : undefined}>{field === 'date' ? dateLabel : reminder}</span><Pencil aria-hidden="true" className={styles.pencil} size={13} />
+    </div> : <ControlButton key={field} ref={field === 'date' ? dateTrigger : noteTrigger} kind="row" aria-label={`Edit follow-up ${field} for ${name}`} title={field === 'reminder' ? reminder || 'Edit follow-up reminder' : 'Edit follow-up date'} disabled={editing !== null} onClick={() => start(field)}>
+      <span className={field === 'reminder' ? styles.preview : undefined} style={field === 'date' ? dateStyle : undefined}>{field === 'date' ? dateLabel : reminder}</span><Pencil aria-hidden="true" className={styles.pencil} size={13} />
     </ControlButton>}
   </div>
 }

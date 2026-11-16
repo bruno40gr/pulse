@@ -12,7 +12,7 @@ function load(file) {
   if (name === 'react/jsx-runtime') return { jsx: (tag, props) => ({ tag, props }), jsxs: (tag, props) => ({ tag, props }) }
   if (name === './ButtonBase') return { ButtonBase: 'button' }
   if (name === 'lucide-react') return { Check: 'check' }
-  if (name === '@/lib/tokens') return { colors: { espresso: '#111', border: '#ddd', surface: '#fff', green: '#3D8B5F', greenDark: '#1F5C3A' }, radius: { sm: 4 }, spacing: { xs: 4, sm: 8 }, typography: { sizeBase: 14, weightSemibold: 600 } }
+  if (name === '@/lib/tokens') return { colors: { espresso: '#111', border: '#ddd', surface: '#fff', green: '#3D8B5F', greenDark: '#1F5C3A' }, interaction: { selected: '#2563EB' }, radius: { sm: 4 }, spacing: { xs: 4, sm: 8 }, typography: { sizeBase: 14, weightSemibold: 600 } }
   throw new Error(name)
  } })
  return exports
@@ -48,7 +48,7 @@ test('daily composer colors rotate without white and completed backgrounds are 8
  assert.equal(colors[0], colors[6])
  assert.equal(getNoteBackground('yellow', false), '#FEF08A')
  assert.equal(getNoteBackground('yellow', true), 'rgba(254, 240, 138, 0.2)')
- const page = fs.readFileSync(path.join(root, 'app/dashboard/notes/page.tsx'), 'utf8')
+ const page = fs.readFileSync(path.join(root, 'components/notes/DashboardNotes.tsx'), 'utf8')
  assert.ok(page.includes("textDecoration: note.completed_at ? 'line-through' : 'none'"))
  assert.ok(page.includes('background: composerBg'))
 })

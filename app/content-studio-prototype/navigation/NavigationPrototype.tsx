@@ -162,7 +162,7 @@ export default function NavigationPrototype() {
       <div className={styles.shell}>
         <div className={styles.scrim} data-open={drawerOpen} onClick={() => { setDrawerOpen(false); restoreFocus(drawerTrigger.current) }} aria-hidden="true" />
         <aside ref={sidebar} className={styles.sidebar} data-open={drawerOpen} aria-label="School navigation" role={drawerOpen ? 'dialog' : undefined} aria-modal={drawerOpen || undefined} inert={!!dialog}>
-          <div className={styles.brand}><span className={styles.mark}>H</span><div><strong>Headliner</strong><small>Music Academy · Sample school</small></div><ControlButton className={styles.mobileOnly} kind="close" aria-label="Close navigation" onClick={() => { setDrawerOpen(false); restoreFocus(drawerTrigger.current) }} /></div>
+          <div className={styles.brand}><span className={styles.mark}>H</span><div><strong>Headliner</strong><small>Music Academy · Sample school</small></div><span className={styles.mobileOnly}><ControlButton kind="close" aria-label="Close navigation" onClick={() => { setDrawerOpen(false); restoreFocus(drawerTrigger.current) }} /></span></div>
           <ControlButton kind="navigation" onClick={() => openDialog('search')}><Search size={16} />Jump to…<span className={styles.count}>⌘ K</span></ControlButton>
           {variant === 'switcher' && <div className={styles.switcherWrap} ref={switcher}>
             <div className={styles.eyebrow}>Work area</div>
@@ -193,7 +193,7 @@ export default function NavigationPrototype() {
         </aside>
         <main className={styles.main} inert={drawerOpen || !!dialog}>
           <div className={styles.topbar}>
-            <ControlButton ref={drawerTrigger} kind="icon" className={styles.mobileOnly} aria-label="Open navigation" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}><Menu size={20} /></ControlButton>
+            <span className={styles.mobileOnly}><ControlButton ref={drawerTrigger} kind="icon" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}><Menu size={20} /></ControlButton></span>
             <div className={styles.breadcrumbs}><span className={styles.muted}>Headliner</span><ChevronRight size={12} /><span>{areaLabel(destination.area)}</span><ChevronRight size={12} /><strong>{destination.page}</strong></div>
             <span className={styles.demoBadge}>Prototype · Fictional data · No live changes</span>
           </div>

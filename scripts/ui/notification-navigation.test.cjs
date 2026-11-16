@@ -13,9 +13,9 @@ test('notification Open navigates even when its destination is already mounted',
 })
 
 test('note links can resolve outside the active date/completion filter using authorized API', () => {
-  const source = fs.readFileSync(path.join(root, 'app/dashboard/notes/page.tsx'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'components/notes/DashboardNotes.tsx'), 'utf8')
   assert.match(source, /encodeURIComponent\(tenantId\)\}&show_done=true/)
-  assert.match(source, /items\.find\(note => note\.id === noteId\)/)
+  assert.match(source, /notes\.find\(note => note\.id === id\)/)
   assert.match(source, /no longer have access/)
 })
 

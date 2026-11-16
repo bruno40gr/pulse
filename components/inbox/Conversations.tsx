@@ -656,7 +656,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
 
             {emails.map(thread => {
               const latest = thread.messages.at(-1)
-              return <ControlButton kind="row" key={thread.id} aria-label={`Read email: ${thread.subject || 'Untitled draft'}`} selected={active?.id === thread.id} onClick={() => readThread(thread.id)} style={{ display: 'block', borderBottom: `1px solid ${colors.borderLight}`, padding: spacing['2xl'], borderRadius: 0 }}>
+              return <ControlButton kind="block" key={thread.id} aria-label={`Read email: ${thread.subject || 'Untitled draft'}`} selected={active?.id === thread.id} onClick={() => readThread(thread.id)}>
                 <div style={{ ...row, justifyContent: 'space-between', ...meta }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm }}>{latest && <EmailDirection direction={latest.direction} />}{latest?.emailFrom || (latest?.direction === 'inbound' ? thread.name : latest ? senderName : 'Draft')}</span><span>{latest?.time.split(' · ')[0] || 'Unsent'}</span></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>{thread.unread && <span role="img" aria-label="Unread email" style={{ display: 'inline-block', width: 8, height: 8, flexShrink: 0, borderRadius: '50%', background: colors.teal }} />}<strong style={{ color: colors.text }}>{thread.subject || 'Untitled draft'}</strong></div>
                 <p style={{ ...meta, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: `${spacing.sm} 0 0` }}>{emailDrafts[thread.id] ? `Draft · ${emailDrafts[thread.id].bodyText || 'No message yet'}` : latest?.body || 'Unsent draft'}</p>
