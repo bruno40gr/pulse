@@ -141,6 +141,7 @@ export default function TeacherExperience({ data, groups, events, setup, today, 
   return <PageContainer>
     <div data-teacher-experience className={styles.workspace} style={{ '--teacher-border': colors.border, '--teacher-muted': colors.textSecondary } as React.CSSProperties}>
       <PageHeader title="My teaching day" subtitle="Your schedule, students and follow-through in one place." />
+      {sample && <p className={styles.muted} role="note">Sample school · these are fictional teachers and students, not a real school.</p>}
       <div className={styles.controls}>
         {canChooseTeacher && <Select label="Preview teacher" value={teacherId} onChange={event => { setTeacherId(event.target.value); setLessonAction(null); setRecipient(''); setMessage(''); setNotice('') }}>{teachers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}
         <Tabs ariaLabel="Teaching range" variant="prominent" activeKey={range} onChange={setRange} items={[{ key: 'Day', label: 'Day' }, { key: 'Week', label: 'Week' }]} />

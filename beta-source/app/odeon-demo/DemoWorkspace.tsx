@@ -247,7 +247,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
       const target = params.get('impersonateReturn') || ''
       window.location.assign(target.startsWith('/odeon-demo?') ? target : '/odeon-demo')
     }}>Exit impersonation</Button></div>}
-    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample /> : calendar ? <AcademyCalendar
+    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample={!tenant} /> : calendar ? <AcademyCalendar
     data={snapshot.data}
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}
