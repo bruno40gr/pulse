@@ -12,7 +12,10 @@ function scenario(role, tenant = HEAD) {
 
 for (const path of ['/odeon-demo', '/odeon-demo/school-setup', '/beta']) {
   for (const [name, setup, allowed] of [
-    ['anonymous', {}, false], ['staff', scenario('staff'), false],
+    ['anonymous', {}, false],
+    // Beta shows fictional sample data only, so any signed-in member of the school
+    // may preview it while other tenants and anonymous visitors stay out.
+    ['staff', scenario('staff'), true],
     ['other tenant', scenario('admin', DEMO), false],
     ['owner', scenario('owner'), true], ['admin', scenario('admin'), true],
   ]) test(`${name} ${allowed ? 'can' : 'cannot'} access ${path}`, async () => {

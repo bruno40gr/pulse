@@ -81,7 +81,9 @@ test('account settings and reset accept explicitly linked personal session', asy
   assert.equal(body.canUpdateCredentials, true)
   assert.equal(body.email, 'secondary@example.test')
 })
-for (const [name, input, allowed] of [['owner', {}, true], ['staff', { role: 'staff' }, false], ['revoked', { revoked: true }, false]]) {
+// Beta is fictional sample data, so the whole signed-in staff team may preview it;
+// a revoked membership still cannot.
+for (const [name, input, allowed] of [['owner', {}, true], ['staff', { role: 'staff' }, true], ['revoked', { revoked: true }, false]]) {
   test(`Beta middleware secondary ${name}`, async () => {
     const h = setup(input)
     const url = new URL(`https://synthetic.invalid/odeon-demo?tenant=${HEAD}`)

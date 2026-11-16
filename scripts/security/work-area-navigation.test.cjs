@@ -18,10 +18,10 @@ test('live sidebar removes Jump to search and its shortcut without removing area
   assert.match(source, /rememberedAreaHref/)
 })
 
-test('Beta access is restricted to owner and admin roles', () => {
+test('Beta access covers the signed-in staff team but not unassigned roles', () => {
   const { canAccessBeta } = load()
-  for (const roleKey of ['owner', 'admin']) assert.equal(canAccessBeta({ roleKey }), true)
-  for (const roleKey of [undefined, '', 'staff', 'assistant', 'tester']) assert.equal(canAccessBeta({ roleKey, canAccessDesignSystem: true }), false)
+  for (const roleKey of ['owner', 'admin', 'staff']) assert.equal(canAccessBeta({ roleKey }), true)
+  for (const roleKey of [undefined, '', 'assistant', 'tester']) assert.equal(canAccessBeta({ roleKey, canAccessDesignSystem: true }), false)
 })
 
 test('area routing separates website, staff, funding, settings and operations', () => {
@@ -52,8 +52,8 @@ test('Beta screens live in their own area and never in Operations', () => {
   assert.equal(beta.links.map(link => link.label).join(' > '), 'Teacher day > Calendar')
   assert.equal(workAreaForPath('/odeon-demo'), 'beta')
   assert.equal(workAreaForPath('/beta'), 'beta')
-  assert.equal(workAreasForAccess({ roleKey: 'staff' }).some(area => area.id === 'beta'), false)
-  assert.equal(workAreasForAccess({ roleKey: 'staff' }).flatMap(area => area.links).some(link => link.href.startsWith('/odeon-demo?')), false)
+  assert.equal(workAreasForAccess({ roleKey: 'staff' }).some(area => area.id === 'beta'), true, 'The staff team can preview beta')
+  assert.equal(workAreasForAccess({ roleKey: 'assistant' }).some(area => area.id === 'beta'), false)
 })
 
 test('school onboarding is a parallel workspace with a standalone destination', () => {

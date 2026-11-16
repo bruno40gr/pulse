@@ -7,7 +7,8 @@ export type NavigationAccess = {
 }
 
 export function canAccessBeta(access: NavigationAccess) {
-  return access.roleKey === 'owner' || access.roleKey === 'admin'
+  // Fictional sample data, so any signed-in member of the school may preview it.
+  return access.roleKey === 'owner' || access.roleKey === 'admin' || access.roleKey === 'staff'
 }
 
 export type WorkAreaId = 'operations' | 'beta' | 'onboarding' | 'funding' | 'website' | 'settings'

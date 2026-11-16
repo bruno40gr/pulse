@@ -17,6 +17,15 @@
   the stricter personal-session check.
 - **The yellow BETA button stays** in the sidebar footer and is no longer hidden from
   non-administrator viewers, so the staff team can reach the preview.
+- **Decision: any signed-in member of the school may preview Beta**, because it shows
+  fictional sample data only. Personal owner, admin and staff accounts all pass the
+  middleware gate, the shared password session continues to pass, and the Beta work
+  area appears in the switcher for those roles. Anonymous visitors, revoked
+  memberships and other tenants are still redirected. This was a deliberate change to
+  the existing contracts: `beta-access.test.cjs`, `membership-logins.test.cjs` and
+  `work-area-navigation.test.cjs` were updated with the reason recorded beside them,
+  not deleted. Design, Website content and the prototype lab keep the stricter
+  personal-session administrator check.
 - Verified: suite 1,160/1,160; signed in with the staff password, the BETA button
   navigates and `/odeon-demo`, `?screen=teacher` and `?screen=calendar` all render.
 

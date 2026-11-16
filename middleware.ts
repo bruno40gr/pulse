@@ -125,16 +125,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // The beta preview is open to the shared staff password session (already
-  // password-gated) as well as to personal owner/admin accounts. Personal staff
-  // accounts and other tenants stay blocked: this is fictional sample data, not a
-  // second route into a school's records. Design, Website content and the
-  // prototype lab keep the stricter personal-session check.
+  // Beta is a preview of fictional sample data, so any signed-in member of this
+  // school may open it: the shared password session, and personal owner, admin or
+  // staff accounts. Cross-tenant selection and anonymous visitors stay blocked.
+  // Design, Website content and the prototype lab keep the stricter personal
+  // administrator check.
   if (isBetaPath) {
     if (!legacySession) {
-      const tenantId = requestedTenant || personalMembership?.tenant_id || DEFAULT_TENANT
-      const designAccess = await requireAccountAdministrator(request, tenantId)
-      if (!designAccess.ok) return NextResponse.redirect(new URL('/dashboard/settings', request.url))
+      const requestedTenantMatches = !requestedTenant || requestedTenant === personalMembership?.tenant_id
+      if (!personalMembership || !requestedTenantMatches) return NextResponse.redirect(new URL('/dashboard/settings', request.url))
     }
   } else if (pathname === '/dashboard/design' || pathname.startsWith('/dashboard/design/')
     || pathname === '/dashboard/website-content' || pathname.startsWith('/dashboard/website-content/')
