@@ -32,7 +32,7 @@ const STATE_LABEL: Record<State, string> = {
 function Cell({ option, state, title, lines, label }: { option: 'a' | 'b' | 'c'; state: State; title?: string; lines?: string[]; label?: string }) {
   const className = [styles.slot, styles[option]].join(' ')
   // Unavailable is never labelled: an empty grey cell already says it.
-  const heading = label === '' ? null : label || title || STATE_LABEL[state]
+  const heading = state === 'unavailable' ? null : label || title || STATE_LABEL[state]
   const content = <span className={styles.content}>
     {heading && <strong>{heading}</strong>}
     {lines?.map(line => <span key={line}>{line}</span>)}
@@ -77,11 +77,11 @@ export default function CalendarStatesPreview() {
         rationale="Availability keeps the dotted outline it has in rescheduling and gains readable content. Unavailable stays flat grey, booked stays solid."
         note="Closest to what reschedule already does, so the two screens agree. Heaviest on a full week: every free cell is outlined and labelled." />
 
-      <OptionPreview option="b" title="Option B · Quiet cell, content on hover"
+      <OptionPreview option="b" title="Option B · Quiet cell, content on hover · not chosen"
         rationale="Available cells are a faint tint with a small plus. Words appear only when the pointer arrives, so scanning stays calm."
         note="The grid reads as lessons first and space second. Cost: availability is a texture rather than a sentence until you interact, and a plus alone does not say who can teach it." />
 
-      <OptionPreview option="c" title="Option C · Edge marker"
+      <OptionPreview option="c" title="Option C · Edge marker · not chosen"
         rationale="A thin edge on the leading side marks bookable time; the cell itself stays white. Hover fills the cell and shows the booking prompt."
         note="Lightest of the three and survives dense weeks. Cost: an edge cue is easy to miss on first use and is less explicit than an outline." />
 
