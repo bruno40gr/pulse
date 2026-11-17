@@ -76,7 +76,6 @@ export function MoveLesson({ item, data, state, onBack, onMove, accountName, pro
   if (inline) return <AccountWorkspace backLabel="Back to schedule" profileSubtitle={profileSubtitle} title={recurring ? `Change ${item.program} recurring schedule · ${item.duration} min` : `Reschedule ${item.program} lesson · ${item.duration} min`} accountName={accountName || previewStudentName(item.student)} onBack={onBack}>
     <CalendarBookingLayout rightControls={rightControls} hideConfirm={Boolean(onDraftChange)} moving studentName={previewStudentName(item.student)} makeup={makeup} program={item.program} sameTeacher={sameTeacher} onSameTeacher={value => { setSameTeacher(value); select(null); setError('') }} teacher="" onTeacher={() => {}} selected={selected} onConfirm={confirm} error={error}>
       {calendar}
-      {availableTimesPanel}
     </CalendarBookingLayout>
     <Modal isOpen={confirmRecurring} onClose={() => setConfirmRecurring(false)} size="sm" ariaLabel="Confirm recurring schedule change">
       <ModalHeader title="Change the subscription schedule?" onClose={() => setConfirmRecurring(false)} />

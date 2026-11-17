@@ -1,5 +1,20 @@
 # Beta integration progress — November 13, 2026
 
+## Availability reads as an invitation, not a booking — November 17, 2026
+
+- **The reschedule calendar keeps the full week** so a parent can follow siblings
+across a day, and availability is drawn as an affordance instead of an event card:
+dotted outline, no fill, time-only label at 62% opacity, lighting up on hover and
+keyboard focus. Booked and original lessons keep their solid service colour, so they
+are the only filled things on the grid.
+- Available slots lead with the time alone; program and teacher were noise repeated 21
+times down the week.
+- The separate Available-times list now appears only in the tighter family reschedule
+drawer, not beside the calendar where it competed with the map.
+- Noted, not fixed: the same date and time as the lesson being moved can still be
+offered as available, because the moved occurrence is excluded from conflicts.
+
+
 ## Setup catalogues and an available-times prototype — November 17, 2026
 
 - **Group and event types now live in School Setup**, next to services and rooms, in
