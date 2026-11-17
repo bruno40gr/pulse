@@ -143,29 +143,19 @@
 .unavailableSlot { background: rgb(0 0 0 / 4.5%); }
 /* Occupancy and availability are different facts: an unbooked cell inside the
    teacher or room's hours carries a faint dotted hint, a closed one does not. */
-.bookableSlot { transition: background 120ms ease; }
-.bookableSlot:hover { background: var(--calendar-neutral-surface); }
+/* Calendar: bookable time keeps its outline and gains a faint tint. */
+.bookableSlot { background: rgb(104 96 174 / 5%); transition: background 120ms ease; }
+.bookableSlot:hover { background: rgb(104 96 174 / 12%); }
 
-.schedule.replacementCalendar { margin-top: 0; }
-/* Available slots carry a faint dotted hint and brighten on hover or focus. */
-.replacementCalendar .openSlot, .availableLegend { background: transparent; border-color: var(--calendar-neutral-border); border-style: dotted; color: var(--calendar-neutral-text); }
-.replacementCalendar .openSlot { opacity: .7; }
+/* Reschedule: available time borrows the active student's colour and stays faint
+   until hovered. The time lives on the row axis, so only the time is shown. */
+.replacementCalendar .openSlot { background: var(--calendar-student-surface); border: 1px dotted var(--calendar-student-border); color: var(--calendar-student-text); opacity: .55; }
 .replacementCalendar .openSlot.detailedSlot span:nth-child(1),
 .replacementCalendar .openSlot.detailedSlot span:nth-child(2) { display: none; }
-.replacementCalendar .openSlot.detailedSlot span:last-child { font-weight: 600; }
-.availableLegend { background: transparent; border-color: var(--calendar-neutral-border); border-style: dotted; color: var(--calendar-neutral-text); }
-.replacementCalendar .openSlot:hover, .replacementCalendar .openSlot:focus-visible { background: var(--calendar-neutral-surface); border-color: var(--calendar-neutral-strong); border-style: solid; opacity: 1; box-shadow: inset 0 0 0 1px var(--calendar-neutral-strong), 0 1px 4px rgb(0 0 0 / 8%); }
-.replacementCalendar .openSlot[aria-pressed=true] { background: var(--calendar-student-surface); border-style: solid; border-color: var(--calendar-student-border); color: var(--calendar-student-text); opacity: 1; box-shadow: inset 0 0 0 2px var(--calendar-student-border); }
-.replacementCalendar .openSlot span:first-child { font-size: 12px; font-weight: 600; }
-/* Available is faint until invited; booked lessons keep their solid fill. */
-.replacementCalendar .openSlot { opacity: .7; }
-.replacementCalendar .openSlot:hover, .replacementCalendar .openSlot:focus-visible, .replacementCalendar .openSlot[aria-pressed=true] { opacity: 1; }
-.availableLegend { opacity: .8; }
-.unavailableLegend { background: repeating-linear-gradient(135deg, rgb(0 0 0 / 5%) 0 4px, transparent 4px 8px); border: 1px solid var(--calendar-neutral-border); opacity: .8; }
-/* An available slot leads with its time; program and teacher are context, not content. */
-.replacementCalendar .openSlot.detailedSlot span:nth-child(1),
-.replacementCalendar .openSlot.detailedSlot span:nth-child(2) { display: none; }
-.replacementCalendar .openSlot.detailedSlot span:last-child { font-weight: 600; }
+.replacementCalendar .openSlot.detailedSlot span:last-child { font-size: 12px; font-weight: 600; }
+.replacementCalendar .openSlot:hover, .replacementCalendar .openSlot:focus-visible { border-style: solid; opacity: 1; box-shadow: inset 0 0 0 1px var(--calendar-student-border); }
+.replacementCalendar .openSlot[aria-pressed=true] { border: 2px solid var(--calendar-student-border); opacity: 1; box-shadow: inset 0 0 0 2px var(--calendar-student-border); }
+.availableLegend { background: transparent; border-color: var(--calendar-neutral-border); border-style: dotted; color: var(--calendar-neutral-text); opacity: .8; }
 
 
 .teacherFilters label { flex-direction: row; align-items: center; gap: 7px; color: #1a1a1a; }

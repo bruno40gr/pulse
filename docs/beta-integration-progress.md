@@ -1,5 +1,20 @@
 # Beta integration progress — November 13, 2026
 
+## Option A adopted for calendar cell states — November 17, 2026
+
+- **Available to book** is now an outlined cell with a faint tint on the academy calendar,
+and, in reschedule and makeup flows, a faint **student-coloured** cell that fills solid on
+hover. The row axis already carries the time, so the cell does not repeat it.
+- **Unavailable cells carry no label.** An empty grey cell says it; the word only ever
+existed in the prototype strip and is gone there too.
+- **Two students keep their own colours.** `calendarStudentStyle` assigns a palette entry by
+roster position, so Cora and Felix land on different colours; sibling lessons already
+carried their own, and available cells now inherit the active student's through the
+calendar root.
+- The legend stays neutral because it names the idea rather than a person, which also keeps
+`calendar-appearance` honest about availability not being an identity colour.
+
+
 ## Calendar cell-state prototype — November 17, 2026
 
 `/odeon-demo?screen=states` is a standalone comparison of the four states a calendar cell

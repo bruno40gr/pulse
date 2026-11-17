@@ -31,8 +31,10 @@ const STATE_LABEL: Record<State, string> = {
 
 function Cell({ option, state, title, lines, label }: { option: 'a' | 'b' | 'c'; state: State; title?: string; lines?: string[]; label?: string }) {
   const className = [styles.slot, styles[option]].join(' ')
+  // Unavailable is never labelled: an empty grey cell already says it.
+  const heading = label === '' ? null : label || title || STATE_LABEL[state]
   const content = <span className={styles.content}>
-    <strong>{label || title || STATE_LABEL[state]}</strong>
+    {heading && <strong>{heading}</strong>}
     {lines?.map(line => <span key={line}>{line}</span>)}
   </span>
   return state === 'booked' || state === 'unavailable'
@@ -45,7 +47,7 @@ function OptionPreview({ option, title, rationale, note }: { option: 'a' | 'b' |
   return <DenseSectionPanel title={title} headingLevel="h2">
     <p style={{ ...typography.bodySmall, color: colors.textSecondary, margin: 0 }}>{rationale}</p>
     <div className={styles.strip} aria-label={`${title} states`}>
-      {(['unavailable', 'available', 'hover', 'booked'] as State[]).map(state => <Cell key={state} option={option} state={state} label={STATE_LABEL[state]} />)}
+      {(['unavailable', 'available', 'hover', 'booked'] as State[]).map(state => <Cell key={state} option={option} state={state} label={state === 'unavailable' ? '' : STATE_LABEL[state]} />)}
     </div>
     <div className={styles.week} aria-label={`${title} in a week`}>
       <div className={styles.columnHeading}>Wed, Nov 4</div>
@@ -60,7 +62,7 @@ function OptionPreview({ option, title, rationale, note }: { option: 'a' | 'b' |
 export default function CalendarStatesPreview() {
   const [hovered, setHovered] = useState<State | null>(null)
   return <PageContainer>
-    <PageHeader density="compact" singleLine title="Calendar cell states" subtitle="Prototype · three treatments for the same four states" />
+    <PageHeader density="compact" singleLine title="Calendar cell states" subtitle="Decided: Option A · unavailable cells stay unlabelled grey" />
     <div style={{ display: 'grid', gap: spacing.xl }}>
       <DenseSectionPanel title="What the four states have to say" headingLevel="h2">
         <div style={{ display: 'grid', gap: spacing.sm }}>
