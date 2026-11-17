@@ -1,5 +1,21 @@
 # Beta integration progress — November 13, 2026
 
+## Readable availability, and siblings at the same time — November 17, 2026
+
+- **Available cells are opaque white.** A translucent tint left them "dirty white", let the
+15-minute grid rules show through, and sat too close to the grey. They are now solid white
+with a 1.5px dotted outline, no gutter, and the word **Available** appears on hover; grey
+went from 4.5% to 9% black so the two states separate at a glance.
+- **Siblings can take the same time.** `academyRescheduleAvailability` pinned a lesson to the
+room it started in (`preferred.length ? preferred : all`), so once one sibling moved into
+that room the other saw no slots — reading as "only one class at a time". The resolver now
+prefers the original room but still considers the rest, so two children can move to the
+same time in different rooms. Same teacher or same room at the same time is still refused,
+which is correct.
+- Regression test added and confirmed to fail against the previous behaviour
+(11/12) and pass with the fix (12/12).
+
+
 ## Grey availability, and a real colour bug — November 17, 2026
 
 - **Calendar availability is grey.** The faint tint on bookable cells was lavender; it is now

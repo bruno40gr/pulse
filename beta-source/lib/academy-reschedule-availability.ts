@@ -21,8 +21,11 @@ export function academyRescheduleAvailability(context: Pick<BookingContext, 'set
     }
     // A reschedule keeps the original room when it is still configured; otherwise any suitable room.
     const roomName = data.lessons.find(item => item.id === makeup.lessonId)?.room || data.lessons.find(item => item.enrollmentId === makeup.enrollmentId)?.room
-    const preferred = roomRecords(setup).filter(room => roomName && room.name === roomName)
-    const rooms = preferred.length ? preferred : roomRecords(setup)
+    // Prefer the lesson's own room but never pin to it: a sibling may need the other room
+    // at the same time, and two lessons can run in parallel in different rooms.
+    const allRooms = roomRecords(setup)
+    const preferred = allRooms.filter(room => roomName && room.name === roomName)
+    const rooms = [...preferred, ...allRooms.filter(room => !preferred.includes(room))]
     const teachers = (setup.teachers || []).filter(teacher => teacher.values.name && (!sameTeacher || teacher.values.name === makeup.teacher))
     return Array.from({ length: 32 }, (_, index) => clock(360 + index * 30)).flatMap(time => {
       if (minute(time) + makeup.duration > 1320) return []

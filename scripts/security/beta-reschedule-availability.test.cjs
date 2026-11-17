@@ -152,3 +152,17 @@ test('a teacher account is locked to its own staff record', () => {
   assert.match(teacherDay, /not connected to a teaching profile/, 'An unlinked account never sees another teacher')
 })
 
+
+test('a reschedule is not pinned to the room the lesson started in', () => {
+  const { setup, availabilityData, data, sample, makeup } = fixture()
+  const { academyRescheduleAvailability } = h.load('beta-source/lib/academy-reschedule-availability.ts')
+  const originalRoom = data.lessons.find(item => item.id === makeup.lessonId)?.room
+  assert.ok(originalRoom, 'the fixture lesson has a room')
+  const pinned = structuredClone(setup)
+  const room = pinned.locations[0].rooms.find(item => item.name === originalRoom)
+  // The lesson's own room can no longer host this service, as if a sibling took it.
+  room.allServices = false
+  room.serviceIds = []
+  const slots = academyRescheduleAvailability({ setup: pinned, groups: [], events: [] })(availabilityData, sample.makeups, makeup, '2026-11-12', 'Piano', true)
+  assert.ok(slots.length > 0, 'another room keeps the time bookable')
+})
