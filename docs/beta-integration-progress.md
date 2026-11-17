@@ -1,5 +1,23 @@
 # Beta integration progress — November 13, 2026
 
+## Calendar cell-state prototype — November 17, 2026
+
+`/odeon-demo?screen=states` is a standalone comparison of the four states a calendar cell
+can hold — unavailable, available to book, hover to book, booked — and three candidate
+treatments for them. It is a prototype and is deliberately not wired into the calendar.
+
+- **Option A, outlined slot**: dotted outline plus readable content (who can teach, what,
+how long), solid fill on hover. Matches the reschedule and makeup flows, so both screens
+speak one language; the heaviest of the three across a full week.
+- **Option B, quiet cell**: faint tint and a plus glyph, with words only on hover. Calmest
+to scan; availability is a texture rather than a sentence until the pointer arrives.
+- **Option C, edge marker**: a thick leading edge, white cell body, fill on hover.
+Lightest and survives dense weeks; an edge cue is easier to miss on first use.
+
+Each option shows the four states as a labelled strip and again inside a sample day, with
+one cell rendered in its hover state so the transition is visible without interaction.
+
+
 ## Occupancy is not availability — November 17, 2026
 
 Empty space on the calendar does not mean bookable: a teacher can have an unbooked gap

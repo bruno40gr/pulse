@@ -1,0 +1,47 @@
+/* Prototype styles for the calendar cell-state comparison. Appearance is driven by
+   data-state so a state class can never be missing from the stylesheet. */
+
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.week { display: grid; gap: 6px; }
+.columnHeading { font-size: 12px; color: #6b7280; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+
+.slot {
+  display: grid; align-content: start; gap: 1px;
+  min-height: 64px; padding: 7px 9px; border-radius: 6px;
+  font: inherit; text-align: left; font-size: 12px; line-height: 1.35;
+  border: 1px solid transparent; background: #fff; color: #374151;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.slot:is(button) { cursor: pointer; }
+.content { display: grid; gap: 1px; min-width: 0; }
+.content strong { font-weight: 600; overflow-wrap: anywhere; }
+.content span { font-size: 11px; color: #6b7280; }
+
+/* Shared states. */
+.slot[data-state="booked"] { background: #edebff; border-color: #6860ae; color: #38316b; }
+.slot[data-state="booked"] .content span { color: #5b53a0; }
+.slot[data-state="unavailable"] { background: rgb(0 0 0 / 5%); color: #9ca3af; cursor: not-allowed; }
+.slot[data-state="unavailable"] .content span { color: #9ca3af; }
+
+/* Option A — outlined slot with readable content. */
+.a[data-state="available"] { border: 2px dotted #6b7280; }
+.a[data-state="hover"] { border: 2px solid #6860ae; background: #edebff; color: #38316b; box-shadow: inset 0 0 0 1px #6860ae; }
+.a[data-state="available"]:hover { border: 2px solid #6860ae; background: #edebff; color: #38316b; }
+
+/* Option B — quiet tint, plus glyph, words only on hover. */
+.b[data-state="available"] { background: rgb(104 96 174 / 10%); }
+.b[data-state="available"] .content > strong { opacity: 0; }
+.b[data-state="available"] .content span { opacity: 0; }
+.b[data-state="available"] .content::after { content: "+"; float: right; font-size: 16px; line-height: 1; color: #6860ae; }
+.b[data-state="available"]:hover { background: #edebff; }
+.b[data-state="available"]:hover .content > strong,
+.b[data-state="available"]:hover .content span { opacity: 1; }
+.b[data-state="available"]:hover .content::after { content: ""; }
+.b[data-state="hover"] { background: #edebff; border-color: #6860ae; color: #38316b; }
+
+/* Option C — edge marker, white cell until hover. */
+.c[data-state="available"] { border-left: 5px solid rgb(104 96 174 / 60%); }
+.c[data-state="available"] .content > strong { opacity: .8; }
+.c[data-state="hover"] { border-left: 5px solid #6860ae; background: #edebff; border-color: #6860ae; border-left-color: #6860ae; color: #38316b; }
+.c[data-state="available"]:hover { background: #edebff; border-left-color: #6860ae; color: #38316b; }

@@ -37,6 +37,7 @@ import { createCalendarEnrollment, saveCalendarEnrollment, matchingSubscriptions
 import { bookingReason, roomRecords, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { CalendarEnrollmentContext } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
 import BookingFlow from './BookingFlow'
+import CalendarStatesPreview from './CalendarStatesPreview'
 import type { BookingPrefill } from './CalendarBookingModal'
 import { newWorkflowDraft } from '@/beta-source/lib/academy-workflow-drafts'
 import { saveCalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
@@ -135,6 +136,8 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   const onSetup = useCallback((data: Record<string, SetupRecord[]>) => setSetup(data), [])
   const parent = params.get('view') === 'parent', staff = params.get('screen') === 'staff'
   const screen = betaScreen(params.get('screen'), params.get('view'))
+  // Prototype comparison of calendar cell states; not part of the calendar itself.
+  const statesPreview = params.get('screen') === 'states'
   const workflow = betaWorkflowScreens.includes(screen as BetaWorkflowScreen)
   const calendar = screen === 'calendar'
   useEffect(() => {
@@ -255,7 +258,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
       const target = params.get('impersonateReturn') || ''
       window.location.assign(target.startsWith('/odeon-demo?') ? target : '/odeon-demo')
     }}>Exit impersonation</Button></div>}
-    {screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample={!tenant} /> : calendar ? <AcademyCalendar
+    {statesPreview ? <CalendarStatesPreview /> : screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample={!tenant} /> : calendar ? <AcademyCalendar
     data={snapshot.data}
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}
