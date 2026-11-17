@@ -1,5 +1,19 @@
 # Beta integration progress — November 13, 2026
 
+## Reschedule keeps the dotted hint — November 17, 2026
+
+Reverted the empty-cell experiment: the reschedule panel again shows a faint dotted,
+time-only chip for each available slot, brightening on hover and focus. Empty cells were
+tidy but invisible, which made a focused task harder than it needed to be. Grey
+unavailable cells, the dashed origin lesson and the empty initial selection stay.
+
+Decision recorded for the main calendar: it keeps empty-as-bookable. A hint on every free
+half hour across fifteen columns adds an element per cell and buries the lessons people
+are scanning for; the affordance there is hover and selection. The one idea worth
+taking from the reference implementation is a **reason on unavailable cells** (a duty, a
+block, a closure, time off), because no other surface answers "why can't I book here".
+
+
 ## Reschedule matches the calendar week view — November 17, 2026
 
 The slide-panel reschedule grid now follows the academy calendar's week view instead of
