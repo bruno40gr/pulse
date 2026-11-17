@@ -19,6 +19,7 @@ import { useCalendarEnrollment } from './CalendarEnrollmentContext'
 import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
 import { Avatar } from '@/components/ui/Avatar'
 import { ChevronLeft, ChevronRight, Check, X, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -94,6 +95,12 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const [studentPanel, setStudentPanel] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [reschedule, setReschedule] = useState<CalendarOccurrence | null>(null)
+  // A cancellation records why it happened, because billing, make-ups and the family
+  // message all follow from that answer, not from the status string alone.
+  const [cancelTarget, setCancelTarget] = useState<CalendarOccurrence | null>(null)
+  const [cancelReason, setCancelReason] = useState('Family cancelled')
+  const [cancelCredit, setCancelCredit] = useState(true)
+  const [cancelCharge, setCancelCharge] = useState(false)
 
   const dates = useMemo(() => (dayMode ? [focusDate] : betaWeekDates(week)), [dayMode, focusDate, week])
   // The same recurring expansion the family portal sees, so both agree.
@@ -164,10 +171,14 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const selectedStudent = selected?.studentIds[0] ? studentOf(selected.studentIds[0]) : undefined
 
   function cancelOccurrence() {
-    if (!selected) return
-    onApply(current => changeSessionOccurrence(expandPreviewCalendar(current, selected.date), selected.id, { status: 'Cancelled' }))
-    setNotice(`Cancelled ${selected.title} on ${dayName(selected.date)}.`)
-    setSelected(null)
+    const target = cancelTarget || selected
+    if (!target) return
+    onApply(current => changeSessionOccurrence(expandPreviewCalendar(current, target.date), target.id, {
+      status: 'Cancelled',
+      cancellation: { reason: cancelReason, credited: cancelCredit, charged: cancelCharge, at: new Date().toISOString() },
+    }))
+    setNotice(`Cancelled ${target.title} on ${dayName(target.date)} · ${cancelReason}${cancelCredit ? ' · make-up credited' : ' · no make-up'}${cancelCharge ? ' · charged' : ' · not charged'}`)
+    setCancelTarget(null); setSelected(null)
   }
 
   function applyReschedule(booking: NonNullable<PreviewMakeup['booking']>) {
@@ -270,7 +281,7 @@ return (
               const index = times.indexOf(time)
               const reason = slotReason(column.date, time, column.resource.id)
               const active = drawing.current?.column === id && drawEnd && minutesOf(time) >= Math.min(minutesOf(drawing.current.time), minutesOf(drawEnd)) && minutesOf(time) <= Math.max(minutesOf(drawing.current.time), minutesOf(drawEnd))
-              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted rgba(107, 114, 128, 0.75)', borderRadius: reason ? 0 : 5, background: reason && showUnavailable ? colors.border : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
+              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: reason && showUnavailable ? colors.border : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
                 if (mobile || event.pointerType === 'touch') return
                 const start = drawing.current
                 if (!start || start.column !== id) return
@@ -297,6 +308,35 @@ return (
       </div>
       {reschedule && taskItem && <InlineWorkspaceContext.Provider value><MoveLesson key={taskItem.id} item={taskItem} data={expanded} state={emptyMakeupState} initialDate={taskItem.date} onBack={finishReschedule} onMove={applyReschedule} availableSlots={replacementSlots} /></InlineWorkspaceContext.Provider>}
 
+      {cancelTarget && (
+        <Modal isOpen size="sm" ariaLabel="Cancel lesson" onClose={() => setCancelTarget(null)}>
+          <ModalHeader title={cancelTarget.studentIds.length > 1 ? 'Cancel whole session' : 'Cancel this lesson'} onClose={() => setCancelTarget(null)} />
+          <ModalBody>
+            <div style={{ display: 'grid', gap: spacing.md }}>
+              <p style={{ margin: 0, color: colors.textSecondary, fontSize: typography.sizeSm }}>
+                {cancelTarget.title} · {dayName(cancelTarget.date)} · {cancelTarget.start}–{cancelTarget.end} · {cancelTarget.studentNames.join(', ') || cancelTarget.teacherName}
+              </p>
+              <Select label="Reason" value={cancelReason} onChange={event => setCancelReason(event.target.value)}>
+                <option>Family cancelled</option>
+                <option>Teacher unavailable</option>
+                <option>Student illness</option>
+                <option>Weather</option>
+                <option>School closure</option>
+                <option>Other</option>
+              </Select>
+              <Checkbox label="Credit a make-up to the family" checked={cancelCredit} onChange={event => setCancelCredit(event.target.checked)} />
+              <Checkbox label="Still charge for this lesson" checked={cancelCharge} onChange={event => setCancelCharge(event.target.checked)} />
+              <p style={{ margin: 0, color: colors.textSecondary, fontSize: typography.sizeSm }}>
+                Recorded on the lesson: the reason, whether a make-up is owed, and whether the family is charged.
+              </p>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setCancelTarget(null)}>Keep lesson</Button>
+            <Button variant="destructive" onClick={cancelOccurrence}>Cancel lesson</Button>
+          </ModalFooter>
+        </Modal>
+      )}
 {selected && !reschedule && (
 
         <div ref={inspectorRef} role="dialog" aria-label="Booking details" tabIndex={-1} style={{ position: 'fixed', top: anchor.top, left: anchor.left, zIndex: 60, width: 'min(360px, calc(100vw - 24px))', maxHeight: `calc(100vh - ${anchor.top + 12}px)`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -312,14 +352,14 @@ return (
             {!isStaffDuty(selected.kind) && <div><strong>Student</strong><p style={{ margin: '2px 0 0' }}>{selected.studentNames.join(', ') || 'No student booked'}</p></div>}
             <div><strong>Teacher</strong><p style={{ margin: '2px 0 0' }}>{selected.teacherName || 'Not assigned'}</p></div>
             <div><strong>Room</strong><p style={{ margin: '2px 0 0' }}>{selected.room || 'Not assigned'}</p></div>
-            <div><strong>Status</strong><p style={{ margin: '2px 0 0' }}>{selected.status}</p></div>
+            <div><strong>Status</strong><p style={{ margin: '2px 0 0' }}>{selected.status}{selected.participantLessonIds?.length ? (() => { const record = expanded.lessons.find(item => item.id === selected.participantLessonIds![0])?.cancellation; return record ? ` · ${record.reason}${record.credited ? ' · make-up credited' : ''}${record.charged ? ' · charged' : ' · not charged'}` : '' })() : ''}</p></div>
             {selected.kind === 'lesson' && selected.status !== 'Cancelled' && selected.participantLessonIds?.map(id => {
               const lesson = expanded.lessons.find(item => item.id === id)
               const student = expanded.students.find(item => item.enrollments.some(enrollment => enrollment.id === lesson?.enrollmentId))
               return lesson && student ? <div key={id} role="group" aria-label={`Attendance · ${student.firstName} ${student.lastName}`}><strong>Attendance · {student.firstName} {student.lastName}</strong><div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>{attendanceOutcomes.map((outcome, index) => { const Icon = [Check, X, Minus][index]; return <ControlButton key={outcome} kind="toggle" selected={lesson.attendance === outcome} aria-pressed={lesson.attendance === outcome} onClick={() => onApply(current => markParticipantAttendance(expandPreviewCalendar(current, selected.date), id, lesson.attendance === outcome ? undefined : outcome))}><Icon size={14} aria-hidden="true" />{outcome}</ControlButton> })}</div></div> : null
             })}
             {selectedStudent && <Button variant="secondary" onClick={() => { setStudentPanel(selectedStudent.id); setSelected(null) }}>View profile</Button>}
-            {selected.kind === 'lesson' && selected.status === 'Scheduled' && <Button variant="destructive" onClick={cancelOccurrence}>{selected.studentIds.length > 1 ? 'Cancel whole session' : 'Cancel this lesson'}</Button>}
+            {selected.kind === 'lesson' && selected.status === 'Scheduled' && <Button variant="destructive" onClick={() => setCancelTarget(selected)}>{selected.studentIds.length > 1 ? 'Cancel whole session' : 'Cancel this lesson'}</Button>}
             {selected.kind === 'lesson' && selected.status === 'Scheduled' && <Button variant="secondary" onClick={() => { returnScroll.current = { x: window.scrollX, y: window.scrollY }; setReschedule(selected) }}>{selected.studentIds.length > 1 ? 'Reschedule whole session' : 'Reschedule'}</Button>}
             {selected.bookingId && isStaffDuty(selected.kind) && <Button variant="secondary" onClick={() => { const existing = data.calendarBookings?.find(item => item.id === selected.bookingId); if (existing) { setBooking({ date: existing.date, time: existing.time, duration: existing.duration, existing }); setSelected(null) } }}>Edit duty series</Button>}
             {selected.bookingId && <Button variant="destructive" onClick={() => { if (configuredBlocks(setup).some(item => item.id === selected.bookingId)) onSetup({ ...setup, resourceBlocks: setup.resourceBlocks.filter(item => item.id !== selected.bookingId) }); else onApply(current => ({ ...current, calendarBookings: current.calendarBookings?.map(item => item.id === selected.bookingId ? { ...item, status: 'Cancelled' } : item) })); setSelected(null); setNotice('Booking removed; resources released.') }}>{isStaffDuty(selected.kind) ? 'Cancel duty series' : selected.kind === 'block' ? 'Remove block' : 'Cancel booking'}</Button>}

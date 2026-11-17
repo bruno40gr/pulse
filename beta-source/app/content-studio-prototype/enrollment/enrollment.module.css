@@ -146,8 +146,8 @@
 /* Calendar: bookable time keeps its outline and gains a faint tint. */
 .bookableSlot { position: relative; background: #fff; transition: background 120ms ease, box-shadow 120ms ease; }
 .bookableSlot::after { content: ''; position: absolute; left: 7px; top: 3px; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: #6b7280; }
-.bookableSlot:hover { background: #fff; box-shadow: inset 0 0 0 1.5px #6b7280; }
-.bookableSlot:hover::after { content: "Available"; }
+.bookableSlot:hover, .bookableSlot:focus-visible { background: #fff; border-color: rgb(107 114 128 / 75%); box-shadow: inset 0 0 0 1px rgb(107 114 128 / 20%); }
+.bookableSlot:hover::after, .bookableSlot:focus-visible::after { content: "Available"; }
 
 /* Reschedule: available time borrows the active student's colour and stays faint
    until hovered. The time lives on the row axis, so only the time is shown. */

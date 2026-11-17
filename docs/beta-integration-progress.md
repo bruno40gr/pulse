@@ -1,5 +1,18 @@
 # Beta integration progress — November 13, 2026
 
+## Cancelling means something, and the reschedule rail moved left — November 17, 2026
+
+- **Cancelling a lesson now records why, and what follows from it.** The inspector's cancel
+opens a dialog with a required reason (family, teacher unavailable, illness, weather,
+closure, other), whether a make-up is credited, and whether the family is still charged.
+The three answers are stored on the lesson as `cancellation`, shown afterwards in the
+inspector, and summarised in the notice. Previously cancelling only set a status string:
+no reason, no make-up, no billing decision, no record.
+- **The reschedule summary sits on the left.** `CalendarBookingLayout` already had a
+`leftRail` variant; reschedules now use it, so the student, original lesson and destination
+panel reads before the calendar instead of after it.
+
+
 ## Readable availability, and siblings at the same time — November 17, 2026
 
 - **Available cells are opaque white.** A translucent tint left them "dirty white", let the

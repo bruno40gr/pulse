@@ -17,7 +17,7 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
 }) {
   const teachers = scheduleTeachers.filter(item => (item.instruments as readonly string[]).includes(program))
   const slotLabel = (date: string, time: string) => `${formatScheduleDate(date, { weekday: 'short', month: 'short', day: 'numeric' })}, ${formatScheduleTime(time)}`
-  return <div className={`${styles.layout} ${moving ? styles.enter : ''} ${sidebar ? styles.leftRail : ''}`} data-booking-layout="">
+  return <div className={`${styles.layout} ${moving ? styles.enter : ''} ${sidebar || moving ? styles.leftRail : ''}`} data-booking-layout="">
     <div className={styles.calendar}>{children}<CalendarLegend moving={moving} /></div>
     <aside className={styles.controls} aria-label="Booking controls">
       {rightControls || <>

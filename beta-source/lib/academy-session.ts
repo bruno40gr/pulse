@@ -13,7 +13,7 @@ export function markParticipantAttendance(data: FamilyPreviewData, lessonId: str
 }
 
 /** Mutate resource occupancy once, projecting the change onto every participant. */
-export function changeSessionOccurrence(data: FamilyPreviewData, occurrenceId: string, patch: { date?: string; time?: string; teacher?: string; room?: string; status?: 'Cancelled' }): FamilyPreviewData {
+export function changeSessionOccurrence(data: FamilyPreviewData, occurrenceId: string, patch: { date?: string; time?: string; teacher?: string; room?: string; status?: 'Cancelled'; cancellation?: { reason: string; credited: boolean; charged: boolean; at: string } }): FamilyPreviewData {
   const participants = data.lessons.filter(item => lessonOccurrenceId(item) === occurrenceId)
   if (!participants.length) throw new Error('Session occurrence unavailable.')
   if (patch.date && (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date) || new Date(`${patch.date}T12:00:00Z`).toISOString().slice(0, 10) !== patch.date)) throw new Error('Check the session date.')

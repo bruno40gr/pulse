@@ -22,7 +22,7 @@ export type PreviewEnrollment = {
   recurringSchedule?: { start: string; time: string; teacher: string; changes: { from: string; date: string; time: string; teacher: string }[] }
 }
 export type AttendanceOutcome = 'Present' | 'No-show' | 'Excused absence'
-export type PreviewLesson = { id: string; enrollmentId: string; occurrenceId?: string; attendance?: AttendanceOutcome; date: string; time: string; room: string; status: string; teacher?: string; originalDate?: string }
+export type PreviewLesson = { id: string; enrollmentId: string; occurrenceId?: string; attendance?: AttendanceOutcome; date: string; time: string; room: string; status: string; teacher?: string; originalDate?: string; cancellation?: { reason: string; credited: boolean; charged: boolean; at: string } }
 export type PreviewNote = { id: string; text: string; timestamp: string; actor_name: string; actor_id?: string; audience?: 'family' | 'internal'; edited_at?: string; links?: NoteAttachment[]; completed_at?: string | null; mentions?: string[] }
 export type PreviewMessage = { id: string; channel: 'email' | 'sms'; direction: 'inbound' | 'outbound'; timestamp: string; subject?: string; text: string }
 export type PreviewStudent = {
