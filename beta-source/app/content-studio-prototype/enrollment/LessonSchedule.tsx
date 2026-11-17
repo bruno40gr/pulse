@@ -15,7 +15,7 @@ import { calendarStudentStyle } from '@/lib/calendar-appearance'
 
 type CalendarBlock = {
   id: string; time: string; duration: number; label: string; booked: boolean; active?: boolean; blocksAvailability?: boolean; lines?: string[]; proposed?: boolean
-  teachers?: readonly { name: string }[]; studentId?: string
+  teachers?: readonly { name: string }[]; studentId?: string; unavailable?: boolean
 }
 
 export default function LessonSchedule({ lesson, lessons, student, students = [], calendarStudentIds, manager, onChange, onSelectLesson, availability, initialDate, compactCopy = false, teacherPreference = '', referenceLessons = [], replacementMode = false, onWeek, toolbarActions, detailedReplacementSlots = false, chooseTeacherOnClick = false }: {
@@ -82,12 +82,15 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
             const available = availableTeachers(date, time).filter(matchesPreference)
             if (available.length) open.push({ id: `open-${time}`, time, duration: Number(lesson.duration), label: `${formatScheduleDate(date, { weekday: 'long', month: 'short', day: 'numeric' })} ${formatScheduleTime(time)}, ${available.length} ${available.length === 1 ? 'teacher' : 'teachers'} available`, booked: false, teachers: available })
           }
-          const layout = placeBlocks([...booked, ...open], firstMinute)
+          // Blank cells are ambiguous; show the times this lesson cannot move to.
+          const unavailable: CalendarBlock[] = replacementMode ? gridTimes.flatMap(time => [time]).filter(time => ![...booked, ...open].some(item => overlap(time, 15, item.time, item.duration))).map(time => ({ id: `unavailable-${time}`, time, duration: 15, label: `Not available at ${formatScheduleTime(time)}`, booked: false, unavailable: true })) : []
+          const layout = placeBlocks([...booked, ...open, ...unavailable], firstMinute)
           return <div className={styles.daySlots} style={{ gridTemplateRows: `repeat(${gridTimes.length}, var(--calendar-slot-height))`, gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
             {layout.blocks.map(block => {
               const personId = block.studentId || lessons.find(item => item.id === block.id)?.studentId || student?.id || ''
               const position = { gridRow: `${block.row + 1} / span ${block.duration / 15}`, gridColumn: block.lane + 1, ...calendarStudentStyle(personId, colorIds) }
               const label = `${block.label}, ${formatScheduleDate(date)}, ${formatScheduleTime(block.time)}–${formatScheduleTime(endTime(block.time, String(block.duration)))}`
+              if (block.unavailable) return <div key={block.id} className={styles.unavailableSlot} style={position} title={block.label} aria-label={block.label} data-unavailable-slot="" />
               if (block.booked) {
                 const interactive = (!replacementMode && block.active) || (onSelectLesson && planned.some(item => item.id === block.id))
                 const editing = block.active && choice?.editing && choice.date === date

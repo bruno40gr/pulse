@@ -27,6 +27,7 @@ import { upgradeDemoDensity } from '@/beta-source/lib/odeon-demo-upgrade'
 import { upgradeDemoRoomNames } from '@/beta-source/lib/odeon-demo-rooms'
 import { demoBandGroups } from '@/beta-source/lib/academy-demo-groups'
 import { createDemoSetup, upgradeDemoBookingSetup } from '@/beta-source/lib/odeon-demo-setup'
+import { withPackagedOfferings } from '@/beta-source/app/content-studio-prototype/school-setup/setup-content'
 import { previewContacts, type FamilyPreviewData } from '@/beta-source/lib/academy-family-preview'
 import type { MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import { expandPreviewCalendar } from '@/beta-source/lib/academy-makeup-preview'
@@ -77,7 +78,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
           revision.current = result.revision
           savedState.current = JSON.stringify(result.state)
           setSnapshot(result.state.snapshot)
-          setSetup(result.state.setup)
+          setSetup(withPackagedOfferings(result.state.setup))
         } else {
           const parsed = loadLocalAcademyWorkspace(localStorage, sessionStorage)
           if (parsed) {
@@ -86,7 +87,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
             if (cancelled) return
             const renamed = upgradeDemoRoomNames(upgraded.snapshot, upgradeDemoBookingSetup(upgraded.setup))
             setSnapshot(renamed.snapshot)
-            setSetup(renamed.setup)
+            setSetup(withPackagedOfferings(renamed.setup))
           }
         }
       } catch (error) {

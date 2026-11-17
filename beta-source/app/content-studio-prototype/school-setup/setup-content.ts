@@ -333,3 +333,12 @@ export function validateRooms(rooms: SetupRoom[], serviceIds: string[]): string 
   }
   return null
 }
+
+/** Saved workspaces predate the offering catalogues, so fill only the missing areas. */
+export function withPackagedOfferings(data: Record<string, SetupRecord[]>): Record<string, SetupRecord[]> {
+  const next = { ...data }
+  for (const id of ['groupTypes', 'eventTypes']) {
+    if (!next[id]?.length) next[id] = (setupAreas.find(area => area.id === id)?.records || []).map(record => ({ ...record, values: { ...record.values } }))
+  }
+  return next
+}

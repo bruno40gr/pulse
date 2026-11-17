@@ -1,5 +1,34 @@
 # Beta integration progress — November 13, 2026
 
+## Reschedule clarity, and a plumbing audit — November 17, 2026
+
+- **Nothing is preselected** in a reschedule, and the two purple states no longer look
+alike. The lesson being moved keeps its student identity colour with a dashed border and
+reduced weight; the chosen replacement is solid with an inset ring. Blank cells became
+flat grey "unavailable" cells, so only real options look clickable.
+- **A lesson is no longer offered as a move onto itself** — the origin slot is excluded
+(open slots fell from 21 to 20 on the sample week).
+- **A test caught a real regression**: `calendar-appearance` requires family and reference
+lessons to keep the student identity colour. Making them neutral broke that contract; the
+two states are now separated by border weight instead of by removing identity.
+
+### Plumbing audit
+
+- Storage shape is unchanged: one workspace document (`odeon:app-sample:v2`, or the tenant
+record through `/api/academy/workspace`) holding `{ snapshot, setup }`. No new keys, no
+second store, and the new setup areas travel inside `setup` automatically.
+- **Found and fixed a genuine gap**: a workspace saved before today has no `groupTypes` or
+`eventTypes`, and setup read `data[id].length`, so those users would have hit a render
+crash. `withPackagedOfferings` now fills only the missing areas on both load paths, and
+the section list reads defensively.
+- Verified by stripping both areas out of a saved workspace, reloading, opening setup and
+saving: no crash, both sections present, and the stored document came back with 10 areas,
+3 group types and 6 event types.
+- `engineeringLevel` sits on the teacher record and `participantIds` on the booking, so
+both persist through the same document. The reschedule work is read-only and writes
+nothing.
+
+
 ## Availability reads as an invitation, not a booking — November 17, 2026
 
 - **The reschedule calendar keeps the full week** so a parent can follow siblings

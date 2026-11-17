@@ -138,17 +138,19 @@
 .daySlots > button, .daySlots > div { margin: 4px 3px; min-width: 0; width: auto; overflow-wrap: anywhere; justify-content: center; }
 .bookedSlot { background: var(--calendar-student-surface); color: var(--calendar-student-text); border: 1px solid var(--calendar-student-border); border-radius: 5px; padding: 5px; text-align: left; font: inherit; font-weight: 600; }
 .activeBookedSlot { border: 2px solid var(--calendar-student-border); box-shadow: inset 0 0 0 1px var(--calendar-student-border); }
-.replacementSlot { background: var(--calendar-student-surface); border: 2px solid var(--calendar-student-border); color: var(--calendar-student-text); }
-.familyReferenceSlot { background: var(--calendar-student-surface); border-color: var(--calendar-student-border); color: var(--calendar-student-text); }
+.replacementSlot { background: var(--calendar-student-surface); border: 2px solid var(--calendar-student-border); color: var(--calendar-student-text); box-shadow: inset 0 0 0 1px var(--calendar-student-border); }
+.familyReferenceSlot { background: var(--calendar-student-surface); border: 1px dashed var(--calendar-student-border); color: var(--calendar-student-text); opacity: .8; }
+.unavailableSlot { border-radius: 4px; background: rgb(0 0 0 / 4%); }
 .schedule.replacementCalendar { margin-top: 0; }
 .replacementCalendar .openSlot, .availableLegend { background: transparent; border-color: var(--calendar-neutral-border); border-style: dotted; color: var(--calendar-neutral-text); }
 .replacementCalendar .openSlot:hover, .replacementCalendar .openSlot:focus-visible { background: var(--calendar-neutral-surface); border-color: var(--calendar-neutral-strong); border-style: solid; box-shadow: inset 0 0 0 1px var(--calendar-neutral-strong), 0 1px 4px rgb(0 0 0 / 8%); }
 .replacementCalendar .openSlot[aria-pressed=true] { background: #fff; border: 2px solid var(--calendar-neutral-strong); border-style: solid; }
 .replacementCalendar .openSlot span:first-child { font-size: 12px; font-weight: 600; }
 /* Available is faint until invited; booked lessons keep their solid fill. */
-.replacementCalendar .openSlot { opacity: .62; }
+.replacementCalendar .openSlot { opacity: .7; }
 .replacementCalendar .openSlot:hover, .replacementCalendar .openSlot:focus-visible, .replacementCalendar .openSlot[aria-pressed=true] { opacity: 1; }
-.availableLegend { opacity: .62; }
+.availableLegend { opacity: .8; }
+.unavailableLegend { background: repeating-linear-gradient(135deg, rgb(0 0 0 / 5%) 0 4px, transparent 4px 8px); border: 1px solid var(--calendar-neutral-border); opacity: .8; }
 /* An available slot leads with its time; program and teacher are context, not content. */
 .replacementCalendar .openSlot.detailedSlot span:nth-child(1),
 .replacementCalendar .openSlot.detailedSlot span:nth-child(2) { display: none; }
