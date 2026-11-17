@@ -17,6 +17,11 @@ rather than in the contacts list.
 Still to do: removing the embedded calendars from the slide panels (contact, makeup and
 family reschedule) and replacing them with next-lesson actions that deep-link here.
 
+A click-through skeleton of the alternative now exists at `?screen=contact-page`: contacts as
+the page you work in with search as the filter, and the record as a full page rather than a
+panel. Its actions only report where they would go - nothing is wired. Panels are kept for
+peeks (a student inside Enroll & Book, a band roster, the inbox conversation profile).
+
 
 ## Cancelling means something, and the reschedule rail moved left — November 17, 2026
 
