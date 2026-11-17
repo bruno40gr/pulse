@@ -1,5 +1,17 @@
 # Beta integration progress — November 13, 2026
 
+## Grey availability, and a real colour bug — November 17, 2026
+
+- **Calendar availability is grey.** The faint tint on bookable cells was lavender; it is now
+neutral grey with the dotted outline, so the calendar reserves colour for booked lessons.
+The reschedule flow keeps the student's own tone.
+- **Siblings no longer share a colour.** `LessonSchedule` used the supplied family roster
+*instead of* the students actually on screen, so any student outside that list resolved to
+palette index 0 — Cora and Felix both drew in `#8B5AB5`. The roster is now a union, and the
+two land on `#8B5AB5` and `#6860AE`. The palette has eight entries, so up to eight siblings
+stay distinguishable.
+
+
 ## Option A adopted for calendar cell states — November 17, 2026
 
 - **Available to book** is now an outlined cell with a faint tint on the academy calendar,

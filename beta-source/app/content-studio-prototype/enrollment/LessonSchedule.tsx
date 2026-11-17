@@ -53,7 +53,8 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
   const family = replacementMode ? [] : [...new Map([student, ...students].flatMap(person => familyAppointments(person, manager)).map(event => [event.id, event])).values()]
 
   const name = (id?: string) => { const person = students.find(item => item.id === id) || (student?.id === id ? student : null); return person ? `${person.firstName} ${person.lastName}` : 'Student' }
-  const colorIds = calendarStudentIds || [student?.id || '', ...students.map(person => person.id), ...referenceLessons.map(item => item.studentId || ''), ...lessons.map(item => item.studentId || '')]
+  // Union, never replace: a sibling outside the passed roster must still get its own colour.
+  const colorIds = [...(calendarStudentIds || []), student?.id || '', ...students.map(person => person.id), ...referenceLessons.map(item => item.studentId || ''), ...lessons.map(item => item.studentId || '')]
   const availableTeachers = (date: string, time: string) => availability ? availability(date, time, lesson) : availableScheduleTeachers(lesson, date, time, student, lessons)
   const matchesPreference = (teacher: { name: string }) => !teacherPreference || teacher.name === teacherPreference
   const choices = choice ? availableTeachers(choice.date, choice.time).filter(teacher => choice.editing || matchesPreference(teacher)) : []
