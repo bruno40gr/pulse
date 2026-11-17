@@ -1,5 +1,25 @@
 # Beta integration progress — November 13, 2026
 
+## Setup catalogues and an available-times prototype — November 17, 2026
+
+- **Group and event types now live in School Setup**, next to services and rooms, in
+two new sections. They ship prepackaged so an owner does not hand-build a catalogue:
+three group types (Band, Ensemble, Practice team) and six event types (Performance,
+Camp, Workshop, **Birthday party**, **Karaoke night**, **Private event**). Each record is
+only a name, a description and an Available flag.
+- **Fixed a crash this introduced.** The setup sidebar icons were a positional array of
+six, so the two new sections indexed past the end and threw during render. Icons are now
+looked up by section id with a fallback.
+- **Available-times prototype in rescheduling.** Reschedule now lists the times a family
+can actually pick, grouped by day, alongside the calendar instead of leaving them to
+interpret empty grid space: `Wed, Nov 4 · 2:00 pm 2:30 pm 3:00 pm …`. Each entry is a
+toggle button that selects the slot, the current booking stays in its own panel, and the
+same availability calculation drives both views. Observed 75 selectable slots across the
+week with no page errors.
+- Still open, deliberately: billing fields and charge-on-save, multi-staff bookings, and
+having the Beta explorer read these setup catalogues instead of its own copy.
+
+
 ## Booking context, staff duties and studio engineering — November 17, 2026
 
 The chooser now reflects what the clicked calendar column can actually host, and the
