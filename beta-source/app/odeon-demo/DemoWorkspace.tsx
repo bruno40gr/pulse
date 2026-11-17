@@ -262,6 +262,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     data={snapshot.data}
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}
+    initialReschedule={params.get('reschedule') || undefined}
     makeups={snapshot.makeups}
     onDemoChange={onChange}
     groups={queue.academy.groups}

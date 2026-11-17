@@ -1,5 +1,23 @@
 # Beta integration progress — November 13, 2026
 
+## The calendar becomes the place work happens — November 17, 2026
+
+- **Deep link into a reschedule.** `?screen=calendar&reschedule=<lessonId>` opens the lesson
+in the calendar's own reschedule view, so panels and contact cards can hand off to one
+calendar instead of each drawing their own.
+- **The page names the person, not the module.** A reschedule now titles itself
+"Rescheduling Cora's lesson" with the program, duration and original time beneath it. The
+inner header drops to "Choose a new time", which is the only thing left for it to say.
+- **No back button.** Going "back" to a slide panel has no meaning once the panel is gone, so
+the top-right action is **View contact**, which lands on that family's contact view.
+- **Jump to a person.** The calendar header carries a search over students and contacts and
+opens their contact view directly — the working assumption being that admin will live here
+rather than in the contacts list.
+
+Still to do: removing the embedded calendars from the slide panels (contact, makeup and
+family reschedule) and replacing them with next-lesson actions that deep-link here.
+
+
 ## Cancelling means something, and the reschedule rail moved left — November 17, 2026
 
 - **Cancelling a lesson now records why, and what follows from it.** The inspector's cancel

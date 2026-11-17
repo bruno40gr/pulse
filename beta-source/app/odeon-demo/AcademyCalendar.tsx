@@ -16,6 +16,7 @@ import StudentWorkspaceV3 from '../content-studio-prototype/students/StudentWork
 import { CalendarFilter } from './CalendarFilters'
 import CalendarBookingModal, { type BookingPrefill } from './CalendarBookingModal'
 import { useCalendarEnrollment } from './CalendarEnrollmentContext'
+import CalendarJumpTo from './CalendarJumpTo'
 import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
@@ -53,8 +54,10 @@ const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
 const dayName = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 
-export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll }: {
+export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll, initialReschedule }: {
   onEnroll: (booking: CalendarBooking, action: 'staff' | 'send') => void
+  /** Lesson to open for rescheduling on arrival, so other surfaces can deep-link here. */
+  initialReschedule?: string
   onSetup: (setup: Record<string, SetupRecord[]>) => void
   makeups?: MakeupPreviewState
   onDemoChange?: (data: FamilyPreviewData, makeups: MakeupPreviewState) => void
@@ -128,6 +131,12 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const times = Array.from({ length: rows }, (_, index) => clock(startMinutes + index * 15))
   const taskItem = reschedule ? previewCalendarLessons(expanded, [], workspaceInitial).find(item => item.id === (reschedule.participantLessonIds?.[0] || reschedule.id)) : undefined
   const emptyMakeupState = { items: [], absences: [] }
+  useEffect(() => {
+    if (!initialReschedule || reschedule) return
+    const match = visible.find(item => item.id === initialReschedule)
+    if (match) setReschedule(match)
+    // The lesson may sit outside the visible week; the link still arrives, it just waits.
+  }, [initialReschedule, visible, reschedule])
 
   useEffect(() => {
     if (!selected || reschedule) return
@@ -232,7 +241,12 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
 
 return (
     <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans }}>
-      <PageHeader density="compact" singleLine title="Academy calendar" subtitle={`${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`} right={!reschedule && <Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button>} />
+      <PageHeader density="compact" singleLine
+        title={reschedule && taskItem ? `Rescheduling ${taskItem.student.firstName}'s lesson` : 'Academy calendar'}
+        subtitle={reschedule && taskItem ? `${taskItem.program} · ${taskItem.duration} min · originally ${dayName(taskItem.date)} ${taskItem.time}` : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
+        right={reschedule && taskItem
+          ? <Button variant="secondary" style={{ whiteSpace: 'nowrap' }} onClick={() => { const account = data.accounts.find(item => item.studentIds.includes(taskItem.student.id)); if (account) window.location.assign(`/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(taskItem.student.id)}`) }}>View contact</Button>
+          : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
 
       <div hidden={Boolean(reschedule)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
