@@ -1,5 +1,45 @@
 # Beta integration progress — November 13, 2026
 
+## Booking context, staff duties and studio engineering — November 17, 2026
+
+The chooser now reflects what the clicked calendar column can actually host, and the
+enrollment stepper is no longer opened inside a dialog.
+
+- **One chooser, then the full screen.** The lesson path saves the enrollment draft and
+  navigates to `?screen=book&draft=<id>`, so the stepper opens on the existing
+  full-screen enrollment surface. The dialog no longer hosts the stepper, and the
+  premature "Send to family" control is gone with it. Verified from both CTAs: no open
+  dialog, page heading `Enroll a student`, draft id in the URL.
+- **Teacher column.** Lesson, Single lesson, Staff duty and Block. Band rehearsal appears
+  only when that teacher teaches a band service; Studio booking appears only for a
+  teacher with a studio engineering level. Event is never a teacher's diary entry.
+- **Room column.** Staff duties are not a room decision, so Front desk and Admin are
+  absent. Studio hire requires the room to be listed for a room-kind service — the
+  shared `roomSupportsBooking` previously returned `true` for studio on every room,
+  which is why Maroon 5 offered studio hire.
+- **Front desk and Admin are one task.** A single **Staff duty** card opens the same
+  form with a Duty type select; the existing Duty notes field travels with it.
+- **Studio engineering is a staff skill, not a service.** `TeacherEditor` gains a
+  Studio engineering level (none / 1 assistant / 2 engineer / 3 senior). Studio
+  bookings require an engineer, the field is labelled Studio engineer, and the list
+  contains only qualified staff. Isabel Rivera is seeded at level 2 so the capability is
+  demonstrable; everyone else is not an engineer.
+- **The student picker is a search dropdown** and hides students who already hold the
+  selected lesson type, so the "Existing subscription" prompt no longer appears after a
+  selection that could never succeed.
+- **Rehearsals take people, not only students.** Band or at least one participant is
+  required; participants include staff, carried on a new `participantIds` field that
+  `bookingParticipants` merges for capacity and conflict checks. The teacher list for a
+  rehearsal contains only band-qualified staff, and an empty list explains itself rather
+  than offering a dead control.
+- **Bands are named meaningfully.** The sample bands were generated as
+  `Academy Ensemble 3`, which is what made a rehearsal header look arbitrary; they now
+  read `<program> · <teacher>`.
+- Verified: teacher cards for an engineer vs a non-engineer, room cards for Maroon 5 and
+  the Performance Room, the rehearsal participant picker and staff filter, the studio
+  engineer field, and both full-screen hand-offs. Suite 1,160/1,160, `tsc` and lint
+  clean.
+
 ## One enrollment-and-booking flow — November 17, 2026
 
 The agreed structure is now implemented: **either entry point opens the same modal, the

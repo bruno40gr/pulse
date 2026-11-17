@@ -8,7 +8,7 @@ export function demoBandGroups(data: FamilyPreviewData): AcademyGroup[] {
     if (enrollment.serviceId !== 'band' || !enrollment.seriesId) continue
     let group = groups.get(enrollment.seriesId)
     if (!group) {
-      group = { id: `demo:group:${enrollment.seriesId}`, seriesId: enrollment.seriesId, typeId: 'group-type-0', name: `Academy Ensemble ${groups.size + 1}`, leader: enrollment.teacher, capacity: 8, trialMax: 1, memberIds: [], schedule: `${enrollment.day} · ${enrollment.time}`, dailySchedule: { days: [enrollment.day], from: enrollment.time, to: `${String(Number(enrollment.time.slice(0, 2)) + 1).padStart(2, '0')}:${enrollment.time.slice(3)}` }, resources: [], eventIds: [], message: '', stage: 'In Development' }
+      group = { id: `demo:group:${enrollment.seriesId}`, seriesId: enrollment.seriesId, typeId: 'group-type-0', name: [enrollment.program || 'Band', enrollment.teacher].filter(Boolean).join(' · '), leader: enrollment.teacher, capacity: 8, trialMax: 1, memberIds: [], schedule: `${enrollment.day} · ${enrollment.time}`, dailySchedule: { days: [enrollment.day], from: enrollment.time, to: `${String(Number(enrollment.time.slice(0, 2)) + 1).padStart(2, '0')}:${enrollment.time.slice(3)}` }, resources: [], eventIds: [], message: '', stage: 'In Development' }
       groups.set(enrollment.seriesId, group)
     }
     if (!group.memberIds.includes(student.id)) group.memberIds.push(student.id)

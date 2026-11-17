@@ -22,8 +22,17 @@ export function calendarBookingOptions(context: BookingContext, booking: Calenda
   if (booking.kind === 'event' && (!Number.isInteger(booking.requiredCapacity) || Number(booking.requiredCapacity) < 1)) return { rooms: [], teachers: teachers.filter(teacher => valid({ ...booking, teacherId: teacher.id, roomId: '' })), services: [], context: current }
   if (isStaffDuty(booking.kind)) return { rooms: rooms.filter(room => room.locationId === booking.locationId && valid({ ...booking, roomId: room.id })), teachers: teachers.filter(teacher => dutyEligible(teacher.values, booking.kind)), services: [], context: current }
   if (booking.kind === 'block') return { rooms: rooms.filter(room => valid({ ...booking, roomId: room.id })), teachers: teachers.filter(teacher => valid({ ...booking, teacherId: teacher.id })), services: [], context: current }
+  // A person column lists what that teacher actually teaches; a free room is checked later.
+  const teaches = (teacherId: string) => {
+    const teacher = teachers.find(item => item.id === teacherId)
+    if (!teacher) return [] as string[]
+    try { return (JSON.parse(teacher.values.assignments || '[]') as { serviceId: string }[]).map(item => item.serviceId) } catch { return [] as string[] }
+  }
+  const offered = constraints.teacherId
+    ? services.filter(service => (!constraints.serviceId || constraints.serviceId === service.id) && teaches(constraints.teacherId!).includes(service.id))
+    : services
   return {
-    services: services.filter(service => (!constraints.serviceId || constraints.serviceId === service.id) && possible({ ...booking, serviceId: service.id, roomId: constraints.roomId || '', teacherId: constraints.teacherId || booking.teacherId })),
+    services: offered.filter(service => constraints.teacherId ? true : (!constraints.serviceId || constraints.serviceId === service.id) && possible({ ...booking, serviceId: service.id, roomId: constraints.roomId || '', teacherId: constraints.teacherId || booking.teacherId })),
     teachers: teachers.filter(teacher => (!constraints.teacherId || constraints.teacherId === teacher.id) && possible({ ...booking, teacherId: teacher.id, roomId: constraints.roomId || '' })),
     rooms: rooms.filter(room => (!constraints.roomId || constraints.roomId === room.id) && possible({ ...booking, roomId: room.id })),
     context: current,

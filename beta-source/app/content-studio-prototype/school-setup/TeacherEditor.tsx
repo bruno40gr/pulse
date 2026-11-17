@@ -4,6 +4,7 @@ import { type CSSProperties } from 'react'
 import { Input } from '@/beta-source/components/ui/Input'
 import { FieldGrid } from '@/beta-source/components/ui/FieldGrid'
 import { Checkbox } from '@/beta-source/components/ui/Checkbox'
+import { Select } from '@/beta-source/components/ui/Select'
 import { StudentMultiSelect } from '@/beta-source/components/leads/StudentMultiSelect'
 import { DenseSectionPanel } from '@/beta-source/components/ui/DenseSectionPanel'
 import { colors, typography, spacing, radius } from '@/beta-source/lib/tokens'
@@ -50,6 +51,7 @@ export default function TeacherEditor({ values, services, locations, levels, onC
     <DenseSectionPanel title="Additional duties" headingLevel="h2">
       <Checkbox label="Can cover front desk" checked={values.canCoverFrontDesk === 'yes'} onChange={event => onChange({ ...values, canCoverFrontDesk: event.target.checked ? 'yes' : 'no' })} />
       <Checkbox label="Can perform admin duties" description="Scheduled office work only. This does not grant application permissions." checked={values.canPerformAdmin === 'yes'} onChange={event => onChange({ ...values, canPerformAdmin: event.target.checked ? 'yes' : 'no' })} />
+      <Select label="Studio engineering" hint="Level 1 or above can be assigned to studio recordings." value={values.engineeringLevel || '0'} onChange={event => onChange({ ...values, engineeringLevel: event.target.value })}><option value="0">Not an engineer</option><option value="1">Level 1 · Assistant engineer</option><option value="2">Level 2 · Engineer</option><option value="3">Level 3 · Senior engineer</option></Select>
     </DenseSectionPanel>
     <TeacherSchedule values={values} onChange={onChange} />
     <SchedulingRules teacher values={values} defaults={bookingDefaults} onChange={onChange} />

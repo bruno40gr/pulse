@@ -37,10 +37,8 @@ import { bookingReason, roomRecords, type CalendarBooking } from '@/beta-source/
 import { CalendarEnrollmentContext } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
 import BookingFlow from './BookingFlow'
 import type { BookingPrefill } from './CalendarBookingModal'
-import type { EnrollmentDraftRecord } from '@/beta-source/lib/academy-enrollment-drafts'
 import { newWorkflowDraft } from '@/beta-source/lib/academy-workflow-drafts'
 import { saveCalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
-import { sendCalendarEnrollment } from '@/beta-source/lib/academy-calendar-enrollment'
 
 import { loadLocalAcademyWorkspace, saveLocalAcademyWorkspace, validAcademyWorkspace, readAcademyWorkspaceResponse, type AcademyWorkspaceState } from '@/beta-source/lib/academy-workspace-storage'
 import { Notice } from '@/components/ui/Notice'
@@ -269,12 +267,11 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     today={betaPreviewToday}
     onExit={() => { const next = new URLSearchParams(params.toString()); next.delete('screen'); router.push(`/odeon-demo?${next}`) }}
     onApply={change => setSnapshot(current => ({ ...current, data: change(current.data) }))}
-  /> : workflow ? <EventExplorer bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} teachingLoad={teachingLoad} /> : staff ? <>
+  /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} teachingLoad={teachingLoad} /> : staff ? <>
       <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} onWorkflow={beginWorkflow} />} />}
     {bookingEntry && <BookingFlow initial={bookingEntry} context={bookingContext}
-      people={queue.state.people.map(person => ({ id: person.id, firstName: person.name.split(' ')[0], lastName: person.name.split(' ').slice(1).join(' '), email: person.email, phone: '', activeTeacher: false, accountId: person.accountId || person.id, accountHolder: person.roles.some(role => ['Parent', 'Account holder'].includes(role)) }))}
       onClose={() => setBookingEntry(null)}
       onSaveBooking={draft => {
         try {
@@ -285,38 +282,28 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
           return null
         } catch (cause) { return cause instanceof Error ? cause.message : 'Unable to save booking.' }
       }}
-      onCreateEnrollment={proposal => {
-        const expanded = expandPreviewCalendar(snapshot.data, proposal.date)
-        const result = createCalendarEnrollment(queue, { ...bookingContext, data: expanded, occurrences: betaCalendarOccurrences(expanded, queue.academy.groups, queue.state.events, [proposal.date]) }, proposal, false)
-        updateQueue(() => result.queue)
-        const record = result.queue.drafts.find(item => item.id === result.id)
-        if (record?.kind !== 'enrollment') throw new Error('Enrollment unavailable.')
-        return record.data
-      }}
-      onSaveEnrollment={(record: EnrollmentDraftRecord, action) => {
-        if (record.calendarRequest) {
-          enrollmentAdapter.save(record, action === 'complete', 'staff')
-          if (action === 'send') updateQueue(current => sendCalendarEnrollment(current, record.id))
-          return
-        }
-        // General-entry lessons use the same family request/completion commands once scheduled.
-        if (action === 'send') {
-          const lesson = record.draft.lessons[0]
-          if (record.draft.lessons.length !== 1) throw new Error('Send one scheduled lesson arrangement at a time.')
-          const teacher = academyTeachers.find(item => item.name === lesson.teacher)
-          const proposal: CalendarBooking = { id: record.id, kind: 'lesson', title: lesson.instrument, date: lesson.start, time: lesson.time, duration: Number(lesson.duration), serviceId: lesson.serviceId || '', teacherId: teacher?.id || '', roomId: lesson.roomId || '', studentIds: [lesson.studentId || record.draft.student?.id || ''], groupId: '', repeat: 'once', until: lesson.start, publicOnly: false, status: 'Scheduled', arrangement: lesson.frequency === 'À-la-carte' ? 'À-la-carte' : 'Monthly subscription' }
-          const result = createCalendarEnrollment(queue, bookingContext, proposal, false)
-          const stored = result.queue.drafts.find(item => item.id === result.id)
-          if (stored?.kind !== 'enrollment') throw new Error('Enrollment unavailable.')
-          const saved = saveCalendarEnrollment(result.queue, bookingContext, { ...record, calendarRequest: stored.data.calendarRequest, fromCalendar: true }, false, 'staff')
-          updateQueue(() => sendCalendarEnrollment(saved.queue, record.id))
-          return
-        }
-        const workflow = newWorkflowDraft('enrollment', queue.academy)
-        if (workflow.kind !== 'enrollment') return
-        const next = { ...workflow, id: record.id, step: record.step, reviewedSteps: record.reviewedSteps, started: true, data: record }
-        updateQueue(current => ({ ...current, drafts: [...current.drafts.filter(item => item.id !== record.id), next] }))
-        if (action === 'complete') onWorkflowCompleted({ kind: 'enrollment', record: next })
+      onStartEnrollment={(proposal, single) => {
+        try {
+          const next = new URLSearchParams(params.toString())
+          next.delete('view'); next.set('screen', 'book')
+          if (proposal) {
+            const expanded = expandPreviewCalendar(snapshot.data, proposal.date)
+            const result = createCalendarEnrollment(queue, { ...bookingContext, data: expanded, occurrences: betaCalendarOccurrences(expanded, queue.academy.groups, queue.state.events, [proposal.date]) }, proposal, false)
+            updateQueue(() => result.queue)
+            next.set('draft', result.id)
+          } else {
+            // Nothing was preselected, so the full enrollment screen collects who and what.
+            const workflow = newWorkflowDraft('enrollment', queue.academy)
+            if (workflow.kind !== 'enrollment') return 'Enrollment unavailable.'
+            const frequency = single ? 'À-la-carte' as const : 'Monthly subscription' as const
+            workflow.data = { ...workflow.data, entryLesson: { frequency }, draft: { ...workflow.data.draft, lessons: workflow.data.draft.lessons.map(lesson => ({ ...lesson, frequency })) } }
+            updateQueue(current => ({ ...current, drafts: [...current.drafts, workflow] }))
+            next.set('draft', workflow.id)
+          }
+          setBookingEntry(null)
+          router.push(`/odeon-demo?${next}`)
+          return null
+        } catch (cause) { return cause instanceof Error ? cause.message : 'Unable to start enrollment.' }
       }}
     />}
   </DashboardShell></CalendarEnrollmentContext.Provider>

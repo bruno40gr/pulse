@@ -12,7 +12,7 @@ import { lessonPrice, lessonStudent, type StaffEnrollment, type LessonChoice } f
 export type CalendarBookingKind = 'lesson' | 'studio' | 'rehearsal' | 'event' | 'block' | 'front-desk' | 'admin'
 export type CalendarBooking = {
   id: string; kind: CalendarBookingKind; title: string; date: string; time: string; duration: number
-  serviceId: string; teacherId: string; roomId: string; studentIds: string[]; groupId: string
+  serviceId: string; teacherId: string; roomId: string; studentIds: string[]; participantIds?: string[]; groupId: string
   repeat: 'once' | 'weekly'; until: string; publicOnly: boolean; status: 'Scheduled' | 'Cancelled'
   roomName?: string; teacherName?: string
   arrangement?: 'À-la-carte' | 'Monthly subscription'
@@ -45,7 +45,7 @@ export function teacherHours(setup: Record<string, SetupRecord[]>, teacherId: st
 }
 const overlap = (from: number, to: number, start: number, end: number) => from < end && start < to
 export function bookingParticipants(booking: CalendarBooking, groups: readonly AcademyGroup[]) {
-  return [...new Set([...booking.studentIds, ...(groups.find(group => group.id === booking.groupId)?.memberIds || [])])]
+  return [...new Set([...booking.studentIds, ...(booking.participantIds || []), ...(groups.find(group => group.id === booking.groupId)?.memberIds || [])])]
 }
 /** Occupancy is the planned activity size, not just the currently enrolled roster. */
 export function bookingCapacity(context: BookingContext, booking: CalendarBooking) {
@@ -59,7 +59,8 @@ export function roomSupportsBooking(context: BookingContext, booking: CalendarBo
   if (booking.kind === 'block' || isStaffDuty(booking.kind)) return true
   if (bookingCapacity(context, booking) > Number(room.capacity)) return false
   if (booking.kind === 'lesson') return Boolean(room.allServices || room.serviceIds.includes(booking.serviceId))
-  if (booking.kind === 'rehearsal' || booking.kind === 'event') return Boolean(room.allServices || context.setup.services?.some(service => service.values.bookingKind === booking.kind && room.serviceIds.includes(service.id)))
+  // Studio hire belongs to rooms the school lists for it, not to every bookable space.
+  if (booking.kind === 'rehearsal' || booking.kind === 'event' || booking.kind === 'studio') return Boolean(room.allServices || context.setup.services?.some(service => service.values.bookingKind === (booking.kind === 'studio' ? 'room' : booking.kind) && room.serviceIds.includes(service.id)))
   return true
 }
 /** One decision for drawing, modal choices, final save, and public preview. */
