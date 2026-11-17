@@ -14,8 +14,13 @@ the top-right action is **View contact**, which lands on that family's contact v
 opens their contact view directly — the working assumption being that admin will live here
 rather than in the contacts list.
 
-Still to do: removing the embedded calendars from the slide panels (contact, makeup and
-family reschedule) and replacing them with next-lesson actions that deep-link here.
+The record no longer draws a calendar. Reschedule in a lesson's menu, and the section's own
+Calendar view, now leave the panel for the calendar page instead of mounting a second grid
+inside the first - which is what put a calendar on top of a calendar. The handoff resolves
+either kind of reference, because a lesson list names an occurrence
+`<enrollment>:calendar:<date>` while the grid names its own sessions.
+
+Still to do: the same for makeups and family moves, which still draw their own grids.
 
 A click-through skeleton of the alternative now exists at `?screen=contact-page`: contacts as
 the page you work in with search as the filter, and the record as a full page rather than a

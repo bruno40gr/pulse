@@ -133,7 +133,10 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const emptyMakeupState = { items: [], absences: [] }
   useEffect(() => {
     if (!initialReschedule || reschedule) return
-    const match = visible.find(item => item.id === initialReschedule)
+    // A lesson list names an occurrence `<enrollment>:calendar:<date>`; the grid names its own
+    // sessions. Accept either reference so a handoff from the record always finds its lesson.
+    const [enrollmentId, date] = initialReschedule.split(':calendar:')
+    const match = visible.find(item => item.id === initialReschedule || (date && item.enrollmentId === enrollmentId && item.date === date))
     if (match) setReschedule(match)
     // The lesson may sit outside the visible week; the link still arrives, it just waits.
   }, [initialReschedule, visible, reschedule])
