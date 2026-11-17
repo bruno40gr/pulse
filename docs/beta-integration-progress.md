@@ -1,5 +1,21 @@
 # Beta integration progress — November 13, 2026
 
+## One calendar, in every frame — November 17, 2026
+
+- **The reschedule draws on the calendar's own grid.** `MoveLesson` used to replace the grid
+on the reschedule screen, which is why the two screens never matched: one drew booking
+blocks, the other drew its own slots and a docked rail. Rescheduling is now a mode of the
+calendar - day columns, the same 15-minute geometry, candidates as cells, the lesson being
+moved as a dashed origin band, and every other family's lesson collapsed to solid grey.
+- **The rail became a card.** The booking summary sits in the same floating 360px card the
+lesson inspector uses, so the grid keeps its full width in both modes.
+- **Unavailable is a fill, not a grid line.** Solid grey while rescheduling; candidates stay
+white with the availability label on hover.
+- **The toolbar goes away while rescheduling**: perspective, staff/room/service filters and
+the day/week switch answer questions that a single lesson move does not ask.
+- `MoveLesson` no longer renders anywhere, and `LessonSchedule` leaves the calendar's path.
+
+
 ## The calendar becomes the place work happens — November 17, 2026
 
 - **Deep link into a reschedule.** `?screen=calendar&reschedule=<lessonId>` opens the lesson

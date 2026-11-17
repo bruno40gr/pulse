@@ -27,8 +27,6 @@ import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { CalendarTimeGrid } from '../content-studio-prototype/enrollment/CalendarTimeGrid'
 import { CalendarBookingBlock } from '../content-studio-prototype/enrollment/CalendarBookingBlock'
-import { MoveLesson } from '../content-studio-prototype/students/MoveLesson'
-import { InlineWorkspaceContext } from '../content-studio-prototype/students/AccountWorkspace'
 import { previewCalendarLessons, type PreviewMakeup, type MakeupPreviewState } from '@/beta-source/lib/academy-makeup-preview'
 import { calendarResources, calendarResourceIds, calendarServiceName, type CalendarPerspective } from '@/beta-source/lib/academy-calendar-resources'
 import { placeCalendarBlocks } from '@/beta-source/lib/academy-calendar-layout'
@@ -98,6 +96,10 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const [studentPanel, setStudentPanel] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [reschedule, setReschedule] = useState<CalendarOccurrence | null>(null)
+  // The reschedule is the calendar in a mode: candidate cells on the same grid, not another grid.
+  const [pick, setPick] = useState<{ date: string; time: string; teacher: string; program: string } | null>(null)
+  const [sameTeacher, setSameTeacher] = useState(true)
+  const rescheduleConsumed = useRef(false)
   // A cancellation records why it happened, because billing, make-ups and the family
   // message all follow from that answer, not from the status string alone.
   const [cancelTarget, setCancelTarget] = useState<CalendarOccurrence | null>(null)
@@ -130,14 +132,29 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     : dates.map(date => ({ id: date, date, resource: activeResource || { id: '', name: 'All' } }))
   const times = Array.from({ length: rows }, (_, index) => clock(startMinutes + index * 15))
   const taskItem = reschedule ? previewCalendarLessons(expanded, [], workspaceInitial).find(item => item.id === (reschedule.participantLessonIds?.[0] || reschedule.id)) : undefined
-  const emptyMakeupState = { items: [], absences: [] }
+  // While rescheduling the columns are days, not resources: the slot is the decision, and the
+  // teacher follows from it, so a cell can never mean two different teachers at once.
+  const gridDates = reschedule && taskItem ? betaWeekDates(week) : dates
+  const gridColumns = reschedule && taskItem ? gridDates.map(date => ({ id: date, date, resource: { id: '', name: 'All' } })) : columns
+  // Candidate times per visible day: computed once so every cell answers from one set, and so
+  // the cells and the confirm button cannot disagree about what is available.
+  const candidateTimes = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    if (!reschedule || !taskItem) return map
+    for (const date of dates) map.set(date, new Set(replacementSlots(date).filter(slot => !sameTeacher || slot.teacher === taskItem.teacher).map(slot => slot.time)))
+    return map
+    // replacementSlots is rebuilt every render; the week's candidates only change with these inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reschedule, taskItem, dates, sameTeacher, data, groups, events, setup])
+
   useEffect(() => {
-    if (!initialReschedule || reschedule) return
+    if (!initialReschedule || reschedule || rescheduleConsumed.current) return
     // A lesson list names an occurrence `<enrollment>:calendar:<date>`; the grid names its own
     // sessions. Accept either reference so a handoff from the record always finds its lesson.
     const [enrollmentId, date] = initialReschedule.split(':calendar:')
     const match = visible.find(item => item.id === initialReschedule || (date && item.enrollmentId === enrollmentId && item.date === date))
-    if (match) setReschedule(match)
+    if (match) { rescheduleConsumed.current = true; setReschedule(match) }
+    setPick(null)
     // The lesson may sit outside the visible week; the link still arrives, it just waits.
   }, [initialReschedule, visible, reschedule])
 
@@ -172,7 +189,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   }
 
   function finishReschedule() {
-    setReschedule(null); setSelected(null)
+    setReschedule(null); setSelected(null); setPick(null)
     requestAnimationFrame(() => {
       window.scrollTo(returnScroll.current.x, returnScroll.current.y)
       blockRef.current?.focus({ preventScroll: true })
@@ -251,19 +268,19 @@ return (
           ? <Button variant="secondary" style={{ whiteSpace: 'nowrap' }} onClick={() => { const account = data.accounts.find(item => item.studentIds.includes(taskItem.student.id)); if (account) window.location.assign(`/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(taskItem.student.id)}`) }}>View contact</Button>
           : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
 
-      <div hidden={Boolean(reschedule)}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
+      <div>
+      <div style={{ display: reschedule ? 'none' : 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
         <Tabs<CalendarPerspective> variant="prominent" controlSize="toolbar" ariaLabel="View by" activeKey={perspective} onChange={view => { setPerspective(view); setWeekResource(''); setSelected(null) }} items={[{ key: 'teacher', label: 'Teacher' }, { key: 'room', label: 'Room' }, { key: 'service', label: 'Service' }]} />
         {!dayMode && !mobile && <div style={{ width: 230 }}><Select controlSize="toolbar" aria-label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select></div>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
+      <div style={{ display: reschedule ? 'none' : 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
         {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</Button> : <>
         <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
         <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
         <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
         <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
         {filterCount > 0 && <Button size="toolbar" variant="secondary" onClick={resetFilters}>Reset filters</Button>}
-        </>}
+                </>}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <ControlButton kind="icon" aria-label={`Previous ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? -1 : -7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronLeft size={18} /></ControlButton>
           <Button variant="secondary" onClick={() => { setWeek(betaWeekStart(today)); setFocusDate(today) }}>Today</Button>
@@ -287,18 +304,19 @@ return (
       </SlidePanel>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
-      <CalendarTimeGrid dates={columns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
-        renderDayHeading={id => { const column = columns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{dayMode ? dayName(column.date) : betaWeekdayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode ? column.resource.name : dayName(column.date)}</strong></> }}
+      <CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
+        renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{reschedule ? null : (dayMode ? dayName(column.date) : betaWeekdayName(column.date))}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{reschedule || !dayMode ? dayName(column.date) : column.resource.name}</strong></> }}
         renderDay={id => {
-          const column = columns.find(item => item.id === id)!
+          const column = gridColumns.find(item => item.id === id)!
           const items = visible.filter(item => item.date === column.date && (!column.resource.id || calendarResourceIds(item, perspective, setup).includes(column.resource.id)))
           const layout = placeCalendarBlocks(items.map(item => ({ item, time: item.start, duration: minutesOf(item.end) - minutesOf(item.start), booked: true })), startMinutes)
           return <div className={calendarStyles.daySlots} data-resource-column={column.resource.id} data-resource-date={column.date} style={{ gridTemplateRows: `repeat(${rows}, var(--calendar-slot-height))`, gridTemplateColumns: `repeat(${layout.lanes}, minmax(0, 1fr))` }}>
             {times.filter((_, index) => index % 2 === 0).map(time => {
               const index = times.indexOf(time)
-              const reason = slotReason(column.date, time, column.resource.id)
+              const candidate = reschedule && taskItem ? Boolean(candidateTimes.get(column.date)?.has(time)) : false
+              const reason = reschedule ? (candidate ? '' : 'Not available') : slotReason(column.date, time, column.resource.id)
               const active = drawing.current?.column === id && drawEnd && minutesOf(time) >= Math.min(minutesOf(drawing.current.time), minutesOf(drawEnd)) && minutesOf(time) <= Math.max(minutesOf(drawing.current.time), minutesOf(drawEnd))
-              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: reason && showUnavailable ? colors.border : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
+              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: reason ? (reschedule ? colors.border : showUnavailable ? colors.border : undefined) : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason || reschedule) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
                 if (mobile || event.pointerType === 'touch') return
                 const start = drawing.current
                 if (!start || start.column !== id) return
@@ -308,9 +326,12 @@ return (
                 if (!invalid) bookSlot(start.date, from, start.resource, duration)
                 else setNotice(invalid)
                 drawing.current = null; setDrawEnd(null)
-              }} onClick={event => { if (event.detail === 0 && !reason) bookSlot(column.date, time, column.resource.id) }} />
+              }} onClick={event => { if (reason) return; if (reschedule && taskItem) { const options = replacementSlots(column.date).filter(slot => slot.time === time); const chosen = options.find(slot => slot.teacher === taskItem.teacher) || options[0]; setPick({ date: column.date, time, teacher: chosen?.teacher || taskItem.teacher, program: chosen?.program || taskItem.program }); return } if (event.detail === 0) bookSlot(column.date, time, column.resource.id) }} />
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
+              // While rescheduling, another family's lesson is simply not your business: grey, no name.
+              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', background: colors.border, borderRadius: 5, zIndex: 1 }} />
+              if (reschedule) return <div key={item.id} data-origin style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', border: `2px dashed ${colors.text}`, borderRadius: 5, display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: typography.sizeSm, color: colors.text, background: colors.surface, zIndex: 3 }}>{item.title} · {item.studentNames.join(', ')} · {item.start}</div>
               return <CalendarBookingBlock key={item.id} interactive detailed data-booking-id={item.id} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
                 blockRef.current = event.currentTarget
                 const bounds = event.currentTarget.getBoundingClientRect()
@@ -323,7 +344,15 @@ return (
           </div>
         }} />
       </div>
-      {reschedule && taskItem && <InlineWorkspaceContext.Provider value><MoveLesson key={taskItem.id} item={taskItem} data={expanded} state={emptyMakeupState} initialDate={taskItem.date} onBack={finishReschedule} onMove={applyReschedule} availableSlots={replacementSlots} /></InlineWorkspaceContext.Provider>}
+
+      {reschedule && taskItem && <div role="dialog" aria-label="Reschedule lesson" style={{ position: 'fixed', bottom: 24, right: 24, width: 330, zIndex: 60, display: 'grid', gap: spacing.sm, padding: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+        <strong style={{ fontSize: typography.sizeMd }}>{taskItem.student.firstName} {taskItem.student.lastName}</strong>
+        <span style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>{taskItem.program} · {taskItem.duration} min · originally {dayName(taskItem.date)} {taskItem.time}</span>
+        <Checkbox label="Same teacher" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setPick(null) }} />
+        <span style={{ fontSize: typography.sizeSm, color: pick ? colors.text : colors.textSecondary }}>{pick ? `New time: ${dayName(pick.date)} · ${pick.time}` : 'Choose a time on the grid'}</span>
+        <Button disabled={!pick} onClick={() => { if (!pick) return; const message = applyReschedule(pick); if (message) setNotice(message) }}>Confirm changes</Button>
+        <Button variant="ghost" onClick={finishReschedule}>Cancel</Button>
+      </div>}
 
       {cancelTarget && (
         <Modal isOpen size="sm" ariaLabel="Cancel lesson" onClose={() => setCancelTarget(null)}>
