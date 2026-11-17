@@ -1,5 +1,6 @@
 'use client'
 
+import { useCalendarEnrollment } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
 import { EnrollmentLayout } from '@/components/ui/EnrollmentLayout'
 import { personFieldErrors } from '@/beta-source/lib/academy-staff-enrollment'
 import { Input } from '@/components/ui/Input'
@@ -120,6 +121,8 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
   onComplete?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
   onDraftChange?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
 } = {}) {
+  const configuredServices = useCalendarEnrollment()?.services?.filter(service => !['room', 'rehearsal', 'event'].includes(service.values.bookingKind))
+  const configuredDurations = (serviceId: string) => (configuredServices?.find(service => service.id === serviceId)?.values.durations || '').split(',').map(Number).filter(value => value > 0)
   const [draft, setDraft] = useState(() => initialRecord ? structuredClone(initialRecord.draft) : newStaffEnrollment())
   const [people, setPeople] = useState<readonly EnrollmentPerson[]>(availablePeople || enrollmentPeople)
   // The academy's own availability decides which teacher can take a booked slot.
@@ -136,7 +139,8 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
     }
     return initialRecord.step
   })
-  const [teacherPreferences, setTeacherPreferences] = useState<Record<string, string>>({})
+  // A booked slot already knows its teacher; keep that as the schedule preference.
+  const [teacherPreferences, setTeacherPreferences] = useState<Record<string, string>>(() => Object.fromEntries((initialRecord?.draft.lessons || []).flatMap(lesson => lesson.teacher ? [[lesson.id, lesson.teacher] as [string, string]] : [])))
   const [activeLessonId, setActiveLessonId] = useState('lesson-1')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState<EnrollmentDraft | null>(initialRecord?.completedAt ? initialRecord.draft : null)
@@ -246,9 +250,18 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
               <div className={styles.sectionHeading}><button type="button" className={styles.cardSelect} aria-pressed={activeLesson.id === lesson.id} onClick={() => setActiveLessonId(lesson.id)}>{fullName(lessonStudent(draft, lesson)) || 'Choose a student'}</button>{draft.lessons.length > 1 && <Button type="button" variant="ghost" className={styles.lessonDelete} size="sm" title="Remove lesson" aria-label={`Remove lesson ${index + 1}`} onClick={event => { event.stopPropagation(); const remaining = draft.lessons.filter(item => item.id !== lesson.id); patch({ lessons: remaining }); setActiveLessonId(remaining[0]?.id || ''); if (step === 2 && !remaining.some(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id)) move(1) }}><Trash2 size={16} aria-hidden="true" /></Button>}</div>
               {step === 1 ? <FieldGrid>
                 {lesson.addedLesson && <Select label="Student" value={lesson.studentId || ''} onChange={event => updateLesson(lesson.id, { studentId: event.target.value, teacher: '', start: '', time: '' })}><option value="">Choose a student</option>{lessonStudents.map(person => <option key={person.id} value={person.id}>{fullName(person)}</option>)}</Select>}
-                <><Select label="Service" value={lesson.service} onChange={event => { const service = event.target.value as LessonChoice['service']; updateLesson(lesson.id, { service, instrument: service === 'Group' ? 'Tiny Keys' : 'Piano', duration: initialRecord?.fromCalendar ? '30' : service === 'Group' || service === 'Semi-private' ? '45' : '30', serviceId: undefined, roomId: undefined, teacher: '', time: '', start: '' }) }}>{enrollmentServices.map(value => <option key={value}>{value}</option>)}</Select>
+                {configuredServices ? <>
+                  <Select label="Service" value={lesson.serviceId || ''} onChange={event => {
+                    const service = configuredServices.find(item => item.id === event.target.value)
+                    if (!service) return
+                    const formats = (() => { try { return JSON.parse(service.values.formats || '[]') as string[] } catch { return [] as string[] } })()
+                    updateLesson(lesson.id, { serviceId: service.id, service: formats.includes('group') && !formats.includes('private') ? 'Group' : 'Private', instrument: service.values.name === 'Voice & Vocals' ? 'Voice' : service.values.name === 'Band' ? 'Band Program' : service.values.name, duration: String(configuredDurations(service.id)[0] || 30), teacher: '', time: '', start: '', roomId: undefined })
+                  }}><option value="">Choose a service</option>{configuredServices.map(service => <option key={service.id} value={service.id}>{service.values.name}</option>)}</Select>
+                  {configuredDurations(lesson.serviceId || '').length > 0 && <Select label="Length" value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{configuredDurations(lesson.serviceId || '').map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>}
+                </> : <><Select label="Service" value={lesson.service} onChange={event => { const service = event.target.value as LessonChoice['service']; updateLesson(lesson.id, { service, instrument: service === 'Group' ? 'Tiny Keys' : 'Piano', duration: initialRecord?.fromCalendar ? '30' : service === 'Group' || service === 'Semi-private' ? '45' : '30', serviceId: undefined, roomId: undefined, teacher: '', time: '', start: '' }) }}>{enrollmentServices.map(value => <option key={value}>{value}</option>)}</Select>
                 <Select label={lesson.service === 'Group' ? 'Program' : 'Instrument'} value={lesson.instrument} onChange={event => updateLesson(lesson.id, { instrument: event.target.value, serviceId: undefined, roomId: undefined, ...(lesson.service === 'Group' ? { duration: event.target.value === 'Band Program' ? '60' : '45' } : {}), teacher: '', time: '', start: '' })}><option value="">Choose a program</option>{(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).map(value => <option key={value}>{value}</option>)}</Select></>
-                {(lesson.service !== 'Group' || lesson.instrument === 'Band Program') && <Select label="Length" value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{(lesson.instrument === 'Band Program' ? Array.from({ length: 24 }, (_, index) => (index + 1) * 30) : initialRecord?.fromCalendar ? [30, 60] : [30, 45, 60]).map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>}
+                }
+                {!configuredServices && (lesson.service !== 'Group' || lesson.instrument === 'Band Program') && <Select label="Length" value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{(lesson.instrument === 'Band Program' ? Array.from({ length: 24 }, (_, index) => (index + 1) * 30) : [30, 45, 60]).map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>}
                 {!singleSession && <Select label="Booking" value={lesson.frequency} onChange={event => updateLesson(lesson.id, { frequency: event.target.value, trialDiscount: undefined, start: '', time: '' })}><option value="Monthly subscription">Ongoing / subscription</option><option value="À-la-carte">One session / à-la-carte</option></Select>}
                 {lesson.frequency === 'À-la-carte' && <Input label="Trial discount (%)" type="number" min={0} max={100} value={lesson.trialDiscount || 0} onChange={event => updateLesson(lesson.id, { trialDiscount: Number(event.target.value) })} />}
               </FieldGrid> : <p>{lesson.service} · {lesson.instrument} · {lesson.frequency === 'Monthly subscription' ? 'Weekly' : 'One lesson'} · {lesson.duration} minutes</p>}

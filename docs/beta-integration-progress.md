@@ -1,5 +1,37 @@
 # Beta integration progress — November 13, 2026
 
+## One enrollment-and-booking flow — November 17, 2026
+
+The agreed structure is now implemented: **either entry point opens the same modal, the
+same booking-type cards and the same enrollment stepper**. No second form, no handoff to
+another section.
+
+- **One entry screen.** `BookingFlow` owns the dialog. Enroll & Book's `Add booking` and
+  Calendar's `Add booking` both open it, so the older Enroll-path card chooser
+  (`EventExplorer`'s `lessonChooser`) now defers to the shared flow when the Beta context
+  provides one; its standalone card modal remains only for hosts without that context.
+  Both CTAs were verified to render the identical eight cards: Lesson, Single lesson /
+  Free trial, Studio booking, Band rehearsal, Event, Front desk, Admin, Block /
+  unavailable. Non-lesson bookings stay in the same entry screen — nothing is
+  Calendar-exclusive.
+- **Calendar supplies context, not a second workflow.** Selecting a slot in a teacher
+  column opens the same cards titled `Book time with <teacher>`; a room column opens
+  `Book room <room>`. Cards are filtered by what that resource can actually host, which
+  is why the room view drops Band rehearsal and Event. The chosen path then opens the
+  shared stepper with the known date, time, duration, teacher, room and service already
+  filled, and the teacher is preselected as the schedule preference.
+- **Options come from School Onboarding.** The stepper's Service and Length controls now
+  read the configured services and their `durations` whenever the Beta context is
+  available, instead of the sample `30 / 45 / 60` list. The calendar-origin 30/60
+  restriction is gone. Service changes on a saved booking also adopt that service's
+  first configured length; a lesson's length no longer leaks into a room booking.
+- **Send to family to complete** is available inside the shared lesson flow, not only
+  from the enrollments table.
+- Verified at 1440 and 390: identical cards and stepper from both CTAs, contextual titles
+  per resource, prefilled student/service/date/time/duration/teacher, no page errors and
+  no horizontal overflow. Suite 1,160/1,160, `tsc` and lint clean, production build
+  compiled.
+
 ## Beta access fixed — November 16, 2026
 
 - **Blank screen (my bug, now fixed).** Giving Beta its own work area made the sidebar

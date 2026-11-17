@@ -15,6 +15,7 @@ import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import StudentWorkspaceV3 from '../content-studio-prototype/students/StudentWorkspaceV3'
 import { CalendarFilter } from './CalendarFilters'
 import CalendarBookingModal, { type BookingPrefill } from './CalendarBookingModal'
+import { useCalendarEnrollment } from './CalendarEnrollmentContext'
 import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
@@ -65,6 +66,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   onExit: () => void
   onApply: (change: (current: FamilyPreviewData) => FamilyPreviewData) => void
 }) {
+  const sharedBooking = useCalendarEnrollment()
   const mobile = useIsMobile()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [week, setWeek] = useState(() => betaWeekStart(today))
@@ -189,7 +191,10 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
       serviceId: perspective === 'service' ? setup.services.find(service => service.values.name === resourceId)?.id : undefined }
   }
   function bookSlot(date: string, time: string, resourceId?: string, duration = 30) {
-    setBooking({ ...defaults(date, time, resourceId), duration }); setSelected(null)
+    const initial = { ...defaults(date, time, resourceId), duration }
+    if (sharedBooking?.openBooking) sharedBooking.openBooking(initial)
+    else setBooking(initial)
+    setSelected(null)
   }
   function slotReason(date: string, time: string, resourceId: string, duration = 30) {
     if (!resourceId) return null // Overview selection opens resource choice; it does not promise availability.

@@ -19,10 +19,10 @@ import { matchingSubscriptions } from '@/beta-source/lib/academy-calendar-enroll
 export type BookingPrefill = { date: string; time: string; duration: number; teacherId?: string; roomId?: string; serviceId?: string; source?: 'teacher' | 'room' | 'service'; existing?: CalendarBooking }
 
 /** Both Add booking and drawing mount this same stable-size dialog. */
-export default function CalendarBookingModal({ initial, context, onClose, onSave, blockOnly = false }: { initial: BookingPrefill; context: BookingContext; onClose: () => void; onSave: (booking: CalendarBooking, action?: 'staff' | 'send') => string | null; blockOnly?: boolean }) {
+export default function CalendarBookingModal({ initial, context, onClose, onSave, onStartLesson, blockOnly = false }: { initial: BookingPrefill; context: BookingContext; onClose: () => void; onSave: (booking: CalendarBooking, action?: 'staff' | 'send') => string | null; onStartLesson?: (single: boolean) => void; blockOnly?: boolean }) {
   const spaceKind = context.setup.services?.find(service => service.id === initial.serviceId)?.values.bookingKind
   const initialKind: CalendarBookingKind = blockOnly ? 'block' : spaceKind === 'room' ? 'studio' : spaceKind === 'rehearsal' || spaceKind === 'event' ? spaceKind : 'lesson'
-  const constraints = { teacherId: undefined, roomId: initial.source === 'room' ? initial.roomId : undefined, serviceId: initial.source === 'service' && initialKind === 'lesson' ? initial.serviceId : undefined }
+  const constraints = { teacherId: initial.source === 'teacher' ? initial.teacherId : undefined, roomId: initial.source === 'room' ? initial.roomId : undefined, serviceId: initial.source === 'service' && initialKind === 'lesson' ? initial.serviceId : undefined }
   const [screen, setScreen] = useState<'cards' | 'details'>(initial.existing || blockOnly || initial.source === 'service' ? 'details' : 'cards')
   const [booking, setBooking] = useState<CalendarBooking>(() => initial.existing || reconcileCalendarBooking(context, { id: `beta:booking:${crypto.randomUUID()}`, kind: initialKind, title: '', date: initial.date, time: initial.time, duration: initialKind === 'lesson' ? (initial.duration >= 15 && initial.duration % 15 === 0 ? initial.duration : 30) : initial.duration, teacherId: initial.teacherId || '', roomId: initial.roomId || '', serviceId: initial.serviceId || '', studentIds: [], groupId: '', repeat: 'once', until: initial.date, publicOnly: false, status: 'Scheduled', arrangement: 'Monthly subscription' }, constraints))
   const kind = booking.kind
@@ -65,6 +65,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
   const title = lesson ? selectedTeacher ? `Lesson with ${selectedTeacher.values.name}` : constraints.serviceId ? `${serviceOptions.find(service => service.id === constraints.serviceId)?.values.name || 'Lesson'} booking` : 'Lesson details' : block ? 'Block / unavailable' : duty ? staffDutyLabel(kind) : kind === 'studio' ? 'Studio booking' : kind === 'rehearsal' ? 'Band rehearsal' : 'Event'
   const fieldError = (pattern: RegExp) => submitted && error && pattern.test(error) ? error : undefined
   const choose = (next: CalendarBookingKind, single = false) => {
+    if (next === 'lesson' && !initial.source && onStartLesson) { onStartLesson(single); return }
     pathDrafts.current[kind] = booking
     const previous = pathDrafts.current[next]
     patch({ ...(previous || { studentIds: [], groupId: '', serviceId: initial.serviceId || '', title: '', locationId: '', notes: '', roomId: '', requiredCapacity: undefined }), kind: next, date: booking.date, time: booking.time, until: booking.until, arrangement: single ? 'À-la-carte' : 'Monthly subscription', teacherId: next === 'studio' ? '' : previous?.teacherId || initial.teacherId || '', duration: next === 'lesson' ? (booking.duration >= 60 ? 60 : 30) : previous?.duration || initial.duration || 30, repeat: next === 'block' || isStaffDuty(next) ? previous?.repeat || 'once' : 'once' })
@@ -94,7 +95,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
     <ModalFooter><Button variant="secondary" onClick={() => { setPendingAction(null); setConfirmSend(false) }}>Cancel</Button><Button disabled={confirmSend && !account?.email} onClick={() => submit(pendingAction, true, confirmSend)}>{confirmSend ? 'Send request' : 'Continue'}</Button></ModalFooter>
   </Modal>
   return <Modal key="booking" isOpen size="lg" layout="fixed" ariaLabel="Add booking" style={{ height: 'min(82dvh, 760px)', maxHeight: '90dvh' }} onClose={onClose}>
-    <ModalHeader title={screen === 'cards' ? 'Add booking' : title} onBack={screen === 'details' && initial.source !== 'service' && !blockOnly ? () => { setScreen('cards'); setSubmitted(false); setError('') } : undefined} onClose={onClose} />
+    <ModalHeader title={screen === 'cards' ? initial.source === 'teacher' ? `Book time with ${selectedTeacher?.values.name || 'this teacher'}` : selectedRoom ? `Book room ${selectedRoom.name}` : 'Add booking' : title} onBack={screen === 'details' && initial.source !== 'service' && !blockOnly ? () => { setScreen('cards'); setSubmitted(false); setError('') } : undefined} onClose={onClose} />
     <ModalBody style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
       {screen === 'cards' ? <div className={entryStyles.choices} style={{ gap: spacing.lg }} aria-label="Booking type">
         {availablePaths.map(path => <EntryPathCard key={path.id} title={path.label} action="Choose" onChoose={() => choose(path.id === 'single' ? 'lesson' : path.id, path.id === 'single')}><path.icon size={28} /></EntryPathCard>)}

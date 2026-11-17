@@ -104,6 +104,12 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   const draftContent = (record: WorkflowDraft) => JSON.stringify(record.kind === 'enrollment' ? record.data.draft : record.data)
   const draftBaselines = useRef(new Map<string, string>())
   const [lessonChooser, setLessonChooser] = useState(false)
+  useEffect(() => {
+    if (lessonChooser && calendarEnrollment?.openBooking) {
+      calendarEnrollment.openBooking()
+      setLessonChooser(false)
+    }
+  }, [lessonChooser, calendarEnrollment])
   const [portal, setPortal] = useState(false)
   const tasks = queue.tasks, setTasks = queueSetter('tasks')
   const bookings = queue.bookings, setBookings = queueSetter('bookings')
@@ -447,7 +453,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
     })) : []
     const rows = [...workflowRows, ...bandRows]
     content = <>
-      <PageHeader title="Enroll & Book" right={<Button onClick={() => setLessonChooser(true)}>Enroll</Button>} />
+      <PageHeader title="Enroll & Book" right={<Button onClick={() => calendarEnrollment?.openBooking ? calendarEnrollment.openBooking() : setLessonChooser(true)}>Add booking</Button>} />
       <ResponsiveDataTable rows={rows} getRowKey={record => record.id} ariaLabel="Enrollments" minDesktopWidth={700} emptyContent={<EmptyState title="No enrollments" />} columns={[
         { id: 'name', header: 'People', width: '1.5fr', render: record => <PersonName as="button" onClick={record.open}>{record.name}</PersonName> },
         { id: 'payment', header: 'Payment', width: '1fr', render: record => record.payment },
@@ -465,7 +471,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   }
   const selectedBand = academy.kind === 'music' ? academy.groups.find(group => group.id === bandPanelId) : undefined
   const selectedStudent = studentPanelId ? explorerContactDirectory(state.people, [studentPanelId], state.registrations).contacts.find(contact => contact.id === studentPanelId) : undefined
-  return <LeadWorkspaceContext.Provider value={opportunityAdapter}><ContactBandEnrollmentContext.Provider value={academy.kind === 'music' ? bandMemberships : undefined}><ExplorerShell embedded={embedded} groupLabel={academy.kind === 'music' ? 'Bands & ensembles' : academy.kind === 'martial' ? 'Practice teams' : 'Study groups'} screen={screen} onNavigate={navigate}><div className={styles.root} style={rootStyle}><PageContainer style={{ boxSizing: 'border-box' }}><div className={styles.stack}>{notice && <Notice variant="success" onDismiss={() => setNotice('')}>{notice}</Notice>}{errors.length > 0 && <Notice variant="error">{errors.join(' ')}</Notice>}{content}      <Modal isOpen={lessonChooser} onClose={() => setLessonChooser(false)} size="wide" layout="content" ariaLabel="Enroll">
+  return <LeadWorkspaceContext.Provider value={opportunityAdapter}><ContactBandEnrollmentContext.Provider value={academy.kind === 'music' ? bandMemberships : undefined}><ExplorerShell embedded={embedded} groupLabel={academy.kind === 'music' ? 'Bands & ensembles' : academy.kind === 'martial' ? 'Practice teams' : 'Study groups'} screen={screen} onNavigate={navigate}><div className={styles.root} style={rootStyle}><PageContainer style={{ boxSizing: 'border-box' }}><div className={styles.stack}>{notice && <Notice variant="success" onDismiss={() => setNotice('')}>{notice}</Notice>}{errors.length > 0 && <Notice variant="error">{errors.join(' ')}</Notice>}{content}      <Modal isOpen={lessonChooser && !calendarEnrollment?.openBooking} onClose={() => setLessonChooser(false)} size="wide" layout="content" ariaLabel="Enroll">
         <ModalHeader title="Enroll" onClose={() => setLessonChooser(false)} />
         <ModalBody><div className={styles.choices}>
           {lessonServices.some(record => formatsFor(record).includes('private')) && <EntryPathCard title="Private lessons" action="Enroll" onChoose={() => startDraft('enrollment', 'hub', undefined, { service: 'Private', instrument: lessonServices.find(record => formatsFor(record).includes('private'))!.values.name })}><Music size={28} color={colors.textSecondary} /></EntryPathCard>}
