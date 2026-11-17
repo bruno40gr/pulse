@@ -1,5 +1,24 @@
 # Beta integration progress — November 13, 2026
 
+## Occupancy is not availability — November 17, 2026
+
+Empty space on the calendar does not mean bookable: a teacher can have an unbooked gap
+between 12 and 6 while only working 3 to 6. The calendar now distinguishes the two.
+
+- Bookable cells carry a faint dotted hint and fill on hover; cells outside the teacher or
+room's configured hours stay grey, because `Show unavailable time` is already on by
+default. Nothing else was needed in the render path — `slotReason` already evaluated the
+shift; the sample data simply had every teacher working 12:00–21:00, so the difference
+could never appear.
+- The sample now gives Zoe Morgan, Rowan Bell and Noah Ellis shorter shifts, chosen because
+the scheduling fixtures do not pin their hours. Noah's column shows grey before 16:00 and
+bookable cells after it.
+- **Rejected after review: a reason caption on grey cells.** Opus labels them ("Note:
+Admin – Front Desk") because it does not model office time separately. Ours does — a duty
+is a booked block on the calendar — so grey only ever means "outside working hours", and
+labelling it would explain something the screen already shows.
+
+
 ## Reschedule keeps the dotted hint — November 17, 2026
 
 Reverted the empty-cell experiment: the reschedule panel again shows a faint dotted,

@@ -11,6 +11,16 @@ export function createDemoSetup(): Record<string, SetupRecord[]> {
   data.plans = [4000, 3500].map((price, index) => ({ id: index === 0 ? 'demo-private' : 'demo-group', values: normalizePricing({ kind: 'Subscription', basis: 'Per scheduled lesson', price: String(price / 100), durationPrices: JSON.stringify([{ minutes: index === 0 ? 30 : 45, price: String(price / 100) }]), cadence: 'Monthly', first: 'Remaining scheduled lessons', visits: '1', fee: '0', deposit: '0' }) }))
   data.locations = [{ id: 'studio', values: { name: 'Headliner Music Academy', address: 'Sample studio address', city: 'Rocklin', state: 'CA', postal: '95765' }, rooms: [...new Map(demo.sessions.map(session => [session.room, { id: session.room, name: session.room, capacity: String(session.capacity), serviceIds: demo.sessions.filter(item => item.room === session.room).map(item => item.serviceId) }])).values()] }]
   data.teachers = demo.teachers.map(teacher => ({ id: teacher.id, values: { name: teacher.name, email: teacher.email, phone: '202-555-0100', assignments: JSON.stringify(teacher.serviceIds.map(serviceId => ({ serviceId, maxLevel: 3 }))), availability: JSON.stringify(teacher.days.map(day => { const hours = demoHours.find(item => item.day === day)!; return { id: `${teacher.id}:${day}`, day: day - 1, from: Number(hours.from.slice(0, 2)) * 60, to: Number(hours.to.slice(0, 2)) * 60 } })), service: teacher.serviceIds[0], location: 'studio', days: teacher.days.map(day => demoHours.find(hours => hours.day === day)!.label).join(', '), from: '12:00', to: '21:00', levelIds: '["level1","level2","level3"]', levels: 'Level 1, Level 2, Level 3', engineeringLevel: teacher.name === 'Isabel Rivera' ? '2' : '0', saturday: teacher.days.includes(6) ? '09:00–15:00' : 'Not available' } }))
+  // Occupancy and availability are different facts: staff keep different shifts, so an
+  // unbooked hour before a shift must not look bookable on the calendar.
+  const demoShifts: Record<string, [string, string]> = { 'Zoe Morgan': ['15:00', '21:00'], 'Rowan Bell': ['10:00', '14:00'], 'Noah Ellis': ['16:00', '21:00'] }
+  const toMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3))
+  data.teachers = data.teachers.map(record => {
+    const shift = demoShifts[record.values.name]
+    if (!shift) return record
+    const availability = JSON.parse(record.values.availability) as { id: string; day: number; from: number; to: number }[]
+    return { ...record, values: { ...record.values, from: shift[0], to: shift[1], availability: JSON.stringify(availability.map(item => ({ ...item, from: toMinutes(shift[0]), to: toMinutes(shift[1]) }))) } }
+  })
   data.locations[0].rooms = demoRoomNames.map(name => {
     const sessions = demo.sessions.filter(session => session.room === name)
     return { id: name, name, capacity: String(Math.max(1, ...sessions.map(session => session.capacity))), serviceIds: [...new Set(sessions.map(session => session.serviceId))] }

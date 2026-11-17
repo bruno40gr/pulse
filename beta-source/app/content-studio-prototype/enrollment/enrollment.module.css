@@ -141,6 +141,11 @@
 .replacementSlot { background: var(--calendar-student-surface); border: 2px solid var(--calendar-student-border); color: var(--calendar-student-text); box-shadow: inset 0 0 0 1px var(--calendar-student-border); }
 .familyReferenceSlot { background: var(--calendar-student-surface); border: 1px dashed var(--calendar-student-border); color: var(--calendar-student-text); opacity: .8; }
 .unavailableSlot { background: rgb(0 0 0 / 4.5%); }
+/* Occupancy and availability are different facts: an unbooked cell inside the
+   teacher or room's hours carries a faint dotted hint, a closed one does not. */
+.bookableSlot { transition: background 120ms ease; }
+.bookableSlot:hover { background: var(--calendar-neutral-surface); }
+
 .schedule.replacementCalendar { margin-top: 0; }
 /* Available slots carry a faint dotted hint and brighten on hover or focus. */
 .replacementCalendar .openSlot, .availableLegend { background: transparent; border-color: var(--calendar-neutral-border); border-style: dotted; color: var(--calendar-neutral-text); }
