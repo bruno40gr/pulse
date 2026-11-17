@@ -1,5 +1,20 @@
 # Beta integration progress — November 13, 2026
 
+## Reschedule matches the calendar week view — November 17, 2026
+
+The slide-panel reschedule grid now follows the academy calendar's week view instead of
+drawing its own language: days across, time down the left axis, empty cells as bookable
+space, grey cells for unavailable, solid blocks for lessons. The repeated time label in
+every available cell is gone — the row already says the time — so the same week reads the
+same way in both places. Selection shows as an outline over the cell, hover fills it, and
+the origin lesson keeps its dashed identity treatment.
+
+- This is the same availability authority as the calendar (`bookingReason`, scoped by
+service and the Same teacher filter); only scope and action differ.
+- The grid is still `LessonSchedule` while the calendar is `CalendarTimeGrid`, so the two
+renderers can drift again; consolidating them onto one grid remains the durable fix.
+
+
 ## Reschedule clarity, and a plumbing audit — November 17, 2026
 
 - **Nothing is preselected** in a reschedule, and the two purple states no longer look
