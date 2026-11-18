@@ -15,13 +15,14 @@ const row = (id, first_name, last_name, patch) => ({
     for (const width of [1440, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 850 }, screen: { width, height: 850 } })
       page.setDefaultTimeout(10000)
-      const errors = [], writes = [], unexpected = []
+      const errors = [], writes = [], unexpected = [], recipientChecks = []
       let viewOnly = false, fail = true
       const roster = [
         row('student', 'Emma', 'Smith', { account_id: 'family', is_student: true, student_id: 'roster-emma', is_minor: true, account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', account_holder_phone: '2025550199', account_holder_email: 'jane@example.test', email: 'emma@example.test', date_of_birth: '2015-02-03' }),
         row('sibling', 'Noah', 'Smith', { account_id: 'family', is_student: true, student_id: 'roster-noah', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', account_holder_phone: '2025550199' }),
         row('holder', 'Jane', 'Smith', { is_student: false, phone: '2025550198' }),
-        row('legacy-student', 'Ivy', 'Lee', { account_id: 'legacy', is_student: true, student_id: 'roster-ivy', account_holder_name: 'Jamie Lee', account_holder_email: 'summary@example.test' }),
+        row('legacy-student', 'Ivy', 'Lee', { account_id: 'legacy', is_student: true, student_id: 'roster-ivy', is_minor: true, message_routing: 'account_holder', account_holder_name: 'Jamie Lee', account_holder_phone: '2025550197', account_holder_email: 'summary@example.test' }),
+        row('email-only', 'Rae', 'Diaz', { account_id: 'emailonly', is_student: true, student_id: 'roster-rae', is_minor: true, account_holder_name: 'Rae Diaz Account', account_holder_email: 'rae@example.test' }),
       ]
       page.on('pageerror', error => errors.push(error.message))
       await page.route('**/api/**', route => {
@@ -31,6 +32,7 @@ const row = (id, first_name, last_name, patch) => ({
           'x-contacts-can-edit': String(!viewOnly), 'x-contacts-can-read-notes': 'true', 'x-contacts-can-edit-notes': String(!viewOnly),
         } })
         if (path === '/api/tenant-fields') return route.fulfill({ json: [] })
+        if (path === '/api/contacts/check-sensitive') return route.fulfill({ json: { flagged: [], opted_out: [] } })
         if (path === '/api/inbox/reconcile' || path === '/api/account/me') return route.fulfill({ json: {} })
         if (path === '/api/communications/senders') return route.fulfill({ json: { senders: [] } })
         const accountProfile = path.match(/^\/api\/contacts\/accounts\/([^/]+)\/profile$/)
@@ -49,9 +51,8 @@ const row = (id, first_name, last_name, patch) => ({
         }
         if (path === '/api/communications/recipients') {
           const { contactIds, channel } = request.postDataJSON()
-          assert.deepEqual(contactIds, ['student'])
-          assert.equal(channel, 'email')
-          return route.fulfill({ json: { recipients: [], excluded: [], selectedCount: 1, version: 'fixture' } })
+          recipientChecks.push([channel, contactIds])
+          return route.fulfill({ json: { recipients: [], excluded: [], selectedCount: contactIds.length, version: 'fixture' } })
         }
         if (path === '/api/funding/cases') {
           assert.equal(url.searchParams.get('student_person_id'), 'student')
@@ -96,6 +97,19 @@ const row = (id, first_name, last_name, patch) => ({
       await dialog.getByText('Dependents', { exact: true }).waitFor()
       await dialog.getByText('Account Balance', { exact: true }).waitFor()
       assert.ok(await dialog.getByText('Coming soon', { exact: true }).count() >= 2)
+      assert.equal(await button('Send SMS').isEnabled(), true)
+      await button('Send SMS').click()
+      await page.waitForFunction(() => window.performance.getEntriesByType('resource').some(entry => entry.name.includes('/api/communications/recipients')))
+      await button('Back to contact').click()
+      assert.deepEqual(recipientChecks.at(-1), ['sms', ['legacy-student']])
+      await close()
+      await button('Rae Diaz Account', table).click()
+      await title('Rae Diaz Account')
+      assert.equal(await button('Send SMS').isDisabled(), true)
+      assert.equal(await button('Send email').isEnabled(), true)
+      await close()
+      await button('Jamie Lee', table).click()
+      await title('Jamie Lee')
       await button('Open Ivy Lee').click()
       await title('Ivy Lee')
       await close()
@@ -119,6 +133,7 @@ const row = (id, first_name, last_name, patch) => ({
       const recipientCheck = page.waitForRequest('**/api/communications/recipients*')
       await button('Send email').click()
       await recipientCheck
+      assert.deepEqual(recipientChecks.at(-1), ['email', ['student']])
       await button('Back to contact').click()
       await button('Edit Contact').click()
       await dialog.getByLabel('Email', { exact: true }).fill('')

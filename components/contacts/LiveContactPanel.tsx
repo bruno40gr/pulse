@@ -116,6 +116,10 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const primaryHolder = person?.account_holders?.find(holder => holder.is_primary) || person?.account_holders?.[0]
   const callPhone = holderRouting ? primaryHolder?.phone || person?.account_holder_phone : phone
   const routedEmail = primaryHolder?.email || person?.account_holder_email
+  // An account has no person row; message it through the students whose saved routing targets the account holder.
+  const accountRecipients = account ? students.filter(student => student.is_minor === true || student.message_routing === 'account_holder') : []
+  const canMessageAccountSms = Boolean(account) && accountRecipients.length > 0 && Boolean(phone)
+  const canMessageAccountEmail = Boolean(account) && accountRecipients.length > 0 && Boolean(email)
   const notesField = notesTab === 'internal' ? 'notes_history' : 'student_notes_history'
   const notes = person?.[notesField] ?? []
   const changes = draft && baseline ? changedContactProfile(baseline, draft) : {}
@@ -191,11 +195,12 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
   return <SlidePanel isOpen onClose={close} fullScreen={mobile} width="min(calc(75vw + 200px), 1160px)">
-    {compose && person ? (
-      holderRouting ? <>
+    {compose && (person || account) ? (
+      account || holderRouting ? <>
         <SlidePanelHeader title={compose === 'email' ? 'Send email' : 'Send SMS'} onBack={() => setCompose(null)} backLabel="Back to contact" onClose={close} />
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ContactBulkComposer tenantId={tenantId} contactIds={[person.id]} channel={compose} onClose={() => setCompose(null)} /></div>
-      </> : <CardSmsComposer backDestination="contact" recipientId={person.id} name={name} onBack={() => setCompose(null)} onClose={close} />
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ContactBulkComposer tenantId={tenantId}
+          contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []} channel={compose} onClose={() => setCompose(null)} /></div>
+      </> : <CardSmsComposer backDestination="contact" recipientId={person!.id} name={name} onBack={() => setCompose(null)} onClose={close} />
     ) : <>
       <SlidePanelHeader title={name.replace(/\s*\(account\)\s*$/i, '')} subtitle={subject.kind === 'student' ? 'Student profile' : 'Account holder'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
@@ -204,9 +209,9 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
       <SlidePanelActionBar isMobile={mobile}>
         <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
           <Button size="sm" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'}</Button>
-          <Button size="sm" variant="secondary" disabled={!person || !callPhone || (holderRouting && !canComposeToHolder)} onClick={() => setCompose('sms')}><MessageSquare size={16} />Send SMS</Button>
+          <Button size="sm" variant="secondary" disabled={person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms} onClick={() => setCompose('sms')}><MessageSquare size={16} />Send SMS</Button>
           {person && !holderRouting ? <ConversationComposeLink backDestination="contact" recipient={`person:${person.id}`} channel="email" disabled={!email} />
-            : <Button size="sm" variant="secondary" disabled={!canComposeToHolder || !routedEmail} onClick={() => setCompose('email')}><Mail size={16} />Send email</Button>}
+            : <Button size="sm" variant="secondary" disabled={person ? (!canComposeToHolder || !routedEmail) : !canMessageAccountEmail} onClick={() => setCompose('email')}><Mail size={16} />Send email</Button>}
           <Button size="sm" variant="ghost" disabled={!capabilities.edit || saving} onClick={() => {
             setSection('account')
             if (draft) return
