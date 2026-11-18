@@ -16,7 +16,6 @@ import StudentWorkspaceV3 from '../content-studio-prototype/students/StudentWork
 import { CalendarFilter } from './CalendarFilters'
 import CalendarBookingModal, { type BookingPrefill } from './CalendarBookingModal'
 import { useCalendarEnrollment } from './CalendarEnrollmentContext'
-import CalendarJumpTo from './CalendarJumpTo'
 import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
@@ -377,7 +376,7 @@ return (
             }}>Confirm changes</Button>
             <Button variant="secondary" onClick={leaveReschedule}>Cancel</Button>
           </div>
-          : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
+          : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
 
       <div>
       <div style={{ display: reschedule ? 'none' : 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
@@ -488,6 +487,8 @@ return (
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
+              // Someone else's lesson reads as unavailable here: grey, unnamed, and not pickable.
+              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden title="Not available" style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, background: colors.border, borderRadius: 5, cursor: 'not-allowed', zIndex: 1 }} />
               const inScope = Boolean(scopeStudents && item.studentIds.some(id => scopeStudents.has(id)))
               // Scoped: the family's lessons take the column and everything else becomes a bar without text,
               // so the week stays legible instead of splitting each day into a dozen unreadable lanes.
