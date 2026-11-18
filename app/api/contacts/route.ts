@@ -129,6 +129,8 @@ export async function GET(request: Request) {
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.contactsRead, allowDemo: true })
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   const tenantId = access.tenantId
+  const hasPermission = (permission: string) => access.context?.roleKey === 'owner' || Boolean(access.context?.permissions.has(permission))
+  const canReadNotes = !access.context || hasPermission(PERMISSIONS.notesRead) || hasPermission(PERMISSIONS.notesManage)
 
   try {
     // Independent reads start after authorization; rows do not depend on profile,
@@ -310,8 +312,8 @@ export async function GET(request: Request) {
         family_name: nonStudentBooking ? null : account.name,
         account_holders: nonStudentBooking ? [] : accountHolders,
         instructor: instructorInfo,
-        notes_history: person.notes_history || [],
-        student_notes_history: person.student_notes_history || [],
+        notes_history: canReadNotes ? person.notes_history || [] : [],
+        student_notes_history: canReadNotes ? person.student_notes_history || [] : [],
         custom_fields: {
           ...person.custom_fields,
           ...enrollmentFields,
@@ -331,7 +333,11 @@ export async function GET(request: Request) {
 
     // Sunset instructors are not viewable/actionable — hide them from the list.
     console.info('[contacts][list]', { durationMs: Date.now() - startedAt, count: flattened.length })
-    return NextResponse.json(flattened.filter((c: any) => !(c.staff_id && c.is_active === false)))
+    return NextResponse.json(flattened.filter((c: any) => !(c.staff_id && c.is_active === false)), { headers: {
+      'X-Contacts-Can-Edit': String(hasPermission(PERMISSIONS.contactsManage)),
+      'X-Contacts-Can-Read-Notes': String(canReadNotes),
+      'X-Contacts-Can-Edit-Notes': String(hasPermission(PERMISSIONS.notesManage)),
+    } })
   } catch (error) {
     console.error('Error fetching contacts:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })

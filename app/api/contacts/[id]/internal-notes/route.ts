@@ -1,14 +1,15 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { appendContactNote, toggleContactNoteCompletion } from '@/lib/contact-note-history'
 import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 import { resolveRequestTenant } from '@/lib/tenant-access'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID, { permission: PERMISSIONS.notesManage })
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     if (!tenantAccess.context) return NextResponse.json({ error: 'Staff membership required.' }, { status: 403 })
     const { id } = await params
@@ -66,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID, { permission: PERMISSIONS.notesManage })
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     if (!tenantAccess.context) return NextResponse.json({ error: 'Staff membership required.' }, { status: 403 })
     const { id } = await params

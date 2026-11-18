@@ -5,18 +5,33 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { isNonStudentBooking } from '@/lib/contact-kind'
-import { assertTenantAccess } from '@/lib/access'
+import { getAccessScope, getRequestActor } from '@/lib/access'
 import { requirePermission } from '@/lib/request-context'
-import { PERMISSIONS, type PermissionKey } from '@/lib/permissions'
+import { PERMISSIONS } from '@/lib/permissions'
 import { createDetailRequestTiming } from '@/lib/detail-request-timing'
 import { getDurationMs } from '@/lib/request-runtime'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
-async function authorizeContactAccess(request: Request, tenantId: string, permission: PermissionKey) {
-  const legacyAccess = await assertTenantAccess(request, tenantId)
-  if (legacyAccess.ok) return legacyAccess
-  return requirePermission(request, tenantId, permission)
+async function authorizeContactRead(request: Request, tenantId: string) {
+  const actor = await getRequestActor(request)
+  const scope = getAccessScope(actor)
+  if (scope.kind === 'demo') return scope.tenantId === tenantId
+    ? { ok: true as const, canReadNotes: true } : { ok: false as const, status: 403, error: 'You do not have access to this account.' }
+  const access = await requirePermission(request, tenantId, PERMISSIONS.contactsRead)
+  if (!access.ok) return access
+  return { ok: true as const, canReadNotes: access.context.roleKey === 'owner' || access.context.permissions.has(PERMISSIONS.notesRead) || access.context.permissions.has(PERMISSIONS.notesManage) }
+}
+
+/** Demo labs keep their existing editing path; staff sessions must hold the permission. */
+async function authorizeContactWrite(request: Request, tenantId: string) {
+  const actor = await getRequestActor(request)
+  const scope = getAccessScope(actor)
+  if (scope.kind === 'demo') return scope.tenantId === tenantId
+    ? { ok: true as const, context: null } : { ok: false as const, status: 403, error: 'You do not have access to this account.' }
+  const access = await requirePermission(request, tenantId, PERMISSIONS.contactsManage)
+  if (!access.ok) return access
+  return { ok: true as const, context: access.context }
 }
 
 interface InstructorEnrollmentRow {
@@ -164,7 +179,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (error) throw error
     if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: responseHeaders() })
 
-    const access = await measure('access', () => authorizeContactAccess(request, person.tenant_id, PERMISSIONS.contactsRead))
+    const access = await measure('access', () => authorizeContactRead(request, person.tenant_id))
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status, headers: responseHeaders() })
 
     const student = (person as any).students?.[0] || {}
@@ -225,6 +240,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(enrichDemoContact({
       id: person.id,
       student_id: nonStudentBooking ? null : (student.id ?? null),
+      account_id: nonStudentBooking ? null : (student.account_id ?? null),
       is_student: !nonStudentBooking && Boolean(student.id),
       tenant_id: person.tenant_id,
       first_name: person.first_name,
@@ -246,8 +262,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       staff_id: staffId,
       is_active: isActive,
       active_students: activeStudents,
-      notes_history: person.notes_history || [],
-      student_notes_history: person.student_notes_history || [],
+      notes_history: access.canReadNotes ? person.notes_history || [] : [],
+      student_notes_history: access.canReadNotes ? person.student_notes_history || [] : [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,
@@ -270,18 +286,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Invalid contact update.' }, { status: 400 })
 
     const { data: existing } = await supabaseAdmin.from('people').select('tenant_id').eq('id', id).maybeSingle()
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const access = await authorizeContactAccess(request, existing.tenant_id, PERMISSIONS.contactsManage)
+    const access = await authorizeContactWrite(request, existing.tenant_id)
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+    const canEditNotes = !access.context || access.context.roleKey === 'owner' || access.context.permissions.has(PERMISSIONS.notesManage)
+    const canReadNotes = !access.context || access.context.roleKey === 'owner' || access.context.permissions.has(PERMISSIONS.notesRead) || access.context.permissions.has(PERMISSIONS.notesManage)
+    if (('notes_history' in body || 'student_notes_history' in body) && !canEditNotes) {
+      return NextResponse.json({ error: 'You do not have permission to edit notes.' }, { status: 403 })
+    }
 
     // Split fields by destination table
     const personFields = ['first_name', 'last_name', 'phone', 'email', 'date_of_birth',
                          'opted_out', 'notes_history', 'student_notes_history', 'custom_fields']
     const studentFields = ['client_status', 'last_attended', 'message_routing', 'is_minor', 'account_id']
-    const accountFields = ['account_holder_name', 'account_holder_phone', 'account_holder_email', 'family_name']
     const enrollmentFields = ['band_name', 'instrument', 'service_type', 'lesson_day', 'lesson_time',
                               'plan_name', 'session_name', 'instructor', 'instructor_id']
 
@@ -312,32 +333,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Update person
     if (Object.keys(personUpdate).length > 0) {
-      await supabaseAdmin.from('people')
+      const { data: updatedPerson, error } = await supabaseAdmin.from('people')
         .update({ ...personUpdate, updated_at: new Date().toISOString() })
-        .eq('id', id)
+        .eq('id', id).eq('tenant_id', existing.tenant_id).select('id').maybeSingle()
+      if (error) throw error
+      if (!updatedPerson) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     // Update student
     if (Object.keys(studentUpdate).length > 0) {
-      await supabaseAdmin.from('students')
+      const { error } = await supabaseAdmin.from('students')
         .update(studentUpdate)
-        .eq('person_id', id)
+        .eq('person_id', id).eq('tenant_id', existing.tenant_id)
+      if (error) throw error
     }
 
     // Update enrollment custom_fields
     if (Object.keys(enrollmentUpdate).length > 0) {
-      const { data: student } = await supabaseAdmin
+      const { data: student, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
         .eq('person_id', id)
-        .single()
+        .eq('tenant_id', existing.tenant_id)
+        .maybeSingle()
+      if (studentError) throw studentError
 
       if (student) {
-        const { data: enrollment } = await supabaseAdmin
+        const { data: enrollment, error: enrollmentError } = await supabaseAdmin
           .from('enrollments')
           .select('id, custom_fields')
           .eq('student_id', student.id)
-          .single()
+          .maybeSingle()
+        if (enrollmentError) throw enrollmentError
 
         if (enrollment) {
           // Separate instructor_id from custom_fields
@@ -351,9 +378,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             updatePayload.instructor_id = instructor_id
           }
 
-          await supabaseAdmin.from('enrollments')
+          const { error } = await supabaseAdmin.from('enrollments')
             .update(updatePayload)
             .eq('id', enrollment.id)
+          if (error) throw error
         }
       }
     }
@@ -446,8 +474,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       staff_id: staffId,
       is_active: isActive,
       active_students: activeStudents,
-      notes_history: person.notes_history || [],
-      student_notes_history: person.student_notes_history || [],
+      notes_history: canReadNotes ? person.notes_history || [] : [],
+      student_notes_history: canReadNotes ? person.student_notes_history || [] : [],
       custom_fields: {
         ...person.custom_fields,
         ...enrollment.custom_fields,

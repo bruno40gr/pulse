@@ -2,6 +2,7 @@ import { formatTeacherDisplayName, getAccessScope, getRequestActor } from '@/lib
 import type { MembershipRequestContext } from '@/lib/request-context'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
+import type { PermissionKey } from '@/lib/permissions'
 
 export type RequestIdentity = {
   instructorId: string | null
@@ -16,11 +17,12 @@ export type TenantAccessResult =
 export async function resolveRequestTenant(
   request: Request,
   defaultTenantId: string,
+  options: { permission?: PermissionKey; allowDemo?: boolean } = {},
 ): Promise<TenantAccessResult> {
   // Retained for caller compatibility only; never use a hardcoded default as authorization.
   void defaultTenantId
   const actor = await getRequestActor(request)
-  const access = await authorizeTenantRequest(request, { allowDemo: true })
+  const access = await authorizeTenantRequest(request, { allowDemo: options.allowDemo ?? true, permission: options.permission })
   if (!access.ok) return access
   const tenantId = access.tenantId
   if (actor && getAccessScope(actor).kind === 'demo') {

@@ -40,7 +40,7 @@ interface NotesSectionProps {
   draft?: string
   onDraftChange?: (draft: string) => void
   mentionsEnabled?: boolean
-  onSave: (text: string, mentionMembershipIds: string[]) => boolean | void | Promise<boolean | void>
+  onSave?: (text: string, mentionMembershipIds: string[]) => boolean | void | Promise<boolean | void>
   onToggleComplete?: (index: number) => void | Promise<void>
   onEdit?: (entry: NoteEntry, text: string) => boolean | void | Promise<boolean | void>
 }
@@ -105,7 +105,7 @@ export function NotesSection({
   }
 
   const handleSave = async () => {
-    if (savingRef.current) return
+    if (!onSave || savingRef.current) return
     if (!input.trim()) return
     savingRef.current = true
     const note = input.trim()
@@ -156,13 +156,13 @@ export function NotesSection({
               </span>
               )}
             </div>
-            {!showInput && (
+            {onSave && !showInput && (
               <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => setShowInput(true)}
                 style={{ whiteSpace: 'nowrap' }}
               >
-                <span style={{ fontSize: typography.sizeMd, lineHeight: 1 }}>+</span>
+                <span aria-hidden="true" style={{ fontSize: typography.sizeMd, lineHeight: 1 }}>+</span>
                 {addLabel}
               </Button>
             )}
@@ -235,12 +235,12 @@ export function NotesSection({
       {panel && notes.length === 0 && <p style={{ ...typography.bodySmall, color: colors.textMuted }}>No notes yet.</p>}
       </div>
 
-      {!showInput && !showHeader && !panel ? (
+      {onSave && !showInput && !showHeader && !panel ? (
         <Button variant="secondary" size="sm"
           onClick={() => setShowInput(true)}
           style={{ width: '100%' }}
         >
-          <span style={{
+          <span aria-hidden="true" style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -253,7 +253,7 @@ export function NotesSection({
           }}>+</span>
           {addLabel}
         </Button>
-      ) : showInput ? (
+      ) : onSave && showInput ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, ...(panel ? { order: -1, flexShrink: 0, marginBottom: spacing.md } : {}) }}>
           {mentionsEnabled ? (
             <MentionTextarea
@@ -288,7 +288,7 @@ export function NotesSection({
 
   return (
     <DenseSectionPanel title={title}
-      actions={!showInput ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setShowInput(true)}>{addLabel}</Button> : undefined}
+      actions={onSave && !showInput ? <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setShowInput(true)}>{addLabel}</Button> : undefined}
       style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
       contentStyle={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {content}
