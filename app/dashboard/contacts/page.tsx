@@ -22,7 +22,7 @@ import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
-import LiveContactPanel, { type ContactCapabilities, type FamilyLink, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
+import LiveContactPanel, { type ContactCapabilities, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
 import { contactProfileFamilies } from '@/lib/contact-profile-family'
 import { DEFAULT_CONTACT_FILTERS, matchesContactFilters } from '@/lib/contact-filters'
 import { accountStudentCount, contactViewGroups, mapContactViewSelection, contactViewSelectionCount, type ContactListView } from '@/lib/contact-list-views'
@@ -47,6 +47,7 @@ export interface Contact {
   account_holders?: { person_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
   message_routing?: string
   account_id?: string | null
+  account_member_since?: string | null
   first_name: string
   last_name: string
   phone: string | null
@@ -201,23 +202,6 @@ export default function ContactsPage() {
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
     setSelectedContact(person)
-  }
-  const familyLinks = new Map<string, FamilyLink>()
-  for (const { id, students, holders } of profileFamilies) {
-    for (const [role, people] of [['Student', students], ['Account holder', holders]] as const) {
-      for (const person of people) if (person.id !== selectedPerson?.id) familyLinks.set(person.id, {
-        key: person.id, name: `${person.first_name} ${person.last_name}`.trim(), role, open: () => openFamilyPerson(person),
-      })
-    }
-    if (selectedPerson && !holders.length) {
-      const name = students[0].account_holder_name || 'Account holder'
-      familyLinks.set(`account:${id}`, { key: `account:${id}`, name, role: 'Account holder', open: () => {
-        setSelectedContact(null)
-        setNotesDeepLink(false)
-        setInitialNotesTab('notes')
-        setSelectedAccount({ id, name, members: students })
-      } })
-    }
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -789,11 +773,21 @@ export default function ContactsPage() {
       {/* Contact slide panel */}
       {useLivePanel && <LiveContactPanel
         key={selectedPerson ? `person:${selectedPerson.id}` : `account:${selectedAccount!.id}`}
-        subject={selectedPerson ? { kind: selectedIsHolder ? 'holder' : 'student', person: selectedPerson } : {
-          kind: 'account-holder', account: { id: selectedAccount!.id, name: selectedAccount!.name,
-            phone: selectedAccount!.members[0]?.account_holder_phone ?? null, email: selectedAccount!.members[0]?.account_holder_email ?? null },
+        subject={selectedPerson ? (selectedIsHolder ? {
+          kind: 'holder', person: selectedPerson,
+          students: (profileFamilies.find(family => family.holders.some(holder => holder.id === selectedPerson.id))?.students ?? [])
+            .filter(student => student.id !== selectedPerson.id),
+          memberSince: profileFamilies.find(family => family.holders.some(holder => holder.id === selectedPerson.id))?.students[0]?.account_member_since ?? null,
+        } : { kind: 'student', person: selectedPerson }) : {
+          kind: 'account-holder',
+          account: { id: selectedAccount!.id, name: selectedAccount!.name,
+            phone: selectedAccount!.members[0]?.account_holder_phone ?? null,
+            email: selectedAccount!.members[0]?.account_holder_email ?? null,
+            memberSince: selectedAccount!.members[0]?.account_member_since ?? null },
+          students: selectedAccount!.members.filter(member => member.is_student === true || (member.is_student !== false && Boolean(member.student_id))),
         }}
-        tenantId={tenantId} capabilities={capabilities} family={[...familyLinks.values()]}
+        tenantId={tenantId} capabilities={capabilities}
+        onOpenStudent={openFamilyPerson}
         initialNotesTab={initialNotesTab} startOnNotes={notesDeepLink} onClose={contactHistory.closePanel}
         onUpdated={updated => {
           setContacts(rows => rows.map(row => row.id === updated.id ? updated : row))

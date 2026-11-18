@@ -151,7 +151,7 @@ export async function GET(request: Request) {
           custom_fields, created_at, updated_at,
           students (
             id, client_status, last_attended, message_routing, is_minor, account_id,
-            accounts ( id, name, phone, email ),
+            accounts ( id, name, phone, email, created_at ),
             enrollments (
               id, instrument, service_type, lesson_day, lesson_time,
               plan_name, session_name, custom_fields, instructor_person_id
@@ -310,6 +310,7 @@ export async function GET(request: Request) {
         account_holder_phone: nonStudentBooking ? null : account.phone,
         account_holder_email: nonStudentBooking ? null : account.email,
         family_name: nonStudentBooking ? null : account.name,
+        account_member_since: nonStudentBooking ? null : account.created_at ?? null,
         account_holders: nonStudentBooking ? [] : accountHolders,
         instructor: instructorInfo,
         notes_history: canReadNotes ? person.notes_history || [] : [],

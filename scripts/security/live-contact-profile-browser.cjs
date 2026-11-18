@@ -33,10 +33,18 @@ const row = (id, first_name, last_name, patch) => ({
         if (path === '/api/tenant-fields') return route.fulfill({ json: [] })
         if (path === '/api/inbox/reconcile' || path === '/api/account/me') return route.fulfill({ json: {} })
         if (path === '/api/communications/senders') return route.fulfill({ json: { senders: [] } })
-        if (path === '/api/contacts/accounts/legacy/profile' && method === 'PATCH') {
-          assert.deepEqual(request.postDataJSON(), { name: 'Jamie Updated', phone: '2025550197' })
-          const account = { id: 'legacy', name: 'Jamie Updated', phone: '2025550197', email: 'summary@example.test' }
-          Object.assign(roster[3], { account_holder_name: account.name, account_holder_phone: account.phone })
+        const accountProfile = path.match(/^\/api\/contacts\/accounts\/([^/]+)\/profile$/)
+        if (accountProfile && method === 'PATCH') {
+          const id = accountProfile[1], body = request.postDataJSON()
+          writes.push({ action: 'account-profile', id, body })
+          const owner = roster.find(person => person.account_id === (id === 'legacy' ? 'legacy' : 'family'))
+          const account = { id, name: body.name ?? owner?.account_holder_name ?? 'Account holder',
+            phone: body.phone === undefined ? owner?.account_holder_phone ?? null : body.phone,
+            email: body.email === undefined ? owner?.account_holder_email ?? null : body.email }
+          for (const member of roster) if (member.account_id === (id === 'legacy' ? 'legacy' : 'family')) {
+            Object.assign(member, { account_holder_name: account.name, account_holder_phone: account.phone, account_holder_email: account.email,
+              account_holders: [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }] })
+          }
           return route.fulfill({ json: account })
         }
         if (path === '/api/communications/recipients') {
@@ -85,13 +93,22 @@ const row = (id, first_name, last_name, patch) => ({
       await button('Jamie Lee', table).click()
       await title('Jamie Lee')
       await dialog.getByText('summary@example.test').waitFor()
+      await dialog.getByText('Dependents', { exact: true }).waitFor()
+      await dialog.getByText('Account Balance', { exact: true }).waitFor()
+      assert.ok(await dialog.getByText('Coming soon', { exact: true }).count() >= 2)
+      await button('Open Ivy Lee').click()
+      await title('Ivy Lee')
+      await close()
+      await button('Jamie Lee', table).click()
+      await title('Jamie Lee')
       await button('Edit Contact').click()
       await dialog.getByLabel('Name', { exact: true }).fill('Jamie Updated')
       await dialog.getByLabel('Phone', { exact: true }).fill('2025550197')
       await button('Save changes').click()
       await title('Jamie Updated')
       assert.equal(roster[3].first_name, 'Ivy')
-      assert.equal(await tab('Notes').count(), 0)
+      await tab('Notes').click()
+      await dialog.getByText('Coming soon', { exact: true }).waitFor()
       await close()
 
       await button('Jane Smith', table).click()
@@ -112,7 +129,7 @@ const row = (id, first_name, last_name, patch) => ({
       assert.equal(await dialog.getByLabel('Phone', { exact: true }).inputValue(), '2025550188')
       await button('Save changes').click()
       await button('Save changes').waitFor({ state: 'hidden' })
-      assert.deepEqual(writes.slice(0, 2).map(write => write.body), [{ phone: '2025550188', email: null }, { phone: '2025550188', email: null }])
+      assert.deepEqual(writes.filter(write => write.action === 'profile' && write.id === 'student').map(write => write.body), [{ phone: '2025550188', email: null }, { phone: '2025550188', email: null }])
       for (const section of ['Schedule & lessons', 'Billing', 'Makeups']) {
         await tab(section).click()
         await dialog.getByText('Coming soon', { exact: true }).waitFor()
@@ -121,17 +138,20 @@ const row = (id, first_name, last_name, patch) => ({
       await dialog.getByText('No funding program assigned', { exact: true }).waitFor()
       await tab('Notes').click()
       await note('Add a note', 'Emma’s own note')
-      await tab('Account').click()
-      await button('Open Jane Smith').click()
+      await button('Internal notes').click()
+      await note('Add internal note', 'Emma’s internal note')
+      await close()
+      await button('Jane Smith', table).click()
       await title('Jane Smith')
       await button('Edit Contact').click()
       await dialog.getByLabel('Phone', { exact: true }).fill('')
       await button('Save changes').click()
       await button('Save changes').waitFor({ state: 'hidden' })
-      await tab('Notes').click()
-      await button('Internal notes').click()
-      await note('Add internal note', 'Jane’s own note')
-      assert.deepEqual(writes.slice(2).map(({ action, id }) => [action, id]), [['student-notes', 'student'], ['profile', 'holder'], ['internal-notes', 'holder']])
+      await dialog.getByText('Not provided', { exact: true }).first().waitFor()
+      assert.deepEqual(writes.map(({ action, id }) => [action, id]), [
+        ['account-profile', 'legacy'], ['profile', 'student'], ['profile', 'student'],
+        ['student-notes', 'student'], ['internal-notes', 'student'], ['profile', 'holder'],
+      ])
       assert.equal(roster[0].account_holder_phone, '2025550199')
       assert.equal(roster[1].phone, null)
 
