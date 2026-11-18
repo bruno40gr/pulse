@@ -120,16 +120,28 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     return booking ? { ...item, room: roomRecords(setup).find(room => room.id === booking.roomId)?.name || '', teacherName: setup.teachers.find(teacher => teacher.id === booking.teacherId)?.values.name || '' } : item
   }), [expanded, groups, events, dates, setup])
   // The scope is the difference between the whole school and one family's week.
+  const scopeSummary = useMemo(() => {
+    if (!scope) return null
+    if (scope.kind === 'student') {
+      const student = data.students.find(item => item.id === scope.id)
+      if (!student) return null
+      return { name: `${student.firstName} ${student.lastName}`.trim(), lessons: student.enrollments.map(item => item.program).filter(Boolean), teachers: Array.from(new Set(student.enrollments.map(item => item.teacher).filter(Boolean))) }
+    }
+    const account = data.accounts.find(item => item.id === scope.id)
+    if (!account) return null
+    const students = data.students.filter(item => account.studentIds.includes(item.id))
+    return { name: account.holderName, lessons: Array.from(new Set(students.flatMap(item => item.enrollments.map(enrollment => enrollment.program)).filter(Boolean))), teachers: Array.from(new Set(students.flatMap(item => item.enrollments.map(enrollment => enrollment.teacher)).filter(Boolean))) }
+  }, [scope, data])
   const scopeStudents = useMemo(() => {
     if (!scope) return null
     if (scope.kind === 'student') return new Set([scope.id])
     const account = data.accounts.find(item => item.id === scope.id)
     return new Set(account ? account.studentIds : [])
   }, [scope, data])
-  const visible = useMemo(() => occurrences.filter(item => (!scopeStudents || item.studentIds.some(id => scopeStudents.has(id))) && (showUnavailable || item.kind !== 'block') &&
+  const visible = useMemo(() => occurrences.filter(item => (showUnavailable || item.kind !== 'block') &&
     (!filters.staff.length || calendarResourceIds(item, 'teacher', setup).some(id => filters.staff.includes(id))) &&
     (!filters.room.length || filters.room.includes(item.room || 'Unassigned')) &&
-    (!filters.service.length || filters.service.includes(calendarServiceName(item, setup)))), [occurrences, filters, setup, showUnavailable, scopeStudents])
+    (!filters.service.length || filters.service.includes(calendarServiceName(item, setup)))), [occurrences, filters, setup, showUnavailable])
   const academyTeachers = useMemo(() => betaAcademyTeachers(setup), [setup])
 
   const resources = useMemo(() => calendarResources(perspective, setup, occurrences), [perspective, setup, occurrences])
@@ -158,6 +170,13 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     // replacementSlots is rebuilt every render; the week's candidates only change with these inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reschedule, taskItem, dates, sameTeacher, data, groups, events, setup])
+
+  // The lesson may sit in a week the calendar is not showing; go there before looking for it.
+  useEffect(() => {
+    if (!initialReschedule) return
+    const date = initialReschedule.match(/(\d{4}-\d{2}-\d{2})$/)?.[1]
+    if (date && !betaWeekDates(week).includes(date)) { setWeek(betaWeekStart(date)); setFocusDate(date) }
+  }, [initialReschedule, week])
 
   useEffect(() => {
     if (!initialReschedule || reschedule || rescheduleConsumed.current) return
@@ -293,7 +312,10 @@ return (
         title={reschedule && taskItem ? `Rescheduling ${taskItem.student.firstName}'s lesson` : 'Academy calendar'}
         subtitle={reschedule && taskItem ? `${taskItem.program} · ${taskItem.duration} min · originally ${dayName(taskItem.date)} ${taskItem.time}` : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
         right={reschedule && taskItem
-          ? undefined
+          ? <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+            <Button disabled={!pick} onClick={() => { if (!pick) return; const message = applyReschedule(pick); if (message) setNotice(message) }}>Confirm changes</Button>
+            <Button variant="secondary" onClick={leaveReschedule}>Cancel</Button>
+          </div>
           : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
 
       <div>
@@ -301,20 +323,22 @@ return (
         <Tabs<CalendarPerspective> variant="prominent" controlSize="toolbar" ariaLabel="View by" activeKey={perspective} onChange={view => { setPerspective(view); setWeekResource(''); setSelected(null) }} items={[{ key: 'teacher', label: 'Teacher' }, { key: 'room', label: 'Room' }, { key: 'service', label: 'Service' }]} />
         {!dayMode && !mobile && <div style={{ width: 230 }}><Select controlSize="toolbar" aria-label={perspective === 'teacher' ? 'Week teacher' : perspective === 'service' ? 'Week service' : 'Week room'} value={activeResource?.id || ''} onChange={event => { setWeekResource(event.target.value); setSelected(null) }}><option value="">All {perspective === 'teacher' ? 'teachers' : perspective === 'room' ? 'rooms' : 'services'}</option>{shownResources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</Select></div>}
       </div>
-      <div style={{ display: reschedule ? 'none' : 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
         {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</Button> : <>
-        <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
-        <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
-        <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
-        <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
-        {filterCount > 0 && <Button size="toolbar" variant="secondary" onClick={resetFilters}>Reset filters</Button>}
+        {!reschedule && <>
+                  <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
+                  <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
+                  <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
+                  <Checkbox label="Show unavailable time" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} />
+                  {filterCount > 0 && <Button size="toolbar" variant="secondary" onClick={resetFilters}>Reset filters</Button>}
+        </>}
                 </>}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <ControlButton kind="icon" aria-label={`Previous ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? -1 : -7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronLeft size={18} /></ControlButton>
           <Button variant="secondary" onClick={() => { setWeek(betaWeekStart(today)); setFocusDate(today) }}>Today</Button>
           <ControlButton kind="icon" aria-label={`Next ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? 1 : 7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronRight size={18} /></ControlButton>
-          <div style={{ width: 158 }}><Input type="date" aria-label="Calendar date" value={focusDate} onChange={event => { if (event.target.value) { setFocusDate(event.target.value); setWeek(betaWeekStart(event.target.value)); setSelected(null) } }} /></div>
-          <Tabs<'Day' | 'Week'> variant="prominent" controlSize="toolbar" ariaLabel="Calendar range" activeKey={dayMode ? 'Day' : 'Week'} onChange={range => { setDayMode(range === 'Day'); setSelected(null) }} items={[{ key: 'Day', label: 'Day' }, { key: 'Week', label: 'Week' }]} />
+          {reschedule && <Checkbox label="Same teacher" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setPick(null) }} />}<div style={{ width: 158 }}><Input type="date" aria-label="Calendar date" value={focusDate} onChange={event => { if (event.target.value) { setFocusDate(event.target.value); setWeek(betaWeekStart(event.target.value)); setSelected(null) } }} /></div>
+          {!reschedule && <Tabs<'Day' | 'Week'> variant="prominent" controlSize="toolbar" ariaLabel="Calendar range" activeKey={dayMode ? 'Day' : 'Week'} onChange={range => { setDayMode(range === 'Day'); setSelected(null) }} items={[{ key: 'Day', label: 'Day' }, { key: 'Week', label: 'Week' }]} />}
         </div>
       </div>
       {mobile && <SlidePanel isOpen={filtersOpen} onClose={() => setFiltersOpen(false)} width="min(100vw, 420px)" ariaLabel="Calendar filters">
@@ -331,10 +355,11 @@ return (
         </div>
       </SlidePanel>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
-      {scope && !reschedule && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: '0 0 10px' }} role="status">
-        <span style={{ ...typography.bodySmall, textTransform: 'uppercase', letterSpacing: '0.06em', color: colors.textSecondary }}>{scope.kind === 'student' ? 'Student' : 'Family'}</span>
-        <strong style={{ ...typography.body }}>{(() => { const student = data.students.find(item => item.id === scope.id); return scope.kind === 'student' ? `${student?.firstName || ''} ${student?.lastName || ''}`.trim() || 'Student' : data.accounts.find(item => item.id === scope.id)?.holderName || 'Family' })()}</strong>
-        <Button size="sm" variant="ghost" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }}>Show the whole school</Button>
+      {scopeSummary && !reschedule && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap', padding: '0 0 10px', ...typography.bodySmall, color: colors.textSecondary }}>
+        <span>Viewing: <strong style={{ color: colors.text }}>{scopeSummary.name}</strong></span>
+        {scopeSummary.lessons.length > 0 && <span>Lessons: <span style={{ color: colors.text }}>{scopeSummary.lessons.join(', ')}</span></span>}
+        {scopeSummary.teachers.length > 0 && <span>Teachers: <span style={{ color: colors.text }}>{scopeSummary.teachers.join(', ')}</span></span>}
+        <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
       </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
       <CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
@@ -363,9 +388,10 @@ return (
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
-              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', background: colors.border, borderRadius: 5, zIndex: 1 }} />
+              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', background: colors.textSecondary, opacity: 0.22, borderRadius: 5, zIndex: 1 }} />
               if (reschedule) return <div key={item.id} data-origin style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', border: `2px dashed ${colors.text}`, borderRadius: 5, display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: typography.sizeSm, color: colors.text, background: colors.surface, zIndex: 3 }}>{item.title} · {item.studentNames.join(', ')} · {item.start}</div>
-              return <CalendarBookingBlock key={item.id} interactive detailed data-booking-id={item.id} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
+              const inScope = Boolean(scopeStudents && item.studentIds.some(id => scopeStudents.has(id)))
+              return <CalendarBookingBlock key={item.id} interactive detailed data-booking-id={item.id} data-scoped={inScope || undefined} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...(scopeStudents ? inScope ? { outline: `2px solid ${colors.teal}`, outlineOffset: -2 } : { opacity: 0.4 } : {}), ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
                 blockRef.current = event.currentTarget
                 const bounds = event.currentTarget.getBoundingClientRect()
                 setAnchor({ top: Math.max(12, Math.min(bounds.top, window.innerHeight - 470)), left: Math.max(12, Math.min(bounds.right + 8, window.innerWidth - 372)) })
@@ -377,15 +403,6 @@ return (
           </div>
         }} />
       </div>
-
-      {reschedule && taskItem && <div role="dialog" aria-label="Reschedule lesson" style={{ position: 'fixed', bottom: 24, right: 24, width: 330, zIndex: 60, display: 'grid', gap: spacing.sm, padding: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-        <strong style={{ fontSize: typography.sizeMd }}>{taskItem.student.firstName} {taskItem.student.lastName}</strong>
-        <span style={{ color: colors.textSecondary, fontSize: typography.sizeSm }}>{taskItem.program} · {taskItem.duration} min · originally {dayName(taskItem.date)} {taskItem.time}</span>
-        <Checkbox label="Same teacher" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setPick(null) }} />
-        <span style={{ fontSize: typography.sizeSm, color: pick ? colors.text : colors.textSecondary }}>{pick ? `New time: ${dayName(pick.date)} · ${pick.time}` : 'Choose a time on the grid'}</span>
-        <Button disabled={!pick} onClick={() => { if (!pick) return; const message = applyReschedule(pick); if (message) setNotice(message) }}>Confirm changes</Button>
-        <Button variant="ghost" onClick={finishReschedule}>Cancel</Button>
-      </div>}
 
       {cancelTarget && (
         <Modal isOpen size="sm" ariaLabel="Cancel lesson" onClose={() => setCancelTarget(null)}>
