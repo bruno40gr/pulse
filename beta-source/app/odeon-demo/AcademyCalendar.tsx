@@ -100,7 +100,6 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   // The reschedule is the calendar in a mode: candidate cells on the same grid, not another grid.
   const [scope, setScope] = useState<{ kind: 'student' | 'family'; id: string } | null>(initialScope || null)
   const [pick, setPick] = useState<{ date: string; time: string; teacher: string; program: string } | null>(null)
-  const [sameTeacher, setSameTeacher] = useState(true)
   const rescheduleConsumed = useRef(false)
   // Where the reschedule was opened from, read after mount so the header does not diverge on hydration.
   const [backLabel, setBackLabel] = useState('Calendar')
@@ -179,7 +178,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
         }
         byTime.set(slot.time, [...(byTime.get(slot.time) || []), slot.teacher])
       }
-      byTime.forEach((teachers, time) => blocks.push({ date, time, teachers }))
+      byTime.forEach((teachers, time) => { if (!(date === reschedule.date && time === reschedule.start)) blocks.push({ date, time, teachers }) })
     }
     return blocks
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -189,7 +188,6 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     if (!reschedule || !taskItem) return map
     for (const date of dates) {
       for (const slot of replacementSlots(date)) {
-        if (sameTeacher && slot.teacher !== taskItem.teacher) continue
         const key = `${date}|${slot.program}`
         if (!map.has(key)) map.set(key, new Set())
         map.get(key)!.add(slot.time)
@@ -198,7 +196,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     return map
     // replacementSlots is rebuilt every render; the week's candidates only change with these inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reschedule, taskItem, dates, sameTeacher, data, groups, events, setup])
+  }, [reschedule, taskItem, rescheduleDates, filters.staff, data, groups, events, setup])
 
   // The lesson may sit in a week the calendar is not showing; go there before looking for it.
   // A scoped week is a week: one day of it is not the family's week.
@@ -252,6 +250,13 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   }
   function dayShort(date: string) { return dayName(date) }
   function timeShort(value: string) { const [h, m] = value.split(':').map(Number); const suffix = h >= 12 ? 'pm' : 'am'; const hour = h % 12 === 0 ? 12 : h % 12; return m ? `${hour}:${String(m).padStart(2, '0')}${suffix}` : `${hour}${suffix}` }
+
+  useEffect(() => {
+    if (!reschedule || !taskItem) return
+    const teacher = setup.teachers.find(item => item.values.name === taskItem.teacher)
+    if (teacher) setFilters(current => ({ ...current, staff: [teacher.id] }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reschedule?.id, taskItem?.teacher])
 
   function replacementSlots(date: string): NonNullable<PreviewMakeup['booking']>[] {
     if (!reschedule || !taskItem || date < today) return []
@@ -361,7 +366,7 @@ return (
         onBack={reschedule && taskItem ? leaveReschedule : undefined}
         backLabel={backLabel}
         title={reschedule && taskItem ? `Rescheduling ${taskItem.student.firstName}'s lesson` : 'Academy calendar'}
-        subtitle={reschedule && taskItem ? `${taskItem.program} · ${taskItem.duration} min · originally ${dayName(taskItem.date)} ${taskItem.time}` : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
+        subtitle={reschedule && taskItem ? undefined : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
         right={reschedule && taskItem
           ? <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
             <Button disabled={!pick} onClick={() => {
@@ -389,11 +394,20 @@ return (
                   {filterCount > 0 && <Button size="toolbar" variant="secondary" onClick={resetFilters}>Reset filters</Button>}
         </>}
                 </>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap', marginRight: 'auto' }}>
+          {reschedule && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
+            <span style={{ ...typography.bodySmall, color: colors.textSecondary, whiteSpace: 'nowrap' }}>Staff:</span>
+            <Select aria-label="Reschedule staff" controlSize="toolbar" value={filters.staff[0] || ''} onChange={event => { setFilters(current => ({ ...current, staff: event.target.value ? [event.target.value] : [] })); setPick(null) }}>
+              <option value="">All staff</option>
+              {calendarResources('teacher', setup, occurrences).map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}
+            </Select>
+          </div>}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <ControlButton kind="icon" aria-label={`Previous ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? -1 : -7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronLeft size={18} /></ControlButton>
           <Button variant="secondary" onClick={() => { setWeek(betaWeekStart(today)); setFocusDate(today) }}>Today</Button>
           <ControlButton kind="icon" aria-label={`Next ${dayMode ? 'day' : 'week'}`} onClick={() => { const next = betaShiftDate(focusDate, dayMode ? 1 : 7); setFocusDate(next); setWeek(betaWeekStart(next)); setSelected(null) }}><ChevronRight size={18} /></ControlButton>
-          {reschedule && <Checkbox label="Same teacher" checked={sameTeacher} onChange={event => { setSameTeacher(event.target.checked); setPick(null) }} />}<div style={{ width: 158 }}><Input type="date" aria-label="Calendar date" value={focusDate} onChange={event => { if (event.target.value) { setFocusDate(event.target.value); setWeek(betaWeekStart(event.target.value)); setSelected(null) } }} /></div>
+          <div style={{ width: 158 }}><Input type="date" aria-label="Calendar date" value={focusDate} onChange={event => { if (event.target.value) { setFocusDate(event.target.value); setWeek(betaWeekStart(event.target.value)); setSelected(null) } }} /></div>
           {!reschedule && <Tabs<'Day' | 'Week'> variant="prominent" controlSize="toolbar" ariaLabel="Calendar range" activeKey={dayMode ? 'Day' : 'Week'} onChange={range => { setDayMode(range === 'Day'); setSelected(null) }} items={[{ key: 'Day', label: 'Day' }, { key: 'Week', label: 'Week' }]} />}
         </div>
       </div>
@@ -410,7 +424,16 @@ return (
           <Button onClick={() => setFiltersOpen(false)}>Done</Button>
         </div>
       </SlidePanel>}
-      {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'fixed', left: 248, top: 168, width: 268, display: 'grid', gap: spacing.md }}>
+      {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
+      {scopeSummary && !reschedule && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap', padding: '0 0 10px', ...typography.bodySmall, color: colors.textSecondary }}>
+        <span>Viewing: <strong style={{ color: colors.text }}>{scopeSummary.name}</strong></span>
+        {scopeSummary.lessons.length > 0 && <span>Lessons: <span style={{ color: colors.text }}>{scopeSummary.lessons.join(', ')}</span></span>}
+        {scopeSummary.teachers.length > 0 && <span>Teachers: <span style={{ color: colors.text }}>{scopeSummary.teachers.join(', ')}</span></span>}
+        <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
+      </div>}
+      {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: reschedule && taskItem ? spacing.lg : 0, minWidth: 0 }}>
+              {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'sticky', top: spacing.lg, width: 268, flexShrink: 0, display: 'grid', gap: spacing.md }}>
         <div style={{ display: 'grid', gap: 2, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
           <strong style={{ fontSize: typography.sizeSm }}>{lessonTitle(taskItem)}</strong>
           <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(reschedule.date)} · {timeShort(reschedule.start)}</span>
@@ -423,15 +446,7 @@ return (
           <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>w/ {pick.teacher}</span>
         </div>}
       </aside>}
-      {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
-      {scopeSummary && !reschedule && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap', padding: '0 0 10px', ...typography.bodySmall, color: colors.textSecondary }}>
-        <span>Viewing: <strong style={{ color: colors.text }}>{scopeSummary.name}</strong></span>
-        {scopeSummary.lessons.length > 0 && <span>Lessons: <span style={{ color: colors.text }}>{scopeSummary.lessons.join(', ')}</span></span>}
-        {scopeSummary.teachers.length > 0 && <span>Teachers: <span style={{ color: colors.text }}>{scopeSummary.teachers.join(', ')}</span></span>}
-        <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
-      </div>}
-      {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
-      <div style={{ paddingLeft: reschedule && taskItem ? 292 : 0, paddingRight: reschedule && taskItem ? spacing.lg : 0, minWidth: 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={reschedule ? 150 : allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
+        <div style={{ flex: 1, minWidth: 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={reschedule ? 150 : allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
         renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{!dayMode ? betaWeekdayName(column.date) : reschedule ? '' : dayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode && !reschedule ? column.resource.name : dayName(column.date)}</strong></> }}
         renderDay={id => {
           const column = gridColumns.find(item => item.id === id)!
@@ -460,11 +475,12 @@ return (
             })}
             {reschedule && candidateBlocks.filter(block => block.date === column.date).map(block => {
               const row = times.indexOf(block.time)
+              if (row < 0 || block.time < times[0]) return null
               if (row < 0) return null
               const span = Math.max(2, Math.round((taskItem?.duration || 30) / 15))
               const isPicked = pick?.date === block.date && pick?.time === block.time
               return <button key={block.time} type="button" onClick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
-                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', background: colors.surface, border: `1.5px dashed ${isPicked ? colors.teal : colors.textSecondary}`, borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
+                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', ...(isPicked ? { ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem!.program, program: taskItem!.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '2.5px solid var(--calendar-student-border)' } : { background: 'rgba(139,90,181,0.05)', border: '1.5px dashed rgba(139,90,181,0.5)', color: colors.text }), borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
                 <strong style={{ fontSize: 11, color: colors.text }}>{taskItem ? lessonTitle(taskItem) : ''}</strong>
                 <span style={{ fontSize: 10, color: colors.textSecondary }}>{dayShort(block.date)} · {timeShort(block.time)}</span>
                 <span style={{ fontSize: 10, color: colors.textSecondary }}>w/ {block.teachers[0]}</span>
@@ -487,6 +503,7 @@ return (
             })}
           </div>
         }} />
+        </div>
       </div>
       </div>
 
