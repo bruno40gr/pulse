@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, Notice, Select } from '@/components/ui'
+import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, Select } from '@/components/ui'
+import { PrototypeRecipientSearch } from './PrototypeRecipients'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import PrototypeEmailComposer, { type PrototypeEmailDraft } from '@/components/inbox/PrototypeEmailComposer'
 import { conversationSignatureHtml, type ConversationSignature } from '@/lib/conversation-signature'
@@ -13,8 +14,9 @@ import { spacing } from '@/lib/tokens'
 import ExcludedRecipientsNotice from './ExcludedRecipientsNotice'
 import { SHOWCASE_DRAFT, SHOWCASE_RECOVERY_OPERATION, SHOWCASE_SENDER } from '@/lib/showcase-email-recovery'
 
-type Audience = RecipientResolution & { version: string; remaining?: number }
+type Audience = RecipientResolution & { version: string }
 type Draft = PrototypeEmailDraft & { senderEmail: string }
+type SendPayload = { body: string; html: string; version: string; senderEmail: string; subject: string; destinations?: string[] }
 async function json(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: 'no-store', ...init })
   const body = await response.json()
@@ -33,7 +35,9 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
   const [operationId, setOperationId] = useState('')
   const [sending, setSending] = useState(false)
   const [locked, setLocked] = useState(false)
-  const [payload, setPayload] = useState<{ body: string; html: string; version: string; senderEmail: string; subject: string } | null>(null)
+  const [payload, setPayload] = useState<SendPayload | null>(null)
+  const [selectedDestinations, setSelectedDestinations] = useState<string[] | null>(null)
+  const [editingRecipients, setEditingRecipients] = useState(false)
   const [error, setError] = useState('')
   const [recipientError, setRecipientError] = useState('')
   const [senderError, setSenderError] = useState('')
@@ -54,16 +58,20 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     try {
       const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null')
       if (saved?.draft && typeof saved.draft.subject === 'string' && typeof saved.draft.html === 'string' && typeof saved.draft.senderEmail === 'string') {
-        setDraft(saved.draft); setOperationId(saved.operationId || ''); setLocked(!!saved.locked); setPayload(saved.payload || null)
+        // Pre-picker recovery drafts had no explicit audience. Keep the copy,
+        // but require a fresh selection instead of resuming that old payload.
+        const canResume = !recoveryOf || Array.isArray(saved.payload?.destinations) && saved.payload.destinations.length > 0
+        setDraft(saved.draft); setOperationId(canResume ? saved.operationId || '' : ''); setLocked(canResume && !!saved.locked); setPayload(canResume ? saved.payload || null : null)
+        if (Array.isArray(saved.selectedDestinations) && saved.selectedDestinations.every((value: unknown) => typeof value === 'string')) setSelectedDestinations(saved.selectedDestinations)
       }
     } catch { /* A malformed local draft must not block composing. */ }
     setRestored(true)
-  }, [storageKey])
+  }, [storageKey, recoveryOf])
   useEffect(() => {
     if (restored && channel === 'email') {
-      try { sessionStorage.setItem(storageKey, JSON.stringify({ draft, operationId, locked, payload })) } catch { /* Storage can be unavailable. */ }
+      try { sessionStorage.setItem(storageKey, JSON.stringify({ draft, operationId, locked, payload, selectedDestinations })) } catch { /* Storage can be unavailable. */ }
     }
-  }, [draft, operationId, locked, restored, storageKey, channel, payload])
+  }, [draft, operationId, locked, restored, storageKey, channel, payload, selectedDestinations])
   useEffect(() => {
     let cancelled = false
     const query = `?tenant=${encodeURIComponent(tenantId)}`
@@ -84,13 +92,17 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     return () => { cancelled = true }
   }, [tenantId, selectionKey, channel, recoveryOf])
   const sender = senders.find(sender => sender.email === draft.senderEmail)
+  const available = audience?.recipients || []
+  const selected = selectedDestinations === null ? null : new Set(selectedDestinations)
+  const destinations = available.filter(row => selected === null || selected.has(row.destination)).map(row => row.destination)
   const signatureHtml = signature?.personal ? conversationSignatureHtml(signature, '') : sender?.signatureHtml ? sanitizePrototypeHtml(sender.signatureHtml) : signature && sender ? conversationSignatureHtml({ ...signature, name: sender.name, title: sender.mine ? signature.title : '' }, sender.name) : ''
 
   async function send(body: string, html: string) {
     if (!audience || !sender || sending) return
+    if (recoveryOf && (payload ? !payload.destinations?.length : !destinations.length)) return
     setSending(true); setError('')
     const id = recoveryOf ? SHOWCASE_RECOVERY_OPERATION : operationId || crypto.randomUUID()
-    const immutable = payload || { body, html, version: audience.version, senderEmail: sender.email, subject: draft.subject }
+    const immutable = payload || { body, html, version: audience.version, senderEmail: sender.email, subject: draft.subject, ...(recoveryOf ? { destinations } : {}) }
     setPayload(immutable)
     setOperationId(id); setLocked(true)
     // Freeze the payload once delivery begins; repeated calls only continue the
@@ -113,9 +125,9 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     {senderError && <Notice variant="error">{senderError}</Notice>}
   </div>
   if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version, recipients: audience.recipients }} excludedRecipients={audience.excluded} />
-  const count = audience.remaining ?? audience.recipients.length
+  const count = recoveryOf ? destinations.length : audience.recipients.length
   return <>
-    {recoveryOf && <Notice style={{ margin: spacing.lg }}>This sends the original invitation to recipients it missed. Previous attempts are excluded. The draft already has a closing; remove it if you add your own signature.</Notice>}
+    {recoveryOf && <Notice style={{ margin: spacing.lg }}>Only selected recipients will get this email. Unchecked addresses stay in Not sent. The draft already has a closing; remove it if you add your own signature.</Notice>}
     {senderError && <Notice variant="error" style={{ margin: spacing.lg }}>{senderError}</Notice>}
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
     <div style={{ margin: audience.excluded.length ? spacing.lg : 0 }}><ExcludedRecipientsNotice contacts={audience.excluded} channel="email" /></div>
@@ -126,7 +138,14 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
       replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} companyLogoUrl={signature?.companyLogoUrl} includeSignatureByDefault={!recoveryOf} senderName={sender?.name || ''} senderEmail={sender?.email || ''}
       disabled={sending || locked || !sender || !count} sendLabel={sending ? 'Sending…' : `Send ${count} ${count === 1 ? 'email' : 'emails'}`}
       fromControl={<Select aria-label="Send email from" value={sender?.email || ''} disabled={sending || locked || !senders.length} onChange={event => setDraft({ ...draft, senderEmail: event.target.value })}>{!sender && <option value="">{senders.length ? 'Select a sender' : 'Set up organisation email in Settings'}</option>}{senders.map(item => <option key={item.email} value={item.email}>{item.mine ? 'Me — ' : ''}{item.name} — {item.email}</option>)}</Select>}
-      recipientSummary={<span>{count} {count === 1 ? 'recipient' : 'recipients'}{recoveryOf ? ' still to send' : ''}</span>} />
-    {locked && !sending && <div style={{ padding: spacing.lg, display: 'flex', gap: spacing.sm }}><Button variant="secondary" onClick={onClose}>Close</Button>{payload && <Button onClick={() => void send(payload.body, payload.html)}>Check progress / continue unsent emails</Button>}</div>}
+      recipientSummary={<div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}><span>{recoveryOf && locked ? `${payload?.destinations?.length ?? 0} selected for this send` : recoveryOf ? `${count} of ${available.length} selected` : `${count} ${count === 1 ? 'recipient' : 'recipients'}`}</span>{recoveryOf && <Button variant="secondary" size="sm" disabled={locked || sending || !available.length} onClick={() => setEditingRecipients(true)}>Manage recipients</Button>}</div>} />
+    {recoveryOf && editingRecipients && <Modal isOpen onClose={() => setEditingRecipients(false)} ariaLabel="Select email recipients" size="lg">
+      <ModalHeader title="Select email recipients" onClose={() => setEditingRecipients(false)} compact />
+      <ModalBody style={{ display: 'flex', flexDirection: 'column' }}>
+        <PrototypeRecipientSearch label="campaign recipients" channel="email" people={available.map(row => ({ id: row.destination, email: row.destination, name: row.name || row.destination, phone: '', student: '' }))} selected={destinations} onChange={setSelectedDestinations} fill />
+      </ModalBody>
+      <ModalFooter><Button onClick={() => setEditingRecipients(false)}>Done</Button></ModalFooter>
+    </Modal>}
+    {locked && !sending && <div style={{ padding: spacing.lg, display: 'flex', gap: spacing.sm }}><Button variant="secondary" onClick={onClose}>{recoveryOf ? 'Back to Campaigns' : 'Close'}</Button>{payload && (!recoveryOf || payload.destinations?.length) && <Button onClick={() => void send(payload.body, payload.html)}>Check progress / continue unsent emails</Button>}</div>}
   </>
 }

@@ -9,7 +9,7 @@ import { gmailMime } from '@/lib/gmail/conversations'
 import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { gmailSendDiagnostic } from '@/lib/bulk-email-history'
-import { isShowcaseRecovery, SHOWCASE_RECOVERY_OPERATION, SHOWCASE_SENDER, showcaseRecoveryOpen } from '@/lib/showcase-email-recovery'
+import { isShowcaseRecovery, SHOWCASE_RECOVERY_OPERATION, SHOWCASE_SENDER, showcaseRecoveryOpen, showcaseSendSelection } from '@/lib/showcase-email-recovery'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -27,17 +27,20 @@ export async function POST(request: Request) {
   try {
     const resolved = recovery ? (await (await import('@/lib/showcase-email-recovery-server')).showcaseRecovery(access.tenantId, body.recoveryOf)).resolution : await communicationRecipients(access.tenantId, body.contactIds, 'email')
     if (recipientVersion(resolved) !== body.version) return NextResponse.json({ error: 'Recipient details changed. Review the updated count before sending.', refreshRecipients: true }, { status: 409, headers })
-    if (!resolved.recipients.length) return NextResponse.json({ error: 'No email recipients are available.' }, { status: 422, headers })
+    const recipients = recovery ? showcaseSendSelection(resolved.recipients, body.destinations) : resolved.recipients
+    if (!recipients?.length) return NextResponse.json({ error: recovery ? 'Select at least one eligible unsent recipient. Return to Campaigns to refresh the list if it changed.' : 'No email recipients are available.' }, { status: 422, headers })
+    const selected = new Set(recipients.map(row => row.destination))
     const mailbox = await organisationSender(access.tenantId, access.context.membershipId, body.senderEmail)
     if (recovery && mailbox.sender.name !== 'Headliner Music Academy') throw new Error('The shared sender must be named Headliner Music Academy to send this follow-up.')
-    const contentHash = createHash('sha256').update(JSON.stringify([body.senderEmail, body.subject, body.body, body.html, body.version])).digest('hex')
+    const contentHash = createHash('sha256').update(JSON.stringify([body.senderEmail, body.subject, body.body, body.html, body.version, ...(recovery ? [recipients.map(row => row.destination)] : [])])).digest('hex')
     const recorded = new Map<string, { status: string }>()
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await crmSupabaseAdmin.from('organisation_email_deliveries').select('destination,status,content_hash,actor_membership_id')
         .eq('tenant_id', access.tenantId).eq('operation_id', body.operationId).order('destination').range(offset, offset + 499)
       if (error) throw new Error('Delivery tracking unavailable. Apply Migration 026 before sending.')
       for (const row of data || []) {
-        if (row.content_hash !== contentHash || row.actor_membership_id !== access.context.membershipId) throw new Error('This send operation belongs to a different message.')
+        if (recovery && !selected.has(row.destination)) continue
+        if (row.content_hash !== contentHash || row.actor_membership_id !== access.context.membershipId) throw new Error(recovery ? 'A selected address was already attempted in another send. Return to Campaigns and review the remaining recipients.' : 'This send operation belongs to a different message.')
         recorded.set(row.destination, row)
       }
       if ((data || []).length < 500) break
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
     const started = Date.now()
     // Bounded batches avoid request timeouts. Reusing operationId safely continues
     // the operation: a claimed/unknown destination is never automatically retried.
-    for (const recipient of resolved.recipients) {
+    for (const recipient of recipients) {
       const previous = recorded.get(recipient.destination)
       if (previous) {
         if (previous.status === 'sent') sent++
@@ -81,7 +84,7 @@ export async function POST(request: Request) {
       if (recordError) throw new Error('Delivery confirmation could not be saved. Check Sent in the shared mailbox before taking further action.')
       if (status !== 'sent') {
         // Stop on quota/provider errors rather than hammering the remaining audience.
-        pending += resolved.recipients.length - sent - failed - uncertain - pending
+        pending += recipients.length - sent - failed - uncertain - pending
         break
       }
     }

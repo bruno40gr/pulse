@@ -115,20 +115,24 @@ test('Me requires both explicit member assignment and Google verification, not j
   assert.throws(() => senderPolicy.authorisedOrganisationSenders(settings, 'personal@gmail.com', 'member', verified), /personal mailbox/)
 })
 
-function sendHarness({ denied = false, contactPermission = true, changed = false, providerStatus = 200, failTracking = false, senderDenied = false } = {}) {
+function sendHarness({ denied = false, contactPermission = true, changed = false, providerStatus = 200, failTracking = false, senderDenied = false, recovery = false } = {}) {
   const records = new Map(); const deliveries = []
   const resolved = policy.resolveCommunicationRecipients([child('one'), child('two')], 'email')
+  const showcase = load('lib/showcase-email-recovery.ts')
+  const tenantId = recovery ? '00000000-0000-0000-0000-000000000001' : 'tenant'
+  const senderEmail = recovery ? showcase.SHOWCASE_SENDER : 'office@example.com'
   const api = load('app/api/communications/email/route.ts', {
     'next/server': { NextResponse: { json: (body, options = {}) => ({ body, status: options.status || 200 }) } },
-    '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant', context: { membershipId: 'member', roleKey: 'staff', permissions: new Set(contactPermission ? ['contacts.read'] : []) } } },
+    '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId, context: { membershipId: 'member', roleKey: 'staff', permissions: new Set(contactPermission ? ['contacts.read'] : []) } } },
     '@/lib/permissions': { PERMISSIONS: { communicationsSend: 'send', contactsRead: 'contacts.read' } },
     '@/lib/communication-recipient-directory': { validContactSelection: ids => Array.isArray(ids) && ids.length, communicationRecipients: async () => resolved, recipientVersion: () => changed ? 'changed' : 'version' },
-    '@/lib/organisation-email': { organisationSender: async (_, member, email) => { if (senderDenied || email !== 'office@example.com') throw new Error('Sender not authorised'); return { token: 'synthetic', sender: { email, name: 'School' } } } },
+    '@/lib/organisation-email': { organisationSender: async (_, member, email) => { if (senderDenied || email !== senderEmail) throw new Error('Sender not authorised'); return { token: 'synthetic', sender: { email, name: recovery ? 'Headliner Music Academy' : 'School' } } } },
     '@/lib/gmail/conversations': { gmailMime: input => { assert.equal(input.to.length, 1); assert.deepEqual(plain(input.cc), []); assert.deepEqual(plain(input.bcc), []); return JSON.stringify(input) } },
     '@/lib/headliner-email-templates': { unresolvedEmailPlaceholders: value => /\[STUDENT\]/.test(value) ? ['STUDENT'] : [] },
     '@/lib/account-audit': { writeAccountAuditEvent: async () => true },
     '@/lib/bulk-email-history': load('lib/bulk-email-history.ts'),
-    '@/lib/showcase-email-recovery': load('lib/showcase-email-recovery.ts'),
+    '@/lib/showcase-email-recovery': { ...showcase, showcaseRecoveryOpen: () => true },
+    '@/lib/showcase-email-recovery-server': { showcaseRecovery: async () => ({ resolution: resolved }) },
     '@/lib/supabase/crm-admin': { crmSupabaseAdmin: { from() {
       const filters = {}; let update
       const builder = {
@@ -141,9 +145,23 @@ function sendHarness({ denied = false, contactPermission = true, changed = false
       }; return builder
     } } },
   }, { fetch: async (_, options) => { deliveries.push(JSON.parse(Buffer.from(JSON.parse(options.body).raw, 'base64url').toString())); if (providerStatus === 'timeout') throw new Error('timeout'); return { ok: providerStatus === 200, status: providerStatus, json: async () => ({ id: `provider-${deliveries.length}` }) } } })
-  const input = { contactIds: ['one', 'two'], senderEmail: 'office@example.com', operationId: '12345678-1234-1234-1234-123456789012', subject: 'Schedule', body: 'Hello families', html: '<p>Hello families</p>', version: 'version' }
+  const input = { contactIds: ['one', 'two'], senderEmail, operationId: recovery ? showcase.SHOWCASE_RECOVERY_OPERATION : '12345678-1234-1234-1234-123456789012', ...(recovery ? { recoveryOf: showcase.SHOWCASE_OPERATION } : {}), subject: 'Schedule', body: 'Hello families', html: '<p>Hello families</p>', version: 'version' }
   return { api, records, deliveries, request: patch => new Request('https://synthetic.invalid/api/communications/email', { method: 'POST', body: JSON.stringify({ ...input, ...patch }) }) }
 }
+test('Showcase sends only the selected addresses and leaves unchecked addresses available for a separate send', async () => {
+  const h = sendHarness({ recovery: true })
+  for (const destinations of [undefined, [], ['one@example.com', 'one@example.com'], ['one@example.com', 'foreign@example.com']]) {
+    assert.equal((await h.api.POST(h.request({ destinations }))).status, 422)
+  }
+  assert.equal(h.records.size, 0)
+  const first = { destinations: ['one@example.com'] }
+  assert.equal((await h.api.POST(h.request(first))).body.sent, 1)
+  assert.equal(h.records.has('two@example.com'), false)
+  assert.equal((await h.api.POST(h.request(first))).body.sent, 1)
+  assert.equal((await h.api.POST(h.request({ destinations: ['one@example.com', 'two@example.com'] }))).status, 409)
+  assert.equal((await h.api.POST(h.request({ destinations: ['two@example.com'], subject: 'Separately reviewed' }))).body.sent, 1)
+  assert.deepEqual(h.deliveries.map(item => item.to[0]), ['one@example.com', 'two@example.com'])
+})
 test('bulk email sends individually, matches preview count, and repeated operations do not resend', async () => {
   const h = sendHarness()
   const first = await h.api.POST(h.request())

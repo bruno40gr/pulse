@@ -24,3 +24,11 @@ export function showcaseRecoveryOpen(now = Date.now()) {
 export function unattemptedRecipients<T extends { destination: string }>(recipients: T[], attempted: ReadonlySet<string>) {
   return recipients.filter(row => !attempted.has(row.destination))
 }
+
+/** Resolve the exact reviewed subset against server-owned addresses, in stable order. */
+export function showcaseSendSelection<T extends { destination: string }>(recipients: T[], selected: unknown): T[] | null {
+  if (!Array.isArray(selected) || !selected.length || selected.length > 5000 || selected.some(value => typeof value !== 'string' || !value || value.length > 254)) return null
+  const requested = new Set<string>(selected)
+  const result = recipients.filter(row => requested.has(row.destination))
+  return requested.size === selected.length && result.length === requested.size ? result : null
+}

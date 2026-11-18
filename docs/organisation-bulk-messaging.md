@@ -29,6 +29,8 @@ Bulk email is sent in bounded server batches with an operation ID and a unique r
 
 Drafts and operation progress are stored in the current browser’s session storage and scoped to tenant and contact selection. They are not cross-device/server-saved drafts. Gmail acceptance is not proof of final inbox delivery.
 
+For the Showcase campaign, **Manage recipients** starts with the current unsent addresses selected. Unchecking an address only removes it from that draft; it stays in **Not sent**. The server validates the exact selection against the current roster and locks that subset once sending starts. A separate send can use the remaining addresses, without retrying prior attempts. Recipient lists are never placed in To, Cc or Bcc as a group.
+
 ## Validation
 
 - `node --test scripts/security/*.test.cjs`

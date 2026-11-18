@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     if (!showcaseRecoveryOpen()) return NextResponse.json({ error: 'The first Showcase date has passed. This invitation is closed.' }, { status: 409, headers })
     try {
       const { resolution, recoveryAttempts } = await showcaseRecovery(access.tenantId, body.recoveryOf)
-      return NextResponse.json({ ...resolution, remaining: resolution.recipients.filter(row => !recoveryAttempts[row.destination]).length, version: recipientVersion(resolution) }, { headers })
+      const available = resolution.recipients.filter(row => !recoveryAttempts[row.destination])
+      return NextResponse.json({ ...resolution, recipients: available, selectedCount: available.length, version: recipientVersion(resolution) }, { headers })
     } catch { return NextResponse.json({ error: 'The follow-up audience could not be verified.' }, { status: 409, headers }) }
   }
   if (!validContactSelection(body?.contactIds) || !['email', 'sms'].includes(body?.channel)) return NextResponse.json({ error: 'Choose contacts and a valid channel.' }, { status: 400, headers })
