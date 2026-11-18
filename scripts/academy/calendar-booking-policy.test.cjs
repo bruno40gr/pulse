@@ -301,3 +301,41 @@ test('weekly duty validates every occurrence against time off and existing booki
  const occupied=booking.saveCalendarBooking(context,{...draft,id:'existing',teacherId:'t',date:'2026-11-11'})
  assert.throws(()=>booking.saveCalendarBooking({...context,data:occupied},duty),/2026-11-11.*booking/)
 })
+
+test('enrollment slot discovery and confirmation share overrides, duty and room checks', () => {
+ const {context,draft}=fixture()
+ context.setup.services[0].values.durations='30,45'
+ context.setup.teachers[0].values.availabilityOverrides=JSON.stringify([{date:draft.date,blocks:[{id:'override',from:720,to:765}]}])
+ const person={id:'s',firstName:'Student',lastName:'One'}
+ const lesson={id:'first',studentId:'s',service:'Private',instrument:'Piano',teacher:'Teacher',start:draft.date,time:'12:00',duration:'45',frequency:'À-la-carte'}
+ const enrollment={student:person,contact:person,additionalStudents:[],payer:'manager',manager:{id:'h'},lessons:[lesson]}
+ const available=booking.calendarEnrollmentAvailability(context,[])
+ assert.equal(available(draft.date,'12:00',lesson).length,1)
+ assert.equal(available(draft.date,'12:30',lesson).length,0)
+ assert.equal(booking.completeCalendarEnrollment(context,enrollment,'test').lessons.length,1)
+ const data={...context.data,calendarBookings:[{...draft,id:'duty',kind:'front-desk',teacherId:'t',roomId:'',studentIds:[]}]}
+ const blocked={...context,data}
+ assert.equal(booking.calendarEnrollmentAvailability(blocked,[])(draft.date,'12:00',lesson).length,0)
+ assert.throws(()=>booking.completeCalendarEnrollment(blocked,enrollment,'test'),error=>error.lessonId===lesson.id && /duty/.test(error.message))
+ context.setup.locations[0].rooms[0].allServices=false
+ assert.equal(booking.calendarEnrollmentAvailability(context,[])(draft.date,'12:00',lesson).length,0)
+})
+
+test('overlapping sibling drafts need distinct teachers and rooms', () => {
+ const {context,draft}=fixture()
+ context.setup.teachers.push({id:'t2',values:{...context.setup.teachers[0].values,name:'Second Teacher'}})
+ context.setup.locations[0].rooms.push({...context.setup.locations[0].rooms[0],id:'r2',name:'Second Room'})
+ context.data.students.push({id:'s2',firstName:'Student',lastName:'Two',enrollments:[]})
+ context.data.accounts[0].studentIds.push('s2')
+ const first={id:'first',studentId:'s',service:'Private',instrument:'Piano',teacher:'Teacher',start:draft.date,time:'12:00',duration:'30',frequency:'À-la-carte'}
+ const second={...first,id:'second',studentId:'s2',teacher:'Second Teacher'}
+ const available=booking.calendarEnrollmentAvailability(context,[])
+ assert.equal(available(draft.date,second.time,second,[first]).map(item=>item.name).join(','),'Second Teacher')
+ assert.equal(available(draft.date,second.time,{...second,studentId:'s'},[first]).length,0)
+ const enrollment={student:{id:'s'},additionalStudents:[{id:'s2'}],payer:'manager',manager:{id:'h'},lessons:[first,second]}
+ const saved=booking.completeCalendarEnrollment(context,enrollment,'test')
+ assert.equal(saved.students[1].enrollments.length,1)
+ assert.notEqual(saved.lessons[0].room,saved.lessons[1].room)
+ context.setup.locations[0].rooms.pop()
+ assert.equal(available(draft.date,second.time,second,[first]).length,0)
+})

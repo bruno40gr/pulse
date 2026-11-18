@@ -107,7 +107,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   }
   function closeWorkspace() { if (onClose) { onClose(); return }; setMakeupId(null); navigate({ ...workspaceInitial, view: 'contacts' }) }
   function backToPanel() { const target = panelReturn.current; if (inlineTasks) panelReturn.current = null; setMakeupId(null); navigate(target || { ...location, view: 'quick', section: quick ? location.section : 'profile', enrollmentId: '' }) }
-  /** Rescheduling and the calendar belong to the calendar page; the record hands off instead of drawing a second grid. */
+  /** The academy calendar and multi-lesson planner are full-page views. */
   function openInCalendar(query: string) {
     // Carry the way back: the reschedule shows it as the back control beside its title.
     const back = account ? `&backTo=record&account=${encodeURIComponent(account.id)}` : ''
@@ -174,6 +174,19 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
 
   const visibleMakeups = makeups.items.filter(item => projectedStudents.some(student => student.id === item.studentId && student.enrollments.some(enrollment => enrollment.id === item.enrollmentId)))
   const scheduledClasses = previewCalendarLessons(contentData, visibleMakeups, { ...scopedLocation, enrollmentId: '' })
+  function openLessonMove(id: string) {
+    const item = scheduledClasses.find(lesson => lesson.id === id && lesson.status === 'Scheduled')
+    if (!item) return
+    if (inlineTasks) setLessonWeek(weekStart(item.date))
+    setRecurringMove(false)
+    setMoveId(id)
+  }
+  function rescheduleSelected(ids: string[]) {
+    if (ids.length === 1) { openLessonMove(ids[0]); return }
+    if (ids.length < 2 || ids.length > 4) return
+    const [first, ...siblings] = ids
+    openInCalendar(`&reschedule=${encodeURIComponent(first)}` + siblings.map(id => `&sibling=${encodeURIComponent(id)}`).join('') + (location.studentId ? `&student=${encodeURIComponent(location.studentId)}` : ''))
+  }
   const movingLesson = scheduledClasses.find(item => item.id === moveId)
   const cancellingReplacement = scheduledClasses.find(item => item.id === replacementCancelId && item.makeup)
   function openLesson(id: string) {
@@ -200,7 +213,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
     if (section === 'payment-methods') return paymentMethodsContent
     return account && !invalid ? <WorkspaceSections onFamilyGroup={setFamilyCanvas} followUpOnly={presentation === 'follow-up'} onPaymentMethods={openPaymentMethods} lessonView={lessonView} onLessonView={setLessonView} lessonWeek={lessonWeek} onLessonWeek={setLessonWeek} hideSubscriptions={presentation === 'details'} subscriptionsOnly={presentation === 'subscriptions'} onCancelLesson={id => {
       try { const next = recordPreviewAbsence(contentData, makeups, account.id, id, false, parent); setData(current => ({ ...current, lessons: current.lessons.map(item => next.data.lessons.find(updated => updated.id === item.id) || item) })); setMakeups(next.state); confirm('Lesson cancelled.'); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lesson.' }
-    }} previewV2 previewV3={inlineTasks} noteAudience={quick ? undefined : 'notes'} onEnsure={through => setData(current => expandPreviewCalendar(current, through))} onCalendar={() => openInCalendar(selectedStudent ? `&student=${encodeURIComponent(selectedStudent.id)}` : '')} data={contentData} account={account} location={{ ...scopedLocation, section }} students={projectedStudents} occurrences={occurrences} requests={requests} notes={notes} drafts={drafts} channel={channel} onCommunicationBack={closeCommunication} onDraft={(key, value) => setDrafts(current => ({ ...current, [key]: value }))} onAddNote={addNote} onEditNote={(subject, kind, noteId, text) => { const key = `${subject}:${kind}`; const entry = notes[key]?.find(note => note.id === noteId); if (!entry || entry.actor_id !== previewNoteActorId || !text.trim()) return false; setNotes(current => ({ ...current, [key]: current[key].map(note => note.id === noteId ? editPreviewNote(note, previewNoteActorId, text) : note) })); return true }} onCompleteNote={completeNote} onNavigate={patch => update({ accountId: account.id, ...patch })} onLesson={openLesson} onCancelTogether={inlineTasks ? ids => { try { const next = cancelFamilyLessons(data, makeups, account.id, ids, parent); setData(next.data); setMakeups(next.state); confirm(ids.length === 1 ? 'Lesson cancelled.' : `${ids.length} lessons cancelled.`); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lessons.' } } : undefined} onRescheduleTogether={inlineTasks ? ids => openInCalendar(`&reschedule=${encodeURIComponent(ids[0])}` + ids.slice(1).map(id => `&sibling=${encodeURIComponent(id)}`).join('') + (selectedStudent ? `&student=${encodeURIComponent(selectedStudent.id)}` : '')) : undefined} onMove={id => openInCalendar(`&reschedule=${encodeURIComponent(id)}` + (selectedStudent ? `&student=${encodeURIComponent(selectedStudent.id)}` : ''))} onManage={manage} onApply={apply} makeups={visibleMakeups} onMakeup={scheduleMakeup} /> : null
+    }} previewV2 previewV3={inlineTasks} noteAudience={quick ? undefined : 'notes'} onEnsure={through => setData(current => expandPreviewCalendar(current, through))} onCalendar={() => openInCalendar(selectedStudent ? `&student=${encodeURIComponent(selectedStudent.id)}` : '')} data={contentData} account={account} location={{ ...scopedLocation, section }} students={projectedStudents} occurrences={occurrences} requests={requests} notes={notes} drafts={drafts} channel={channel} onCommunicationBack={closeCommunication} onDraft={(key, value) => setDrafts(current => ({ ...current, [key]: value }))} onAddNote={addNote} onEditNote={(subject, kind, noteId, text) => { const key = `${subject}:${kind}`; const entry = notes[key]?.find(note => note.id === noteId); if (!entry || entry.actor_id !== previewNoteActorId || !text.trim()) return false; setNotes(current => ({ ...current, [key]: current[key].map(note => note.id === noteId ? editPreviewNote(note, previewNoteActorId, text) : note) })); return true }} onCompleteNote={completeNote} onNavigate={patch => update({ accountId: account.id, ...patch })} onLesson={openLesson} onCancelTogether={inlineTasks ? ids => { try { const next = cancelFamilyLessons(data, makeups, account.id, ids, parent); setData(next.data); setMakeups(next.state); confirm(ids.length === 1 ? 'Lesson cancelled.' : `${ids.length} lessons cancelled.`); return null } catch (error) { return error instanceof Error ? error.message : 'Unable to cancel lessons.' } } : undefined} onRescheduleTogether={inlineTasks ? rescheduleSelected : undefined} onMove={openLessonMove} onManage={manage} onApply={apply} makeups={visibleMakeups} onMakeup={scheduleMakeup} /> : null
   }
   const activeContact = account ? previewContacts(contentData).find(person => person.id === (selectedStudent?.id || account.holderId)) : undefined
   const content = renderSection(location.section)

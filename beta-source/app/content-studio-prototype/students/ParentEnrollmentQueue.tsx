@@ -49,7 +49,7 @@ export function ParentEnrollmentQueue({ accountId }: { accountId: string }) {
   }
   const liveLesson = lessonDraft ? queue.drafts.find(item => item.id === lessonDraft.id && item.kind === 'enrollment') : undefined
   if (lessonDraft && liveLesson?.kind === 'enrollment' && liveLesson.data.completedAt) return <Notice title="Enrollment already completed">This request was completed by {liveLesson.data.calendarRequest?.completedBy || 'staff'}. No additional enrollment or payment is needed.<Button onClick={() => setLessonDraft(null)}>Close</Button></Notice>
-  if (lessonDraft) return <StaffEnrollment key={lessonDraft.id} initialRecord={lessonDraft} availablePeople={people} academyTeachers={lessonDraft.calendarRequest ? calendarEnrollment?.teachers : undefined} availability={lessonDraft.calendarRequest ? calendarEnrollment?.availability : undefined} onClose={() => setLessonDraft(null)} onSaveAndClose={(draft, step, reviewedSteps) => {
+  if (lessonDraft) return <StaffEnrollment key={lessonDraft.id} initialRecord={lessonDraft} availablePeople={people} academyTeachers={lessonDraft.calendarRequest ? calendarEnrollment?.teachers : undefined} availability={lessonDraft.calendarRequest ? calendarEnrollment?.availability : undefined} onSaveAndClose={(draft, step, reviewedSteps) => {
     if (lessonDraft.calendarRequest) {
       if (!calendarEnrollment) throw new Error('Connected enrollment unavailable.')
       calendarEnrollment.save({ ...lessonDraft, draft, step, reviewedSteps }, false, 'family', accountId)

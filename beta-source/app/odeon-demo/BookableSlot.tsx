@@ -15,6 +15,7 @@ export type BookableSlotProps = {
   selectedTeacher?: string
   picked?: boolean
   compactName?: string
+  fullName?: string
   constrainText?: boolean
   style?: CSSProperties
   onPick: () => void
@@ -22,17 +23,21 @@ export type BookableSlotProps = {
   teacherLabel: string
 }
 
-export function BookableSlot({ title, when, teachers, selectedTeacher, picked, compactName, constrainText, style, onPick, onChooseTeacher, teacherLabel }: BookableSlotProps) {
+export function BookableSlot({ title, when, teachers, selectedTeacher, picked, compactName, fullName, constrainText, style, onPick, onChooseTeacher, teacherLabel }: BookableSlotProps) {
   const multiple = teachers.length > 1
   const truncate: CSSProperties | undefined = constrainText ? { minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined
-  return <div data-bookable-slot data-picked={picked || undefined} title={compactName} onClick={compactName ? undefined : onPick}
+  const actionable = (!compactName || fullName) && !multiple
+  const description = [fullName, title, when, teachers.join(', ')].filter(Boolean).join(' · ')
+  return <div data-bookable-slot data-picked={picked || undefined} title={compactName ? fullName || compactName : description} onClick={actionable ? onPick : undefined}
+    role={actionable ? 'button' : undefined} tabIndex={actionable ? 0 : undefined} aria-label={actionable ? description : undefined}
+    onKeyDown={actionable ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onPick() } } : undefined}
     style={{
       display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
       ...(picked
         ? { border: '2.5px solid var(--calendar-student-border)', background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)' }
         : { border: '1.5px dashed rgba(139,90,181,0.55)', background: colors.surface, color: colors.text }),
-      ...(constrainText && { gridTemplateColumns: 'minmax(0, 1fr)', minHeight: 0, overflow: 'hidden', lineHeight: '13px' }),
-      ...(compactName && { cursor: 'default' }),
+      ...(constrainText && { gridTemplateColumns: 'minmax(0, 1fr)', minHeight: 0, minWidth: 0, width: '100%', boxSizing: 'border-box', overflow: 'hidden', lineHeight: '12px' }),
+      ...(!actionable && { cursor: multiple ? undefined : 'default' }),
       ...style,
     }}>
     {compactName ? <strong style={{ ...truncate, fontSize: 11 }}>{compactName}</strong> : <>

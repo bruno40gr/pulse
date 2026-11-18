@@ -2,7 +2,7 @@
 
 import { ParticipationPolicies } from '@/components/ui/ParticipationPolicies'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { EnrollmentLayout } from '@/components/ui/EnrollmentLayout'
 import { spacing } from '@/lib/tokens'
 import { Button } from '@/components/ui/Button'
@@ -37,7 +37,7 @@ import type { StaffEnrollment as EnrollmentData } from '@/beta-source/lib/academ
 export default function WorkflowEditor({ initial, context, staff, onSave, onUpdate, onComplete, onCreate, programActions, locations = [], availablePeople, academyTeachers, availability }: {
   availablePeople?: readonly import('@/beta-source/lib/academy-staff-enrollment').EnrollmentPerson[];
   academyTeachers?: readonly { name: string; instruments: string[] }[];
-  availability?: (date: string, time: string, lesson: import('@/beta-source/lib/academy-staff-enrollment').LessonChoice) => readonly { name: string }[];
+  availability?: (date: string, time: string, lesson: import('@/beta-source/lib/academy-staff-enrollment').LessonChoice, siblings?: readonly import('@/beta-source/lib/academy-staff-enrollment').LessonChoice[]) => readonly { name: string }[];
   initial: WorkflowDraft; context: WorkflowContext; staff: SetupRecord[]; locations?: SetupRecord[];
   onSave: (record: WorkflowDraft) => void; onCancel: () => void; onComplete: (record: WorkflowDraft) => void;
   programActions: ProgramActions;
@@ -49,11 +49,9 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
   const [addingStudent, setAddingStudent] = useState(false)
   const [externalStudent, setExternalStudent] = useState({ name: '', email: '', guardian: '', instruments: '' })
   const [memberSearch, setMemberSearch] = useState('')
-  const currentEnrollment = useRef<WorkflowDraft>(initial)
   const updateEnrollment = useCallback((draft: EnrollmentData, step: number, reviewedSteps: number[]) => {
     if (record.kind !== 'enrollment') return
     const next = { ...record, step, reviewedSteps, started: true, data: { ...record.data, draft, step, reviewedSteps, started: true, updatedAt: new Date().toISOString() } }
-    currentEnrollment.current = next
     onUpdate(next)
   }, [record, onUpdate])
   const patch = (next: WorkflowDraft) => {
@@ -61,7 +59,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
     setRecord(updated); onUpdate(updated); setError('')
   }
   const save = (next: WorkflowDraft) => onSave({ ...next, started: true, updatedAt: new Date().toISOString() })
-  if (record.kind === 'enrollment') return <StaffEnrollment singleSession={!record.data.fromCalendar && record.data.entryLesson?.frequency === 'À-la-carte'} availablePeople={availablePeople} academyTeachers={academyTeachers} availability={availability} initialRecord={record.data} onComplete={(draft, step, reviewedSteps) => save({ ...record, step, reviewedSteps, data: completeEnrollmentDraft({ ...record.data, draft, step, reviewedSteps, started: true }, new Date().toISOString()) })} onDraftChange={updateEnrollment} onClose={() => save(record.data.calendarRequest ? currentEnrollment.current : initial)} onSaveAndClose={(draft, step, reviewedSteps) => save({ ...record, step, reviewedSteps, data: { ...record.data, draft, step, reviewedSteps, started: true, updatedAt: new Date().toISOString() } })} />
+  if (record.kind === 'enrollment') return <StaffEnrollment singleSession={!record.data.fromCalendar && record.data.entryLesson?.frequency === 'À-la-carte'} availablePeople={availablePeople} academyTeachers={academyTeachers} availability={availability} initialRecord={record.data} onComplete={(draft, step, reviewedSteps) => save({ ...record, step, reviewedSteps, data: completeEnrollmentDraft({ ...record.data, draft, step, reviewedSteps, started: true }, new Date().toISOString()) })} onDraftChange={updateEnrollment} onSaveAndClose={(draft, step, reviewedSteps) => save({ ...record, step, reviewedSteps, data: { ...record.data, draft, step, reviewedSteps, started: true, updatedAt: new Date().toISOString() } })} />
   const steps = workflowSteps(record)
   const lastStep = steps.length - 1
   const offering = record.kind === 'event' || record.kind === 'group'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { BetaWorkflowScreen } from '@/beta-source/lib/beta-workspace-navigation'
 import { sendLessonEnrollment } from '@/beta-source/lib/academy-portal-actions'
 import { usePortalQueue } from '@/beta-source/lib/usePortalQueue'
@@ -77,11 +77,12 @@ export type BetaWorkflowCompletion =
 
 
 
-export default function EventExplorer({ embedded = false, initialScreen = 'events', configuredData, onConfiguredChange, intent, onIntentHandled, onWorkflowCompleted, teachingLoad = [], bookingContext }: {
+export default function EventExplorer({ embedded = false, initialScreen = 'events', configuredData, onConfiguredChange, intent, onIntentHandled, onWorkflowCompleted, onEnrollmentFocus, teachingLoad = [], bookingContext }: {
   bookingContext?: BookingContext; embedded?: boolean; initialScreen?: BetaWorkflowScreen; configuredData?: Record<string, SetupRecord[]>;
   onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void;
   intent?: { id: string; kind: 'enrollment' | 'opportunity' | 'group'; ids: string[]; calendarLesson?: Partial<LessonChoice> } | null;
   onIntentHandled?: () => void;
+  onEnrollmentFocus?: (focused: boolean) => void;
   onWorkflowCompleted?: (completion: BetaWorkflowCompletion) => void;
   /** Teaching already booked in the academy's own records. */
   teachingLoad?: readonly BetaTeachingLoad[];
@@ -201,6 +202,11 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   const updateEvent = (change: Partial<ExplorerEvent>) => setState(current => ({ ...current, events: current.events.map(item => item.id === eventId ? { ...item, ...change } : item) }))
   const context = { academy, people: state.people, staffIds: staff.map(person => person.id), events: state.events, tasks: tasks.filter(task => task.institution === academy.kind), registrations: state.registrations }
   const active = drafts.find(record => record.id === activeId && record.institution === academy.kind)
+  const enrollmentFocused = active?.kind === 'enrollment'
+  useLayoutEffect(() => {
+    onEnrollmentFocus?.(enrollmentFocused)
+    return () => onEnrollmentFocus?.(false)
+  }, [enrollmentFocused, onEnrollmentFocus])
   // Scheduling offers the academy's own staff, free in the slot they keep.
   const activeStudentId = active?.kind === 'enrollment' ? active.data.draft.student?.id || '' : ''
   const academyAvailability = useMemo(() => {
@@ -268,14 +274,14 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
       calendarEnrollment.save(record.data, Boolean(record.data.completedAt), 'staff')
       setActiveId(null); setErrors([]); return
     }
-    if (discard && draftContent(record) !== (draftBaselines.current.get(record.id) || draftContent(record)) && !window.confirm('Discard this draft?')) return
-    if (discard || !hasEnrollmentName(record, state.people) || draftContent(record) === draftBaselines.current.get(record.id)) { setDrafts(current => current.filter(item => item.id !== record.id)); setTasks(current => current.filter(task => task.proposalId !== record.id)); setInquiries(current => current.filter(inquiry => inquiry.proposalId !== record.id)) }
-    else putDraft(record)
     // A finished booking is recorded once; the Beta workspace owns the family's records.
     if (!discard && record.kind === 'enrollment' && record.data.completedAt && !completedEnrollments.current.has(record.id)) {
       onWorkflowCompleted?.({ kind: 'enrollment', record })
       completedEnrollments.current.add(record.id)
     }
+    if (discard && draftContent(record) !== (draftBaselines.current.get(record.id) || draftContent(record)) && !window.confirm('Discard this draft?')) return
+    if (discard || !hasEnrollmentName(record, state.people) || (record.kind !== 'enrollment' && draftContent(record) === draftBaselines.current.get(record.id))) { setDrafts(current => current.filter(item => item.id !== record.id)); setTasks(current => current.filter(task => task.proposalId !== record.id)); setInquiries(current => current.filter(inquiry => inquiry.proposalId !== record.id)) }
+    else { if (record.kind === 'enrollment') draftBaselines.current.delete(record.id); putDraft(record) }
     setErrors([])
     if (record.parentId) { setActiveId(record.parentId); setScreen('book') }
     else { setActiveId(null); setScreen(record.kind === 'event' ? 'events' : record.kind === 'group' ? 'groups' : discard && record.origin !== 'hub' ? record.origin : 'book') }
@@ -399,7 +405,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
     const plans = Object.fromEntries([...bookings.filter(booking => booking.institution === academy.kind).map(booking => [booking.proposalId, booking.plan]), ...drafts.flatMap(record => record.kind === 'program' && record.institution === academy.kind ? [[record.id, record.data]] : [])])
     content = <ProgramPortal requests={enrollmentRequests.filter(request => academy.kind === 'music' && !request.completedAt)} onEnroll={openEnrollmentRequest} completedIds={bookings.filter(booking => booking.institution === academy.kind).map(booking => booking.proposalId)} people={state.people} tasks={context.tasks || []} plans={plans} onBack={() => setPortal(false)} onSubmit={(id, allowed, blocks) => setTasks(submitProgramAvailability(tasks, id, allowed, blocks))} onConfirm={(id, allowed, plan) => setTasks(confirmProgramSchedule(tasks, id, allowed, plan))} />
   } else if (active) {
-    content = <WorkflowEditor availablePeople={state.people.map(person => ({ id: person.id, firstName: person.name.split(' ')[0], lastName: person.name.split(' ').slice(1).join(' '), email: person.email, phone: '', activeTeacher: false, accountId: person.accountId || person.id, accountHolder: person.roles.some(role => ['Parent', 'Account holder'].includes(role)) }))} academyTeachers={academyTeachers} availability={active.kind === 'enrollment' && active.data.calendarRequest ? calendarEnrollment?.availability : academyAvailability} key={`${active.id}:${active.kind === 'enrollment' ? active.data.completedAt || '' : ''}`} initial={active} context={context} staff={staff} locations={locations} onUpdate={putDraft} onSave={record => leaveDraft(record, false)} onCancel={() => leaveDraft(active, true)} onComplete={completeDraft} onCreate={(parent, kind) => { putDraft(parent); const child = newWorkflowDraft(kind, academy, 'hub', parent.id); putDraft(child); setActiveId(child.id) }} programActions={{
+    content = <WorkflowEditor availablePeople={state.people.map(person => ({ id: person.id, firstName: person.name.split(' ')[0], lastName: person.name.split(' ').slice(1).join(' '), email: person.email, phone: '', activeTeacher: false, accountId: person.accountId || person.id, accountHolder: person.roles.some(role => ['Parent', 'Account holder'].includes(role)) }))} academyTeachers={academyTeachers} availability={calendarEnrollment?.availability || academyAvailability} key={`${active.id}:${active.kind === 'enrollment' ? active.data.completedAt || '' : ''}`} initial={active} context={context} staff={staff} locations={locations} onUpdate={putDraft} onSave={record => leaveDraft(record, false)} onCancel={() => leaveDraft(active, true)} onComplete={completeDraft} onCreate={(parent, kind) => { putDraft(parent); const child = newWorkflowDraft(kind, academy, 'hub', parent.id); putDraft(child); setActiveId(child.id) }} programActions={{
       onStudent: input => { const person = createProgramStudent(state.people, input); setState(current => ({ ...current, people: [...current.people, person] })); return person },
       onRequest: plan => { if (!plan.week || !plan.memberIds.length) throw new Error('Choose participants and a requested week.'); setTasks(current => requestProgramAvailability(current, active.id, academy.kind, plan)) },
       onPropose: plan => { const problem = programScheduleError(plan, (context.tasks || []).filter(task => task.proposalId === active.id)); if (problem) throw new Error(problem); const signature = scheduleSignature(plan); setTasks(current => current.map(task => task.proposalId === active.id && plan.memberIds.includes(task.studentId) ? { ...task, schedule: signature, confirmedSchedule: task.schedule === signature ? task.confirmedSchedule : undefined } : task)) },
@@ -471,7 +477,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   }
   const selectedBand = academy.kind === 'music' ? academy.groups.find(group => group.id === bandPanelId) : undefined
   const selectedStudent = studentPanelId ? explorerContactDirectory(state.people, [studentPanelId], state.registrations).contacts.find(contact => contact.id === studentPanelId) : undefined
-  return <LeadWorkspaceContext.Provider value={opportunityAdapter}><ContactBandEnrollmentContext.Provider value={academy.kind === 'music' ? bandMemberships : undefined}><ExplorerShell embedded={embedded} groupLabel={academy.kind === 'music' ? 'Bands & ensembles' : academy.kind === 'martial' ? 'Practice teams' : 'Study groups'} screen={screen} onNavigate={navigate}><div className={styles.root} style={rootStyle}><PageContainer style={{ boxSizing: 'border-box' }}><div className={styles.stack}>{notice && <Notice variant="success" onDismiss={() => setNotice('')}>{notice}</Notice>}{errors.length > 0 && <Notice variant="error">{errors.join(' ')}</Notice>}{content}      <Modal isOpen={lessonChooser && !calendarEnrollment?.openBooking} onClose={() => setLessonChooser(false)} size="wide" layout="content" ariaLabel="Enroll">
+  return <LeadWorkspaceContext.Provider value={opportunityAdapter}><ContactBandEnrollmentContext.Provider value={academy.kind === 'music' ? bandMemberships : undefined}><ExplorerShell embedded={embedded || enrollmentFocused} groupLabel={academy.kind === 'music' ? 'Bands & ensembles' : academy.kind === 'martial' ? 'Practice teams' : 'Study groups'} screen={screen} onNavigate={navigate}><div className={styles.root} style={rootStyle}><PageContainer style={{ boxSizing: 'border-box' }}><div className={styles.stack}>{notice && <Notice variant="success" onDismiss={() => setNotice('')}>{notice}</Notice>}{errors.length > 0 && <Notice variant="error">{errors.join(' ')}</Notice>}{content}      <Modal isOpen={lessonChooser && !calendarEnrollment?.openBooking} onClose={() => setLessonChooser(false)} size="wide" layout="content" ariaLabel="Enroll">
         <ModalHeader title="Enroll" onClose={() => setLessonChooser(false)} />
         <ModalBody><div className={styles.choices}>
           {lessonServices.some(record => formatsFor(record).includes('private')) && <EntryPathCard title="Private lessons" action="Enroll" onChoose={() => startDraft('enrollment', 'hub', undefined, { service: 'Private', instrument: lessonServices.find(record => formatsFor(record).includes('private'))!.values.name })}><Music size={28} color={colors.textSecondary} /></EntryPathCard>}

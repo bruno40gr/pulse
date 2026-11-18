@@ -7,10 +7,8 @@ import AcademyCalendar from '@/beta-source/app/odeon-demo/AcademyCalendar'
 import TeacherExperience from '@/beta-source/app/odeon-demo/TeacherExperience'
 import { academyRescheduleAvailability } from '@/beta-source/lib/academy-reschedule-availability'
 import { betaPreviewToday, betaShiftDate, betaCalendarOccurrences, betaNextWeekday, betaMinutes } from '@/beta-source/lib/beta-academy-calendar'
-import { projectBetaBandMembership, projectBetaEnrollment } from '@/beta-source/lib/beta-workflow-projection'
-import { enrollmentBillingPreview } from '@/beta-source/lib/academy-enrollment-pricing'
-import { betaAcademyRooms, betaAcademyTeachers, betaRoomFor, betaTeachingLoad } from '@/beta-source/lib/beta-academy-schedule'
-import { lessonPrice, lessonStudent } from '@/beta-source/lib/academy-staff-enrollment'
+import { projectBetaBandMembership } from '@/beta-source/lib/beta-workflow-projection'
+import { betaAcademyTeachers, betaTeachingLoad } from '@/beta-source/lib/beta-academy-schedule'
 import { betaScreen, betaWorkflowScreens, type BetaWorkflowScreen } from '@/beta-source/lib/beta-workspace-navigation'
 import { betaEnrollmentPeople } from '@/beta-source/lib/academy-beta-people'
 import { usePortalQueue } from '@/beta-source/lib/usePortalQueue'
@@ -34,7 +32,7 @@ import { expandPreviewCalendar } from '@/beta-source/lib/academy-makeup-preview'
 import StaffSlidePanel, { type StaffMember } from '@/beta-source/components/contacts/StaffSlidePanel'
 import { colors, spacing } from '@/beta-source/lib/tokens'
 import { createCalendarEnrollment, saveCalendarEnrollment, matchingSubscriptions } from '@/beta-source/lib/academy-calendar-enrollment'
-import { bookingReason, roomRecords, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
+import { calendarEnrollmentAvailability, completeCalendarEnrollment, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { CalendarEnrollmentContext } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
 import BookingFlow from './BookingFlow'
 import CalendarStatesPreview from './CalendarStatesPreview'
@@ -173,7 +171,6 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   }), [setup])
   const teacherIdForName = useCallback((name: string) => setup.teachers.find(record => record.values.name === name)?.id, [setup])
   const academyTeachers = useMemo(() => betaAcademyTeachers(setup), [setup])
-  const academyRooms = useMemo(() => betaAcademyRooms(setup), [setup])
   const staffDetail = useMemo((): StaffMember | undefined => {
     const teacher = setup.teachers.find(item => item.id === staffId)
     if (!teacher) return undefined
@@ -187,26 +184,14 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   }, [snapshot.data])
   // A finished workflow becomes a real record in the family's own Beta data.
   const onWorkflowCompleted = useCallback((completion: BetaWorkflowCompletion) => {
-    if (completion.kind === 'enrollment' && completion.record.data.calendarRequest) {
-      const result = saveCalendarEnrollment(queue, { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }, completion.record.data, true, 'staff')
-      updateQueue(() => result.queue)
-      setSnapshot(current => ({ ...current, data: result.data }))
+    if (completion.kind === 'enrollment') {
+      const context = { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }
+      const data = completeCalendarEnrollment(context, completion.record.data.draft, `beta:${completion.record.id}`, queue.state.events)
+      setSnapshot(current => ({ ...current, data }))
       return
     }
     setSnapshot(current => {
       try {
-        if (completion.kind === 'enrollment') {
-          const draft = completion.record.data.draft
-          const studentId = draft.student?.id || ''
-          const payerId = draft.payer === 'manager' ? draft.manager?.id || draft.contact?.id || '' : draft.payer === 'other' ? draft.contact?.id || '' : draft.student?.id || draft.contact?.id || ''
-          const lessons = draft.lessons.map(lesson => {
-            const teacher = academyTeachers.find(item => item.name === lesson.teacher)
-            return { service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id || teacherIdForName(lesson.teacher), time: lesson.time, start: lesson.start, duration: Number(lesson.duration), frequency: lesson.frequency === 'À-la-carte' ? 'One-off' as const : 'Weekly' as const, amountMinor: lessonPrice(lesson, lessonStudent(draft, lesson)).total, room: betaRoomFor(academyRooms, teacher, lesson.start, lesson.time, Number(lesson.duration), teachingLoad) }
-          })
-          // The staff sees this amount in the pricing step; the family record keeps the same figure.
-          const billing = enrollmentBillingPreview(draft)
-          return { ...current, data: projectBetaEnrollment(current.data, { enrollmentId: `beta:${completion.record.id}`, studentId, payerId, paymentMethod: draft.payment === 'later' ? 'Add payment later' : 'Demo Visa ···· 4242', amountMinor: billing.current.total, paid: draft.payment !== 'later', lessons }) }
-        }
         const band = completion.band
         const account = current.data.accounts.find(item => item.studentIds.includes(completion.record.studentId))
         // The band's own weekly schedule becomes the enrollment series, so Calendar and Contacts read one record.
@@ -215,7 +200,9 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
         return { ...current, data: projectBetaBandMembership(current.data, { enrollmentId: `beta:band:${completion.record.id}`, studentId: completion.record.studentId, payerId: account?.holderId || '', paymentMethod: completion.record.paymentMethod === 'demo_card' ? 'Demo Visa ···· 4242' : 'Add payment later', amountMinor: Math.round(Number(completion.record.monthlyPrice || 0) * 100), paid: completion.record.paymentStatus === 'succeeded', bandName: band?.name || 'Band program', teacher: band?.leader || 'Staff team', teacherId: teacherIdForName(band?.leader || ''), seriesId: band?.id, time: band?.dailySchedule?.from, duration: bandDuration, start: bandStart }) }
       } catch { return current }
     })
-  }, [teacherIdForName, academyTeachers, academyRooms, teachingLoad, queue, snapshot.data, setup, updateQueue])
+  }, [teacherIdForName, queue.academy.groups, queue.state.events, snapshot.data, setup])
+  const [enrollmentFocused, setEnrollmentFocused] = useState(false)
+  const enrollmentAvailability = useMemo(() => calendarEnrollmentAvailability({ data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }, queue.state.events), [snapshot.data, setup, queue.academy.groups, queue.state.events])
   if (!ready) return null
   const bookingContext = { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }
   const startCalendarEnrollment = (proposal: CalendarBooking, action: 'staff' | 'send') => {
@@ -229,13 +216,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     openBooking: (initial?: BookingPrefill) => setBookingEntry(initial || { date: betaPreviewToday, time: '15:00', duration: 30 }),
     rescheduleAvailability: academyRescheduleAvailability({ setup, groups: queue.academy.groups, events: queue.state.events }),
     teachers: academyTeachers,
-    availability: (date: string, time: string, lesson: import('@/beta-source/lib/academy-staff-enrollment').LessonChoice) => {
-      if (!date || !time) return []
-      const expanded = expandPreviewCalendar(snapshot.data, date)
-      const occurrences = betaCalendarOccurrences(expanded, queue.academy.groups, queue.state.events, [date])
-      const service = setup.services.find(item => item.id === lesson.serviceId || item.values.name === lesson.instrument || (lesson.instrument === 'Voice' && item.values.name === 'Voice & Vocals'))
-      return academyTeachers.filter(teacher => roomRecords(setup).filter(room => !lesson.roomId || room.id === lesson.roomId).some(room => !bookingReason({ ...bookingContext, data: expanded, occurrences }, { id: 'probe', kind: 'lesson', title: '', date, time, duration: Number(lesson.duration), teacherId: teacher.id, roomId: room.id, serviceId: service?.id || '', studentIds: [lesson.studentId || ''], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }))).map(teacher => ({ name: teacher.name }))
-    },
+    availability: enrollmentAvailability,
     save: (record: import('@/beta-source/lib/academy-enrollment-drafts').EnrollmentDraftRecord, complete: boolean, actor: 'staff' | 'family', accountId?: string) => {
       const stored = queue.drafts.find(item => item.id === record.id)
       const acknowledged = stored?.kind === 'enrollment' ? stored.data.calendarRequest?.acknowledgedSubscriptionIds || [] : []
@@ -248,7 +229,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   }
   if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/odeon-demo?screen=calendar">Open sample calendar</a></Notice>
   if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
-  return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent}>
+  return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent || (workflow && enrollmentFocused)}>
     {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{tenant
       ? 'School account · Changes are shared with every staff member of this school'
       : 'Beta · Sample data · Fictional records only · No real payments or messages · Saved on this browser · Not shared with other testers'}</div>}
@@ -275,7 +256,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     today={betaPreviewToday}
     onExit={() => { const next = new URLSearchParams(params.toString()); next.delete('screen'); router.push(`/odeon-demo?${next}`) }}
     onApply={change => setSnapshot(current => ({ ...current, data: change(current.data) }))}
-  /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} teachingLoad={teachingLoad} /> : staff ? <>
+  /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} onEnrollmentFocus={setEnrollmentFocused} teachingLoad={teachingLoad} /> : staff ? <>
       <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} onWorkflow={beginWorkflow} />} />}

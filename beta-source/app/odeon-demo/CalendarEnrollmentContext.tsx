@@ -10,7 +10,7 @@ export const CalendarEnrollmentContext = createContext<{
   openBooking?: (initial?: import('./CalendarBookingModal').BookingPrefill) => void
   services?: readonly import('../content-studio-prototype/school-setup/setup-content').SetupRecord[]
   save: (record: EnrollmentDraftRecord, complete: boolean, actor: 'staff' | 'family', accountId?: string) => void
-  availability: (date: string, time: string, lesson: LessonChoice) => readonly { name: string }[]
+  availability: (date: string, time: string, lesson: LessonChoice, siblings?: readonly LessonChoice[]) => readonly { name: string }[]
   teachers: readonly { name: string; instruments: string[] }[]
   rescheduleAvailability?: MakeupSlotResolver
 } | null>(null)

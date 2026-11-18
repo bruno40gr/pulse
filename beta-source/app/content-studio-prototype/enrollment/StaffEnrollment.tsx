@@ -1,6 +1,7 @@
 'use client'
 
 import { useCalendarEnrollment } from '@/beta-source/app/odeon-demo/CalendarEnrollmentContext'
+import { EnrollmentTimeError } from '@/beta-source/lib/academy-calendar-booking'
 import { EnrollmentLayout } from '@/components/ui/EnrollmentLayout'
 import { personFieldErrors } from '@/beta-source/lib/academy-staff-enrollment'
 import { Input } from '@/components/ui/Input'
@@ -109,15 +110,14 @@ export function PersonPicker({ title, value, people, onChange, onAdd, contactSel
   </section>
 }
 
-export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose, onDraftChange, onComplete, availablePeople, singleSession = false, academyTeachers, availability }: {
+export default function StaffEnrollment({ initialRecord, onSaveAndClose, onDraftChange, onComplete, availablePeople, singleSession = false, academyTeachers, availability }: {
   availablePeople?: readonly EnrollmentPerson[]
   singleSession?: boolean
   /** The academy's own staff, used for scheduling instead of the sample roster. */
   academyTeachers?: readonly { name: string; instruments: string[] }[]
-  availability?: (date: string, time: string, lesson: LessonChoice) => readonly { name: string }[]
+  availability?: (date: string, time: string, lesson: LessonChoice, siblings?: readonly LessonChoice[]) => readonly { name: string }[]
   initialRecord?: EnrollmentDraftRecord
   onSaveAndClose?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
-  onClose?: () => void
   onComplete?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
   onDraftChange?: (draft: EnrollmentDraft, step: number, reviewedSteps: number[]) => void
 } = {}) {
@@ -126,8 +126,9 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
   const [draft, setDraft] = useState(() => initialRecord ? structuredClone(initialRecord.draft) : newStaffEnrollment())
   const [people, setPeople] = useState<readonly EnrollmentPerson[]>(availablePeople || enrollmentPeople)
   // The academy's own availability decides which teacher can take a booked slot.
+  const scopedLessons = (current: EnrollmentDraft) => current.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId || current.student?.id }))
   const availableFor = (current: EnrollmentDraft, lesson: LessonChoice) => availability
-    ? availability(lesson.start, lesson.time, lesson)
+    ? availability(lesson.start, lesson.time, { ...lesson, studentId: lesson.studentId || current.student?.id }, scopedLessons(current))
     : availableScheduleTeachers(lesson, lesson.start, lesson.time, lessonStudent(current, lesson), current.lessons.map(item => ({ ...item, studentId: item.studentId || current.student?.id })))
   const [step, setStep] = useState(() => {
     if (!initialRecord) return 0
@@ -146,8 +147,6 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
   const [saved, setSaved] = useState<EnrollmentDraft | null>(initialRecord?.completedAt ? initialRecord.draft : null)
   const [reviewedSteps, setReviewedSteps] = useState<number[]>(initialRecord?.reviewedSteps || [])
   useEffect(() => { onDraftChange?.(draft, step, reviewedSteps) }, [draft, step, reviewedSteps, onDraftChange])
-  const [baseline, setBaseline] = useState(() => JSON.stringify(initialRecord?.draft || newStaffEnrollment()))
-  const dirty = JSON.stringify(draft) !== baseline
   const students = enrollmentStudents(draft)
   const lessonStudents = [...new Map([...students, ...(draft.contact ? [draft.contact] : [])].map(person => [person.id, person])).values()]
   const billing = enrollmentBillingPreview(draft)
@@ -182,14 +181,13 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
     event.preventDefault()
     const problem = enrollmentStepError(draft, step)
     if (problem) { setError(problem); return }
-    if (step >= 2 && draft.lessons.some(lesson => !availableFor(draft, lesson).some(teacher => teacher.name === lesson.teacher))) {
-      setError('Choose an available time for each lesson.'); return
+    const unavailable = step >= 2 && draft.lessons.find(lesson => !availableFor(draft, lesson).some(teacher => teacher.name === lesson.teacher))
+    if (unavailable) {
+      setActiveLessonId(unavailable.id); move(2); setError(`${fullName(lessonStudent(draft, unavailable))} · ${unavailable.instrument}: choose another available time.`); return
     }
     if (step === 0) {
       const next = { ...draft, lessons: ensureStudentLessons(draft, initialRecord?.entryLesson) }
       setDraft(next)
-      // Automatically generated lesson rows are navigation, not a staff edit.
-      if (!dirty) setBaseline(JSON.stringify(next))
       if (draft.contact) addPerson(draft.contact)
       if (draft.student) addPerson(draft.student)
       if (draft.manager) addPerson(draft.manager)
@@ -201,7 +199,10 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
     if (step < 3) { move(step + 1); return }
     if (onSaveAndClose) {
       try { (onComplete || onSaveAndClose)(saveLocalEnrollment(draft), step, reviewed) }
-      catch (cause) { setError(cause instanceof Error ? cause.message : 'Please check the enrollment details.') }
+      catch (cause) {
+        if (cause instanceof EnrollmentTimeError) { setActiveLessonId(cause.lessonId); move(2) }
+        setError(cause instanceof Error ? cause.message : 'Please check the enrollment details.')
+      }
       return
     }
     try { setSaved(saveLocalEnrollment(draft)); setError('') }
@@ -212,11 +213,11 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
   }
 
   const teacherOptions = activeLesson ? (academyTeachers?.length ? academyTeachers : scheduleTeachers).filter(teacher => teacher.instruments.some(instrument => instrument === activeLesson.instrument)) : []
-  const calendar = activeLesson ? <LessonSchedule compactCopy toolbarActions={<div style={{ minWidth: 220, maxWidth: '100%', marginLeft: 'auto' }}><Select label="Teacher" value={teacherPreferences[activeLesson.id] || ''} onChange={event => setTeacherPreferences(current => ({ ...current, [activeLesson.id]: event.target.value }))}><option value="">Any suitable teacher</option>{teacherOptions.map(teacher => <option key={teacher.name}>{teacher.name}</option>)}</Select></div>} teacherPreference={teacherPreferences[activeLesson.id]} key={`${activeLesson.id}-${activeLesson.instrument}-${activeLesson.duration}-${activeLesson.studentId}`} lesson={activeLesson} lessons={draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId || draft.student?.id }))} student={lessonStudent(draft, activeLesson)} students={students} manager={draft.manager} onSelectLesson={setActiveLessonId} onChange={value => updateLesson(activeLesson.id, value)} availability={availability} /> : null
+  const calendar = activeLesson ? <LessonSchedule enrollmentPicker compactCopy toolbarActions={<div style={{ minWidth: 220, maxWidth: '100%', marginLeft: 'auto' }}><Select label="Teacher" value={teacherPreferences[activeLesson.id] || ''} onChange={event => setTeacherPreferences(current => ({ ...current, [activeLesson.id]: event.target.value }))}><option value="">Any suitable teacher</option>{teacherOptions.map(teacher => <option key={teacher.name}>{teacher.name}</option>)}</Select></div>} teacherPreference={teacherPreferences[activeLesson.id]} key={`${activeLesson.id}-${activeLesson.instrument}-${activeLesson.duration}-${activeLesson.studentId}`} lesson={activeLesson} lessons={draft.lessons.map(lesson => ({ ...lesson, studentId: lesson.studentId || draft.student?.id }))} student={lessonStudent(draft, activeLesson)} students={students} manager={draft.manager} onSelectLesson={setActiveLessonId} onChange={value => updateLesson(activeLesson.id, value)} availability={availability ? (date, time) => availability(date, time, { ...activeLesson, studentId: activeLesson.studentId || draft.student?.id }, scopedLessons(draft)) : undefined} /> : null
 
   return <main className={styles.workspace} style={{ background: colors.background, color: colors.text, fontFamily: typography.fontSans }}>
     {!onSaveAndClose && <header className={styles.header}><span className={styles.brand}>odeon</span><span className={styles.demo}>Local preview · changes stay on this page</span></header>}
-    <EnrollmentLayout title={saved ? 'Booking' : singleSession ? 'Single lesson / trial' : 'Enroll a student'} width={!saved && step === 2 ? 'expanded' : 'focused'} currentStep={step} steps={saved ? undefined : steps} onStepChange={jumpToStep} actions={onSaveAndClose ? <Button type="button" variant="secondary" onClick={() => { if (!dirty && onClose) onClose(); else onSaveAndClose(draft, step, reviewedSteps) }}>{saved ? 'Close' : dirty ? 'Save & close' : 'Close'}</Button> : undefined}>
+    <EnrollmentLayout title={saved ? 'Booking' : singleSession ? 'Single lesson / trial' : 'Enroll a student'} width={!saved && step === 2 ? 'expanded' : 'focused'} fullWidth={!saved && step === 2} currentStep={step} steps={saved ? undefined : steps} onStepChange={jumpToStep} actions={onSaveAndClose ? <Button type="button" variant="secondary" onClick={() => onSaveAndClose(draft, step, reviewedSteps)}>{saved ? 'Close' : 'Save & close'}</Button> : undefined}>
       {initialRecord?.preferences?.some(item => item.interest || item.availability?.preferredDays || item.availability?.preferredTimes) && <Notice title="From the inquiry">
         {initialRecord.preferences.map(item => <p key={item.studentId}>{item.name}: {[item.interest, item.availability?.preferredDays, item.availability?.preferredTimes, item.availability?.preferredDate, item.availability?.timeWindow].filter(Boolean).join(' · ') || 'No preferences recorded'}</p>)}
       </Notice>}
@@ -247,9 +248,9 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
               </div>}
             </>}
             {(step === 1 || step === 2) && <><h2>{step === 1 ? 'Set up lessons' : 'Choose times'}</h2><div className={step === 2 ? styles.bookingLayout : undefined}><div className={styles.studentCards} role="region" tabIndex={step === 2 ? 0 : undefined} aria-label="Student lessons">{draft.lessons.map((lesson, index) => <section key={lesson.id} className={`${styles.studentCard} ${activeLesson.id === lesson.id ? styles.selectedCard : ''}`} onFocus={() => setActiveLessonId(lesson.id)} onClick={() => setActiveLessonId(lesson.id)}>
-              <div className={styles.sectionHeading}><button type="button" className={styles.cardSelect} aria-pressed={activeLesson.id === lesson.id} onClick={() => setActiveLessonId(lesson.id)}>{fullName(lessonStudent(draft, lesson)) || 'Choose a student'}</button>{draft.lessons.length > 1 && <Button type="button" variant="ghost" className={styles.lessonDelete} size="sm" title="Remove lesson" aria-label={`Remove lesson ${index + 1}`} onClick={event => { event.stopPropagation(); const remaining = draft.lessons.filter(item => item.id !== lesson.id); patch({ lessons: remaining }); setActiveLessonId(remaining[0]?.id || ''); if (step === 2 && !remaining.some(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id)) move(1) }}><Trash2 size={16} aria-hidden="true" /></Button>}</div>
+              <div className={styles.sectionHeading}><h3><button type="button" className={styles.cardSelect} aria-pressed={activeLesson.id === lesson.id} onClick={() => setActiveLessonId(lesson.id)}>{fullName(lessonStudent(draft, lesson)) || 'Choose a student'}</button></h3>{draft.lessons.length > 1 && <Button type="button" variant="ghost" className={styles.lessonDelete} size="sm" title="Remove lesson" aria-label={`Remove lesson ${index + 1}`} onClick={event => { event.stopPropagation(); const remaining = draft.lessons.filter(item => item.id !== lesson.id); patch({ lessons: remaining }); setActiveLessonId(remaining[0]?.id || ''); if (step === 2 && !remaining.some(item => lessonStudent(draft, item)?.id === lessonStudent(draft, lesson)?.id)) move(1) }}><Trash2 size={16} aria-hidden="true" /></Button>}</div>
               {step === 1 ? <FieldGrid>
-                {lesson.addedLesson && <Select label="Student" value={lesson.studentId || ''} onChange={event => updateLesson(lesson.id, { studentId: event.target.value, teacher: '', start: '', time: '' })}><option value="">Choose a student</option>{lessonStudents.map(person => <option key={person.id} value={person.id}>{fullName(person)}</option>)}</Select>}
+                {lesson.addedLesson ? <Select label="Student" value={lesson.studentId || ''} onChange={event => updateLesson(lesson.id, { studentId: event.target.value, teacher: '', start: '', time: '' })}><option value="">Choose a student</option>{lessonStudents.map(person => <option key={person.id} value={person.id}>{fullName(person)}</option>)}</Select> : <Input label="Student" value={fullName(lessonStudent(draft, lesson))} readOnly />}
                 {configuredServices ? <>
                   <Select label="Service" value={lesson.serviceId || ''} onChange={event => {
                     const service = configuredServices.find(item => item.id === event.target.value)
@@ -257,15 +258,15 @@ export default function StaffEnrollment({ initialRecord, onSaveAndClose, onClose
                     const formats = (() => { try { return JSON.parse(service.values.formats || '[]') as string[] } catch { return [] as string[] } })()
                     updateLesson(lesson.id, { serviceId: service.id, service: formats.includes('group') && !formats.includes('private') ? 'Group' : 'Private', instrument: service.values.name === 'Voice & Vocals' ? 'Voice' : service.values.name === 'Band' ? 'Band Program' : service.values.name, duration: String(configuredDurations(service.id)[0] || 30), teacher: '', time: '', start: '', roomId: undefined })
                   }}><option value="">Choose a service</option>{configuredServices.map(service => <option key={service.id} value={service.id}>{service.values.name}</option>)}</Select>
-                  {configuredDurations(lesson.serviceId || '').length > 0 && <Select label="Length" value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{configuredDurations(lesson.serviceId || '').map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>}
+                  <Select label="Length" disabled={!lesson.serviceId} value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{(configuredDurations(lesson.serviceId || '').length ? configuredDurations(lesson.serviceId || '') : [30, 60]).map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>
                 </> : <><Select label="Service" value={lesson.service} onChange={event => { const service = event.target.value as LessonChoice['service']; updateLesson(lesson.id, { service, instrument: service === 'Group' ? 'Tiny Keys' : 'Piano', duration: initialRecord?.fromCalendar ? '30' : service === 'Group' || service === 'Semi-private' ? '45' : '30', serviceId: undefined, roomId: undefined, teacher: '', time: '', start: '' }) }}>{enrollmentServices.map(value => <option key={value}>{value}</option>)}</Select>
                 <Select label={lesson.service === 'Group' ? 'Program' : 'Instrument'} value={lesson.instrument} onChange={event => updateLesson(lesson.id, { instrument: event.target.value, serviceId: undefined, roomId: undefined, ...(lesson.service === 'Group' ? { duration: event.target.value === 'Band Program' ? '60' : '45' } : {}), teacher: '', time: '', start: '' })}><option value="">Choose a program</option>{(lesson.service === 'Group' ? enrollmentGroupPrograms : enrollmentInstruments).map(value => <option key={value}>{value}</option>)}</Select></>
                 }
                 {!configuredServices && (lesson.service !== 'Group' || lesson.instrument === 'Band Program') && <Select label="Length" value={lesson.duration} onChange={event => updateLesson(lesson.id, { duration: event.target.value, teacher: '', time: '', start: '' })}>{(lesson.instrument === 'Band Program' ? Array.from({ length: 24 }, (_, index) => (index + 1) * 30) : [30, 45, 60]).map(duration => <option key={duration} value={duration}>{duration} minutes</option>)}</Select>}
-                {!singleSession && <Select label="Booking" value={lesson.frequency} onChange={event => updateLesson(lesson.id, { frequency: event.target.value, trialDiscount: undefined, start: '', time: '' })}><option value="Monthly subscription">Ongoing / subscription</option><option value="À-la-carte">One session / à-la-carte</option></Select>}
+                {singleSession ? <Input label="Booking" value="One session / à-la-carte" readOnly /> : <Select label="Booking" value={lesson.frequency} onChange={event => updateLesson(lesson.id, { frequency: event.target.value, trialDiscount: undefined, start: '', time: '' })}><option value="Monthly subscription">Ongoing / subscription</option><option value="À-la-carte">One session / à-la-carte</option></Select>}
                 {lesson.frequency === 'À-la-carte' && <Input label="Trial discount (%)" type="number" min={0} max={100} value={lesson.trialDiscount || 0} onChange={event => updateLesson(lesson.id, { trialDiscount: Number(event.target.value) })} />}
               </FieldGrid> : <p>{lesson.service} · {lesson.instrument} · {lesson.frequency === 'Monthly subscription' ? 'Weekly' : 'One lesson'} · {lesson.duration} minutes</p>}
-              {step === 2 && <p className={styles.lessonStatus}>{lesson.teacher && lesson.start && lesson.time ? <><span><Check className={styles.bookingCheck} size={13} aria-label="Time selected" />{formatScheduleDate(lesson.start, { weekday: 'short', month: 'short', day: 'numeric' })} · {formatScheduleTime(lesson.time)}–{formatScheduleTime(lessonEndTime(lesson))}</span></> : <span>Choose a time</span>}</p>}
+              {step === 2 && <p className={styles.lessonStatus}>{lesson.teacher && lesson.start && lesson.time ? <><span><Check className={styles.bookingCheck} size={13} aria-label="Time selected" />{formatScheduleDate(lesson.start, { weekday: 'short', month: 'short', day: 'numeric' })} · {formatScheduleTime(lesson.time)}–{formatScheduleTime(lessonEndTime(lesson))}</span><span>{lesson.teacher}</span></> : <span>Choose a time</span>}</p>}
             </section>)}</div>{step === 1 && <Button className={styles.addLesson} type="button" variant="secondary" onClick={() => { const id = crypto.randomUUID(); const nextStudent = lessonStudents.length === 1 ? lessonStudents[0] : null; patch({ lessons: [...draft.lessons, { ...newLesson(id), ...initialRecord?.entryLesson, studentId: nextStudent?.id || '', addedLesson: true }] }); setActiveLessonId(id) }}><Plus size={15} aria-hidden="true" />Add another lesson</Button>}
               {step === 2 && activeLesson && calendar}
             </div></>}

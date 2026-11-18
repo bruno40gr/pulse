@@ -8,6 +8,7 @@ import { betaAcademyTeachers } from './beta-academy-schedule'
 import { readSchedulingPolicy, teachingPolicyReason, timeMinutes } from './academy-scheduling-policy'
 import { projectBetaEnrollment } from './beta-workflow-projection'
 import { lessonPrice, lessonStudent, type StaffEnrollment, type LessonChoice } from './academy-staff-enrollment'
+import { lessonOccursOn } from './academy-enrollment-schedule'
 
 export type CalendarBookingKind = 'lesson' | 'studio' | 'rehearsal' | 'event' | 'block' | 'front-desk' | 'admin'
 export type CalendarBooking = {
@@ -178,27 +179,66 @@ export function calendarEnrollmentLesson(context: BookingContext, booking: Calen
   return { service: ['Tiny Keys', 'Little Rockers', 'Band'].includes(service.values.name) ? 'Group' : 'Private', instrument: service.values.name === 'Voice & Vocals' ? 'Voice' : service.values.name === 'Band' ? 'Band Program' : service.values.name, teacher: teacher.values.name, start: booking.date, time: booking.time, day: new Date(`${booking.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }), duration: String(booking.duration), studentId: booking.studentIds[0], frequency: booking.arrangement || 'À-la-carte', roomId: booking.roomId, serviceId: booking.serviceId }
 }
 
+function enrollmentProbe(context: BookingContext, lesson: LessonChoice, date: string, time: string, teacherId: string): CalendarBooking {
+  const service = context.setup.services.find(item => item.id === lesson.serviceId) || context.setup.services.find(item => item.values.name === (lesson.instrument === 'Voice' ? 'Voice & Vocals' : lesson.instrument === 'Band Program' ? 'Band' : lesson.instrument))
+  return { id: `enrollment-probe:${lesson.id}`, kind: 'lesson', title: lesson.instrument, date, time, duration: Number(lesson.duration), serviceId: service?.id || '', teacherId, roomId: lesson.roomId || '', studentIds: [lesson.studentId || ''], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }
+}
+
+function enrollmentRooms(context: BookingContext, probe: CalendarBooking) {
+  return roomRecords(context.setup).filter(room => !probe.roomId || room.id === probe.roomId)
+}
+
+export function calendarEnrollmentAvailability(context: BookingContext, events: Parameters<typeof betaCalendarOccurrences>[2]) {
+  const teachers = betaAcademyTeachers(context.setup)
+  const days = new Map<string, BookingContext>()
+  return (date: string, time: string, lesson: LessonChoice, siblings: readonly LessonChoice[] = []) => {
+    if (!date || !time || !lesson.studentId || !time.endsWith(':00') && !time.endsWith(':30')) return []
+    let day = days.get(date)
+    if (!day) {
+      const data = expandPreviewCalendar(context.data, date)
+      day = { ...context, data, occurrences: betaCalendarOccurrences(data, context.groups, events, [date]) }
+      days.set(date, day)
+    }
+    const occurrences = [...day.occurrences]
+    const proposed = { ...day, occurrences }
+    for (const sibling of siblings) {
+      if (sibling.id === lesson.id || !lessonOccursOn(sibling, date)) continue
+      const teacher = teachers.find(item => item.name === sibling.teacher)
+      const probe = enrollmentProbe(proposed, sibling, date, sibling.time, teacher?.id || '')
+      const room = enrollmentRooms(proposed, probe).find(item => !bookingReason(proposed, { ...probe, roomId: item.id }))
+      const end = timeMinutes(sibling.time) + probe.duration
+      occurrences.push({ id: probe.id, kind: 'lesson', date, start: sibling.time, end: `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`, title: sibling.instrument, program: sibling.instrument, serviceType: sibling.service, room: room?.name || '', teacherName: sibling.teacher, teacherId: teacher?.id, studentIds: probe.studentIds, studentNames: [], status: 'Scheduled' })
+    }
+    return teachers.filter(teacher => {
+      const probe = enrollmentProbe(proposed, lesson, date, time, teacher.id)
+      return enrollmentRooms(proposed, probe).some(room => !bookingReason(proposed, { ...probe, roomId: room.id }))
+    }).map(teacher => ({ name: teacher.name }))
+  }
+}
+
+export class EnrollmentTimeError extends Error {
+  constructor(public readonly lessonId: string, message: string) { super(message) }
+}
+
 /** Reuse enrollment's price/payment decisions and validate its proposed series before writing. */
 export function completeCalendarEnrollment(context: BookingContext, draft: StaffEnrollment, enrollmentId: string, events: Parameters<typeof betaCalendarOccurrences>[2] = []): FamilyPreviewData {
   let working = context.data
   for (const [index, lesson] of draft.lessons.entries()) {
     const teacher = betaAcademyTeachers(context.setup).find(item => item.name === lesson.teacher)
-    const service = context.setup.services.find(item => item.id === lesson.serviceId || item.values.name === lesson.instrument || (lesson.instrument === 'Voice' && item.values.name === 'Voice & Vocals'))
     const studentId = lesson.studentId || draft.student?.id || ''
-    const initial: CalendarBooking = { id: `${enrollmentId}:${index}`, kind: 'lesson', title: lesson.instrument, date: lesson.start, time: lesson.time, duration: Number(lesson.duration), serviceId: service?.id || '', teacherId: teacher?.id || '', roomId: lesson.roomId || '', studentIds: [studentId], groupId: '', repeat: 'once', until: lesson.start, publicOnly: false, status: 'Scheduled' }
+    const initial = enrollmentProbe(context, { ...lesson, studentId }, lesson.start, lesson.time, teacher?.id || '')
     // Validate a rolling year for an ongoing subscription; it is not an infinite guarantee.
     const dates = Array.from({ length: lesson.frequency === 'À-la-carte' ? 1 : 52 }, (_, week) => shiftBookingDate(lesson.start, week * 7))
     const expanded = expandPreviewCalendar(working, dates[dates.length - 1])
-    for (const date of dates) {
-      const probe = { ...initial, date }
-      const occurrences = betaCalendarOccurrences(expanded, context.groups, events, [date])
-      const candidates = lesson.roomId ? roomRecords(context.setup).filter(room => room.id === lesson.roomId) : roomRecords(context.setup)
-      const room = candidates.find(room => !bookingReason({ ...context, data: expanded, occurrences }, { ...probe, roomId: room.id }))
-      if (!room) throw new Error(`${date}: ${bookingReason({ ...context, data: expanded, occurrences }, probe) || 'No suitable room is available.'}`)
-      if (!initial.roomId) initial.roomId = room.id
-      const fixedRoomReason = bookingReason({ ...context, data: expanded, occurrences }, { ...probe, roomId: initial.roomId })
-      if (fixedRoomReason) throw new Error(`${date}: ${fixedRoomReason}`)
-    }
+    const occurrences = betaCalendarOccurrences(expanded, context.groups, events, dates)
+    let problem = 'No suitable room is available.'
+    const room = enrollmentRooms(context, initial).find(candidate => dates.every(date => {
+      const reason = bookingReason({ ...context, data: expanded, occurrences }, { ...initial, date, roomId: candidate.id })
+      if (reason) problem = `${date}: ${reason}`
+      return !reason
+    }))
+    if (!room) throw new EnrollmentTimeError(lesson.id, `${lessonStudent(draft, lesson)?.firstName || 'Student'} · ${lesson.instrument}: ${problem}`)
+    initial.roomId = room.id
     const payerId = draft.payer === 'manager' ? draft.manager?.id || draft.contact?.id || '' : draft.payer === 'other' ? draft.contact?.id || '' : draft.student?.id || draft.contact?.id || ''
     const price = lessonPrice(lesson, lessonStudent(draft, lesson)).total
     working = projectBetaEnrollment(working, { enrollmentId: `${enrollmentId}:lesson:${index}`, studentId, payerId, otherPayer: draft.payer === 'other' ? draft.otherPayer || undefined : undefined, amountMinor: price, paid: draft.payment !== 'later', paymentMethod: draft.payment === 'later' ? 'Add payment later' : 'Demo Visa ···· 4242', lessons: [{ service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id, start: lesson.start, time: lesson.time, duration: Number(lesson.duration), frequency: lesson.frequency === 'À-la-carte' ? 'One-off' : 'Weekly', amountMinor: price, room: roomRecords(context.setup).find(room => room.id === initial.roomId)!.name }] })
