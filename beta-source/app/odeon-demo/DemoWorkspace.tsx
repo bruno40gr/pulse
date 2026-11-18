@@ -263,6 +263,8 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     onSetup={onSetup}
     onEnroll={startCalendarEnrollment}
     initialReschedule={params.get('reschedule') || undefined}
+    siblingRequest={params.getAll('sibling').join(',')}
+    rescheduleAccount={params.get('account') || undefined}
     initialScope={(() => { const raw = params.get('scope') || ''; const cut = raw.indexOf(':'); const kind = cut > 0 ? raw.slice(0, cut) : ''; const id = cut > 0 ? raw.slice(cut + 1) : ''; return (kind === 'student' || kind === 'family') && id ? { kind: kind as 'student' | 'family', id } : undefined })()}
     makeups={snapshot.makeups}
     onDemoChange={onChange}

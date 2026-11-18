@@ -22,8 +22,9 @@ test('academy toolbar reuses shared segmented controls and has no clear filters 
   const calendar = read('beta-source/app/odeon-demo/AcademyCalendar.tsx')
   assert.match(calendar, /Tabs<CalendarPerspective> variant="prominent" controlSize="toolbar"/)
   assert.match(calendar, /ariaLabel="Calendar range"/)
-  assert.doesNotMatch(calendar, /Clear filters|calendarStudentStyle/)
+  assert.doesNotMatch(calendar, /Clear filters/)
   assert.match(calendar, /calendarServiceStyle\(item\)/)
+  assert.match(calendar, /calendarStudentStyle\(item\.student\.id, familyStudentIds\)/)
 })
 
 test('student colors stay stable across focus, roster order, repeated lessons and proposed dates', () => {

@@ -8,7 +8,7 @@ import { detachParticipantOccurrence } from './academy-session'
 
 export const makeupPreviewNow = '2026-11-03T12:00:00-08:00'
 let demoTeacherCache: ReturnType<typeof createOdeonDemo>['teachers'] | undefined
-export type PreviewMakeup = { id: string; lessonId: string; studentId: string; enrollmentId: string; date: string; duration: number; program: string; teacher: string; service: string; booking?: { date: string; time: string; teacher: string; program: string } }
+export type PreviewMakeup = { id: string; lessonId: string; studentId: string; enrollmentId: string; date: string; duration: number; program: string; teacher: string; service: string; booking?: { date: string; time: string; teacher: string; program: string; room?: string } }
 export type AbsenceRecord = { lessonId: string; makeupId: string | null; teacherNotification: 'Queued locally' }
 export type MakeupPreviewState = { items: PreviewMakeup[]; absences: AbsenceRecord[] }
 export type MakeupSlotResolver = (data: FamilyPreviewData, state: MakeupPreviewState, makeup: PreviewMakeup, date: string, program: string, sameTeacher: boolean) => NonNullable<PreviewMakeup['booking']>[]
@@ -125,7 +125,7 @@ export function movePreviewLesson(data: FamilyPreviewData, state: MakeupPreviewS
   const makeup: PreviewMakeup = replacement || { id, lessonId: id, studentId: student.id, enrollmentId: enrollment.id, date: original.date, duration: enrollment.duration, program: enrollment.program, teacher: original.teacher || enrollment.teacher, service: enrollment.service }
   const availabilityData = { ...data, lessons: data.lessons.filter(item => item.id !== id) }
   const availabilityState = { ...state, items: state.items.filter(item => item.id !== id) }
-  if (!availableSlots(availabilityData, availabilityState, makeup, booking.date, booking.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher)) throw new Error('Choose an available lesson time.')
+  if (!availableSlots(availabilityData, availabilityState, makeup, booking.date, booking.program, false).some(slot => slot.time === booking.time && slot.teacher === booking.teacher && (!booking.room || slot.room === booking.room))) throw new Error('Choose an available lesson time.')
   return replacement ? { data, state: { ...state, items: state.items.map(item => item.id === id ? { ...item, booking } : item) } } : { data: { ...data, lessons: data.lessons.map(item => item.id === id ? { ...detachParticipantOccurrence(item), originalDate: item.originalDate || item.date, date: booking.date, time: booking.time, teacher: booking.teacher } : item) }, state }
 }
 export function cancelPreviewReplacement(data: FamilyPreviewData, state: MakeupPreviewState, accountId: string, id: string) {

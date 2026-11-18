@@ -17,7 +17,7 @@ export function LessonSelectionToolbar({ mode, onMode, week, lastDate, onWeek, h
   const activeMode = calendar ? 'week' : mode
   const actions = [
     ...(onCancel ? [{ id: 'cancel', label: count > 1 ? 'Cancel together' : 'Cancel', onClick: onCancel }] : []),
-    { id: 'reschedule', label: count > 1 ? 'Reschedule together' : 'Reschedule', onClick: onReschedule },
+    { id: 'reschedule', label: count > 1 ? 'Reschedule together' : 'Reschedule', onClick: onReschedule, disabledReason: count > 4 ? 'Select up to four lessons to reschedule together.' : undefined },
   ]
   return <div className={styles.container} data-lesson-selection-toolbar="" style={{ '--lesson-toolbar-gap': spacing.sm } as CSSProperties}>
     <div className={styles.toolbar} data-lesson-date-filters="">

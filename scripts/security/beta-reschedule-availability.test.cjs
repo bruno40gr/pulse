@@ -23,6 +23,35 @@ function fixture() {
   return { setup, sample, scheduling, data, lesson, student, enrollment, account, makeup, availabilityData, resolve }
 }
 
+test('family room assignment permits parallel lessons and rejects shared teachers or a single shared room', () => {
+  const { setup, sample, data } = fixture()
+  const { academyRescheduleAvailability } = h.load('beta-source/lib/academy-reschedule-availability.ts')
+  const { commitFamilyMovesWithRooms, familyLessonSlots } = h.load('beta-source/lib/family-reschedule.ts')
+  const { previewCalendarLessons } = h.load('beta-source/lib/academy-makeup-preview.ts')
+  const { workspaceInitial } = h.load('beta-source/lib/academy-student-preview.ts')
+  const account = data.accounts.find(item => item.id === 'demo:family-9')
+  const items = previewCalendarLessons(data, [], workspaceInitial)
+  const lessons = account.studentIds.map(id => items.find(item => item.student.id === id && item.status === 'Scheduled')).filter(Boolean).slice(0, 2)
+  assert.equal(lessons.length, 2)
+  const resolve = academyRescheduleAvailability({ setup, groups: [], events: [] }, true)
+  const options = lessons.map(item => familyLessonSlots(data, sample.makeups, { ...item, studentId: item.student.id, lessonId: item.id, service: item.enrollment.service }, '2026-11-12', resolve))
+  const first = options[0].find(a => options[1].some(b => a.time === b.time && a.teacher !== b.teacher && a.room !== b.room))
+  assert.ok(first, 'The sample offers parallel bookings')
+  const second = options[1].find(b => first.time === b.time && first.teacher !== b.teacher && first.room !== b.room)
+  const moves = Object.fromEntries([first, second].map(({ date, time, teacher, program }, index) => [lessons[index].id, { date, time, teacher, program }]))
+  const before = JSON.stringify({ data, state: sample.makeups })
+  const saved = commitFamilyMovesWithRooms(data, sample.makeups, account.id, moves, resolve)
+  const placed = lessons.map(item => saved.data.lessons.find(lesson => lesson.id === item.id))
+  assert.equal(placed[0].time, placed[1].time)
+  assert.notEqual(placed[0].teacher, placed[1].teacher)
+  assert.notEqual(placed[0].room, placed[1].room)
+  const constrained = (snapshot, state, makeup, date, program) => [first, second].map(slot => ({ ...slot, program, room: first.room }))
+  assert.throws(() => commitFamilyMovesWithRooms(data, sample.makeups, account.id, moves, constrained), /no lessons were moved/)
+  const sameTeacher = { ...moves, [lessons[1].id]: { ...moves[lessons[1].id], teacher: first.teacher } }
+  assert.throws(() => commitFamilyMovesWithRooms(data, sample.makeups, account.id, sameTeacher, constrained), /no lessons were moved/)
+  assert.equal(JSON.stringify({ data, state: sample.makeups }), before)
+})
+
 test('Contacts rescheduling offers the academy hours Calendar validates', () => {
   const { availabilityData, sample, makeup, resolve } = fixture()
   const slots = resolve(availabilityData, sample.makeups, makeup, '2026-11-12', 'Piano', true)

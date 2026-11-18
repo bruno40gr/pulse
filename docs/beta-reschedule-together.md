@@ -78,3 +78,10 @@ repeat cancellation, and booked makeup return/forfeit behavior.
 
 Try BETA → Contacts → Sam Ibrahim → Schedule & lessons (List). Check Adam and
 Sara, select Reschedule together, then select either planning card.
+
+The Beta record opens this planner on the full-page academy calendar. It
+preloads availability for all selected lessons (up to four) for the displayed
+week. Focusing a card or editing a draft does not rerun availability; switching
+weeks loads that week's options. Confirm checks only the proposed changes
+against the final schedule, assigns distinct rooms to overlapping lessons,
+and saves the batch or nothing. Closing the confirmation returns to the record.
