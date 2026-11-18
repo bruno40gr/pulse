@@ -8,6 +8,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { gmailMime } from '@/lib/gmail/conversations'
 import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
+import { gmailSendDiagnostic } from '@/lib/bulk-email-history'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       if ((data || []).length < 500) break
     }
     let sent = 0, pending = 0, failed = 0, uncertain = 0
+    let diagnostic: { httpStatus: number | null; reason: string | null; category: string } | null = null
     const started = Date.now()
     // Bounded batches avoid request timeouts. Reusing operationId safely continues
     // the operation: a claimed/unknown destination is never automatically retried.
@@ -64,9 +66,12 @@ export async function POST(request: Request) {
         })
         // A provider 5xx/timeout may have accepted mail. Never retry it blindly.
         if (response.ok) { const result = await response.json(); providerId = result.id; status = 'sent'; sent++ }
-        else if (response.status >= 400 && response.status < 500) { status = 'failed'; failed++ }
-        else uncertain++
-      } catch { uncertain++ }
+        else {
+          diagnostic = await gmailSendDiagnostic(response)
+          if (response.status >= 400 && response.status < 500) { status = 'failed'; failed++ }
+          else uncertain++
+        }
+      } catch { diagnostic = { httpStatus: null, reason: null, category: 'uncertain' }; uncertain++ }
       const { error: recordError } = await crmSupabaseAdmin.from('organisation_email_deliveries').update({ status, provider_message_id: providerId })
         .eq('tenant_id', access.tenantId).eq('operation_id', body.operationId).eq('destination', recipient.destination)
       if (recordError) throw new Error('Delivery confirmation could not be saved. Check Sent in the shared mailbox before taking further action.')
@@ -76,7 +81,10 @@ export async function POST(request: Request) {
         break
       }
     }
-    await writeAccountAuditEvent({ tenantId: access.tenantId, actorMembershipId: access.context.membershipId, eventType: 'communications.bulk_email_sent', metadata: { operation_id: body.operationId, sender: mailbox.sender.email, sent, failed, uncertain, pending, excluded: resolved.excluded.length } })
+    if (diagnostic) console.warn('bulk_email_send_paused', { operationId: body.operationId, elapsedMs: Date.now() - started, ...diagnostic })
+    // Keep the last actionable diagnostic if staff check progress or continue a paused operation.
+    const event = { operation_id: body.operationId, sender: mailbox.sender.email, subject: body.subject, sent, failed, uncertain, pending, excluded: resolved.excluded.length }
+    await writeAccountAuditEvent({ tenantId: access.tenantId, actorMembershipId: access.context.membershipId, eventType: 'communications.bulk_email_sent', metadata: diagnostic ? { ...event, diagnostic } : event })
     return NextResponse.json({ sent, failed, uncertain, pending, excluded: resolved.excluded.length }, { headers })
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Email could not be confirmed. Check Sent before trying again.' }, { status: 409, headers }) }
 }

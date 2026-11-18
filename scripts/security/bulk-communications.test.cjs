@@ -127,6 +127,7 @@ function sendHarness({ denied = false, contactPermission = true, changed = false
     '@/lib/gmail/conversations': { gmailMime: input => { assert.equal(input.to.length, 1); assert.deepEqual(plain(input.cc), []); assert.deepEqual(plain(input.bcc), []); return JSON.stringify(input) } },
     '@/lib/headliner-email-templates': { unresolvedEmailPlaceholders: value => /\[STUDENT\]/.test(value) ? ['STUDENT'] : [] },
     '@/lib/account-audit': { writeAccountAuditEvent: async () => true },
+    '@/lib/bulk-email-history': load('lib/bulk-email-history.ts'),
     '@/lib/supabase/crm-admin': { crmSupabaseAdmin: { from() {
       const filters = {}; let update
       const builder = {

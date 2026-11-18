@@ -31,6 +31,7 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
       { href: '/dashboard/leads', label: 'Leads' },
       { href: '/dashboard/contacts', label: 'Contacts' },
       { href: '/dashboard/inbox', label: 'Communications' },
+      { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Teachers & staff' },
     ] },
     // Beta screens use fictional sample data. They belong here, never in Operations,

@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui'
 import { EmptyState } from '@/components/ui'
 import { Button } from '@/components/ui'
 import { PageHeader } from '@/components/ui'
+import { EmailCampaignHistory } from '@/components/campaigns/EmailCampaignHistory'
+import { Notice } from '@/components/ui/Notice'
 
 interface CampaignStats {
   total: number
@@ -34,18 +36,23 @@ interface Campaign {
 export default function HistoryPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [selected, setSelected] = useState<Campaign | null>(null)
   const router = useRouter()
   const tenantId = getActiveTenantId()
 
   useEffect(() => {
-    fetch(`/api/history?tenant=${tenantId}`)
-      .then(r => r.json())
+    const controller = new AbortController()
+    fetch(`/api/history?tenant=${encodeURIComponent(tenantId)}`, { signal: controller.signal, cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error('SMS history unavailable'); return r.json() })
       .then(data => {
+        if (controller.signal.aborted) return
         setCampaigns(Array.isArray(data) ? data : [])
+        setLoadError(false)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { if (!controller.signal.aborted) { setLoading(false); setLoadError(true) } })
+    return () => controller.abort()
   }, [tenantId])
 
   const formatDate = (ts: string) =>
@@ -67,13 +74,18 @@ export default function HistoryPage() {
       {/* Header */}
       <PageHeader
         title="Campaigns"
-        subtitle={loading ? 'Loading...' : `${campaigns.length} ${campaigns.length === 1 ? 'campaign' : 'campaigns'} sent`}
+        subtitle="Review bulk email and SMS send activity"
       />
 
+      <EmailCampaignHistory key={tenantId} tenant={tenantId} />
+      <h2>SMS campaigns</h2>
+      {loadError && <Notice variant="error">SMS campaign history could not be loaded.</Notice>}
+      {loading && <p role="status">Loading SMS campaigns…</p>}
+
       {/* Empty state */}
-      {!loading && campaigns.length === 0 && (
+      {!loading && !loadError && campaigns.length === 0 && (
         <EmptyState
-          title="No campaigns yet"
+          title="No SMS campaigns yet"
           description="Once you send your first message, it will appear here with delivery stats."
           action={<Button variant="primary" onClick={() => router.push('/dashboard/contacts')}>Send a message</Button>}
         />
@@ -164,20 +176,6 @@ export default function HistoryPage() {
                       : `Created ${formatDate(campaign.created_at)}`}
                     {campaign.channel && ` · ${campaign.channel.toUpperCase()}`}
                   </div>
-                  {campaign.stats.failed > 0 && (
-                    <div style={{ marginTop: spacing.sm }}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          router.push('/dashboard/contacts')
-                        }}
-                      >
-                        Retry failed recipients
-                      </Button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

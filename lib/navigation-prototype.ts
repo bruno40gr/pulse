@@ -1,5 +1,5 @@
 export const workAreas = [
-  { id: 'operations', label: 'Operations', description: 'Run your day-to-day work', pages: ['Overview', 'Notes', 'Leads', 'Contacts', 'Communications'] },
+  { id: 'operations', label: 'Operations', description: 'Run your day-to-day work', pages: ['Overview', 'Notes', 'Leads', 'Contacts', 'Communications', 'Campaigns'] },
   { id: 'school', label: 'School Setup', description: 'Build the foundation for your school', pages: ['School details', 'Locations & rooms', 'Plans & pricing', 'Services & programs', 'Teachers', 'Policies', 'Academic calendar', 'Curriculum'] },
   { id: 'funding', label: 'Funding', description: 'Manage programs and funded students', pages: ['Overview', 'Funded students', 'Funding programs'] },
   { id: 'website', label: 'Website', description: 'Create and publish your public content', pages: ['All content', 'Events', 'Deadlines', 'Announcements', 'Articles', 'Community posts'] },
