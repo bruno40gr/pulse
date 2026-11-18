@@ -200,9 +200,16 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   }, [reschedule, taskItem, dates, sameTeacher, data, groups, events, setup])
 
   // The lesson may sit in a week the calendar is not showing; go there before looking for it.
+  // A scoped week is a week: one day of it is not the family's week.
+  useEffect(() => {
+    if (!scope) return
+    setDayMode(false)
+    setPerspective('teacher')
+  }, [scope])
   useEffect(() => {
     if (!reschedule || !taskItem) return
     setPerspective('service')
+    setDayMode(true)
     const teacher = setup.teachers.find(item => item.values.name === taskItem.teacher)
     setFilters(current => ({ ...current, staff: teacher ? [teacher.id] : current.staff }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,7 +347,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   }
 
 return (
-    <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans, ...(reschedule && taskItem ? { paddingLeft: 292 } : {}) }}>
+    <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans }}>
       <PageHeader density="compact" singleLine
         onBack={reschedule && taskItem ? leaveReschedule : undefined}
         backLabel={backLabel}
@@ -360,7 +367,7 @@ return (
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 10px', flexWrap: 'wrap' }}>
         {mobile ? <Button size="toolbar" variant="secondary" aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</Button> : <>
-        {!reschedule && <>
+        {!reschedule && !scope && <>
                   <CalendarFilter label="Staff" options={calendarResources('teacher', setup, occurrences)} value={filters.staff} onChange={staff => setFilters(current => ({ ...current, staff }))} />
                   <CalendarFilter label="Room" options={calendarResources('room', setup, occurrences)} value={filters.room} onChange={room => setFilters(current => ({ ...current, room }))} />
                   <CalendarFilter label="Service" options={calendarResources('service', setup, occurrences)} value={filters.service} onChange={service => setFilters(current => ({ ...current, service }))} />
@@ -403,7 +410,7 @@ return (
         <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
       </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
-      <CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
+      <div style={{ paddingLeft: reschedule && taskItem ? 292 : 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
         renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{!dayMode ? betaWeekdayName(column.date) : reschedule ? '' : dayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode && !reschedule ? column.resource.name : dayName(column.date)}</strong></> }}
         renderDay={id => {
           const column = gridColumns.find(item => item.id === id)!
@@ -443,7 +450,10 @@ return (
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
               const inScope = Boolean(scopeStudents && item.studentIds.some(id => scopeStudents.has(id)))
-              return <CalendarBookingBlock key={item.id} data-origin={reschedule && item.id === reschedule.id ? true : undefined} interactive detailed data-booking-id={item.id} data-scoped={inScope || undefined} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...(scopeStudents ? inScope ? { outline: `2px solid ${colors.teal}`, outlineOffset: -2 } : { opacity: 0.4 } : {}), ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
+              // Scoped: the family's lessons take the column and everything else becomes a bar without text,
+              // so the week stays legible instead of splitting each day into a dozen unreadable lanes.
+              if (scopeStudents && !inScope) return <div key={item.id} aria-hidden style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, background: colors.textSecondary, opacity: 0.18, borderRadius: 4, zIndex: 1 }} />
+              return <CalendarBookingBlock key={item.id} data-origin={reschedule && item.id === reschedule.id ? true : undefined} interactive detailed data-booking-id={item.id} data-scoped={inScope || undefined} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...(scopeStudents && inScope ? { gridColumn: '1 / -1', zIndex: 3, outline: `1.5px solid ${colors.border}` } : {}), ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
                 blockRef.current = event.currentTarget
                 const bounds = event.currentTarget.getBoundingClientRect()
                 setAnchor({ top: Math.max(12, Math.min(bounds.top, window.innerHeight - 470)), left: Math.max(12, Math.min(bounds.right + 8, window.innerWidth - 372)) })
@@ -454,6 +464,7 @@ return (
             })}
           </div>
         }} />
+      </div>
       </div>
 
       {cancelTarget && (
