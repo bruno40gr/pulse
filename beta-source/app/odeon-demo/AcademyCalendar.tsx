@@ -104,6 +104,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const rescheduleConsumed = useRef(false)
   // Where the reschedule was opened from, read after mount so the header does not diverge on hydration.
   const [backLabel, setBackLabel] = useState('Calendar')
+  const [done, setDone] = useState<{ title: string; when: string; teacher: string } | null>(null)
   useEffect(() => { if (new URLSearchParams(window.location.search).get('backTo') === 'record') setBackLabel('Family') }, [])
   // A cancellation records why it happened, because billing, make-ups and the family
   // message all follow from that answer, not from the status string alone.
@@ -244,6 +245,14 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     return () => { document.removeEventListener('keydown', key); document.removeEventListener('pointerdown', outside) }
   }, [selected, reschedule])
 
+  // One wording for the lesson, used by the card and the candidate blocks alike.
+  function lessonTitle(item: NonNullable<typeof taskItem>) {
+    const enrollment = item.student.enrollments.find(entry => entry.program === item.program) || item.student.enrollments[0]
+    return `${item.program}${enrollment?.level ? `, Level ${enrollment.level}` : ''}`
+  }
+  function dayShort(date: string) { return dayName(date) }
+  function timeShort(value: string) { const [h, m] = value.split(':').map(Number); const suffix = h >= 12 ? 'pm' : 'am'; const hour = h % 12 === 0 ? 12 : h % 12; return m ? `${hour}:${String(m).padStart(2, '0')}${suffix}` : `${hour}${suffix}` }
+
   function replacementSlots(date: string): NonNullable<PreviewMakeup['booking']>[] {
     if (!reschedule || !taskItem || date < today) return []
     const snapshot = expandPreviewCalendar(data, date)
@@ -355,7 +364,12 @@ return (
         subtitle={reschedule && taskItem ? `${taskItem.program} · ${taskItem.duration} min · originally ${dayName(taskItem.date)} ${taskItem.time}` : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
         right={reschedule && taskItem
           ? <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
-            <Button disabled={!pick} onClick={() => { if (!pick) return; const message = applyReschedule(pick); if (message) setNotice(message) }}>Confirm changes</Button>
+            <Button disabled={!pick} onClick={() => {
+              if (!pick || !taskItem) return
+              const message = applyReschedule(pick)
+              if (message) { setNotice(message); return }
+              setDone({ title: lessonTitle(taskItem), when: `${dayShort(pick.date)} · ${timeShort(pick.time)}`, teacher: pick.teacher })
+            }}>Confirm changes</Button>
             <Button variant="secondary" onClick={leaveReschedule}>Cancel</Button>
           </div>
           : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
@@ -396,11 +410,18 @@ return (
           <Button onClick={() => setFiltersOpen(false)}>Done</Button>
         </div>
       </SlidePanel>}
-      {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'fixed', left: 248, top: 168, width: 264, display: 'grid', gap: spacing.sm, padding: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-        <strong style={{ ...typography.body }}>{taskItem.student.firstName} {taskItem.student.lastName}</strong>
-        <span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{taskItem.program} · {taskItem.duration} min</span>
-        <span style={{ ...typography.bodySmall }}>Originally {dayName(taskItem.date)} · {taskItem.time}</span>
-        <span style={{ ...typography.bodySmall, color: pick ? colors.text : colors.textSecondary }}>{pick ? `New time: ${dayName(pick.date)} · ${pick.time} · ${pick.teacher}` : 'Choose an available slot'}</span>
+      {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'fixed', left: 248, top: 168, width: 268, display: 'grid', gap: spacing.md }}>
+        <div style={{ display: 'grid', gap: 2, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
+          <strong style={{ fontSize: typography.sizeSm }}>{lessonTitle(taskItem)}</strong>
+          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(reschedule.date)} · {timeShort(reschedule.start)}</span>
+          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>w/ {reschedule.teacherName || taskItem.teacher}</span>
+        </div>
+        {pick && <div style={{ display: 'grid', gap: 2, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
+          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>Reschedule to:</span>
+          <strong style={{ fontSize: typography.sizeSm }}>{lessonTitle(taskItem)}</strong>
+          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(pick.date)} · {timeShort(pick.time)}</span>
+          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>w/ {pick.teacher}</span>
+        </div>}
       </aside>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
       {scopeSummary && !reschedule && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap', padding: '0 0 10px', ...typography.bodySmall, color: colors.textSecondary }}>
@@ -410,7 +431,7 @@ return (
         <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
       </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
-      <div style={{ paddingLeft: reschedule && taskItem ? 292 : 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
+      <div style={{ paddingLeft: reschedule && taskItem ? 292 : 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={reschedule ? 150 : allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
         renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{!dayMode ? betaWeekdayName(column.date) : reschedule ? '' : dayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode && !reschedule ? column.resource.name : dayName(column.date)}</strong></> }}
         renderDay={id => {
           const column = gridColumns.find(item => item.id === id)!
@@ -422,9 +443,10 @@ return (
               const index = times.indexOf(time)
               const candidate = reschedule && taskItem ? Boolean(candidateTimes.get(`${column.date}|${column.resource.name}`)?.has(time)) : false
               const reason = reschedule ? (candidate ? '' : 'Not available') : slotReason(column.date, time, column.resource.id)
+              const isCandidate = Boolean(reschedule && candidate)
               const occupied = occupiedRows.has(index)
               const active = drawing.current?.column === id && drawEnd && minutesOf(time) >= Math.min(minutesOf(drawing.current.time), minutesOf(drawEnd)) && minutesOf(time) <= Math.max(minutesOf(drawing.current.time), minutesOf(drawEnd))
-              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} data-available={reason ? undefined : time} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: occupied || reschedule ? undefined : reason ? (showUnavailable ? colors.border : undefined) : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason || reschedule) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
+              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} data-available={reason ? undefined : time} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: occupied || isCandidate ? undefined : reschedule || (reason && showUnavailable) ? colors.border : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason || reschedule) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
                 if (mobile || event.pointerType === 'touch') return
                 const start = drawing.current
                 if (!start || start.column !== id) return
@@ -438,13 +460,14 @@ return (
             })}
             {reschedule && candidateBlocks.filter(block => block.date === column.date).map(block => {
               const row = times.indexOf(block.time)
+              if (row < 0) return null
               const span = Math.max(2, Math.round((taskItem?.duration || 30) / 15))
               const isPicked = pick?.date === block.date && pick?.time === block.time
               return <button key={block.time} type="button" onClick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
                 data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', background: colors.surface, border: `1.5px dashed ${isPicked ? colors.teal : colors.textSecondary}`, borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
-                <strong style={{ fontSize: 11 }}>{taskItem?.program}</strong>
-                <span style={{ fontSize: 10, color: colors.textSecondary }}>{taskItem?.student.firstName} {taskItem?.student.lastName}</span>
-                <span style={{ fontSize: 10, color: colors.textSecondary }}>{block.time} · {block.teachers[0]}</span>
+                <strong style={{ fontSize: 11, color: colors.text }}>{taskItem ? lessonTitle(taskItem) : ''}</strong>
+                <span style={{ fontSize: 10, color: colors.textSecondary }}>{dayShort(block.date)} · {timeShort(block.time)}</span>
+                <span style={{ fontSize: 10, color: colors.textSecondary }}>w/ {block.teachers[0]}</span>
               </button>
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
@@ -466,6 +489,19 @@ return (
         }} />
       </div>
       </div>
+
+      {done && <Modal isOpen size="sm" ariaLabel="Lesson rescheduled" onClose={leaveReschedule}>
+        <ModalHeader title="Lesson rescheduled" onClose={leaveReschedule} />
+        <ModalBody>
+          <div style={{ display: 'grid', gap: spacing.xs }}>
+            <p style={{ margin: 0, ...typography.bodySmall, color: colors.textSecondary }}>Lesson has been rescheduled to</p>
+            <strong style={{ ...typography.body }}>{done.title}</strong>
+            <span style={{ ...typography.body }}>{done.when}</span>
+            <span style={{ ...typography.body, color: colors.textSecondary }}>w/ {done.teacher}</span>
+          </div>
+        </ModalBody>
+        <ModalFooter><Button onClick={leaveReschedule}>Close</Button></ModalFooter>
+      </Modal>}
 
       {cancelTarget && (
         <Modal isOpen size="sm" ariaLabel="Cancel lesson" onClose={() => setCancelTarget(null)}>
