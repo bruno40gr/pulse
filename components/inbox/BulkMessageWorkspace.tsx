@@ -25,7 +25,7 @@ export default function BulkMessageWorkspace() {
     if (recoveryOf !== null) {
       const tenantId = getActiveTenantId()
       if (isShowcaseRecovery(tenantId, recoveryOf)) setSelection({ tenantId, contactIds: [], channel: 'email' })
-      else setError('This follow-up is unavailable for the current account.')
+      else setError('This campaign send is unavailable for the current account.')
       return
     }
     try {
@@ -36,7 +36,7 @@ export default function BulkMessageWorkspace() {
   }, [id, recoveryOf])
   const close = () => router.push(recoveryOf ? '/dashboard/history' : '/dashboard/inbox')
   return <PageContainer style={{ padding: mobile ? spacing.md : spacing['3xl'] }}>
-    <PageHeader title={recoveryOf ? 'Review Showcase follow-up' : selection?.channel === 'email' ? 'Write an email' : 'Write a text message'} onBack={close} backLabel={recoveryOf ? 'Back to Campaigns' : 'Back to Communications'} />
+    <PageHeader title={recoveryOf ? 'Send Showcase invitation to remaining recipients' : selection?.channel === 'email' ? 'Write an email' : 'Write a text message'} onBack={close} backLabel={recoveryOf ? 'Back to Campaigns' : 'Back to Communications'} />
     {error ? <><Notice variant="error">{error}</Notice><Button onClick={() => router.push('/dashboard/contacts')}>Back to Contacts</Button></> : selection ? <section aria-label="Bulk message composer" style={{ minWidth: 0 }}>
       <SurfacePanel padding="0" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: 'max(440px, calc(100dvh - 160px))', overflow: 'hidden' }}>
         <ContactBulkComposer key={recoveryOf || id} {...selection} recoveryOf={recoveryOf || undefined} onClose={close} />

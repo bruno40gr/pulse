@@ -24,8 +24,16 @@
 }
 
 .editor:focus-visible {
-  outline: 2px solid #0090aa;
+  outline: 2px solid var(--interaction-focus);
 }
+
+.editor ul,
+.editor ol {
+  padding-inline-start: 1.5em;
+}
+
+.editor ul { list-style: disc; }
+.editor ol { list-style: decimal; }
 
 .signature {
   margin-top: auto;

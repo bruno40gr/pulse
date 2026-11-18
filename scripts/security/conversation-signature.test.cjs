@@ -43,7 +43,21 @@ test('signature reads personal fields and the shared Brand logo, not internal wo
   assert.equal(data.title, 'Teacher')
   assert.equal(data.phone, '012-3456789')
   assert.equal(data.logoUrl, 'https://example.com/white-logo.png')
+  assert.equal(data.companyLogoUrl, 'https://example.com/white-logo.png')
   assert.doesNotMatch(JSON.stringify(data), /STAGING|Synthetic|personal-logo|secret/)
+})
+
+test('composer can independently include the signature and approved company logo', () => {
+  const { emailFooterOptions } = createHarness().load('lib/conversation-signature.ts')
+  const signature = '<p>Alex</p><img src="https://example.test/old.png">'
+  const brand = 'https://example.test/brand.png'
+  assert.equal(emailFooterOptions(signature, '', brand, false, false).html, '')
+  assert.equal(emailFooterOptions(signature, '', brand, true, false).html, '<p>Alex</p>')
+  assert.match(emailFooterOptions(signature, '', brand, false, true).html, /^<img [^>]*brand\.png/)
+  const both = emailFooterOptions(signature, '', brand, true, true).html
+  assert.equal((both.match(/<img /g) || []).length, 1)
+  assert.doesNotMatch(both, /old\.png/)
+  assert.equal(emailFooterOptions(signature, '', 'javascript:alert(1)', false, true).html, '')
 })
 
 test('unified signature is independent of legacy workspace signature storage and Twilio', async () => {

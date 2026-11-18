@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge, Button, Notice, Select, Tabs } from '@/components/ui'
+import { Badge, Button, Notice, Select, Tabs, SectionTitle } from '@/components/ui'
 import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
 import { ResponsiveDataTable, type DataTableColumn } from '@/components/ui/DataGridTable'
-import { TableDiscoveryToolbar, TableResultCount, TableSearchControl } from '@/components/ui/TableWorkspaceControls'
+import { TableResultCount, TableSearchControl } from '@/components/ui/TableWorkspaceControls'
 import { useRouter } from 'next/navigation'
 import { isShowcaseRecovery } from '@/lib/showcase-email-recovery'
 import { TablePagination } from '@/components/ui/TablePagination'
@@ -18,13 +18,14 @@ type Campaign = {
 }
 type Status = typeof EMAIL_RECIPIENT_STATUSES[number]
 type Receipt = { destination: string; status: Status; created_at: string }
-const labels: Record<Status, string> = { sent: 'Accepted by Gmail', failed: 'Rejected', unknown: 'Needs verification', sending: 'In progress or needs verification' }
+const labels: Record<Status, string> = { sent: 'Accepted by Gmail', failed: 'Failed', unknown: 'Needs verification', sending: 'In progress or needs verification' }
 type FollowUpRow = { destination: string; name: string; students: string; status: Status | 'unattempted' }
 type FollowUpData = { rows: FollowUpRow[]; started: boolean; canSend: boolean; closed: boolean }
 const followUpColumns: DataTableColumn<FollowUpRow, never>[] = [
-  { id: 'students', header: 'Student(s)', width: '32%', render: row => row.students || '—' },
-  { id: 'email', header: 'Email recipient', width: '43%', render: row => <><strong>{row.name}</strong><div style={{ overflowWrap: 'anywhere' }}>{row.destination}</div></> },
-  { id: 'status', header: 'Follow-up status', width: '25%', render: row => row.status === 'unattempted' ? 'Not attempted' : labels[row.status] },
+  { id: 'students', header: 'Student(s)', width: '23%', render: row => row.students || '—' },
+  { id: 'name', header: 'Recipient name', width: '23%', render: row => row.name || '—' },
+  { id: 'email', header: 'Email address', width: '34%', render: row => <span style={{ overflowWrap: 'anywhere' }}>{row.destination}</span> },
+  { id: 'status', header: 'Status', width: '20%', render: row => row.status === 'unattempted' ? 'Not sent' : labels[row.status] },
 ]
 const receiptColumns: DataTableColumn<Receipt, never>[] = [
   { id: 'email', header: 'Email address', width: '46%', render: row => <span style={{ overflowWrap: 'anywhere' }}>{row.destination}</span> },
@@ -59,19 +60,21 @@ function FollowUp({ campaign, tenant }: { campaign: Campaign; tenant: string }) 
   if (!data) return <p role="status">Checking the current student roster…</p>
   const remaining = data.rows.filter(row => row.status === 'unattempted').length
   const matches = data.rows.filter(row => `${row.name} ${row.students} ${row.destination}`.toLowerCase().includes(search.trim().toLowerCase()))
-  return <DenseSectionPanel title={`${remaining} addresses still need follow-up`} actions={data.canSend && remaining > 0 ?
-    <Button onClick={() => router.push(`/dashboard/inbox/bulk?recoveryOf=${campaign.id}`)}>{data.started ? 'Continue follow-up' : 'Review follow-up email'}</Button> : undefined}
-    contentStyle={{ display: 'grid', gap: spacing.md }}>
-    <Notice variant="info">The original send stopped with {campaign.unattempted} addresses not attempted. Pulse didn’t save that list, so this table uses today’s enrolled roster and excludes every original attempt, including the rejected address. {data.closed ? 'This invitation is now closed.' : remaining > 0 && (data.canSend ? 'Review the prepared email before sending.' : 'Ask someone with send permission to review the follow-up.')}</Notice>
-    <TableDiscoveryToolbar search={<TableSearchControl label="Search follow-up recipients" placeholder="Search student, recipient or email" value={input} onChange={setInput} onSearch={() => { setSearch(input); setPage(1) }} onClear={() => { setInput(''); setSearch(''); setPage(1) }} />} filters={null} view={null} preferences={null} />
+  return <section aria-label="Remaining recipients" style={{ display: 'grid', gap: spacing.md, minWidth: 0 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}>
+      <SectionTitle as="h4" variant="card">{remaining} addresses not sent</SectionTitle>
+      {data.canSend && remaining > 0 && <Button onClick={() => router.push(`/dashboard/inbox/bulk?recoveryOf=${campaign.id}`)}>{data.started ? 'Continue sending' : 'Compose for unsent recipients'}</Button>}
+    </div>
+    <Notice variant="info">The original send stopped before trying {campaign.unattempted} addresses. That list wasn’t saved, so this table uses the current enrolled roster. Addresses already attempted, including failures, are excluded. {data.closed ? 'This invitation is now closed.' : remaining > 0 && !data.canSend && 'Ask someone with send permission to send to the remaining recipients.'}</Notice>
+    <TableSearchControl label="Search remaining recipients" placeholder="Search student, recipient or email" value={input} onChange={setInput} onSearch={() => { setSearch(input); setPage(1) }} onClear={() => { setInput(''); setSearch(''); setPage(1) }} />
     <TableResultCount>{matches.length} matching email addresses</TableResultCount>
     <ResponsiveDataTable rows={matches.slice((page - 1) * EMAIL_RECIPIENT_PAGE_SIZE, page * EMAIL_RECIPIENT_PAGE_SIZE)} columns={followUpColumns} getRowKey={row => row.destination} emptyContent="No matching follow-up addresses." ariaLabel="Showcase follow-up recipients" />
     {matches.length > EMAIL_RECIPIENT_PAGE_SIZE && <TablePagination page={page} pageCount={Math.ceil(matches.length / EMAIL_RECIPIENT_PAGE_SIZE)} onPageChange={setPage} ariaLabel="Follow-up recipient pages" />}
-  </DenseSectionPanel>
+  </section>
 }
 
-function RecipientList({ campaign, tenant }: { campaign: Campaign; tenant: string }) {
-  const [status, setStatus] = useState('')
+function RecipientList({ campaign, tenant, failedOnly }: { campaign: Campaign; tenant: string; failedOnly: boolean }) {
+  const [status, setStatus] = useState(failedOnly ? 'failed' : '')
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -91,12 +94,14 @@ function RecipientList({ campaign, tenant }: { campaign: Campaign; tenant: strin
   }, [campaign.id, tenant, page, status, search, requestKey])
   const filtered = requestKey === loadedKey ? result : null
   return <div style={{ display: 'grid', gap: spacing.md }}>
-    <p style={{ color: colors.textSecondary }}>Gmail accepted these messages for sending; that doesn’t confirm inbox delivery.</p>
-    <TableDiscoveryToolbar search={<TableSearchControl label="Search recipient email" placeholder="Search email address" value={input} onChange={value => setInput(value.slice(0, 254))} onSearch={() => { setSearch(input.trim()); setPage(1) }} onClear={() => { setInput(''); setSearch(''); setPage(1) }} />} filters={null} preferences={null} view={
+    <p style={{ color: colors.textSecondary }}>{failedOnly ? 'These addresses were tried, but Gmail did not accept the send. Check the address and the error before retrying. They are not included in the unsent list.' : 'Accepted by Gmail means Gmail accepted the send, not that it reached the inbox.'}</p>
+    <TableSearchControl label="Search recipient email" placeholder="Search email address" value={input} onChange={value => setInput(value.slice(0, 254))} onSearch={() => { setSearch(input.trim()); setPage(1) }} onClear={() => { setInput(''); setSearch(''); setPage(1) }} />
+    {!failedOnly && <div>
       <Select aria-label="Recipient status" fullWidth={false} controlSize="toolbar" value={status} onChange={e => { setPage(1); setStatus(e.target.value) }}>
         <option value="">All recorded statuses</option>
         {EMAIL_RECIPIENT_STATUSES.map(s => <option key={s} value={s}>{labels[s]}</option>)}
-      </Select>} />
+      </Select>
+    </div>}
     {requestKey !== loadedKey ? <p role="status">Loading recipients…</p> : error ? <>
       <Notice variant="error">{error}</Notice>
       {page > 1 && <div><Button variant="secondary" size="sm" onClick={() => setPage(1)}>Return to page one</Button></div>}
@@ -112,7 +117,7 @@ export function EmailCampaignHistory({ tenant }: { tenant: string }) {
   const [data, setData] = useState<{ campaigns: Campaign[]; limited: boolean } | null>(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
-  const [view, setView] = useState<'follow-up' | 'attempts'>('follow-up')
+  const [view, setView] = useState<'follow-up' | 'failed' | 'attempts'>('follow-up')
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -134,18 +139,18 @@ export function EmailCampaignHistory({ tenant }: { tenant: string }) {
       const recoverable = isShowcaseRecovery(tenant, campaign.id)
       const expanded = (selected ?? data.campaigns.find(item => isShowcaseRecovery(tenant, item.id))?.id) === campaign.id
       const d = campaign.diagnostic
-      return <DenseSectionPanel key={campaign.id} title={campaign.subject || 'Bulk email (subject not recorded)'} actions={<Button variant="secondary" size="sm" aria-expanded={expanded} onClick={() => { setView(recoverable ? 'follow-up' : 'attempts'); setSelected(expanded ? '' : campaign.id) }}>{expanded ? 'Hide details' : recoverable ? 'View follow-up' : 'View send attempts'}</Button>} contentStyle={{ display: 'grid', gap: spacing.md }}>
+      return <DenseSectionPanel key={campaign.id} title={campaign.subject || 'Bulk email (subject not recorded)'} actions={<Button variant="secondary" size="sm" aria-expanded={expanded} onClick={() => { setView(recoverable ? 'follow-up' : 'attempts'); setSelected(expanded ? '' : campaign.id) }}>{expanded ? 'Hide details' : recoverable ? 'View recipients' : 'View send attempts'}</Button>} contentStyle={{ display: 'grid', gap: spacing.md }}>
         {needsAttention && <div><Badge variant="warning">Needs attention</Badge></div>}
         <div>{campaign.sender && `${campaign.sender} · `}Last progress update {new Date(campaign.updatedAt).toLocaleString()}</div>
-        <div>{campaign.accepted} accepted · {campaign.failed} rejected · {campaign.unattempted} not attempted · {campaign.uncertain} need verification · {campaign.excluded} contacts excluded</div>
-        {expanded && (!recoverable || view === 'attempts') && (d ? <Notice variant="warning" title="Last recorded provider issue">
+        <div>{campaign.accepted} accepted · {campaign.failed} failed · {campaign.unattempted} not sent · {campaign.uncertain} need verification · {campaign.excluded} contacts excluded</div>
+        {expanded && (!recoverable || view !== 'follow-up') && (d ? <Notice variant="warning" title="Last recorded provider issue">
           {d.category === 'rate_limit' ? 'Gmail reported a sending limit. Wait before trying again.'
             : d.category === 'mailbox_access' ? 'Check the shared mailbox and its send permissions.'
               : d.category === 'uncertain' ? 'Check Gmail Sent before attempting to resend.' : 'Gmail rejected a send. Review the attempt before retrying.'}
           {d.httpStatus ? ` HTTP ${d.httpStatus}.` : ''}{d.reason ? ` ${d.reason}.` : ''}
         </Notice> : campaign.failed > 0 && <Notice variant="warning">Gmail rejected at least one send. The exact provider error was not recorded.</Notice>)}
-        {expanded && recoverable && <Tabs items={[{ key: 'follow-up', label: 'Needs follow-up' }, { key: 'attempts', label: 'Original send attempts' }]} activeKey={view} onChange={setView} ariaLabel="Campaign recipient views" />}
-        {expanded && (recoverable && view === 'follow-up' ? <FollowUp key={`${campaign.id}:${revision}`} campaign={campaign} tenant={tenant} /> : <RecipientList key={`${campaign.id}:${revision}`} campaign={campaign} tenant={tenant} />)}
+        {expanded && recoverable && <Tabs items={[{ key: 'follow-up', label: 'Not sent' }, { key: 'failed', label: 'Failed', count: campaign.failed }, { key: 'attempts', label: 'All original attempts' }]} activeKey={view} onChange={setView} ariaLabel="Campaign recipient views" />}
+        {expanded && (recoverable && view === 'follow-up' ? <FollowUp key={`${campaign.id}:${revision}`} campaign={campaign} tenant={tenant} /> : <RecipientList key={`${campaign.id}:${revision}:${view}`} campaign={campaign} tenant={tenant} failedOnly={view === 'failed'} />)}
         {!recoverable && campaign.unattempted > 0 && <p style={{ color: colors.textSecondary }}>The original recipient list wasn’t saved. This campaign can’t be resumed from history.</p>}
       </DenseSectionPanel>
     })}

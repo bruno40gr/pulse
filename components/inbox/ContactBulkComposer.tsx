@@ -84,7 +84,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     return () => { cancelled = true }
   }, [tenantId, selectionKey, channel, recoveryOf])
   const sender = senders.find(sender => sender.email === draft.senderEmail)
-  const signatureHtml = recoveryOf ? '' : signature?.personal ? conversationSignatureHtml(signature, '') : sender?.signatureHtml ? sanitizePrototypeHtml(sender.signatureHtml) : signature && sender ? conversationSignatureHtml({ ...signature, name: sender.name, title: sender.mine ? signature.title : '' }, sender.name) : ''
+  const signatureHtml = signature?.personal ? conversationSignatureHtml(signature, '') : sender?.signatureHtml ? sanitizePrototypeHtml(sender.signatureHtml) : signature && sender ? conversationSignatureHtml({ ...signature, name: sender.name, title: sender.mine ? signature.title : '' }, sender.name) : ''
 
   async function send(body: string, html: string) {
     if (!audience || !sender || sending) return
@@ -115,7 +115,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
   if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version, recipients: audience.recipients }} excludedRecipients={audience.excluded} />
   const count = audience.remaining ?? audience.recipients.length
   return <>
-    {recoveryOf && <Notice style={{ margin: spacing.lg }}>Review the message below before sending. Pulse rechecks the roster and skips addresses already attempted.</Notice>}
+    {recoveryOf && <Notice style={{ margin: spacing.lg }}>This sends the original invitation to recipients it missed. Previous attempts are excluded. The draft already has a closing; remove it if you add your own signature.</Notice>}
     {senderError && <Notice variant="error" style={{ margin: spacing.lg }}>{senderError}</Notice>}
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
     <div style={{ margin: audience.excluded.length ? spacing.lg : 0 }}><ExcludedRecipientsNotice contacts={audience.excluded} channel="email" /></div>
@@ -123,7 +123,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     <PrototypeEmailComposer name="" email="" student="" people={[]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])}
       draft={draft} onChange={value => { if (!locked) setDraft({ ...value, senderEmail: draft.senderEmail }) }}
       onSend={send} onCollapse={onClose} onDiscard={() => { if (sending) return; if (window.confirm(locked ? 'Close this send? Emails already submitted cannot be recalled.' : 'Discard this email draft?')) { sessionStorage.removeItem(storageKey); onClose() } }}
-      replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} senderName={sender?.name || ''} senderEmail={sender?.email || ''}
+      replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} companyLogoUrl={signature?.companyLogoUrl} includeSignatureByDefault={!recoveryOf} senderName={sender?.name || ''} senderEmail={sender?.email || ''}
       disabled={sending || locked || !sender || !count} sendLabel={sending ? 'Sending…' : `Send ${count} ${count === 1 ? 'email' : 'emails'}`}
       fromControl={<Select aria-label="Send email from" value={sender?.email || ''} disabled={sending || locked || !senders.length} onChange={event => setDraft({ ...draft, senderEmail: event.target.value })}>{!sender && <option value="">{senders.length ? 'Select a sender' : 'Set up organisation email in Settings'}</option>}{senders.map(item => <option key={item.email} value={item.email}>{item.mine ? 'Me — ' : ''}{item.name} — {item.email}</option>)}</Select>}
       recipientSummary={<span>{count} {count === 1 ? 'recipient' : 'recipients'}{recoveryOf ? ' still to send' : ''}</span>} />

@@ -1,4 +1,11 @@
-export type ConversationSignature = { company: string; phone: string; logoUrl: string; name?: string; title?: string; personal?: boolean }
+export type ConversationSignature = { company: string; phone: string; logoUrl: string; companyLogoUrl?: string; name?: string; title?: string; personal?: boolean }
+
+export function emailFooterOptions(html: string, savedLogo?: string, companyLogo?: string, includeSignature = true, includeLogo = !!savedLogo) {
+  const url = companyLogo || savedLogo || ''
+  const logoUrl = /^https:\/\/[^\s]+$/i.test(url) ? url : ''
+  const text = html.replace(/<img\b[^>]*>/gi, '')
+  return { logoUrl, hasSignature: !!text.replace(/<[^>]*>/g, '').trim(), html: (includeSignature ? text : '') + (includeLogo && logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="Company logo" width="176" style="display:block">` : '') }
+}
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 

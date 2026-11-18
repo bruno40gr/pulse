@@ -106,7 +106,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/api/') && !isPublicPath && !isAuthorized) {
-    return NextResponse.json({ error: 'Pulse access required.' }, { status: 401 })
+    return NextResponse.json({ error: 'Sign in to continue.' }, { status: 401 })
   }
 
   // Tenant isolation: a demo session may only read its own demo tenant.

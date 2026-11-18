@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Bold, Italic, Underline, List, Send } from 'lucide-react'
+import { Bold, Italic, Underline, List, ListOrdered, Send } from 'lucide-react'
 import { Button, Notice, Modal, ModalHeader, ModalBody, ModalFooter, PageHeader } from '@/components/ui'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { emailFooterOptions } from '@/lib/conversation-signature'
 import { EmailComposerFields } from './EmailComposerFields'
 import styles from './EmailComposer.module.css'
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -18,12 +20,14 @@ import { fillMockTemplate, mockTextHtml, validMockEmailRecipients, type MockEmai
 
 const line: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 
-export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false }: {
+export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, companyLogoUrl, includeSignatureByDefault = true, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false }: {
   name: string; email: string; student: string; draft: PrototypeEmailDraft
   onChange: (draft: PrototypeEmailDraft) => void
   onSend: (body: string, html: string) => void
   signatureHtml: string; senderName: string
   signatureImageUrl?: string
+  companyLogoUrl?: string
+  includeSignatureByDefault?: boolean
   senderEmail?: string; disabled?: boolean
   fromControl?: ReactNode; recipientSummary?: ReactNode; sendLabel?: string
   title?: string; onBack?: () => void; hideSendAction?: boolean
@@ -34,7 +38,12 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   const [undo, setUndo] = useState<PrototypeEmailDraft | null>(null)
   const [dismissedPlaceholders, setDismissedPlaceholders] = useState<string | null>(null)
   const editor = useRef<HTMLDivElement>(null)
-  const trustedImages = signatureImageUrl ? [signatureImageUrl] : []
+  const savedSelection = useRef<Range | null>(null)
+  const [includeSignature, setIncludeSignature] = useState<boolean | null>(null)
+  const [includeLogo, setIncludeLogo] = useState<boolean | null>(null)
+  const footer = emailFooterOptions(signatureHtml, signatureImageUrl, companyLogoUrl, includeSignature ?? includeSignatureByDefault, includeLogo ?? (includeSignatureByDefault && !!signatureImageUrl))
+  const trustedImages = footer.logoUrl ? [footer.logoUrl] : []
+  const messageHtml = () => sanitizePrototypeHtml(draft.html) + sanitizePrototypeHtml(footer.html, trustedImages)
   const placeholders = unresolvedEmailPlaceholders(`${draft.subject}\n${prototypeHtmlText(draft.html)}`)
   const placeholderKey = placeholders.join('|')
   useEffect(() => {
@@ -43,22 +52,28 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
     }
   }, [draft.html, mode])
 
-  function format(tag: 'strong' | 'em' | 'u' | 'ul') {
+  function rememberSelection() {
     const selection = window.getSelection()
-    if (!selection?.rangeCount || !editor.current) return
-    const range = selection.getRangeAt(0)
-    if (!editor.current.contains(range.commonAncestorContainer) || range.collapsed) return
-    const wrapper = document.createElement(tag)
-    const fragment = range.extractContents()
-    if (tag === 'ul') { const item = document.createElement('li'); item.append(fragment); wrapper.append(item) }
-    else wrapper.append(fragment)
-    range.insertNode(wrapper)
-    range.selectNodeContents(wrapper); selection.removeAllRanges(); selection.addRange(range)
-    onChange({ ...draft, html: editor.current.innerHTML })
+    if (selection?.rangeCount && editor.current?.contains(selection.getRangeAt(0).commonAncestorContainer)) savedSelection.current = selection.getRangeAt(0).cloneRange()
+  }
+
+  function format(command: string) {
+    const target = editor.current
+    if (!target || disabled) return
+    const range = savedSelection.current
+    target.focus()
+    if (range && target.contains(range.commonAncestorContainer)) {
+      const selection = window.getSelection()
+      selection?.removeAllRanges(); selection?.addRange(range)
+    }
+    // Native editing commands preserve the browser's undo stack and work at a caret or on a selection.
+    document.execCommand(command)
+    rememberSelection()
+    onChange({ ...draft, html: target.innerHTML })
   }
 
   const sendAction = !hideSendAction && <div aria-label="Email actions" style={{ ...line, justifyContent: 'flex-end', flexWrap: 'nowrap', flexShrink: 0 }}>
-      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = sanitizePrototypeHtml(draft.html) + signatureHtml; onSend(prototypeHtmlText(content, trustedImages), sanitizePrototypeHtml(content, trustedImages)) }}><Send size={14} />{sendLabel}</Button>
+      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = messageHtml(); onSend(prototypeHtmlText(content, trustedImages), content) }}><Send size={14} />{sendLabel}</Button>
     </div>
 
   return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
@@ -75,7 +90,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
       <div aria-label="Message input area" style={{ marginTop: spacing.lg, border: `1px solid ${colors.border}`, borderRadius: 8, background: colors.surface, minWidth: 0 }}>
         <div style={{ ...line, justifyContent: 'space-between', padding: spacing.sm, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div aria-label="Email formatting" style={line}>
-          {([{ tag: 'strong', label: 'Bold', icon: Bold }, { tag: 'em', label: 'Italic', icon: Italic }, { tag: 'u', label: 'Underline', icon: Underline }, { tag: 'ul', label: 'Bullet list', icon: List }] as const).map(({ tag, label, icon: Icon }) => <ControlButton kind="icon" key={tag} disabled={mode !== 'write'} aria-label={label} title={`${label} (select text first)`} onMouseDown={event => event.preventDefault()} onClick={() => format(tag)}><Icon size={15} /></ControlButton>)}
+          {([{ command: 'bold', label: 'Bold', icon: Bold }, { command: 'italic', label: 'Italic', icon: Italic }, { command: 'underline', label: 'Underline', icon: Underline }, { command: 'insertUnorderedList', label: 'Bullets', icon: List }, { command: 'insertOrderedList', label: 'Numbering', icon: ListOrdered }] as const).map(({ command, label, icon: Icon }) => <Button type="button" variant="ghost" size="sm" key={command} disabled={disabled || mode !== 'write'} onMouseDown={event => { rememberSelection(); event.preventDefault() }} onClick={() => format(command)}><Icon size={15} aria-hidden="true" />{label}</Button>)}
           </div>
         <div aria-label="Template actions" style={{ ...line, marginLeft: 'auto', justifyContent: 'flex-end' }}>
         {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null); setDismissedPlaceholders(null) }}>Undo template</Button>}
@@ -90,8 +105,13 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
         <ControlButton kind="toggle" aria-pressed={mode === 'preview'} selected={mode === 'preview'} onClick={() => setMode(mode === 'preview' ? 'write' : 'preview')}>{mode === 'preview' ? 'Write' : 'Preview'}</ControlButton>
         </div>
         </div>
+      <div aria-label="Email signature options" style={{ ...line, padding: `${spacing.xs} ${spacing.md}`, borderBottom: `1px solid ${colors.borderLight}` }}>
+        <Checkbox label="Include signature" checked={footer.hasSignature && (includeSignature ?? includeSignatureByDefault)} disabled={disabled || !footer.hasSignature} onChange={event => setIncludeSignature(event.target.checked)} />
+        <Checkbox label="Include company logo" checked={!!footer.logoUrl && (includeLogo ?? (includeSignatureByDefault && !!signatureImageUrl))} disabled={disabled || !footer.logoUrl} onChange={event => setIncludeLogo(event.target.checked)} />
+        <a href="/dashboard/settings" target="_blank" rel="noreferrer">{footer.hasSignature && footer.logoUrl ? 'Email signature settings' : 'Set up signature and logo in Settings'}</a>
+      </div>
       {mode === 'write' && <div className={styles.writingArea}>
-        <div ref={editor} className={styles.editor} data-placeholder="Write your message…" role="textbox" aria-label="Email body" aria-placeholder="Write your message…" aria-multiline="true" contentEditable suppressContentEditableWarning onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
+        <div ref={editor} className={styles.editor} data-placeholder="Write your message…" role="textbox" aria-label="Email body" aria-placeholder="Write your message…" aria-multiline="true" aria-readonly={disabled} contentEditable={!disabled} suppressContentEditableWarning onSelect={rememberSelection} onInput={event => onChange({ ...draft, html: event.currentTarget.innerHTML })}
           onPaste={event => {
             event.preventDefault()
             const selection = window.getSelection()
@@ -104,9 +124,9 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
             selection.removeAllRanges(); selection.addRange(range)
             onChange({ ...draft, html: editor.current.innerHTML })
           }} />
-        {signatureHtml && <div aria-label="Your email signature" className={styles.signature} dangerouslySetInnerHTML={{ __html: sanitizePrototypeHtml(signatureHtml, trustedImages) }} />}
+        {footer.html && <div aria-label="Your email signature" className={styles.signature} dangerouslySetInnerHTML={{ __html: sanitizePrototypeHtml(footer.html, trustedImages) }} />}
       </div>}
-      {mode === 'preview' && <iframe title="Email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(sanitizePrototypeHtml(draft.html) + signatureHtml, trustedImages)} style={{ border: 0, width: '100%', height: 390 }} />}
+      {mode === 'preview' && <iframe title="Email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={prototypePreviewDocument(messageHtml(), trustedImages)} style={{ border: 0, width: '100%', height: 390 }} />}
       </div>
     </div>
     {draft.recipients && <Modal isOpen={managingRecipients} onClose={() => setManagingRecipients(false)} ariaLabel="Manage recipients" size="lg">

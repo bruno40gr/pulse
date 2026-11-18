@@ -70,7 +70,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <PageContainer maxWidth="1200px">
+    <PageContainer>
 
       {/* Header */}
       <PageHeader

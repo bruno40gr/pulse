@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   if (!access.context) return NextResponse.json({ error: 'Sign in to load your email signature.' }, { status: 403, headers })
   try {
     const signoff = await personalEmailSignoff(access.tenantId, access.context.membershipId, access.context.personId)
-    return NextResponse.json({ company: '', name: signoff.name, title: signoff.role, personal: true, logoUrl: signoff.logoUrl, phone: signoff.phone, setupRequired: !signoff.storageAvailable, storageAvailable: signoff.storageAvailable }, { headers })
+    return NextResponse.json({ company: '', name: signoff.name, title: signoff.role, personal: true, logoUrl: signoff.logoUrl, companyLogoUrl: signoff.companyLogoUrl, phone: signoff.phone, setupRequired: !signoff.storageAvailable, storageAvailable: signoff.storageAvailable }, { headers })
   } catch {
     return NextResponse.json({ error: 'Your email sign-off could not be loaded.' }, { status: 503, headers })
   }
