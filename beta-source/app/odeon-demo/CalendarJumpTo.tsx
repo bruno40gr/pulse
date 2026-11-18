@@ -25,8 +25,17 @@ export default function CalendarJumpTo({ data }: { data: FamilyPreviewData }) {
         return [{ id: student.id, name: previewStudentName(student), accountId: account.id, programs: student.enrollments.map(item => item.program).filter(Boolean).slice(0, 2).join(' · ') }]
       })
   }, [data, query])
-  const go = (studentId: string, accountId: string) => {
-    window.location.assign(`/odeon-demo?view=quick&account=${encodeURIComponent(accountId)}&student=${encodeURIComponent(studentId)}`)
+  // Jumping to a person scopes the calendar to them; the contact is one click from there.
+  const familyMatches = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    if (term.length < 2) return []
+    return data.accounts.filter(account => `${account.holderName} ${account.email || ''}`.toLowerCase().includes(term)).slice(0, 3)
+  }, [data, query])
+  const goToStudent = (studentId: string) => {
+    window.location.assign(`/odeon-demo?screen=calendar&scope=student:${encodeURIComponent(studentId)}`)
+  }
+  const goToFamily = (accountId: string) => {
+    window.location.assign(`/odeon-demo?screen=calendar&scope=family:${encodeURIComponent(accountId)}`)
   }
   return <div style={{ position: 'relative', minWidth: 220 }}>
     <Input label="Jump to a person" aria-label="Jump to a person" placeholder="Student or contact" value={query}
@@ -34,12 +43,17 @@ export default function CalendarJumpTo({ data }: { data: FamilyPreviewData }) {
       onFocus={() => setOpen(true)}
       onKeyDown={event => { if (event.key === 'Escape') { setOpen(false); setQuery('') } }} />
     {open && matches.length > 0 && <div role="listbox" aria-label="People" style={{ position: 'absolute', zIndex: 40, top: '100%', left: 0, right: 0, marginTop: 4, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, boxShadow: shadows.md, maxHeight: 260, overflowY: 'auto' }}>
-      {matches.map(match => <button key={match.id} type="button" role="option" aria-selected={false} onClick={() => go(match.id, match.accountId)}
+      {familyMatches.map(account => <button key={account.id} type="button" role="option" aria-selected={false} onClick={() => goToFamily(account.id)}
+        style={{ display: 'grid', gap: 2, width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: `${spacing.sm} ${spacing.md}`, cursor: 'pointer' }}>
+        <strong style={{ ...typography.bodySmall, color: colors.text }}>{account.holderName}</strong>
+        <span style={{ ...typography.helper, color: colors.textSecondary }}>Family · {account.studentIds.length} student{account.studentIds.length === 1 ? '' : 's'}</span>
+      </button>)}
+      {matches.map(match => <button key={match.id} type="button" role="option" aria-selected={false} onClick={() => goToStudent(match.id)}
         style={{ display: 'grid', gap: 2, width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: `${spacing.sm} ${spacing.md}`, cursor: 'pointer', font: 'inherit' }}>
         <strong style={{ ...typography.bodySmall, color: colors.text }}>{match.name}</strong>
         {match.programs && <span style={{ ...typography.helper, color: colors.textSecondary }}>{match.programs}</span>}
       </button>)}
     </div>}
-    {open && query.trim().length >= 2 && matches.length === 0 && <p role="status" style={{ position: 'absolute', zIndex: 40, top: '100%', left: 0, marginTop: 4, padding: `${spacing.sm} ${spacing.md}`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, ...typography.helper, color: colors.textSecondary }}>No match</p>}
+    {open && query.trim().length >= 2 && matches.length === 0 && familyMatches.length === 0 && <p role="status" style={{ position: 'absolute', zIndex: 40, top: '100%', left: 0, marginTop: 4, padding: `${spacing.sm} ${spacing.md}`, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md, ...typography.helper, color: colors.textSecondary }}>No match</p>}
   </div>
 }

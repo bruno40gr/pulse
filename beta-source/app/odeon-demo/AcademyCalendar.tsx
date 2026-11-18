@@ -52,10 +52,11 @@ const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
 const dayName = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 
-export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll, initialReschedule }: {
+export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll, initialReschedule, initialScope }: {
   onEnroll: (booking: CalendarBooking, action: 'staff' | 'send') => void
   /** Lesson to open for rescheduling on arrival, so other surfaces can deep-link here. */
   initialReschedule?: string
+  initialScope?: { kind: 'student' | 'family'; id: string }
   onSetup: (setup: Record<string, SetupRecord[]>) => void
   makeups?: MakeupPreviewState
   onDemoChange?: (data: FamilyPreviewData, makeups: MakeupPreviewState) => void
@@ -97,6 +98,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const [notice, setNotice] = useState('')
   const [reschedule, setReschedule] = useState<CalendarOccurrence | null>(null)
   // The reschedule is the calendar in a mode: candidate cells on the same grid, not another grid.
+  const [scope, setScope] = useState<{ kind: 'student' | 'family'; id: string } | null>(initialScope || null)
   const [pick, setPick] = useState<{ date: string; time: string; teacher: string; program: string } | null>(null)
   const [sameTeacher, setSameTeacher] = useState(true)
   const rescheduleConsumed = useRef(false)
@@ -114,10 +116,17 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     const booking = [...(expanded.calendarBookings || []), ...configuredBlocks(setup)].find(booking => booking.id === item.bookingId)
     return booking ? { ...item, room: roomRecords(setup).find(room => room.id === booking.roomId)?.name || '', teacherName: setup.teachers.find(teacher => teacher.id === booking.teacherId)?.values.name || '' } : item
   }), [expanded, groups, events, dates, setup])
-  const visible = useMemo(() => occurrences.filter(item => (showUnavailable || item.kind !== 'block') &&
+  // The scope is the difference between the whole school and one family's week.
+  const scopeStudents = useMemo(() => {
+    if (!scope) return null
+    if (scope.kind === 'student') return new Set([scope.id])
+    const account = data.accounts.find(item => item.id === scope.id)
+    return new Set(account ? account.studentIds : [])
+  }, [scope, data])
+  const visible = useMemo(() => occurrences.filter(item => (!scopeStudents || item.studentIds.some(id => scopeStudents.has(id))) && (showUnavailable || item.kind !== 'block') &&
     (!filters.staff.length || calendarResourceIds(item, 'teacher', setup).some(id => filters.staff.includes(id))) &&
     (!filters.room.length || filters.room.includes(item.room || 'Unassigned')) &&
-    (!filters.service.length || filters.service.includes(calendarServiceName(item, setup)))), [occurrences, filters, setup, showUnavailable])
+    (!filters.service.length || filters.service.includes(calendarServiceName(item, setup)))), [occurrences, filters, setup, showUnavailable, scopeStudents])
   const academyTeachers = useMemo(() => betaAcademyTeachers(setup), [setup])
 
   const resources = useMemo(() => calendarResources(perspective, setup, occurrences), [perspective, setup, occurrences])
@@ -303,6 +312,11 @@ return (
         </div>
       </SlidePanel>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
+      {scope && !reschedule && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, padding: '0 0 10px' }} role="status">
+        <span style={{ ...typography.bodySmall, textTransform: 'uppercase', letterSpacing: '0.06em', color: colors.textSecondary }}>{scope.kind === 'student' ? 'Student' : 'Family'}</span>
+        <strong style={{ ...typography.body }}>{(() => { const student = data.students.find(item => item.id === scope.id); return scope.kind === 'student' ? `${student?.firstName || ''} ${student?.lastName || ''}`.trim() || 'Student' : data.accounts.find(item => item.id === scope.id)?.holderName || 'Family' })()}</strong>
+        <Button size="sm" variant="ghost" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }}>Show the whole school</Button>
+      </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
       <CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
         renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{reschedule ? null : (dayMode ? dayName(column.date) : betaWeekdayName(column.date))}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{reschedule || !dayMode ? dayName(column.date) : column.resource.name}</strong></> }}
