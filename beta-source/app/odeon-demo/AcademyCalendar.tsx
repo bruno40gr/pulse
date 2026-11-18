@@ -16,6 +16,7 @@ import StudentWorkspaceV3 from '../content-studio-prototype/students/StudentWork
 import { CalendarFilter } from './CalendarFilters'
 import CalendarBookingModal, { type BookingPrefill } from './CalendarBookingModal'
 import { useCalendarEnrollment } from './CalendarEnrollmentContext'
+import { BookableSlot } from './BookableSlot'
 import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
@@ -475,23 +476,18 @@ return (
             {reschedule && candidateBlocks.filter(block => block.date === column.date).map(block => {
               const row = times.indexOf(block.time)
               if (row < 0 || block.time < times[0]) return null
-              if (row < 0) return null
               const span = Math.max(2, Math.round((taskItem?.duration || 30) / 15))
               const isPicked = pick?.date === block.date && pick?.time === block.time
-              return <button key={block.time} type="button" onClick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
-                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', ...(isPicked ? { ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem!.program, program: taskItem!.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '2.5px solid var(--calendar-student-border)' } : { background: colors.surface, border: '1.5px dashed rgba(139,90,181,0.55)', color: colors.text }), borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
-                <strong style={{ fontSize: 11, color: colors.text }}>{taskItem ? lessonTitle(taskItem) : ''}</strong>
-                <span style={{ fontSize: 10, color: colors.textSecondary }}>{dayShort(block.date)} · {timeShort(block.time)}</span>
-                {block.teachers.length > 1
-                  ? <select aria-label={`Teacher for ${dayShort(block.date)} ${timeShort(block.time)}`} value={pick?.date === block.date && pick?.time === block.time ? pick.teacher : ''}
-                    onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}
-                    onChange={event => setPick({ date: block.date, time: block.time, teacher: event.target.value, program: taskItem!.program })}
-                    style={{ font: 'inherit', fontSize: 10, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
-                    <option value="">Select teacher</option>
-                    {block.teachers.map(name => <option key={name} value={name}>w/ {name}</option>)}
-                  </select>
-                  : <span style={{ fontSize: 10, opacity: 0.8 }}>w/ {block.teachers[0]}</span>}
-              </button>
+              return <BookableSlot key={block.time}
+                title={taskItem ? lessonTitle(taskItem) : ''}
+                when={`${dayShort(block.date)} · ${timeShort(block.time)}`}
+                teachers={block.teachers}
+                selectedTeacher={isPicked ? pick?.teacher : undefined}
+                picked={isPicked}
+                teacherLabel={`Teacher for ${dayShort(block.date)} ${timeShort(block.time)}`}
+                style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: isPicked ? 4 : 2, ...(isPicked && taskItem ? calendarServiceStyle({ kind: 'lesson', serviceType: taskItem.program, program: taskItem.program }) : {}) }}
+                onPick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
+                onChooseTeacher={teacher => setPick({ date: block.date, time: block.time, teacher, program: taskItem!.program })} />
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
