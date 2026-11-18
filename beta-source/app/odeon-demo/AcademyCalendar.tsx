@@ -160,6 +160,29 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   // teacher follows from it, so a cell can never mean two different teachers at once.
   // Candidate times per visible day: computed once so every cell answers from one set, and so
   // the cells and the confirm button cannot disagree about what is available.
+  // Rescheduling is a week of days: the decision is "which day and time", and the teacher
+  // comes from whoever is free there.
+  const rescheduleDates = useMemo(() => betaWeekDates(week).slice(0, 6), [week])
+  const gridColumns = reschedule && taskItem ? rescheduleDates.map(date => ({ id: date, date, resource: { id: '', name: '' } })) : columns
+  // Dotted candidate blocks, one per open time, naming who could teach it.
+  const candidateBlocks = useMemo(() => {
+    if (!reschedule || !taskItem) return []
+    const staff = new Set(filters.staff)
+    const blocks: { date: string; time: string; teachers: string[] }[] = []
+    for (const date of rescheduleDates) {
+      const byTime = new Map<string, string[]>()
+      for (const slot of replacementSlots(date)) {
+        if (staff.size) {
+          const teacher = setup.teachers.find(item => item.values.name === slot.teacher)
+          if (!teacher || !staff.has(teacher.id)) continue
+        }
+        byTime.set(slot.time, [...(byTime.get(slot.time) || []), slot.teacher])
+      }
+      byTime.forEach((teachers, time) => blocks.push({ date, time, teachers }))
+    }
+    return blocks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reschedule, taskItem, rescheduleDates, filters.staff, data, groups, events, setup])
   const candidateTimes = useMemo(() => {
     const map = new Map<string, Set<string>>()
     if (!reschedule || !taskItem) return map
@@ -317,7 +340,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   }
 
 return (
-    <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans }}>
+    <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans, ...(reschedule && taskItem ? { paddingLeft: 292 } : {}) }}>
       <PageHeader density="compact" singleLine
         onBack={reschedule && taskItem ? leaveReschedule : undefined}
         backLabel={backLabel}
@@ -366,6 +389,12 @@ return (
           <Button onClick={() => setFiltersOpen(false)}>Done</Button>
         </div>
       </SlidePanel>}
+      {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'fixed', left: 248, top: 168, width: 264, display: 'grid', gap: spacing.sm, padding: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+        <strong style={{ ...typography.body }}>{taskItem.student.firstName} {taskItem.student.lastName}</strong>
+        <span style={{ ...typography.bodySmall, color: colors.textSecondary }}>{taskItem.program} · {taskItem.duration} min</span>
+        <span style={{ ...typography.bodySmall }}>Originally {dayName(taskItem.date)} · {taskItem.time}</span>
+        <span style={{ ...typography.bodySmall, color: pick ? colors.text : colors.textSecondary }}>{pick ? `New time: ${dayName(pick.date)} · ${pick.time} · ${pick.teacher}` : 'Choose an available slot'}</span>
+      </aside>}
       {allWeek && <p style={{ margin: '0 0 10px', color: colors.textSecondary, fontSize: typography.sizeSm }}>All-week overview · Filter by staff, room or service for detail. Select a time to choose resources; blank space does not confirm availability.</p>}
       {scopeSummary && !reschedule && <div role="status" style={{ display: 'flex', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap', padding: '0 0 10px', ...typography.bodySmall, color: colors.textSecondary }}>
         <span>Viewing: <strong style={{ color: colors.text }}>{scopeSummary.name}</strong></span>
@@ -374,10 +403,10 @@ return (
         <button type="button" onClick={() => { setScope(null); const url = new URL(window.location.href); url.searchParams.delete('scope'); window.history.replaceState(window.history.state, '', url) }} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: colors.teal, font: 'inherit' }}>clear {scope?.kind === 'family' ? 'family' : 'student'} view</button>
       </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
-      <CalendarTimeGrid dates={columns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
-        renderDayHeading={id => { const column = columns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{dayMode ? dayName(column.date) : betaWeekdayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode ? column.resource.name : dayName(column.date)}</strong></> }}
+      <CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
+        renderDayHeading={id => { const column = gridColumns.find(item => item.id === id)!; const teacher = perspective === 'teacher' ? setup.teachers.find(item => item.id === column.resource.id) : undefined; const [firstName, ...lastName] = column.resource.name.split(' '); return <><span>{!dayMode ? betaWeekdayName(column.date) : reschedule ? '' : dayName(column.date)}</span><strong style={{ fontSize: typography.sizeSm, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{teacher && <Avatar firstName={firstName} lastName={lastName.join(' ')} size={26} src={teacher.values.photo || teacher.values.avatar_url || teacher.values.image || undefined} />}{dayMode && !reschedule ? column.resource.name : dayName(column.date)}</strong></> }}
         renderDay={id => {
-          const column = columns.find(item => item.id === id)!
+          const column = gridColumns.find(item => item.id === id)!
           const items = visible.filter(item => item.date === column.date && (!column.resource.id || calendarResourceIds(item, perspective, setup).includes(column.resource.id)))
           const layout = placeCalendarBlocks(items.map(item => ({ item, time: item.start, duration: minutesOf(item.end) - minutesOf(item.start), booked: true })), startMinutes)
           const occupiedRows = new Set(layout.blocks.flatMap(block => Array.from({ length: Math.max(1, block.duration / 15) }, (_, step) => block.row + step)))
@@ -388,7 +417,7 @@ return (
               const reason = reschedule ? (candidate ? '' : 'Not available') : slotReason(column.date, time, column.resource.id)
               const occupied = occupiedRows.has(index)
               const active = drawing.current?.column === id && drawEnd && minutesOf(time) >= Math.min(minutesOf(drawing.current.time), minutesOf(drawEnd)) && minutesOf(time) <= Math.max(minutesOf(drawing.current.time), minutesOf(drawEnd))
-              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: occupied || reschedule ? undefined : reason ? (showUnavailable ? colors.border : undefined) : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason || reschedule) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
+              return <button key={time} type="button" disabled={Boolean(reason)} title={reason || undefined} data-unavailable={Boolean(reason) || undefined} data-available={reason ? undefined : time} aria-label={`${reason ? 'Unavailable' : 'Book'} ${column.resource.name}, ${column.date} at ${time}`} className={reason ? undefined : calendarStyles.bookableSlot} style={{ gridRow: `${index + 1} / span 2`, gridColumn: '1 / -1', border: reason ? 0 : '1.5px dotted transparent', borderRadius: reason ? 0 : 5, background: occupied || reschedule ? undefined : reason ? (showUnavailable ? colors.border : undefined) : active ? colors.surfaceMuted : undefined, opacity: 1, margin: 0, padding: 0, cursor: reason ? 'not-allowed' : mobile ? 'default' : 'crosshair', touchAction: 'pan-x pan-y' }} onPointerDown={event => { if (mobile || event.pointerType === 'touch' || event.button !== 0 || reason || reschedule) return; drawing.current = { date: column.date, time, resource: column.resource.id, column: id }; setDrawEnd(time) }} onPointerEnter={() => { if (!mobile && drawing.current?.column === id) setDrawEnd(time) }} onPointerUp={event => {
                 if (mobile || event.pointerType === 'touch') return
                 const start = drawing.current
                 if (!start || start.column !== id) return
@@ -398,7 +427,18 @@ return (
                 if (!invalid) bookSlot(start.date, from, start.resource, duration)
                 else setNotice(invalid)
                 drawing.current = null; setDrawEnd(null)
-              }} onClick={event => { if (reason) return; if (reschedule && taskItem) { const options = replacementSlots(column.date).filter(slot => slot.time === time); const chosen = options.find(slot => slot.teacher === column.resource.name) || options[0]; setPick({ date: column.date, time, teacher: chosen?.teacher || column.resource.name, program: chosen?.program || taskItem.program }); return } if (event.detail === 0) bookSlot(column.date, time, column.resource.id) }} />
+                }} onClick={event => { if (reason) return; if (reschedule && taskItem) { const options = replacementSlots(column.date).filter(slot => slot.time === time); const chosen = options.find(slot => slot.teacher === column.resource.name) || options[0]; setPick({ date: column.date, time, teacher: chosen?.teacher || column.resource.name, program: chosen?.program || taskItem.program }); return } if (event.detail === 0) bookSlot(column.date, time, column.resource.id) }} />
+            })}
+            {reschedule && candidateBlocks.filter(block => block.date === column.date).map(block => {
+              const row = times.indexOf(block.time)
+              const span = Math.max(2, Math.round((taskItem?.duration || 30) / 15))
+              const isPicked = pick?.date === block.date && pick?.time === block.time
+              return <button key={block.time} type="button" onClick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
+                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', background: colors.surface, border: `1.5px dashed ${isPicked ? colors.teal : colors.textSecondary}`, borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
+                <strong style={{ fontSize: 11 }}>{taskItem?.program}</strong>
+                <span style={{ fontSize: 10, color: colors.textSecondary }}>{taskItem?.student.firstName} {taskItem?.student.lastName}</span>
+                <span style={{ fontSize: 10, color: colors.textSecondary }}>{block.time} · {block.teachers[0]}</span>
+              </button>
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
