@@ -109,7 +109,9 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
   function backToPanel() { const target = panelReturn.current; if (inlineTasks) panelReturn.current = null; setMakeupId(null); navigate(target || { ...location, view: 'quick', section: quick ? location.section : 'profile', enrollmentId: '' }) }
   /** Rescheduling and the calendar belong to the calendar page; the record hands off instead of drawing a second grid. */
   function openInCalendar(query: string) {
-    window.location.assign(`${window.location.pathname}?screen=calendar${query}`)
+    // Carry the way back: the reschedule shows it as the back control beside its title.
+    const back = account ? `&backTo=record&account=${encodeURIComponent(account.id)}` : ''
+    window.location.assign(`${window.location.pathname}?screen=calendar${query}${back}`)
   }
   function manage(next: ManagementIntent) {
     setRecurringMove(false)

@@ -102,6 +102,9 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
   const [pick, setPick] = useState<{ date: string; time: string; teacher: string; program: string } | null>(null)
   const [sameTeacher, setSameTeacher] = useState(true)
   const rescheduleConsumed = useRef(false)
+  // Where the reschedule was opened from, read after mount so the header does not diverge on hydration.
+  const [backLabel, setBackLabel] = useState('Calendar')
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('backTo') === 'record') setBackLabel('Family') }, [])
   // A cancellation records why it happened, because billing, make-ups and the family
   // message all follow from that answer, not from the status string alone.
   const [cancelTarget, setCancelTarget] = useState<CalendarOccurrence | null>(null)
@@ -197,6 +200,20 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
     })
   }
 
+  function leaveReschedule() {
+    const query = new URLSearchParams(window.location.search)
+    if (query.get('backTo') === 'record') {
+      const next = new URLSearchParams({ view: 'quick', section: 'enrollments' })
+      if (query.get('account')) next.set('account', query.get('account')!)
+      if (query.get('student')) next.set('student', query.get('student')!)
+      window.location.assign(`/odeon-demo?${next}`)
+      return
+    }
+    const next = new URLSearchParams({ screen: 'calendar' })
+    if (query.get('scope')) next.set('scope', query.get('scope')!)
+    window.location.assign(`/odeon-demo?${next}`)
+  }
+
   function finishReschedule() {
     setReschedule(null); setSelected(null); setPick(null)
     requestAnimationFrame(() => {
@@ -271,10 +288,12 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
 return (
     <PageContainer><div style={{ position: 'relative', minWidth: 0, background: colors.background, color: colors.text, display: 'flex', flexDirection: 'column', fontFamily: typography.fontSans }}>
       <PageHeader density="compact" singleLine
+        onBack={reschedule && taskItem ? leaveReschedule : undefined}
+        backLabel={backLabel}
         title={reschedule && taskItem ? `Rescheduling ${taskItem.student.firstName}'s lesson` : 'Academy calendar'}
         subtitle={reschedule && taskItem ? `${taskItem.program} · ${taskItem.duration} min · originally ${dayName(taskItem.date)} ${taskItem.time}` : `${dayMode ? dayName(focusDate) : `${dayName(dates[0])} – ${dayName(dates[dates.length - 1])}`} · ${visible.length} scheduled`}
         right={reschedule && taskItem
-          ? <Button variant="secondary" style={{ whiteSpace: 'nowrap' }} onClick={() => { const account = data.accounts.find(item => item.studentIds.includes(taskItem.student.id)); if (account) window.location.assign(`/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(taskItem.student.id)}`) }}>View contact</Button>
+          ? undefined
           : <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap' }}><CalendarJumpTo data={data} /><Button style={{ whiteSpace: 'nowrap' }} onClick={() => bookSlot(focusDate, '15:00')}><Plus size={16} />Add booking</Button></div>} />
 
       <div>
