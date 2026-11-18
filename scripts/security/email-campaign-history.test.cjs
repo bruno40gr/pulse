@@ -78,3 +78,30 @@ test('provider diagnostics distinguish throttling, mailbox access, rejection and
     assert.doesNotMatch(JSON.stringify(result), /private/)
   }
 })
+
+test('Showcase follow-up lists current routed destinations only and excludes all original attempt statuses', async () => {
+  const ids = ['accepted', 'rejected', 'pending', 'former', 'parented', 'opted']
+  const { SHOWCASE_OPERATION, SHOWCASE_RECOVERY_OPERATION } = createHarness().load('lib/showcase-email-recovery.ts')
+  const h = setup({ fixtures: {
+    students: ids.map(person_id => ({ tenant_id: HEAD, person_id, client_status: person_id === 'former' ? 'member lost' : 'member', people: { first_name: person_id, last_name: 'Student' }, enrollments: [] })),
+    people: ids.map(id => ({ tenant_id: HEAD, id, first_name: id, last_name: 'Student', email: `${id}@example.test`, opted_out: id === 'opted', students: id === 'parented' ? [{ is_minor: true, accounts: { name: 'Parent', email: 'guardian@example.test' } }] : [] })),
+    [table]: [
+      { tenant_id: HEAD, operation_id: SHOWCASE_OPERATION, status: 'sent', destination: 'accepted@example.test' },
+      { tenant_id: HEAD, operation_id: SHOWCASE_OPERATION, status: 'failed', destination: 'rejected@example.test' },
+      { tenant_id: HEAD, operation_id: SHOWCASE_RECOVERY_OPERATION, status: 'sent', destination: 'guardian@example.test' },
+      { tenant_id: DEMO, operation_id: SHOWCASE_OPERATION, status: 'sent', destination: 'pending@example.test' },
+    ],
+  } })
+  const response = await h.load(route).GET(request(`&operation=${SHOWCASE_OPERATION}&view=follow-up`))
+  assert.equal(response.status, 200)
+  const result = await response.json()
+  assert.equal(result.started, true)
+  assert.deepEqual(result.rows.map(({ destination, status }) => [destination, status]), [['guardian@example.test', 'sent'], ['pending@example.test', 'unattempted']])
+  assert.equal(h.getWrites().length, 0)
+})
+
+test('the recovery invitation closes on the first performance day in Pacific time', () => {
+  const { showcaseRecoveryOpen } = createHarness().load('lib/showcase-email-recovery.ts')
+  assert.equal(showcaseRecoveryOpen(Date.parse('2026-11-28T07:59:59Z')), true)
+  assert.equal(showcaseRecoveryOpen(Date.parse('2026-11-28T08:00:00Z')), false)
+})

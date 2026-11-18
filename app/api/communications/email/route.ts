@@ -9,6 +9,7 @@ import { gmailMime } from '@/lib/gmail/conversations'
 import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 import { writeAccountAuditEvent } from '@/lib/account-audit'
 import { gmailSendDiagnostic } from '@/lib/bulk-email-history'
+import { isShowcaseRecovery, SHOWCASE_RECOVERY_OPERATION, SHOWCASE_SENDER, showcaseRecoveryOpen } from '@/lib/showcase-email-recovery'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -17,15 +18,18 @@ export async function POST(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status, headers })
   if (!access.context || (access.context.roleKey !== 'owner' && !access.context.permissions.has(PERMISSIONS.contactsRead))) return NextResponse.json({ error: 'Contact access is required.' }, { status: 403, headers })
   const body = await request.json().catch(() => null)
-  if (!validContactSelection(body?.contactIds) || typeof body.senderEmail !== 'string' || typeof body.version !== 'string' || typeof body.operationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.operationId)
+  const recovery = isShowcaseRecovery(access.tenantId, body?.recoveryOf)
+  if ((body?.recoveryOf != null && !recovery) || (recovery ? body.operationId !== SHOWCASE_RECOVERY_OPERATION || body.senderEmail !== SHOWCASE_SENDER : !validContactSelection(body?.contactIds) || body.operationId === SHOWCASE_RECOVERY_OPERATION) || typeof body.senderEmail !== 'string' || typeof body.version !== 'string' || typeof body.operationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.operationId)
     || typeof body.subject !== 'string' || !body.subject.trim() || body.subject.length > 500 || /[\r\n]/.test(body.subject)
     || typeof body.body !== 'string' || !body.body.trim() || body.body.length > 100000 || typeof body.html !== 'string' || body.html.length > 200000) return NextResponse.json({ error: 'Invalid email or contact selection.' }, { status: 400, headers })
   if (unresolvedEmailPlaceholders(`${body.subject}\n${body.body}\n${body.html}`).length || /\{(?:first_name|last_name|student[^}]*|instrument)\}/i.test(`${body.subject}\n${body.body}\n${body.html}`)) return NextResponse.json({ error: 'Use a message without student-specific placeholders for bulk email.' }, { status: 400, headers })
+  if (recovery && !showcaseRecoveryOpen()) return NextResponse.json({ error: 'The first Showcase date has passed. This invitation is closed.' }, { status: 409, headers })
   try {
-    const resolved = await communicationRecipients(access.tenantId, body.contactIds, 'email')
+    const resolved = recovery ? (await (await import('@/lib/showcase-email-recovery-server')).showcaseRecovery(access.tenantId, body.recoveryOf)).resolution : await communicationRecipients(access.tenantId, body.contactIds, 'email')
     if (recipientVersion(resolved) !== body.version) return NextResponse.json({ error: 'Recipient details changed. Review the updated count before sending.', refreshRecipients: true }, { status: 409, headers })
     if (!resolved.recipients.length) return NextResponse.json({ error: 'No email recipients are available.' }, { status: 422, headers })
     const mailbox = await organisationSender(access.tenantId, access.context.membershipId, body.senderEmail)
+    if (recovery && mailbox.sender.name !== 'Headliner Music Academy') throw new Error('The shared sender must be named Headliner Music Academy to send this follow-up.')
     const contentHash = createHash('sha256').update(JSON.stringify([body.senderEmail, body.subject, body.body, body.html, body.version])).digest('hex')
     const recorded = new Map<string, { status: string }>()
     for (let offset = 0; ; offset += 500) {
@@ -83,7 +87,7 @@ export async function POST(request: Request) {
     }
     if (diagnostic) console.warn('bulk_email_send_paused', { operationId: body.operationId, elapsedMs: Date.now() - started, ...diagnostic })
     // Keep the last actionable diagnostic if staff check progress or continue a paused operation.
-    const event = { operation_id: body.operationId, sender: mailbox.sender.email, subject: body.subject, sent, failed, uncertain, pending, excluded: resolved.excluded.length }
+    const event = { operation_id: body.operationId, ...(recovery ? { recovery_of: body.recoveryOf } : {}), sender: mailbox.sender.email, subject: body.subject, sent, failed, uncertain, pending, excluded: resolved.excluded.length }
     await writeAccountAuditEvent({ tenantId: access.tenantId, actorMembershipId: access.context.membershipId, eventType: 'communications.bulk_email_sent', metadata: diagnostic ? { ...event, diagnostic } : event })
     return NextResponse.json({ sent, failed, uncertain, pending, excluded: resolved.excluded.length }, { headers })
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Email could not be confirmed. Check Sent before trying again.' }, { status: 409, headers }) }

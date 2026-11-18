@@ -4,6 +4,8 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { crmSupabaseAdmin as db } from '@/lib/supabase/crm-admin'
 import { supabaseAdmin as primary } from '@/lib/supabase/admin'
 import { EMAIL_OPERATION_ID, EMAIL_RECIPIENT_PAGE_SIZE, EMAIL_RECIPIENT_STATUSES, emailCampaignCounts, recipientPage } from '@/lib/bulk-email-history'
+import { showcaseRecovery } from '@/lib/showcase-email-recovery-server'
+import { isShowcaseRecovery, showcaseRecoveryOpen } from '@/lib/showcase-email-recovery'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers })
@@ -15,6 +17,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const operation = params.get('operation')
   if (operation !== null) {
+    if (params.get('view') === 'follow-up') {
+      if (!isShowcaseRecovery(tenantId, operation)) return json({ error: 'This campaign has no verified follow-up list.' }, 404)
+      const context = access.context
+      if (!context || (context.roleKey !== 'owner' && !context.permissions.has(PERMISSIONS.contactsRead))) return json({ error: 'Contact access is required.' }, 403)
+      try {
+        const { rows, recoveryAttempts } = await showcaseRecovery(tenantId, operation)
+        return json({ rows, started: Object.keys(recoveryAttempts).length > 0, closed: !showcaseRecoveryOpen(), canSend: showcaseRecoveryOpen() && (context.roleKey === 'owner' || context.permissions.has(PERMISSIONS.communicationsSend)) })
+      } catch { return json({ error: 'The follow-up audience could not be verified. No email was sent.' }, 503) }
+    }
     const page = recipientPage(params.get('page'))
     const status = params.get('status')
     const search = (params.get('q') || '').trim().toLowerCase()

@@ -128,6 +128,7 @@ function sendHarness({ denied = false, contactPermission = true, changed = false
     '@/lib/headliner-email-templates': { unresolvedEmailPlaceholders: value => /\[STUDENT\]/.test(value) ? ['STUDENT'] : [] },
     '@/lib/account-audit': { writeAccountAuditEvent: async () => true },
     '@/lib/bulk-email-history': load('lib/bulk-email-history.ts'),
+    '@/lib/showcase-email-recovery': load('lib/showcase-email-recovery.ts'),
     '@/lib/supabase/crm-admin': { crmSupabaseAdmin: { from() {
       const filters = {}; let update
       const builder = {

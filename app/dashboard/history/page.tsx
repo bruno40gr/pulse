@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui'
 import { EmptyState } from '@/components/ui'
 import { Button } from '@/components/ui'
 import { PageHeader } from '@/components/ui'
+import { PageContainer } from '@/components/ui/PageContainer'
 import { EmailCampaignHistory } from '@/components/campaigns/EmailCampaignHistory'
 import { Notice } from '@/components/ui/Notice'
 
@@ -69,7 +70,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div style={{ padding: spacing['3xl'], maxWidth: '900px' }}>
+    <PageContainer maxWidth="1200px">
 
       {/* Header */}
       <PageHeader
@@ -182,6 +183,6 @@ export default function HistoryPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }
