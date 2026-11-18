@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { CalendarBookingBlock } from './CalendarBookingBlock'
+import { BookableSlot } from '@/beta-source/app/odeon-demo/BookableSlot'
 import { CalendarTimeGrid } from './CalendarTimeGrid'
 import { CalendarWeekToolbar } from './CalendarWeekToolbar'
 import type { EnrollmentPerson, LessonChoice } from '@/beta-source/lib/academy-staff-enrollment'
@@ -106,11 +107,18 @@ export default function LessonSchedule({ lesson, lessons, student, students = []
               }
               const choosing = !choice?.editing && choice?.date === date && choice.time === block.time
               return <div key={block.id} className={styles.slotOption} style={position} data-booking-menu={choosing ? '' : undefined}>
-                <button type="button" className={`${styles.openSlot} ${detailedReplacementSlots ? styles.detailedSlot : ''}`} aria-label={block.label} aria-pressed={choosing} aria-expanded={(chooseTeacherOnClick || (block.teachers && block.teachers.length > 1)) ? choosing : undefined} onClick={() => {
-                  if (block.teachers?.length === 1 && !chooseTeacherOnClick) { onChange(selectScheduleSlot(lesson, date, block.time, block.teachers[0].name)); setChoice(null) }
-                  else setChoice(choosing ? null : { date, time: block.time })
-                }}>{detailedReplacementSlots ? <><span>{lesson.instrument}</span><span>{block.teachers?.length === 1 ? block.teachers[0].name : 'Many teachers'}</span><span>{formatScheduleTime(block.time).replace(' ', '')}</span></> : <><span>{formatScheduleTime(block.time)}{!replacementMode && `–${formatScheduleTime(endTime(block.time, String(block.duration)))}`}</span>{replacementMode ? (block.teachers && block.teachers.length > 1 && <span>{block.teachers.map(teacher => teacher.name.split(/\s+/).map(part => part[0]).join('')).join(' · ')}</span>) : <span>{block.duration} min · {block.teachers?.length} {block.teachers?.length === 1 ? 'teacher' : 'teachers'}</span>}</>}</button>
-                {choosing && <div className={styles.inlineTeachers} role="group" aria-label={`Teachers at ${formatScheduleTime(block.time)}`}>{choices.map(teacher => <button key={teacher.name} type="button" onClick={() => { onChange(selectScheduleSlot(lesson, date, block.time, teacher.name)); setChoice(null) }}>{teacher.name}</button>)}</div>}
+                <BookableSlot
+                  title={lesson.instrument}
+                  when={`${formatScheduleDate(date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${formatScheduleTime(block.time)}`}
+                  teachers={(block.teachers || availableTeachers(date, block.time)).map(teacher => teacher.name)}
+                  selectedTeacher={choosing ? lesson.teacher : undefined}
+                  picked={choosing}
+                  teacherLabel={`Teachers at ${formatScheduleTime(block.time)}`}
+                  style={position}
+                  onPick={() => {
+                    if (block.teachers?.length === 1 && !chooseTeacherOnClick) { onChange(selectScheduleSlot(lesson, date, block.time, block.teachers[0].name)); setChoice(null) } else setChoice(choosing ? null : { date, time: block.time })
+                  }}
+                  onChooseTeacher={teacher => { onChange(selectScheduleSlot(lesson, date, block.time, teacher)); setChoice(null) }} />
               </div>
             })}
           </div>
