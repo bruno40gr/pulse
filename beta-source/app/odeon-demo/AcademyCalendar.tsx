@@ -176,7 +176,7 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
           const teacher = setup.teachers.find(item => item.values.name === slot.teacher)
           if (!teacher || !staff.has(teacher.id)) continue
         }
-        byTime.set(slot.time, [...(byTime.get(slot.time) || []), slot.teacher])
+        byTime.set(slot.time, Array.from(new Set([...(byTime.get(slot.time) || []), slot.teacher])))
       }
       byTime.forEach((teachers, time) => { if (!(date === reschedule.date && time === reschedule.start)) blocks.push({ date, time, teachers }) })
     }
@@ -439,11 +439,11 @@ return (
           <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(reschedule.date)} · {timeShort(reschedule.start)}</span>
           <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>w/ {reschedule.teacherName || taskItem.teacher}</span>
         </div>
-        {pick && <div style={{ display: 'grid', gap: 2, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
-          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>Reschedule to:</span>
+        {pick && <div style={{ display: 'grid', gap: 2, padding: spacing.md, ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem.program, program: taskItem.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '1.5px solid var(--calendar-student-border)', borderRadius: radius.lg }}>
+          <span style={{ fontSize: typography.sizeSm, opacity: 0.75 }}>Reschedule to:</span>
           <strong style={{ fontSize: typography.sizeSm }}>{lessonTitle(taskItem)}</strong>
-          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(pick.date)} · {timeShort(pick.time)}</span>
-          <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>w/ {pick.teacher}</span>
+          <span style={{ fontSize: typography.sizeSm }}>{dayShort(pick.date)} · {timeShort(pick.time)}</span>
+          <span style={{ fontSize: typography.sizeSm }}>w/ {pick.teacher}</span>
         </div>}
       </aside>}
         <div style={{ flex: 1, minWidth: 0 }}><CalendarTimeGrid dates={gridColumns.map(column => column.id)} times={times} label="Academy schedule" minimumColumnWidth={reschedule ? 150 : allWeek ? 240 : 180} slotHeight={30} maxHeight="72vh" initialScrollTime={occurrences.length ? clock(Math.max(startMinutes, Math.min(...occurrences.map(item => minutesOf(item.start))) - 30)) : undefined}
@@ -480,7 +480,7 @@ return (
               const span = Math.max(2, Math.round((taskItem?.duration || 30) / 15))
               const isPicked = pick?.date === block.date && pick?.time === block.time
               return <button key={block.time} type="button" onClick={() => setPick({ date: block.date, time: block.time, teacher: block.teachers[0], program: taskItem!.program })}
-                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', ...(isPicked ? { ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem!.program, program: taskItem!.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '2.5px solid var(--calendar-student-border)' } : { background: 'rgba(139,90,181,0.05)', border: '1.5px dashed rgba(139,90,181,0.5)', color: colors.text }), borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
+                data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', ...(isPicked ? { ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem!.program, program: taskItem!.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '2.5px solid var(--calendar-student-border)' } : { background: colors.surface, border: '1.5px dashed rgba(139,90,181,0.55)', color: colors.text }), borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
                 <strong style={{ fontSize: 11, color: colors.text }}>{taskItem ? lessonTitle(taskItem) : ''}</strong>
                 <span style={{ fontSize: 10, color: colors.textSecondary }}>{dayShort(block.date)} · {timeShort(block.time)}</span>
                 <span style={{ fontSize: 10, color: colors.textSecondary }}>w/ {block.teachers[0]}</span>
