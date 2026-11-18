@@ -432,7 +432,7 @@ return (
       </div>}
       {visible.some(item => isStaffDuty(item.kind)) && <div aria-label="Staff duty coverage" style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, paddingBottom: spacing.md }}>{visible.filter(item => isStaffDuty(item.kind)).map(item => <span key={`${item.id}:${item.date}`}><strong>{staffDutyLabel(item.kind)}</strong> · {setup.locations.find(location => location.id === item.locationId)?.values.name} · {item.teacherName} · {item.date} {item.start}–{item.end}</span>)}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: reschedule && taskItem ? spacing.lg : 0, minWidth: 0 }}>
-              {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'sticky', top: spacing.lg, width: 268, flexShrink: 0, display: 'grid', gap: spacing.md }}>
+              {reschedule && taskItem && <aside aria-label="Rescheduling" style={{ position: 'sticky', top: 0, alignSelf: 'flex-start', width: 232, flexShrink: 0, display: 'grid', gap: spacing.md }}>
         <div style={{ display: 'grid', gap: 2, padding: spacing.md, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
           <strong style={{ fontSize: typography.sizeSm }}>{lessonTitle(taskItem)}</strong>
           <span style={{ fontSize: typography.sizeSm, color: colors.textSecondary }}>{dayShort(reschedule.date)} · {timeShort(reschedule.start)}</span>
@@ -482,18 +482,26 @@ return (
                 data-candidate style={{ gridRow: `${row + 1} / span ${span}`, gridColumn: '1 / -1', zIndex: 2, display: 'grid', gap: 1, alignContent: 'center', textAlign: 'left', padding: '4px 6px', ...(isPicked ? { ...calendarServiceStyle({ kind: 'lesson', serviceType: taskItem!.program, program: taskItem!.program }), background: 'var(--calendar-student-surface)', color: 'var(--calendar-student-text)', border: '2.5px solid var(--calendar-student-border)' } : { background: colors.surface, border: '1.5px dashed rgba(139,90,181,0.55)', color: colors.text }), borderRadius: 6, cursor: 'pointer', font: 'inherit' }}>
                 <strong style={{ fontSize: 11, color: colors.text }}>{taskItem ? lessonTitle(taskItem) : ''}</strong>
                 <span style={{ fontSize: 10, color: colors.textSecondary }}>{dayShort(block.date)} · {timeShort(block.time)}</span>
-                <span style={{ fontSize: 10, color: colors.textSecondary }}>w/ {block.teachers[0]}</span>
+                {block.teachers.length > 1
+                  ? <select aria-label={`Teacher for ${dayShort(block.date)} ${timeShort(block.time)}`} value={pick?.date === block.date && pick?.time === block.time ? pick.teacher : ''}
+                    onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}
+                    onChange={event => setPick({ date: block.date, time: block.time, teacher: event.target.value, program: taskItem!.program })}
+                    style={{ font: 'inherit', fontSize: 10, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
+                    <option value="">Select teacher</option>
+                    {block.teachers.map(name => <option key={name} value={name}>w/ {name}</option>)}
+                  </select>
+                  : <span style={{ fontSize: 10, opacity: 0.8 }}>w/ {block.teachers[0]}</span>}
               </button>
             })}
             {layout.blocks.map(({ item, row, duration, lane }) => {
               // While rescheduling, another family's lesson is simply not your business: grey, no name.
               // Someone else's lesson reads as unavailable here: grey, unnamed, and not pickable.
-              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden title="Not available" style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, background: colors.border, borderRadius: 5, cursor: 'not-allowed', zIndex: 1 }} />
+              if (reschedule && item.id !== reschedule.id) return <div key={item.id} aria-hidden title="Not available" style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', background: colors.border, borderRadius: 5, cursor: 'not-allowed', zIndex: 1 }} />
               const inScope = Boolean(scopeStudents && item.studentIds.some(id => scopeStudents.has(id)))
               // Scoped: the family's lessons take the column and everything else becomes a bar without text,
               // so the week stays legible instead of splitting each day into a dozen unreadable lanes.
               if (scopeStudents && !inScope) return <div key={item.id} aria-hidden style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, background: colors.textSecondary, opacity: 0.18, borderRadius: 4, zIndex: 1 }} />
-              return <CalendarBookingBlock key={item.id} data-origin={reschedule && item.id === reschedule.id ? true : undefined} interactive detailed data-booking-id={item.id} data-scoped={inScope || undefined} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: lane + 1, zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...(scopeStudents && inScope ? { gridColumn: '1 / -1', zIndex: 3, outline: `1.5px solid ${colors.border}` } : {}), ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
+              return <CalendarBookingBlock key={item.id} data-origin={reschedule && item.id === reschedule.id ? true : undefined} interactive detailed data-booking-id={item.id} data-scoped={inScope || undefined} data-cancelled={item.status === 'Cancelled' || undefined} aria-label={`${item.status === 'Cancelled' ? 'Cancelled · ' : ''}${item.title}, ${item.studentNames.join(', ') || item.teacherName}, ${item.date} ${item.start}–${item.end}`} aria-haspopup="dialog" aria-expanded={selected?.id === item.id} title={item.status === 'Cancelled' ? 'Cancelled lesson' : undefined} style={{ gridRow: `${row + 1} / span ${duration / 15}`, gridColumn: '1 / -1', zIndex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', ...(scopeStudents && inScope ? { gridColumn: '1 / -1', zIndex: 3, outline: `1.5px solid ${colors.border}` } : {}), ...calendarServiceStyle(item), ...(item.status === 'Cancelled' ? { borderStyle: 'dashed', opacity: 0.65 } : {}) }} onClick={event => {
                 blockRef.current = event.currentTarget
                 const bounds = event.currentTarget.getBoundingClientRect()
                 setAnchor({ top: Math.max(12, Math.min(bounds.top, window.innerHeight - 470)), left: Math.max(12, Math.min(bounds.right + 8, window.innerWidth - 372)) })
