@@ -9,7 +9,6 @@ import { ConfirmActionButton } from './ConfirmActionButton'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Mail, MessageSquare, Phone, Pencil, UserRound } from 'lucide-react'
 import { ControlButton } from '@/beta-source/components/ui/ControlButton'
-import { SlidePanelActionBar } from '@/beta-source/components/ui/SlidePanelActionBar'
 import { Button, DenseSectionPanel, DetailField, PageHeader, SlidePanel, SlidePanelHeader, Tabs } from '@/beta-source/components/ui'
 import { formatScheduleDate, shiftDate, weekStart } from '@/beta-source/lib/academy-enrollment-schedule'
 import { invoiceStatus } from '@/beta-source/lib/academy-invoice-document'
@@ -23,6 +22,8 @@ import { editPreviewNote, previewNoteActorId } from '@/beta-source/lib/academy-s
 import type { NoteAttachment } from '@/beta-source/lib/note-links'
 import { AccountPaymentMethods } from './AccountPaymentMethods'
 import { AccountEditor } from './AccountEditor'
+import { AccountProfileLayout } from './AccountProfileLayout'
+import { AccountProfileToolbar } from './AccountProfileToolbar'
 import { ParentFamilyGroup } from './ParentFamilyGroup'
 import { ParentPortal } from './ParentPortal'
 import { WorkspaceSections } from './WorkspaceSections'
@@ -252,24 +253,20 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
     {invalid && <DenseSectionPanel title="Profile unavailable"><Button onClick={closeWorkspace}>Return to contacts</Button></DenseSectionPanel>}
     {(inlineTasks ? location.view !== 'contacts' : quick && !workspaceOpen) && account && !invalid && <SlidePanel isOpen onClose={closeWorkspace} width={inlineTasks || intent?.kind === 'invoice' ? 'min(calc(75vw + 200px), 1160px)' : PROFILE_PANEL_WIDTH} fullScreen={isMobile} ariaLabel={inlineTasks ? 'Family workspace V3' : 'Account quick reference'}>
       <SlidePanelHeader profileTransition actions={communicationActive || inlineTasks ? undefined : <Button size="sm" onClick={() => openWorkspace('profile')}>View Account Details</Button>} title={profileTitle} titleSize={isMobile ? typography.sizeLg : typography.size2xl} subtitle={selectedStudent ? 'Student profile' : 'Account manager'} avatar={{ firstName: selectedStudent?.firstName || account.holderName.split(' ')[0], lastName: selectedStudent?.lastName || account.holderName.split(' ').slice(1).join(' '), size: isMobile ? 36 : 48 }} onBack={communicationActive ? closeCommunication : undefined} backLabel="Back to profile" onClose={closeWorkspace} />
-      {!communicationActive && <><SlidePanelActionBar isMobile={isMobile}>
-        <div className={styles.toolbar} style={{ gap: spacing.sm }}>
+      {!communicationActive && <><AccountProfileToolbar mobile={isMobile} communication={<>
           <Button aria-label="Call" disabled title="Calling is disabled in this preview"><Phone size={16} aria-hidden="true" />Call{inlineTasks && <span className={v3Styles.contactValue}>{activeContact?.phone || 'Not added'}</span>}</Button>
           <Button aria-label="Send SMS" variant="secondary" disabled={inlineTasks && !activeContact?.phone?.trim()} onClick={() => openCommunication('sms')} title="Open SMS conversation preview"><MessageSquare size={16} aria-hidden="true" />Send SMS{inlineTasks && <span className={v3Styles.contactValue}>{activeContact?.phone || 'Not added'}</span>}</Button>
           <Button aria-label="Send email" variant="secondary" disabled={inlineTasks && !activeContact?.email?.trim()} onClick={() => openCommunication('email')} title="Open email conversation preview"><Mail size={16} aria-hidden="true" />Send email{inlineTasks && <span className={v3Styles.contactValue}>{activeContact?.email || 'Not added'}</span>}</Button>
-        </div>
-        {inlineTasks && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginLeft: isMobile ? 0 : 'auto' }}><Button variant="ghost" onClick={() => { setIntent(null); setCalendarOpen(false); setMoveId(null); setLessonId(null); setMakeupId(null); setReplacementCancelId(null); setFamilyCanvas('edit') }}><Pencil size={14} aria-hidden="true" />Edit Contact</Button>
+        </>} actions={inlineTasks && <><Button variant="ghost" onClick={() => { setIntent(null); setCalendarOpen(false); setMoveId(null); setLessonId(null); setMakeupId(null); setReplacementCancelId(null); setFamilyCanvas('edit') }}><Pencil size={14} aria-hidden="true" />Edit Contact</Button>
           {data.demoSchool && <ControlButton kind="icon" aria-label={`Impersonate ${account.holderName}`} title={`Impersonate ${account.holderName} · Parent portal`} onClick={() => {
             const returnTo = `/odeon-demo${workspaceLocationSearch({ ...location, view: 'quick' }, '')}`
             const params = new URLSearchParams({ view: 'parent', account: account.id, impersonateReturn: returnTo })
             window.location.assign(`/odeon-demo?${params}`)
           }}><UserRound size={16} aria-hidden="true" /></ControlButton>}
-        </div>}
-      </SlidePanelActionBar>
+        </>} />
       <div ref={sectionNavigation} className={styles.panelNavigation}>{inlineTasks ? sectionTabs : panelTabs}</div></>}
       <div ref={panelContent} data-workspace-content="" className={[styles.panelContent, inlineTasks ? v3Styles.content : '', communicationActive ? styles.communicationContent : ''].filter(Boolean).join(' ')} style={{ background: colors.surfaceMuted }}>
-        {inlineTasks && (together.length || familyCanvas || communicationActive || movingLesson || cancellingReplacement || calendarOpen || intent || selectedMakeup) ? workspaceContent : lesson ? lessonContent : location.section === 'profile' ? <div className={styles.quickReferenceLayout}>
-          <div className={styles.stack} style={{ gap: spacing.lg }}>
+        {inlineTasks && (together.length || familyCanvas || communicationActive || movingLesson || cancellingReplacement || calendarOpen || intent || selectedMakeup) ? workspaceContent : lesson ? lessonContent : location.section === 'profile' ? <AccountProfileLayout details={<>
           {renderSection('profile', 'details')}
           {inlineTasks && selectedStudent && renderSection('profile', 'subscriptions')}
           {!inlineTasks && <>          <DenseSectionPanel title="Account Balance" actions={<Button size="sm" variant={hasOverdueInvoices ? 'destructive' : 'secondary'} onClick={() => openWorkspace('billing')}>View billing</Button>}>
@@ -281,8 +278,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
           {!inlineTasks && <DenseSectionPanel title="Makeup credits" actions={<Button size="sm" variant="secondary" disabled={!visibleMakeups.some(item => !item.booking)} onClick={() => openWorkspace('makeups')}>Book makeup</Button>}>
             {projectedStudents.map(student => <DetailField key={student.id} label={previewStudentName(student)} value={`${visibleMakeups.filter(item => item.studentId === student.id && !item.booking).length} available`} />)}
           </DenseSectionPanel>}
-          </div>
-          <div className={styles.stack} style={{ gap: spacing.lg }}>
+          </>} side={<>
             {inlineTasks && <>          <DenseSectionPanel title="Account Balance" actions={<Button size="sm" variant={hasOverdueInvoices ? 'destructive' : 'secondary'} onClick={() => openWorkspace('billing')}>View billing</Button>}>
             <p style={{ ...typography.h1, margin: `0 0 ${spacing.md}` }}>{previewMoney(contentData.invoices.filter(item => item.accountId === account.id && item.status === 'Open').reduce((total, item) => total + invoiceOutstanding(item), 0), 'USD')}</p>
             <p style={{ ...typography.bodySmall, color: colors.textSecondary }}>{unpaidInvoiceCount} unpaid invoice{unpaidInvoiceCount === 1 ? '' : 's'}</p>
@@ -290,8 +286,7 @@ export default function StudentWorkspaceV2({ inlineTasks = false, renderContacts
           </DenseSectionPanel>
             </>}
             {inlineTasks ? renderSection('profile', 'follow-up') : renderSection('profile', 'subscriptions')}
-          </div>
-        </div> : <>{renderSection(location.section)}</>}
+          </>} /> : <>{renderSection(location.section)}</>}
       </div>
     </SlidePanel>}
     {!inlineTasks && workspaceOpen && account && <SlidePanel isOpen fullScreen onClose={closeWorkspace} ariaLabel="Family workspace V2">

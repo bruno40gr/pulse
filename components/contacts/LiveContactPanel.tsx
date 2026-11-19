@@ -1,10 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw } from 'lucide-react'
+import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Button, DenseSectionPanel, EmptyState, FieldGrid, FieldLabel, FieldValue, Input, NotesSection, SlidePanel, SlidePanelHeader, StatusBadge, Tabs } from '@/components/ui'
-import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
+import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, Input, NotesSection, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea, StatusBadge } from '@/components/ui'
+import { ControlButton } from '@/components/ui/ControlButton'
+import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
+import { MetadataRow } from '@/beta-source/app/content-studio-prototype/students/MetadataRow'
+import { SubscriptionCard } from '@/beta-source/app/content-studio-prototype/students/SubscriptionCard'
+import { AccountProfileToolbar } from '@/beta-source/app/content-studio-prototype/students/AccountProfileToolbar'
+import layoutStyles from '@/beta-source/app/content-studio-prototype/students/StudentWorkspace.module.css'
+import { SectionTitle } from '@/components/ui/SectionTitle'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
@@ -14,7 +20,6 @@ import { changedContactProfile, CONTACT_PROFILE_FIELDS, contactProfileDraft, typ
 import { formatPhoneNumber } from '@/lib/phone'
 import { usesAccountHolder } from '@/lib/contact-presentation'
 import { colors, spacing, typography } from '@/lib/tokens'
-import { useMediaQuery } from '@/lib/useMediaQuery'
 import { useIsMobile } from '@/lib/useMediaQuery'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
@@ -42,26 +47,6 @@ function ageLabel(dateOfBirth?: string | null) {
   return age >= 0 && age < 120 ? `${age}yo` : null
 }
 
-function scheduleLabel(contact: Contact) {
-  const day = typeof contact.custom_fields?.lesson_day === 'string' ? contact.custom_fields.lesson_day.trim() : ''
-  const time = typeof contact.custom_fields?.lesson_time === 'string' ? contact.custom_fields.lesson_time.trim() : ''
-  if (!day && !time) return null
-  const plural = /^[a-z]+$/i.test(day) ? `${day}s` : day
-  return [plural, time && `at ${time}`].filter(Boolean).join(' ')
-}
-
-function enrollmentLabel(contact: Contact) {
-  const instrument = typeof contact.custom_fields?.instrument === 'string' ? contact.custom_fields.instrument.trim() : ''
-  const duration = typeof contact.custom_fields?.service_type === 'string' ? contact.custom_fields.service_type.trim() : ''
-  return [instrument, duration].filter(Boolean).join(' • ') || null
-}
-
-function planLabel(contact: Contact) {
-  const plan = typeof contact.custom_fields?.plan_name === 'string' ? contact.custom_fields.plan_name.trim() : ''
-  const session = typeof contact.custom_fields?.session_name === 'string' ? contact.custom_fields.session_name.trim() : ''
-  return plan || session || null
-}
-
 function formatMemberSince(value: string | null) {
   if (!value) return null
   const date = new Date(value)
@@ -77,18 +62,18 @@ function under18(dateOfBirth?: string | null) {
   return birthday > cutoff && birthday <= now
 }
 
-export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent }: {
+export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink }: {
   subject: Subject; tenantId: string; capabilities: ContactCapabilities
   initialNotesTab: NoteKind; startOnNotes?: boolean; onClose: () => void
   onUpdated: (person: Contact) => void; onNotesUpdated: (id: string, field: 'notes_history' | 'student_notes_history', notes: LiveContactNote[]) => void
   onAccountUpdated: (account: AccountContact) => void; onOpenStudent: (student: Contact) => void
+  accountHolderLink?: { name: string; href: string; open: () => void }
 }) {
   const mobile = useIsMobile()
-  const wide = useMediaQuery('(min-width: 860px)')
   const person = subject.kind === 'account-holder' ? null : subject.person
   const account = subject.kind === 'account-holder' ? subject.account : null
   const students = subject.kind === 'student' ? [] : subject.students
-  const memberSince = subject.kind === 'student' ? null : subject.kind === 'holder' ? subject.memberSince : account?.memberSince ?? null
+  const memberSince = subject.kind === 'student' ? subject.person.account_member_since ?? null : subject.kind === 'holder' ? subject.memberSince : subject.account.memberSince
   const showsAccount = subject.kind !== 'student'
   const name = account ? account.name : person ? personName(person) : ''
   const phone = account ? account.phone : person?.phone ?? null
@@ -104,6 +89,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const [calling, setCalling] = useState(false)
   const [compose, setCompose] = useState<'sms' | 'email' | null>(null)
   const [status, setStatus] = useState('')
+  const [comingSoonFeature, setComingSoonFeature] = useState<string | null>(null)
   const [funding, setFunding] = useState<{ loading: boolean; data?: FundingCase; error?: string }>({ loading: false })
   const [fundingLoaded, setFundingLoaded] = useState(false)
   const tenantQuery = `tenant=${encodeURIComponent(tenantId)}`
@@ -116,6 +102,8 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const primaryHolder = person?.account_holders?.find(holder => holder.is_primary) || person?.account_holders?.[0]
   const callPhone = holderRouting ? primaryHolder?.phone || person?.account_holder_phone : phone
   const routedEmail = primaryHolder?.email || person?.account_holder_email
+  const displayedEmail = holderRouting ? routedEmail : email
+  const displayedPhone = formatPhoneNumber(callPhone)
   // An account has no person row; message it through the students whose saved routing targets the account holder.
   const accountRecipients = account ? students.filter(student => student.is_minor === true || student.message_routing === 'account_holder') : []
   const canMessageAccountSms = Boolean(account) && accountRecipients.length > 0 && Boolean(phone)
@@ -202,24 +190,24 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
           contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []} channel={compose} onClose={() => setCompose(null)} /></div>
       </> : <CardSmsComposer backDestination="contact" recipientId={person!.id} name={name} onBack={() => setCompose(null)} onClose={close} />
     ) : <>
-      <SlidePanelHeader title={name.replace(/\s*\(account\)\s*$/i, '')} subtitle={subject.kind === 'student' ? 'Student profile' : 'Account holder'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
+      <SlidePanelHeader title={name.replace(/\s*\(account\)\s*$/i, '')} subtitle={subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={subject.kind === 'student' && person ? <StatusBadge status={person.opted_out ? 'spam' : person.client_status} label={person.opted_out ? 'Opted out' : person.client_status} /> : undefined}
         toast={status || undefined} onClose={close} />
-      <SlidePanelActionBar isMobile={mobile}>
-        <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Button size="sm" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'}</Button>
-          <Button size="sm" variant="secondary" disabled={person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms} onClick={() => setCompose('sms')}><MessageSquare size={16} />Send SMS</Button>
-          {person && !holderRouting ? <ConversationComposeLink backDestination="contact" recipient={`person:${person.id}`} channel="email" disabled={!email} />
-            : <Button size="sm" variant="secondary" disabled={person ? (!canComposeToHolder || !routedEmail) : !canMessageAccountEmail} onClick={() => setCompose('email')}><Mail size={16} />Send email</Button>}
-          <Button size="sm" variant="ghost" disabled={!capabilities.edit || saving} onClick={() => {
+      <AccountProfileToolbar mobile={mobile} communication={<>
+          <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
+          <Button aria-label="Send SMS" variant="secondary" disabled={person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms} onClick={() => setCompose('sms')}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
+          {person && !holderRouting ? <ConversationComposeLink backDestination="contact" recipient={`person:${person.id}`} channel="email" disabled={!email} destination={email || undefined} />
+            : <Button aria-label="Send email" variant="secondary" disabled={person ? (!canComposeToHolder || !routedEmail) : !canMessageAccountEmail} onClick={() => setCompose('email')}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>}
+        </>} actions={<>
+          <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => {
             setSection('account')
             if (draft) return
             const initial = contactProfileDraft(account ? { first_name: name, phone, email } : person ?? {})
             setBaseline(initial); setDraft(initial); setProfileError(''); setStatus('')
           }}><Pencil size={14} />Edit Contact</Button>
-        </div>
-      </SlidePanelActionBar>
+          <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
+        </>} />
       <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
         <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%' }} activeKey={section} onChange={next => {
           setSection(next)
@@ -229,10 +217,8 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
           { key: 'billing', label: 'Billing' }, { key: 'makeups', label: 'Makeups' }, ...(fundingAvailable ? [{ key: 'funding' as const, label: 'Funding Program' }] : []),
         ]} />
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: mobile ? spacing.lg : spacing.xl, background: colors.surfaceMuted }}>
-        {section === 'account' ? <div style={stack}>
-          <div style={{ display: 'grid', gap: spacing.lg, alignItems: 'start', gridTemplateColumns: wide ? 'minmax(0, 1.6fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
-            <div style={stack}>
+      <div className={layoutStyles.panelContent} style={{ background: colors.surfaceMuted }}>
+        {section === 'account' ? <AccountProfileLayout details={<>
               <DenseSectionPanel title="Contact details">
                 {draft ? <form style={stack} noValidate onSubmit={event => { event.preventDefault(); void save() }}>
                   <FieldGrid>{CONTACT_PROFILE_FIELDS.filter(field => !account || field === 'first_name' || field === 'phone' || field === 'email').map(field => <Input key={field} label={account && field === 'first_name' ? 'Name' : labels[field]} name={field}
@@ -243,36 +229,46 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                     <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => { setDraft(null); setProfileError('') }}>Cancel</Button>
                     <Button type="submit" size="sm" disabled={!dirty || saving || !capabilities.edit}>{saving ? 'Saving…' : 'Save changes'}</Button>
                   </div>
-                </form> : <div style={stack}>
-                  <FieldGrid>{[
-                    showsAccount ? ['Dependents', String(students.length)] : null,
-                    showsAccount ? ['Member since', formatMemberSince(memberSince)] : null,
-                    ['Birthday', person?.date_of_birth ? formatMemberSince(person.date_of_birth) : 'Not added'],
-                    ['Name', name.replace(/\s*\(account\)\s*$/i, '')], ['Phone', formatPhoneNumber(phone)], ['Email', email],
-                  ].filter((row): row is [string, string | null] => Boolean(row)).map(([label, value]) => <div key={label} style={{ minWidth: 0 }}><FieldLabel>{label}</FieldLabel><FieldValue style={{ overflowWrap: 'anywhere' }}>{value || 'Not provided'}</FieldValue></div>)}</FieldGrid>
-                </div>}
+                </form> : <MetadataRow label="Contact details metadata">
+                  {showsAccount ? <DetailField label="Dependents" value={String(students.length)} /> : <DetailField label="Account holder" value="Not added">
+                    {accountHolderLink && <a href={accountHolderLink.href} style={{ color: colors.link }} onClick={event => {
+                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                      event.preventDefault()
+                      if (canLeave()) accountHolderLink.open()
+                    }}>{accountHolderLink.name}</a>}
+                  </DetailField>}
+                  <DetailField label="Member since" value={formatMemberSince(memberSince) || 'Not added'} />
+                  <DetailField label="Birthday" value={formatMemberSince(person?.date_of_birth ?? null) || 'Not added'} />
+                </MetadataRow>}
               </DenseSectionPanel>
-              {showsAccount && students.map(student => <DenseSectionPanel key={student.id}
-                title={personName(student) || 'Student'}
-                actions={<Button size="sm" variant="secondary" aria-label={`Open ${personName(student) || 'student'}`} onClick={() => { if (canLeave()) onOpenStudent(student) }}>Open profile</Button>}
+              {(showsAccount ? students : person ? [person] : []).map(student => <DenseSectionPanel key={student.id}
+                title={showsAccount ? <SectionTitle as="h3" variant="card"><ControlButton kind="name" onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
+                actions={<Button onClick={() => setComingSoonFeature('Add subscription')}>Add subscription</Button>}
                 contentStyle={stack}>
-                {ageLabel(student.date_of_birth) && <div style={muted}>{ageLabel(student.date_of_birth)}</div>}
-                {enrollmentLabel(student) && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-                  <span style={{ ...typography.body, color: colors.text }}>{enrollmentLabel(student)}</span>
-                  {student.client_status && <StatusBadge status={student.client_status} size="sm" label={student.client_status.charAt(0).toUpperCase() + student.client_status.slice(1)} />}
-                </div>}
-                {planLabel(student) && <div style={{ ...typography.body, color: colors.text }}>{planLabel(student)}</div>}
-                {scheduleLabel(student) && <div style={muted}>{scheduleLabel(student)}</div>}
-                {student.instructor?.name && <div style={muted}>{student.instructor.name}</div>}
-                <div style={muted}>Subscriptions and payments — Coming soon</div>
+                {showsAccount && ageLabel(student.date_of_birth) && <div>{ageLabel(student.date_of_birth)}</div>}
+                {student.profile_enrollments?.map(enrollment => {
+                  const plan = enrollment.plan_name || enrollment.session_name
+                  const duration = plan?.match(/\b(\d+)\s*min(?:ute)?s?\b/i)?.[1]
+                  const schedule = [enrollment.lesson_day, enrollment.lesson_time].filter(Boolean).join(' at ')
+                  const teacher = enrollment.instructor?.trim()
+                  const label = enrollment.instrument || 'Subscription'
+                  return <SubscriptionCard key={enrollment.id}
+                    title={[label, duration ? `${duration} min` : null].filter(Boolean).join(' • ')}
+                    actions={{ label: `${personName(student)} ${label} subscription actions`, onManage: () => setComingSoonFeature('Manage subscription') }}
+                    detail={plan} schedule={schedule}
+                    instructor={teacher && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={teacher.split(' ')[0]} lastName={teacher.split(' ').slice(1).join(' ')} size={28} />{teacher}</div>}
+                    payment={<DetailField label="Payment method" value="Coming soon" />} />
+                })}
+                {!student.profile_enrollments?.length && <div style={muted}>No current subscriptions</div>}
               </DenseSectionPanel>)}
-            </div>
-            <div style={stack}>
-              <DenseSectionPanel title="Account Balance"><div style={muted}>Coming soon</div></DenseSectionPanel>
-              <DenseSectionPanel title="Follow ups"><div style={muted}>Coming soon</div></DenseSectionPanel>
-            </div>
-          </div>
-        </div> : section === 'notes' ? <DenseSectionPanel title={person ? `Notes for ${name}` : 'Notes'} contentStyle={stack}>
+          </>} side={<>
+              <DenseSectionPanel title="Account Balance" actions={<Button size="sm" variant="secondary" onClick={() => setSection('billing')}>View billing</Button>}>
+                <div style={{ ...stack, gap: spacing.sm }}><strong>Coming soon</strong><DetailField label="Unpaid invoices" value="Coming soon" /><DetailField label="Next payment" value="Coming soon" /></div>
+              </DenseSectionPanel>
+              <DenseSectionPanel title="Follow ups" actions={<Button disabled>Update follow-up</Button>} contentStyle={stack}>
+                <div style={muted}>Coming soon</div><Input label="Date" type="date" disabled /><Select label="Quick pick" disabled><option>Choose an interval</option></Select><Textarea label="Reminder note" disabled />
+              </DenseSectionPanel>
+          </>} /> : section === 'notes' ? <DenseSectionPanel title={person ? `Notes for ${name}` : 'Notes'} contentStyle={stack}>
           {!person ? <div style={muted}>Coming soon</div> : !capabilities.readNotes ? <p>You don’t have permission to view notes.</p> : <>
             <Tabs<NoteKind> ariaLabel="Note types" activeKey={notesTab} onChange={next => { setNoteError(''); setNotesTab(next) }} items={[{ key: 'notes', label: 'Notes' }, { key: 'internal', label: 'Internal notes' }]} />
             {notesTab === 'internal' && <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Visible to staff only.</div>}
@@ -293,5 +289,9 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
     </>}
+    {comingSoonFeature && <SlidePanel isOpen onClose={() => setComingSoonFeature(null)} width="min(100vw, 420px)" fullScreen={mobile}>
+      <SlidePanelHeader title={comingSoonFeature} onClose={() => setComingSoonFeature(null)} />
+      <div style={{ padding: spacing.xl }}>Coming soon</div>
+    </SlidePanel>}
   </SlidePanel>
 }

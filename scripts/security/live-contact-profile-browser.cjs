@@ -21,7 +21,10 @@ const row = (id, first_name, last_name, patch) => ({
         row('student', 'Emma', 'Smith', { account_id: 'family', is_student: true, student_id: 'roster-emma', is_minor: true, account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', account_holder_phone: '2025550199', account_holder_email: 'jane@example.test', email: 'emma@example.test', date_of_birth: '2015-02-03' }),
         row('sibling', 'Noah', 'Smith', { account_id: 'family', is_student: true, student_id: 'roster-noah', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', account_holder_phone: '2025550199' }),
         row('holder', 'Jane', 'Smith', { is_student: false, phone: '2025550198' }),
-        row('legacy-student', 'Ivy', 'Lee', { account_id: 'legacy', is_student: true, student_id: 'roster-ivy', is_minor: true, message_routing: 'account_holder', account_holder_name: 'Jamie Lee', account_holder_phone: '2025550197', account_holder_email: 'summary@example.test' }),
+        row('legacy-student', 'Ivy', 'Lee', { account_id: 'legacy', is_student: true, student_id: 'roster-ivy', is_minor: true, message_routing: 'account_holder', account_holder_name: 'Jamie Lee', account_holder_phone: '2025550196', account_holder_email: 'summary@example.test', profile_enrollments: [
+          { id: 'piano', instrument: 'Piano', plan_name: '30 min lesson', lesson_day: 'Monday', lesson_time: '3 PM' },
+          { id: 'guitar', instrument: 'Guitar', plan_name: '45 min lesson', lesson_day: 'Thursday', lesson_time: '4 PM' },
+        ] }),
         row('email-only', 'Rae', 'Diaz', { account_id: 'emailonly', is_student: true, student_id: 'roster-rae', is_minor: true, account_holder_name: 'Rae Diaz Account', account_holder_email: 'rae@example.test' }),
       ]
       page.on('pageerror', error => errors.push(error.message))
@@ -93,8 +96,18 @@ const row = (id, first_name, last_name, patch) => ({
       await page.goto(base)
       await button('Jamie Lee', table).click()
       await title('Jamie Lee')
-      await dialog.getByText('summary@example.test').waitFor()
-      await dialog.getByText('Dependents', { exact: true }).waitFor()
+      assert.match(await button('Send email').innerText(), /summary@example.test/)
+      const metadata = dialog.locator('[aria-label="Contact details metadata"]')
+      assert.deepEqual(await metadata.locator(':scope > div').evaluateAll(nodes => nodes.map(node => node.firstElementChild.textContent)), ['Dependents', 'Member since', 'Birthday'])
+      assert.equal(await metadata.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 3)
+      assert.equal(await dialog.getByRole('button', { name: 'Open profile', exact: true }).count(), 0)
+      await button('Add subscription').waitFor()
+      await button('Ivy Lee Piano subscription actions').click()
+      await dialog.getByRole('menuitem', { name: 'Manage subscription' }).click()
+      const manage = page.getByRole('dialog', { name: 'Manage subscription', exact: true })
+      await manage.getByText('Coming soon', { exact: true }).waitFor()
+      await button('Close', manage).click()
+      await button('Ivy Lee Guitar subscription actions').waitFor()
       await dialog.getByText('Account Balance', { exact: true }).waitFor()
       assert.ok(await dialog.getByText('Coming soon', { exact: true }).count() >= 2)
       assert.equal(await button('Send SMS').isEnabled(), true)
@@ -110,8 +123,21 @@ const row = (id, first_name, last_name, patch) => ({
       await close()
       await button('Jamie Lee', table).click()
       await title('Jamie Lee')
-      await button('Open Ivy Lee').click()
+      await button('Ivy Lee').click()
       await title('Ivy Lee')
+      const accountLink = dialog.getByRole('link', { name: 'Jamie Lee', exact: true })
+      const accountHref = await accountLink.getAttribute('href')
+      assert.equal(accountHref, '/dashboard/contacts?account=legacy')
+      await accountLink.click()
+      await title('Jamie Lee')
+      const deepLink = await browser.newPage({ viewport: { width, height: 850 } })
+      await deepLink.route('**/api/**', route => {
+        const path = new URL(route.request().url()).pathname
+        return route.fulfill({ json: path === '/api/contacts' ? roster : path === '/api/tenant-fields' ? [] : {} })
+      })
+      await deepLink.goto(new URL(accountHref, base).href)
+      await deepLink.getByRole('dialog').getByRole('heading', { name: 'Jamie Lee', exact: true }).waitFor()
+      await deepLink.close()
       await close()
       await button('Jamie Lee', table).click()
       await title('Jamie Lee')
@@ -127,7 +153,13 @@ const row = (id, first_name, last_name, patch) => ({
 
       await button('Jane Smith', table).click()
       await title('Jane Smith')
-      await button('Open Emma Smith').click()
+      await button('Emma Smith').click()
+      await title('Emma Smith')
+      const holderLink = dialog.getByRole('link', { name: 'Jane Smith', exact: true })
+      assert.equal(await holderLink.getAttribute('href'), '/dashboard/contacts?contact=holder')
+      await holderLink.click()
+      await title('Jane Smith')
+      await button('Emma Smith').click()
       await title('Emma Smith')
       assert.equal(await button('Send SMS').isEnabled(), true)
       const recipientCheck = page.waitForRequest('**/api/communications/recipients*')
@@ -162,7 +194,7 @@ const row = (id, first_name, last_name, patch) => ({
       await dialog.getByLabel('Phone', { exact: true }).fill('')
       await button('Save changes').click()
       await button('Save changes').waitFor({ state: 'hidden' })
-      await dialog.getByText('Not provided', { exact: true }).first().waitFor()
+      assert.equal(roster.find(person => person.id === 'holder').phone, null)
       assert.deepEqual(writes.map(({ action, id }) => [action, id]), [
         ['account-profile', 'legacy'], ['profile', 'student'], ['profile', 'student'],
         ['student-notes', 'student'], ['internal-notes', 'student'], ['profile', 'holder'],
@@ -174,16 +206,16 @@ const row = (id, first_name, last_name, patch) => ({
       await page.reload()
       await button('Jamie Updated', table).click()
       await title('Jamie Updated')
-      await dialog.getByText('(202) 555-0197', { exact: true }).waitFor()
+      assert.match(await button('Send SMS').innerText(), /\(202\) 555-0197/)
       assert.equal(await button('Edit Contact').isDisabled(), true)
       await page.goto(base)
       await button('Jane Smith', table).click()
       await title('Jane Smith')
-      await dialog.getByText('Not provided', { exact: true }).first().waitFor()
+      assert.equal(roster.find(person => person.id === 'holder').phone, null)
       assert.equal(await button('Edit Contact').isDisabled(), true)
-      await button('Open Emma Smith').click()
+      await button('Emma Smith').click()
       await title('Emma Smith')
-      await dialog.getByText('(202) 555-0188').waitFor()
+      assert.match(await button('Send SMS').innerText(), /\(202\) 555-0199/)
       await tab('Notes').click()
       await dialog.getByText('Emma’s own note', { exact: true }).waitFor()
       assert.equal(await button('Add a note').count(), 0)

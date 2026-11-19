@@ -13,7 +13,7 @@ import { ControlButton } from '@/components/ui/ControlButton'
 import { CONTACT_CLIENT_TYPES } from '@/lib/contact-client-types'
 import { PersonName } from '@/components/ui/PersonName'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DEFAULT_TENANT, getActiveTenantId } from '@/lib/tenant'
 import { RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
@@ -48,6 +48,7 @@ export interface Contact {
   message_routing?: string
   account_id?: string | null
   account_member_since?: string | null
+  profile_enrollments?: { id: string; instrument: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
   first_name: string
   last_name: string
   phone: string | null
@@ -153,6 +154,7 @@ export default function ContactsPage() {
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(() => ({ ...DEFAULT_CONTACT_FILTERS }))
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; name: string; members: Contact[] } | null>(null)
+  const openedAccountDeepLink = useRef<string | null>(null)
   const [capabilities, setCapabilities] = useState(noContactCapabilities)
   const [notesDeepLink, setNotesDeepLink] = useState(false)
   const [accountPanelTab, setAccountPanelTab] = useState<'profile' | 'scheduling' | 'billing'>('profile')
@@ -178,6 +180,9 @@ export default function ContactsPage() {
   const profileFamilies = liveHeadliner && (selectedPerson || selectedAccount)
     ? contactProfileFamilies(contacts, tenantId, selectedPerson?.id, selectedAccount?.id) : []
   const selectedIsHolder = !!selectedPerson && profileFamilies.some(family => family.holders.some(holder => holder.id === selectedPerson.id))
+  const studentAccount = selectedPerson && !selectedIsHolder ? profileFamilies.find(family => family.id === selectedPerson.account_id) : undefined
+  const studentHolder = studentAccount?.holders.find(holder => holder.id === selectedPerson?.account_holder_person_id)
+    ?? (studentAccount?.holders.length === 1 ? studentAccount.holders[0] : undefined)
   const useLivePanel = liveHeadliner && (selectedPerson
     ? (selectedIsHolder || selectedPerson.is_student === true || Boolean(selectedPerson.student_id))
     : Boolean(selectedAccount))
@@ -189,6 +194,7 @@ export default function ContactsPage() {
     setInitialNotesTab('notes')
     setSelectedAccount(null)
     removeCurrentSearchParam('contact')
+    removeCurrentSearchParam('account')
   }
   const contactHistory = useMobilePanelHistory({
     isOpen: Boolean(selectedContact || selectedAccount),
@@ -202,6 +208,13 @@ export default function ContactsPage() {
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
     setSelectedContact(person)
+  }
+
+  const openFamilyAccount = (id: string, members: Contact[]) => {
+    setSelectedContact(null)
+    setNotesDeepLink(false)
+    setInitialNotesTab('notes')
+    setSelectedAccount({ id, name: members[0]?.account_holder_name || 'Account holder', members })
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -263,6 +276,17 @@ export default function ContactsPage() {
       .catch(() => {})
     return () => controller.abort()
   }, [tenantId, sampleContacts])
+
+  useEffect(() => {
+    if (!liveHeadliner || !contacts.length) return
+    const params = new URLSearchParams(window.location.search)
+    const accountId = params.get('account')
+    if (!accountId || params.has('contact') || openedAccountDeepLink.current === `${tenantId}:${accountId}`) return
+    const family = contactProfileFamilies(contacts, tenantId, undefined, accountId)[0]
+    if (!family) return
+    openedAccountDeepLink.current = `${tenantId}:${accountId}`
+    openFamilyAccount(family.id, family.students)
+  }, [contacts, liveHeadliner, tenantId])
 
   const handleSync = async () => {
     if (sampleContacts) return
@@ -788,6 +812,15 @@ export default function ContactsPage() {
         }}
         tenantId={tenantId} capabilities={capabilities}
         onOpenStudent={openFamilyPerson}
+        accountHolderLink={studentAccount ? studentHolder ? {
+          name: `${studentHolder.first_name ?? ''} ${studentHolder.last_name ?? ''}`.trim() || 'Account holder',
+          href: `/dashboard/contacts?contact=${encodeURIComponent(studentHolder.id)}`,
+          open: () => openFamilyPerson(studentHolder),
+        } : {
+          name: studentAccount.students[0]?.account_holder_name || 'Account holder',
+          href: `/dashboard/contacts?account=${encodeURIComponent(studentAccount.id)}`,
+          open: () => openFamilyAccount(studentAccount.id, studentAccount.students),
+        } : undefined}
         initialNotesTab={initialNotesTab} startOnNotes={notesDeepLink} onClose={contactHistory.closePanel}
         onUpdated={updated => {
           setContacts(rows => rows.map(row => row.id === updated.id ? updated : row))

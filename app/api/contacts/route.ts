@@ -219,9 +219,9 @@ export async function GET(request: Request) {
     // Collect instructor person ids to resolve names + instructor records
     const instructorPersonIds = new Set<string>()
     for (const person of visiblePeople) {
-      const enrollment = (person as any).students?.[0]?.enrollments?.[0]
-      const pid = enrollment?.instructor_person_id
-      if (pid) instructorPersonIds.add(pid)
+      for (const enrollment of person.students?.[0]?.enrollments ?? []) {
+        if (enrollment.instructor_person_id) instructorPersonIds.add(enrollment.instructor_person_id)
+      }
     }
 
     // Resolve instructor people (name) and instructors table (id)
@@ -233,6 +233,7 @@ export async function GET(request: Request) {
       const { data: peopleData } = await supabaseAdmin
         .from('people')
         .select('id, first_name, last_name, phone, email')
+        .eq('tenant_id', tenantId)
         .in('id', personIdList)
       instructorPeople = peopleData || []
 
@@ -287,6 +288,14 @@ export async function GET(request: Request) {
       return enrichDemoContact({
         id: person.id,
         student_id: nonStudentBooking ? null : (student.id ?? null),
+        profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry)).map((entry: any) => {
+          const teacher = personById.get(entry.instructor_person_id)
+          return {
+            id: entry.id, instrument: entry.instrument, plan_name: entry.plan_name, session_name: entry.session_name,
+            lesson_day: entry.lesson_day, lesson_time: entry.lesson_time,
+            instructor: teacher ? `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() : entry.custom_fields?.instructor ?? null,
+          }
+        }),
         is_student: !nonStudentBooking && Boolean(student.id),
         account_holder_person_id: holderPeopleByAccount.get(student.account_id)?.size === 1
           ? [...holderPeopleByAccount.get(student.account_id)!][0] : null,
