@@ -61,15 +61,19 @@ function harness(options = {}) {
   const store = load('lib/gmail/conversation-store.ts', { '@/lib/supabase/crm-admin': { crmSupabaseAdmin: db }, '@/lib/organisation-email': organisation, '@/lib/conversations-live': live, './conversations': conversations })
   const api = load('app/api/conversations/email/route.ts', {
     'next/server': { NextResponse: Response }, '@/lib/organisation-email': organisation,
-    '@/lib/headliner-email-templates': {}, '@/lib/tenant-request': { authorizeTenantRequest: async () => options.denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant', context: { membershipId: 'member', roleKey: 'staff', permissions: new Set(['leads']) } } },
+    '@/lib/headliner-email-templates': {}, '@/lib/tenant-request': { authorizeTenantRequest: async () => options.denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant', context: { membershipId: 'member', roleKey: 'staff', permissions: new Set(options.contacts ? ['leads', 'contacts'] : ['leads']) } } },
     '@/lib/permissions': { PERMISSIONS: { communicationsRead: 'read', leadsRead: 'leads', contactsRead: 'contacts' } },
-    '@/lib/supabase/crm-admin': { crmSupabaseAdmin: db }, '@/lib/conversations-directory': { conversationDirectory: async (tenant, contacts, leads) => { assert.equal(tenant, 'tenant'); assert.equal(contacts, false); return leads ? [person, other, { ...person, id: 'contact:one', profileType: 'contact' }] : [] } },
-    '@/lib/gmail/conversations': { ...conversations, conversationMailbox: unexpected, gmailGet: unexpected }, '@/lib/gmail/rules': rules,
+    '@/lib/supabase/crm-admin': { crmSupabaseAdmin: db }, '@/lib/conversations-directory': { conversationDirectory: async (tenant, contacts, leads) => { assert.equal(tenant, 'tenant'); assert.equal(contacts, Boolean(options.contacts)); return [...(leads ? [person, other] : []), ...(contacts ? [{ ...person, id: 'person:one', profileType: 'contact' }] : [])] } },
+    '@/lib/gmail/conversations': { ...conversations, conversationMailbox: options.provider ? async (tenant, id, member) => {
+      assert.deepEqual([tenant, id, member], ['tenant', 'box', 'member'])
+      return { id, email: 'office@example.com', token: 'fixture' }
+    } : unexpected, gmailGet: options.provider || unexpected }, '@/lib/gmail/rules': rules,
     '@/lib/conversations-live': live, '@/lib/account-audit': {}, '@/lib/conversations-preview': {},
     '@/lib/gmail/google': { GmailReadError: class extends Error {} }, '@/lib/conversation-email-range': load('lib/conversation-email-range.ts'),
-    '@/lib/conversation-email-query': {}, '@/lib/gmail/conversation-store': store,
+    '@/lib/conversation-email-query': load('lib/conversation-email-query.ts'), '@/lib/gmail/conversation-store': store,
+    '@/lib/communication-recipient-directory': { communicationRecipients: unexpected },
   })
-  const get = query => api.GET(new Request(`https://example.com/api/conversations/email?tenant=tenant&mailbox=box&person=lead:one&from=2026-10-01&to=2026-10-28&${query || ''}`))
+  const get = (query, recipient = 'lead:one') => api.GET(new Request(`https://example.com/api/conversations/email?tenant=tenant&mailbox=box&person=${encodeURIComponent(recipient)}&from=2026-10-01&to=2026-10-28&${query || ''}`))
   return { get, reads, writes, store }
 }
 
@@ -136,9 +140,36 @@ test('stored keyset pagination preserves same-thread messages and ignores new ro
 })
 
 test('summary hides bodies and contacts that are not leads', async () => {
-  const data = await (await harness().get('summary=1')).json()
+  const data = await (await harness({ contacts: true }).get('summary=1')).json()
   assert.equal(data.threads[0].messages[0].body, '')
-  assert.ok(data.threads.every(thread => !thread.id.includes('contact:one')))
+  assert.ok(data.threads.every(thread => thread.contactId !== 'person:one'))
+})
+
+test('an explicit contact reads mailbox-authorized Gmail history without touching the lead cache', async () => {
+  const fixture = harness({ contacts: true, provider: async (token, path) => {
+    assert.equal(token, 'fixture')
+    if (path.startsWith('threads?')) {
+      assert.match(new URLSearchParams(path.slice(8)).get('q'), /from:"parent@example.com"/)
+      return { threads: [{ id: 'thread' }] }
+    }
+    assert.equal(path, 'threads/thread?format=full')
+    const makeMessage = (id, sender) => ({ id, internalDate: String(Date.parse('2026-10-20T12:00:00Z')), payload: {
+      mimeType: 'text/plain', body: { data: Buffer.from('Saved body').toString('base64url') },
+      headers: [{ name: 'From', value: sender }, { name: 'To', value: 'office@example.com' }],
+    } })
+    return { id: 'thread', messages: [makeMessage('matching', person.email), makeMessage('unrelated', 'other@example.com')] }
+  } })
+  const allowed = await fixture.get('', 'person:one')
+  assert.equal(allowed.status, 200)
+  const data = await allowed.json()
+  assert.equal(data.threads.length, 1)
+  assert.equal(data.threads[0].contactId, 'person:one')
+  assert.equal(data.threads[0].messages[0].body, 'Saved body')
+  assert.equal(data.threads[0].messages.length, 1)
+  assert.equal(fixture.writes.length, 0)
+  const denied = harness()
+  assert.equal((await denied.get('', 'person:one')).status, 404)
+  assert.equal(denied.reads.length, 0)
 })
 
 test('history delay/reconnect override import completeness while unfinished imports remain pending', async () => {

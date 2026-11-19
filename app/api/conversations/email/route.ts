@@ -15,6 +15,7 @@ import { emailDateRange, isLeadEmailContact } from '@/lib/conversation-email-ran
 import { conversationEmailQuery } from '@/lib/conversation-email-query'
 import { readStoredEmail, storedMailbox, InvalidStoredEmailCursor } from '@/lib/gmail/conversation-store'
 import { formatCommunicationTimestamp } from '@/lib/communication-time'
+import { communicationRecipients } from '@/lib/communication-recipient-directory'
 
 export const maxDuration = 60
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -46,13 +47,15 @@ export async function GET(request: Request) {
     }
     const summary = params.get('summary') === '1'
     stage = 'directory'
-    const people = (await directory(access)).filter(isLeadEmailContact)
+    const people = (await directory(access)).filter(person => !summary || isLeadEmailContact(person))
     const person = people.find(person => person.id === params.get('person'))
     if (!summary && (!person || !validEmail(person.email))) return NextResponse.json({ error: 'Email contact not found.' }, { status: 404, headers })
     let range: ReturnType<typeof emailDateRange>
     try { range = emailDateRange(params.get('from'), params.get('to')) }
     catch { return NextResponse.json({ error: 'Choose a valid email date range.' }, { status: 400, headers }) }
-    if (process.env.CONVERSATION_EMAIL_STORE === '1') {
+    // The durable cache is lead-scoped. Use the existing authorized Gmail path
+    // for one contact rather than changing the shared cache or worker audience.
+    if (process.env.CONVERSATION_EMAIL_STORE === '1' && (summary || (person && isLeadEmailContact(person)))) {
       const mailbox = await storedMailbox(access.tenantId, mailboxId, access.context.membershipId)
       return NextResponse.json(await readStoredEmail(access.tenantId, mailbox, summary ? people : [person!], range, summary, params.get('cursor')), { headers })
     }
@@ -142,6 +145,17 @@ export async function POST(request: Request) {
     const ids: string[] = [...input.to, ...input.cc, ...input.bcc]
     if (!input.to.length || ids.length !== new Set(ids).size || ids.some(id => !people.some(person => person.id === id && person.email))) return NextResponse.json({ error: 'Choose valid recipients from this account.' }, { status: 400, headers })
     const resolve = (values: string[]) => values.map(id => people.find(person => person.id === id)!.email)
+    if (input.expectedContactEmail !== undefined) {
+      const personId = input.to[0]?.match(/^person:([\da-f-]{36})$/i)?.[1]
+      const expected = typeof input.expectedContactEmail === 'string' ? input.expectedContactEmail.trim().toLowerCase() : ''
+      if (!personId || ids.length !== 1 || !validEmail(expected) || resolve(input.to)[0].trim().toLowerCase() !== expected) {
+        return NextResponse.json({ error: 'The email recipient changed. Reopen the contact before sending.' }, { status: 409, headers })
+      }
+      const audience = await communicationRecipients(access.tenantId, [personId], 'email')
+      if (audience.excluded.length || !audience.recipients.some(recipient => recipient.destination === expected)) {
+        return NextResponse.json({ error: 'This email recipient is no longer available.' }, { status: 409, headers })
+      }
+    }
     const mailbox = await organisationSender(access.tenantId, access.context.membershipId, input.senderEmail)
     if (mailbox.id !== input.mailboxId) return NextResponse.json({ error: 'Use the configured shared organisation mailbox.' }, { status: 403, headers })
     if (!mailbox.scopes?.includes('https://www.googleapis.com/auth/gmail.send')) return NextResponse.json({ error: 'Reconnect this mailbox in Settings to allow sending.' }, { status: 409, headers })

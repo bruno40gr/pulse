@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, Input, NotesSection, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea, StatusBadge } from '@/components/ui'
+import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, Input, NotesSection, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea, StatusBadge } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
 import { MetadataRow } from '@/beta-source/app/content-studio-prototype/students/MetadataRow'
@@ -11,12 +11,12 @@ import { SubscriptionCard } from '@/beta-source/app/content-studio-prototype/stu
 import { AccountProfileToolbar } from '@/beta-source/app/content-studio-prototype/students/AccountProfileToolbar'
 import layoutStyles from '@/beta-source/app/content-studio-prototype/students/StudentWorkspace.module.css'
 import { SectionTitle } from '@/components/ui/SectionTitle'
-import CardSmsComposer from '@/components/inbox/CardSmsComposer'
-import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
-import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
+import LiveContactCommunication from './LiveContactCommunication'
+import { AccountEditorCanvas, type AccountEditorContact } from '@/beta-source/app/content-studio-prototype/students/AccountEditor'
+import { InlineWorkspaceContext } from '@/beta-source/app/content-studio-prototype/students/InlineWorkspaceContext'
 import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
 import type { FundingCase } from '@/components/funding/types'
-import { changedContactProfile, CONTACT_PROFILE_FIELDS, contactProfileDraft, type ContactProfileField } from '@/lib/contact-profile'
+import { changedContactProfile, contactProfileDraft, validateContactProfile } from '@/lib/contact-profile'
 import { formatPhoneNumber } from '@/lib/phone'
 import { usesAccountHolder } from '@/lib/contact-presentation'
 import { colors, spacing, typography } from '@/lib/tokens'
@@ -31,7 +31,6 @@ export type ContactCapabilities = { edit: boolean; readNotes: boolean; editNotes
 type NoteKind = 'notes' | 'internal'
 export type LiveContactNote = { id?: string; text: string; timestamp: string; actor_name?: string | null; completed_at?: string | null }
 type Section = 'account' | 'notes' | 'schedule' | 'billing' | 'makeups' | 'funding'
-const labels: Record<ContactProfileField, string> = { first_name: 'First name', last_name: 'Last name', phone: 'Phone', email: 'Email', date_of_birth: 'Date of birth' }
 const personName = (person: Contact) => `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()
 const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 const jsonHeaders = { 'Content-Type': 'application/json' }
@@ -80,10 +79,9 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const email = account ? account.email : person?.email ?? null
   const [section, setSection] = useState<Section>(startOnNotes ? 'notes' : 'account')
   const [notesTab, setNotesTab] = useState(initialNotesTab)
-  const [draft, setDraft] = useState<ReturnType<typeof contactProfileDraft> | null>(null)
-  const [baseline, setBaseline] = useState<ReturnType<typeof contactProfileDraft> | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [profileError, setProfileError] = useState('')
   const [noteError, setNoteError] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
   const [calling, setCalling] = useState(false)
@@ -94,7 +92,6 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const [fundingLoaded, setFundingLoaded] = useState(false)
   const tenantQuery = `tenant=${encodeURIComponent(tenantId)}`
   const endpoint = person && `/api/contacts/${encodeURIComponent(person.id)}`
-  const profilePath = account ? `/api/contacts/accounts/${encodeURIComponent(account.id)}/profile` : `${endpoint}/profile`
   const fundingAvailable = subject.kind === 'student' || person?.is_student === true
   const holderRouting = !!person && (usesAccountHolder(person) || under18(person.date_of_birth))
   // Bulk delivery uses the saved student routing columns, not DOB or display fields.
@@ -110,30 +107,44 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const canMessageAccountEmail = Boolean(account) && accountRecipients.length > 0 && Boolean(email)
   const notesField = notesTab === 'internal' ? 'notes_history' : 'student_notes_history'
   const notes = person?.[notesField] ?? []
-  const changes = draft && baseline ? changedContactProfile(baseline, draft) : {}
-  const dirty = Object.keys(changes).length > 0
-  const canLeave = () => !saving && !noteSaving && (!dirty || window.confirm('Discard unsaved contact changes?'))
-
-  const save = async () => {
-    if ((!person && !account) || !capabilities.edit || saving || !dirty) return
+  const canLeave = () => !saving && !noteSaving && (!editing || window.confirm('Discard unsaved contact changes?'))
+  const editorPeople = [...new Map([...(person ? [person] : []), ...(showsAccount ? students : [])].map(item => [item.id, item])).values()]
+  const editorContacts: AccountEditorContact[] = [...(account ? [{ id: `account:${account.id}`, accountRecord: true, firstName: account.name, lastName: '', email: account.email || '', phone: account.phone || '', birthday: '' }] : []),
+    ...editorPeople.map(item => ({ id: item.id, firstName: item.first_name || '', lastName: item.last_name || '', email: item.email || '', phone: item.phone || '', birthday: item.date_of_birth || '' }))]
+  const save = async (drafts: AccountEditorContact[], markSaved: (id: string) => void) => {
+    if (!capabilities.edit || saving) return 'You cannot edit these contacts.'
+    const changes = []
+    for (const draft of drafts) {
+      const original = editorContacts.find(item => item.id === draft.id)
+      if (!original) return 'Contact is no longer available.'
+      const fields = (item: AccountEditorContact) => contactProfileDraft({ first_name: item.firstName, last_name: item.lastName, phone: item.phone, email: item.email, date_of_birth: item.birthday })
+      const diff = changedContactProfile(fields(original), fields(draft))
+      if (!Object.keys(diff).length) continue
+      const result = validateContactProfile(diff)
+      if (!result.ok) return `${original.firstName} ${original.lastName}`.trim() + `: ${result.error}`
+      const accountTarget = original.accountRecord ? account : null
+      const personTarget = editorPeople.find(item => item.id === original.id)
+      if (!accountTarget && !personTarget) return 'Contact is no longer available.'
+      const { first_name: accountName, ...rest } = diff
+      changes.push({ id: draft.id, accountTarget, personTarget, payload: accountTarget ? { ...rest, ...(accountName !== undefined ? { name: accountName } : {}) } : diff })
+    }
     setSaving(true)
-    setProfileError('')
+    let savedCount = 0
     try {
-      const { first_name: accountName, ...rest } = changes
-      const payload = account ? { ...rest, ...(accountName !== undefined ? { name: accountName } : {}) } : changes
-      const response = await fetch(`${profilePath}?${tenantQuery}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(payload) })
-      const saved = await response.json()
-      if (!response.ok || saved?.id !== (account?.id ?? person?.id)) throw new Error(saved?.error || 'Could not save contact details.')
-      if (account) onAccountUpdated({ ...account, id: saved.id, name: saved.name, phone: saved.phone, email: saved.email })
-      else if (person) {
-        const { first_name, last_name, phone, email, date_of_birth } = saved
-        onUpdated({ ...person, first_name, last_name, phone, email, date_of_birth })
+      for (const { id, accountTarget, personTarget, payload } of changes) {
+        const path = accountTarget ? `accounts/${encodeURIComponent(accountTarget.id)}` : encodeURIComponent(personTarget!.id)
+        const response = await fetch(`/api/contacts/${path}/profile?${tenantQuery}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(payload) })
+        const saved = await response.json()
+        if (!response.ok || saved?.id !== (accountTarget?.id ?? personTarget?.id)) throw new Error(saved?.error || 'Could not save contact details.')
+        if (accountTarget) onAccountUpdated({ ...accountTarget, name: saved.name, phone: saved.phone, email: saved.email })
+        else if (personTarget) onUpdated({ ...personTarget, first_name: saved.first_name, last_name: saved.last_name, phone: saved.phone, email: saved.email, date_of_birth: saved.date_of_birth })
+        markSaved(id)
+        savedCount++
       }
-      setDraft(null)
-      setStatus('Contact details saved.')
-    } catch (error) {
-      setProfileError(message(error, 'Could not save contact details.'))
-    } finally { setSaving(false) }
+      if (savedCount) setStatus('Contact details saved.')
+      return null
+    } catch (error) { return `${savedCount ? `${savedCount} contact(s) saved. ` : ''}${message(error, 'Could not save contact details.')}` }
+    finally { setSaving(false) }
   }
 
   const mutateNote = async (method: 'POST' | 'PATCH', body: object) => {
@@ -183,33 +194,26 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
   return <SlidePanel isOpen onClose={close} fullScreen={mobile} width="min(calc(75vw + 200px), 1160px)">
-    {compose && (person || account) ? (
-      account || holderRouting ? <>
-        <SlidePanelHeader title={compose === 'email' ? 'Send email' : 'Send SMS'} onBack={() => setCompose(null)} backLabel="Back to contact" onClose={close} />
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ContactBulkComposer tenantId={tenantId}
-          contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []} channel={compose} onClose={() => setCompose(null)} /></div>
-      </> : <CardSmsComposer backDestination="contact" recipientId={person!.id} name={name} onBack={() => setCompose(null)} onClose={close} />
-    ) : <>
       <SlidePanelHeader title={name.replace(/\s*\(account\)\s*$/i, '')} subtitle={subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={subject.kind === 'student' && person ? <StatusBadge status={person.opted_out ? 'spam' : person.client_status} label={person.opted_out ? 'Opted out' : person.client_status} /> : undefined}
-        toast={status || undefined} onClose={close} />
+        toast={status || undefined} onClose={close} onBack={compose ? () => setCompose(null) : undefined} backLabel="Back to contact" />
+      {compose ? <div className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ background: colors.surfaceMuted }}>
+        <LiveContactCommunication key={compose} tenantId={tenantId} channel={compose} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
+          destination={(compose === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
+      </div> : <>
       <AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
-          <Button aria-label="Send SMS" variant="secondary" disabled={person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms} onClick={() => setCompose('sms')}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
-          {person && !holderRouting ? <ConversationComposeLink backDestination="contact" recipient={`person:${person.id}`} channel="email" disabled={!email} destination={email || undefined} />
-            : <Button aria-label="Send email" variant="secondary" disabled={person ? (!canComposeToHolder || !routedEmail) : !canMessageAccountEmail} onClick={() => setCompose('email')}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>}
+          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
+          <Button aria-label="Send email" variant="secondary" disabled={saving || (person ? !displayedEmail || (holderRouting && !canComposeToHolder) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('email') } }}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>
         </>} actions={<>
-          <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => {
-            setSection('account')
-            if (draft) return
-            const initial = contactProfileDraft(account ? { first_name: name, phone, email } : person ?? {})
-            setBaseline(initial); setDraft(initial); setProfileError(''); setStatus('')
-          }}><Pencil size={14} />Edit Contact</Button>
+          <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => { setSection('account'); setEditing(true); setStatus('') }}><Pencil size={14} />Edit Contact</Button>
           <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
         </>} />
       <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
         <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%' }} activeKey={section} onChange={next => {
+          if (next === section || !canLeave()) return
+          setEditing(false)
           setSection(next)
           if (next === 'funding' && !fundingLoaded) void loadFunding()
         }} items={[
@@ -218,18 +222,12 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         ]} />
       </div>
       <div className={layoutStyles.panelContent} style={{ background: colors.surfaceMuted }}>
-        {section === 'account' ? <AccountProfileLayout details={<>
+        {editing && section === 'account' ? <InlineWorkspaceContext.Provider value={true}>
+          <AccountEditorCanvas contacts={editorContacts} holderId={showsAccount ? editorContacts[0]?.id : undefined} accountName={name} studentOnly={!showsAccount} onSave={save} onBack={() => setEditing(false)}
+            family={showsAccount && <DenseSectionPanel title="Manage Family Group" actions={<Button disabled>Add Dependent</Button>}><div style={muted}>Coming soon</div>{students.map(student => <div key={student.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingBlock: spacing.md, borderTop: `1px solid ${colors.borderLight}` }}><strong>{personName(student)}</strong><Button variant="secondary" disabled>Remove from Family Group</Button></div>)}</DenseSectionPanel>} />
+        </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
               <DenseSectionPanel title="Contact details">
-                {draft ? <form style={stack} noValidate onSubmit={event => { event.preventDefault(); void save() }}>
-                  <FieldGrid>{CONTACT_PROFILE_FIELDS.filter(field => !account || field === 'first_name' || field === 'phone' || field === 'email').map(field => <Input key={field} label={account && field === 'first_name' ? 'Name' : labels[field]} name={field}
-                    type={field === 'date_of_birth' ? 'date' : field === 'phone' ? 'tel' : field === 'email' ? 'email' : 'text'}
-                    value={draft[field]} disabled={saving} onChange={event => setDraft({ ...draft, [field]: event.target.value })} />)}</FieldGrid>
-                  {profileError && <div role="alert" style={{ color: colors.error }}>{profileError}</div>}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm }}>
-                    <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => { setDraft(null); setProfileError('') }}>Cancel</Button>
-                    <Button type="submit" size="sm" disabled={!dirty || saving || !capabilities.edit}>{saving ? 'Saving…' : 'Save changes'}</Button>
-                  </div>
-                </form> : <MetadataRow label="Contact details metadata">
+                <MetadataRow label="Contact details metadata">
                   {showsAccount ? <DetailField label="Dependents" value={String(students.length)} /> : <DetailField label="Account holder" value="Not added">
                     {accountHolderLink && <a href={accountHolderLink.href} style={{ color: colors.link }} onClick={event => {
                       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -239,7 +237,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                   </DetailField>}
                   <DetailField label="Member since" value={formatMemberSince(memberSince) || 'Not added'} />
                   <DetailField label="Birthday" value={formatMemberSince(person?.date_of_birth ?? null) || 'Not added'} />
-                </MetadataRow>}
+                </MetadataRow>
               </DenseSectionPanel>
               {(showsAccount ? students : person ? [person] : []).map(student => <DenseSectionPanel key={student.id}
                 title={showsAccount ? <SectionTitle as="h3" variant="card"><ControlButton kind="name" onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
@@ -288,7 +286,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
               : <EmptyState icon={<Landmark />} title="No funding program assigned" description="Funding authorization and coverage details appear here when this student is assigned to a funding program." />
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
-    </>}
+      </>}
     {comingSoonFeature && <SlidePanel isOpen onClose={() => setComingSoonFeature(null)} width="min(100vw, 420px)" fullScreen={mobile}>
       <SlidePanelHeader title={comingSoonFeature} onClose={() => setComingSoonFeature(null)} />
       <div style={{ padding: spacing.xl }}>Coming soon</div>

@@ -37,7 +37,15 @@ const row = (id, first_name, last_name, patch) => ({
         if (path === '/api/tenant-fields') return route.fulfill({ json: [] })
         if (path === '/api/contacts/check-sensitive') return route.fulfill({ json: { flagged: [], opted_out: [] } })
         if (path === '/api/inbox/reconcile' || path === '/api/account/me') return route.fulfill({ json: {} })
-        if (path === '/api/communications/senders') return route.fulfill({ json: { senders: [] } })
+        if (path === '/api/communications/senders') return route.fulfill({ json: { senders: [{ id: 'sender', email: 'school@example.test', name: 'School' }] } })
+        if (path === '/api/conversations') return route.fulfill({ json: { people: roster.filter(item => item.is_student).map(item => ({ id: `person:${item.id}`, name: item.account_holder_name, phone: item.account_holder_phone || '', email: item.account_holder_email || '' })) } })
+        if (path === '/api/inbox' && method === 'GET') return route.fulfill({ json: [{ other_phone: '+12025550196', messages: [{ id: 'sms1', direction: 'inbound', body: 'Previous SMS fixture', created_at: '2026-11-01T12:00:00Z' }] }] })
+        if (path === '/api/conversations/email' && method === 'GET') {
+          if (!url.searchParams.has('mailbox')) return route.fulfill({ json: { mailboxes: [{ id: 'mailbox', email: 'school@example.test', canSend: true }] } })
+          assert.equal(url.searchParams.get('person'), 'person:student')
+          return route.fulfill({ json: { threads: [{ id: 'email1', mailboxId: 'mailbox', providerThreadId: 'thread1', subject: 'Previous email fixture', messages: [{ id: 'mail1', direction: 'inbound', body: 'Earlier email body fixture', timestamp: '2026-10-01T12:00:00Z', emailFrom: 'jane@example.test', emailTo: ['school@example.test'] }] }] } })
+        }
+        if (path === '/api/conversations/templates') return route.fulfill({ json: { templates: [] } })
         const accountProfile = path.match(/^\/api\/contacts\/accounts\/([^/]+)\/profile$/)
         if (accountProfile && method === 'PATCH') {
           const id = accountProfile[1], body = request.postDataJSON()
@@ -55,7 +63,7 @@ const row = (id, first_name, last_name, patch) => ({
         if (path === '/api/communications/recipients') {
           const { contactIds, channel } = request.postDataJSON()
           recipientChecks.push([channel, contactIds])
-          return route.fulfill({ json: { recipients: [], excluded: [], selectedCount: contactIds.length, version: 'fixture' } })
+          return route.fulfill({ json: { recipients: roster.filter(item => contactIds.includes(item.id)).map(item => ({ name: item.account_holder_name, contactIds: [item.id], destination: channel === 'sms' ? `+1${item.account_holder_phone}` : item.account_holder_email })), excluded: [], selectedCount: contactIds.length, version: 'fixture' } })
         }
         if (path === '/api/funding/cases') {
           assert.equal(url.searchParams.get('student_person_id'), 'student')
@@ -112,7 +120,10 @@ const row = (id, first_name, last_name, patch) => ({
       assert.ok(await dialog.getByText('Coming soon', { exact: true }).count() >= 2)
       assert.equal(await button('Send SMS').isEnabled(), true)
       await button('Send SMS').click()
-      await page.waitForFunction(() => window.performance.getEntriesByType('resource').some(entry => entry.name.includes('/api/communications/recipients')))
+      await dialog.getByRole('region', { name: 'SMS history' }).getByText('Previous SMS fixture', { exact: true }).waitFor().catch(async error => {
+        throw new Error(`${error.message}\n${await dialog.innerText()}\n${JSON.stringify(errors)}`)
+      })
+      await dialog.getByRole('textbox', { name: 'SMS message' }).waitFor()
       await button('Back to contact').click()
       assert.deepEqual(recipientChecks.at(-1), ['sms', ['legacy-student']])
       await close()
@@ -142,8 +153,10 @@ const row = (id, first_name, last_name, patch) => ({
       await button('Jamie Lee', table).click()
       await title('Jamie Lee')
       await button('Edit Contact').click()
+      await dialog.getByRole('region', { name: 'Ivy Lee contact fields' }).getByLabel('Birthday').waitFor()
+      const accountFields = dialog.getByRole('region', { name: 'Jamie Lee  contact fields' })
       await dialog.getByLabel('Name', { exact: true }).fill('Jamie Updated')
-      await dialog.getByLabel('Phone', { exact: true }).fill('2025550197')
+      await accountFields.getByLabel('Phone', { exact: true }).fill('2025550197')
       await button('Save changes').click()
       await title('Jamie Updated')
       assert.equal(roster[3].first_name, 'Ivy')
@@ -166,6 +179,12 @@ const row = (id, first_name, last_name, patch) => ({
       await button('Send email').click()
       await recipientCheck
       assert.deepEqual(recipientChecks.at(-1), ['email', ['student']])
+      await dialog.getByRole('button', { name: 'Read email: Previous email fixture' }).click()
+      await dialog.getByRole('region', { name: 'Email reader' }).getByText('Earlier email body fixture', { exact: true }).waitFor()
+      await button('New email').click()
+      const emailDraft = page.getByRole('dialog', { name: 'Email drafting workspace' })
+      await emailDraft.getByRole('heading', { name: 'Draft email', exact: true }).waitFor()
+      await button('Back to email conversation', emailDraft).click()
       await button('Back to contact').click()
       await button('Edit Contact').click()
       await dialog.getByLabel('Email', { exact: true }).fill('')
@@ -191,7 +210,7 @@ const row = (id, first_name, last_name, patch) => ({
       await button('Jane Smith', table).click()
       await title('Jane Smith')
       await button('Edit Contact').click()
-      await dialog.getByLabel('Phone', { exact: true }).fill('')
+      await dialog.getByRole('region', { name: 'Jane Smith contact fields' }).getByLabel('Phone', { exact: true }).fill('')
       await button('Save changes').click()
       await button('Save changes').waitFor({ state: 'hidden' })
       assert.equal(roster.find(person => person.id === 'holder').phone, null)

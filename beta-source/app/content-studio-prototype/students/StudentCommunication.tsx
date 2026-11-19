@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button, EmptyState, FieldValue, SlidePanel, SlidePanelHeader, SurfacePanel } from '@/beta-source/components/ui'
 import { ControlButton } from '@/beta-source/components/ui/ControlButton'
 import { Disclosure } from '@/beta-source/components/ui/Disclosure'
@@ -16,15 +16,8 @@ import type { WorkspaceSectionProps } from './WorkspaceSections'
 import styles from './StudentWorkspace.module.css'
 
 export function StudentCommunication({ account, students, location, channel, drafts, onDraft }: WorkspaceSectionProps) {
-  const [composing, setComposing] = useState(false)
-  const [replyingTo, setReplyingTo] = useState<string | null>(null)
-  const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
-  const [mobileReader, setMobileReader] = useState(false)
-  const mobile = useIsMobile()
   const [templates, setTemplates] = useState(initialMockTemplates)
-  const key = `${account.id}:communication:${students.map(student => student.id).join(',')}`
-  const emailDraft: PrototypeEmailDraft = { subject: drafts[`${key}:subject`] || '', html: drafts[`${key}:html`] || '' }
-  const sms = drafts[`${key}:sms`] || ''
+  const draftPrefix = `${account.id}:communication:${students.map(student => student.id).join(',')}`
   const holder = students.find(student => student.id === account.holderId)
   const manager = students.flatMap(student => student.family).find(member => member.id === account.holderId)
   const selectedStudent = students.find(student => student.id === location.studentId)
@@ -35,8 +28,31 @@ export function StudentCommunication({ account, students, location, channel, dra
     const entries = messages.filter(message => message.channel === 'email' && `${message.student.id}:${(message.subject || 'No subject').replace(/^(re:\s*)+/i, '').toLowerCase()}` === id)
     return { id, subject: entries[0].subject || 'No subject', messages: entries }
   }).sort((a, b) => b.messages.at(-1)!.timestamp.localeCompare(a.messages.at(-1)!.timestamp))
+  const smsThread: PrototypeThread = { id: `${draftPrefix}:sms`, contactId: person.id, channel: 'sms', name: person.name, student: person.student, initials: person.name.split(' ').map(part => part[0]).join(''), email: person.email, phone: person.phone, stage: '', interest: '', nextAction: '', note: '', unread: false, messages: messages.filter(message => message.channel === 'sms').map(message => ({ id: `${message.student.id}:${message.id}`, channel: 'sms', direction: message.direction, body: message.text, timestamp: message.timestamp, time: formatMessageTimestamp(message.timestamp) })) }
+  return <CommunicationCanvas channel={channel} person={person} smsThread={smsThread} draftPrefix={draftPrefix} drafts={drafts} onDraft={onDraft}
+    threads={threads.map(thread => ({ ...thread, messages: thread.messages.map(message => ({ ...message,
+      from: message.direction === 'inbound' ? person.email : PROTOTYPE_EMAIL,
+      to: message.direction === 'inbound' ? PROTOTYPE_EMAIL : person.email,
+    })) }))}
+    renderEmail={({ draft, onChange, onBack, replying }) => <PrototypeEmailComposer name={person.name} email={person.email} student={person.student} draft={draft} onChange={onChange} onSend={() => {}} signatureHtml="" senderName="Preview staff" disabled people={[person]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} onCollapse={onBack} onDiscard={() => {}} replying={replying} />} />
+}
+
+export type CommunicationThread = { id: string; subject: string; messages: { id: string; text: string; timestamp: string; direction: 'inbound' | 'outbound'; from?: string; to?: string }[] }
+export function CommunicationCanvas({ person, channel, smsThread, threads, draftPrefix: key, drafts, onDraft, renderEmail, liveSms, notice, emailHistoryPending, renderDraftPanel }: {
+  person: { name: string; phone: string; email: string }; channel: 'sms' | 'email'; smsThread: PrototypeThread; threads: CommunicationThread[]
+  draftPrefix: string; drafts: Record<string, string>; onDraft: (key: string, value: string) => void
+  renderEmail: (options: { draft: PrototypeEmailDraft; onChange: (draft: PrototypeEmailDraft) => void; onBack: () => void; replying: boolean; threadId?: string }) => ReactNode
+  liveSms?: { onSend: (body: string) => void; disabled: boolean; onDraft?: () => Promise<string> }; notice?: ReactNode; emailHistoryPending?: boolean
+  renderDraftPanel?: (options: { name: string; close: () => void; children: ReactNode }) => ReactNode
+}) {
+  const [composing, setComposing] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
+  const [mobileReader, setMobileReader] = useState(false)
+  const mobile = useIsMobile()
+  const emailDraft = { subject: drafts[`${key}:subject`] || '', html: drafts[`${key}:html`] || '' }
+  const sms = drafts[`${key}:sms`] || ''
   const active = threads.find(thread => thread.id === selectedEmail) || threads[0]
-  const smsThread: PrototypeThread = { id: `${key}:sms`, contactId: person.id, channel: 'sms', name: person.name, student: person.student, initials: person.name.split(' ').map(part => part[0]).join(''), email: person.email, phone: person.phone, stage: '', interest: '', nextAction: '', note: '', unread: false, messages: messages.filter(message => message.channel === 'sms').map(message => ({ id: `${message.student.id}:${message.id}`, channel: 'sms', direction: message.direction, body: message.text, timestamp: message.timestamp, time: formatMessageTimestamp(message.timestamp) })) }
   const replyKey = active ? `${key}:reply:${active.id}` : ''
   const replyDraft: PrototypeEmailDraft = { subject: drafts[`${replyKey}:subject`] || '', html: drafts[`${replyKey}:html`] || '' }
   function openComposer(reply: boolean) {
@@ -49,30 +65,30 @@ export function StudentCommunication({ account, students, location, channel, dra
   }
   const inlineReply = active && replyingTo === active.id
   function composer(draft: PrototypeEmailDraft, draftKey: string, inline: boolean) {
-    return <PrototypeEmailComposer name={person.name} email={person.email} student={person.student} draft={draft} onChange={value => { onDraft(`${draftKey}:subject`, value.subject); onDraft(`${draftKey}:html`, value.html) }} onSend={() => {}} signatureHtml="" senderName="Preview staff" disabled people={[person]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} onCollapse={() => inline ? setReplyingTo(null) : setComposing(false)} onDiscard={() => {}} replying={inline} />
+    return renderEmail({ draft, onChange: value => { onDraft(`${draftKey}:subject`, value.subject); onDraft(`${draftKey}:html`, value.html) }, onBack: () => inline ? setReplyingTo(null) : setComposing(false), replying: inline, threadId: inline ? active?.id : undefined })
   }
   const conversation = <>
     {channel === 'sms' && <SurfacePanel appearance="flat" padding="0" style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      <PrototypeSmsConversation panelLayout thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => {}} sendDisabled />
+      <PrototypeSmsConversation panelLayout thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />
     </SurfacePanel>}
     {channel === 'email' && <SurfacePanel appearance="flat" padding="0" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className={styles.emailBrowser} data-reader={mobileReader}>
         <aside aria-label="Email conversations" className={styles.emailList}>
           {threads.map(thread => { const latest = thread.messages.at(-1)!; return <ControlButton kind="row" key={thread.id} selected={active?.id === thread.id} aria-pressed={active?.id === thread.id} aria-label={`Read email: ${thread.subject}`} onClick={() => { setSelectedEmail(thread.id); setReplyingTo(null); setMobileReader(true) }} style={{ display: 'block', borderRadius: 0, borderBottom: `1px solid ${colors.borderLight}`, padding: spacing.lg }}>
-            <div style={{ ...typography.bodySmall, color: colors.text, overflowWrap: 'anywhere' }}>{latest.direction === 'inbound' ? '↙' : '↗'} {latest.direction === 'inbound' ? person.email : PROTOTYPE_EMAIL}</div>
+            <div style={{ ...typography.bodySmall, color: colors.text, overflowWrap: 'anywhere' }}>{latest.direction === 'inbound' ? '↙' : '↗'} {latest.from}</div>
             <div style={{ ...typography.bodySmall, color: colors.text, marginTop: spacing.sm }}>{formatScheduleDate(latest.timestamp.slice(0, 10))}</div>
             <strong style={{ display: 'block', marginTop: spacing.md }}>{thread.subject}</strong><p className={styles.emailSnippet}>{latest.text}</p>
           </ControlButton> })}
-          {!threads.length && <EmptyState title="No emails yet" />}
+          {!threads.length && !emailHistoryPending && <EmptyState title="No emails yet" />}
         </aside>
         <section aria-label="Email reader" className={styles.emailReader}>
           <div className={styles.emailBack}><Button variant="secondary" size="md" onClick={() => setMobileReader(false)}>Back to emails</Button></div>
           {active ? <>
             <header className={styles.toolbar} style={{ justifyContent: 'space-between', marginBottom: spacing.lg }}><h3 style={{ ...typography.h2, margin: 0 }}>{active.subject}</h3></header>
             {active.messages.map((message, index) => {
-              const sender = message.direction === 'inbound' ? person.email : PROTOTYPE_EMAIL
+              const sender = message.from
               const header = <div className={styles.emailMessageHeader}><strong style={{ overflowWrap: 'anywhere' }}>{message.direction === 'inbound' ? '↙' : '↗'} {sender}</strong><span style={{ ...typography.bodySmall, color: colors.text }}>{formatMessageTimestamp(message.timestamp)}</span></div>
-              const body = <div className={styles.emailMessageContent}><dl className={styles.emailMetadata}><dt>From</dt><dd>{sender}</dd><dt>To</dt><dd>{message.direction === 'inbound' ? PROTOTYPE_EMAIL : person.email}</dd></dl><p className={styles.emailMessageBody}>{message.text}</p></div>
+              const body = <div className={styles.emailMessageContent}><dl className={styles.emailMetadata}><dt>From</dt><dd>{sender}</dd><dt>To</dt><dd>{message.to}</dd></dl><p className={styles.emailMessageBody}>{message.text}</p></div>
               return index < active.messages.length - 1 ? <Disclosure key={message.id} summary={header} className={styles.emailMessage}>{body}</Disclosure> : <article key={message.id} className={styles.emailMessage}>{header}{body}</article>
             })}
             {inlineReply ? <section aria-label="Reply to email" className={styles.emailReply}>
@@ -93,12 +109,17 @@ export function StudentCommunication({ account, students, location, channel, dra
       <Button variant="secondary" size="md" onClick={() => openComposer(false)}>{emailDraft.subject || emailDraft.html ? 'Continue draft' : 'New email'}</Button>
     </header>}
     {channel !== 'email' && recipientDetails}
+    {notice}
     {conversation}
-    <SlidePanel isOpen={composing} fullScreen ariaLabel="Email drafting workspace" onClose={() => setComposing(false)}>
-      <SlidePanelHeader title="Draft email" subtitle={person.name} onBack={() => setComposing(false)} backLabel="Back to email conversation" onClose={() => setComposing(false)} />
-      <div className={styles.communicationDraft} style={{ background: colors.surfaceMuted }}><div className={styles.communicationDraftInner}>
+    {composing && (() => {
+      const close = () => setComposing(false)
+      const children = <div className={styles.communicationDraft} style={{ background: colors.surfaceMuted }}><div className={styles.communicationDraftInner}>
         <SurfacePanel appearance="flat" padding={spacing.lg}>{composer(emailDraft, key, false)}</SurfacePanel>
       </div></div>
-    </SlidePanel>
+      return renderDraftPanel ? renderDraftPanel({ name: person.name, close, children }) : <SlidePanel isOpen fullScreen ariaLabel="Email drafting workspace" onClose={close}>
+        <SlidePanelHeader title="Draft email" subtitle={person.name} onBack={close} backLabel="Back to email conversation" onClose={close} />
+        {children}
+      </SlidePanel>
+    })()}
   </section>
 }

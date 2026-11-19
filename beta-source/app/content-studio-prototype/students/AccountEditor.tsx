@@ -7,29 +7,45 @@ import { spacing } from '@/beta-source/lib/tokens'
 import { AccountWorkspace } from './AccountWorkspace'
 import { ParentFamilyGroup } from './ParentFamilyGroup'
 
-/** Staff-only V3 workspace. Contact drafts are separate from explicit membership actions. */
+export type AccountEditorContact = { id: string; firstName: string; lastName: string; email: string; phone: string; birthday?: string; accountRecord?: boolean }
+
 export function AccountEditor({ data, account, contactId, onApply, onBack }: { data: FamilyPreviewData; account: PreviewAccount; contactId?: string; onApply: (action: FamilyAction) => string | null; onBack: () => void }) {
-  const formId = useId()
   const contacts = previewContacts(data).filter(contact => contactId ? contact.id === contactId && account.studentIds.includes(contact.id) : contact.id === account.holderId || account.studentIds.includes(contact.id)).sort((a, b) => Number(b.id === account.holderId) - Number(a.id === account.holderId))
+  return <AccountEditorCanvas contacts={contacts} holderId={account.holderId} accountName={contactId ? `${contacts[0]?.firstName || ''} ${contacts[0]?.lastName || ''}`.trim() : account.holderName}
+    studentOnly={!!contactId} onBack={onBack} onSave={rows => onApply({ kind: 'contact-batch', accountId: account.id, contacts: rows.map(row => ({ ...contacts.find(contact => contact.id === row.id)!, ...row })) })}
+    family={!contactId && <ParentFamilyGroup embedded canvas="manage" account={account} students={data.students.filter(student => account.studentIds.includes(student.id) && student.id !== account.holderId)} onApply={onApply} />} />
+}
+
+/** Beta and live Contacts use the same editor; callers own persistence. */
+export function AccountEditorCanvas({ contacts, holderId, accountName, studentOnly, family, onSave, onBack }: {
+  contacts: AccountEditorContact[]; holderId?: string; accountName: string; studentOnly?: boolean; family?: React.ReactNode
+  onSave: (contacts: AccountEditorContact[], saved: (id: string) => void) => string | null | Promise<string | null>; onBack: () => void
+}) {
+  const formId = useId()
+  const [saving, setSaving] = useState(false)
   const [drafts, setDrafts] = useState(() => Object.fromEntries(contacts.map(contact => [contact.id, { ...contact }])))
   const [error, setError] = useState('')
-  return <AccountWorkspace title="Edit Contact" accountName={contactId ? `${contacts[0]?.firstName || ''} ${contacts[0]?.lastName || ''}`.trim() : account.holderName} profileSubtitle={contactId ? 'Student profile' : 'Account manager'} onBack={onBack} actions={<><Button variant="secondary" onClick={onBack}>Cancel</Button><Button type="submit" form={formId}>Save changes</Button></>}>
-    <form id={formId} style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }} onSubmit={event => {
+  return <AccountWorkspace title="Edit Contact" accountName={accountName} profileSubtitle={studentOnly ? 'Student profile' : 'Account manager'} onBack={onBack} actions={<><Button variant="secondary" disabled={saving} onClick={onBack}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>Save changes</Button></>}>
+    <form id={formId} noValidate style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }} onSubmit={async event => {
       event.preventDefault()
-      const message = onApply({ kind: 'contact-batch', accountId: account.id, contacts: contacts.map(contact => drafts[contact.id] || contact) })
-      setError(message || '')
-      if (!message) onBack()
+      if (saving) return
+      setSaving(true)
+      setError('')
+      try {
+        const message = await onSave(Object.values(drafts), id => setDrafts(current => { const next = { ...current }; delete next[id]; return next }))
+        if (message) setError(message)
+        else onBack()
+      } catch (error) { setError(error instanceof Error ? error.message : 'Could not save contact details.') }
+      finally { setSaving(false) }
     }}>
       {contacts.map(contact => {
         const draft = drafts[contact.id] || contact
-        return <section key={contact.id} aria-label={`${contact.firstName} ${contact.lastName} contact fields`}><DenseSectionPanel title={`${contact.firstName} ${contact.lastName}${contact.id === account.holderId ? ' · Account holder' : ''}`}>
-          <FieldGrid>{(['firstName', 'lastName', 'email', 'phone', 'birthday'] as const).map(field => <Input key={field} label={{ firstName: 'First name', lastName: 'Last name', email: 'Email', phone: 'Phone', birthday: 'Birthday' }[field]} required={field === 'firstName' || field === 'lastName'} type={field === 'email' ? 'email' : field === 'phone' ? 'tel' : field === 'birthday' ? 'date' : 'text'} value={draft[field] || ''} onChange={event => setDrafts(current => ({ ...current, [contact.id]: { ...draft, [field]: event.target.value } }))} />)}</FieldGrid>
+        return <section key={contact.id} aria-label={`${contact.firstName} ${contact.lastName} contact fields`}><DenseSectionPanel title={`${contact.firstName} ${contact.lastName}${contact.id === holderId ? ' · Account holder' : ''}`}>
+          <FieldGrid>{(['firstName', 'lastName', 'email', 'phone', 'birthday'] as const).filter(field => !contact.accountRecord || field !== 'lastName' && field !== 'birthday').map(field => <Input key={field} disabled={saving} label={contact.accountRecord && field === 'firstName' ? 'Name' : { firstName: 'First name', lastName: 'Last name', email: 'Email', phone: 'Phone', birthday: 'Birthday' }[field]} required={field === 'firstName' || field === 'lastName'} type={field === 'email' ? 'email' : field === 'phone' ? 'tel' : field === 'birthday' ? 'date' : 'text'} value={draft[field] || ''} onChange={event => setDrafts(current => ({ ...current, [contact.id]: { ...draft, [field]: event.target.value } }))} />)}</FieldGrid>
         </DenseSectionPanel></section>
       })}
       {error && <p role="alert">{error}</p>}
     </form>
-    {!contactId && <section aria-label="Manage Family Group" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-      <ParentFamilyGroup embedded canvas="manage" account={account} students={data.students.filter(student => account.studentIds.includes(student.id) && student.id !== account.holderId)} onApply={onApply} />
-    </section>}
+    {family && <section aria-label="Manage Family Group" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>{family}</section>}
   </AccountWorkspace>
 }
