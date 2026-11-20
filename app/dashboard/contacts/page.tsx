@@ -713,7 +713,7 @@ export default function ContactsPage() {
             ...(onCreateOpportunity ? [{ id: 'opportunity', label: 'Create opportunity', onClick: () => onCreateOpportunity([...selectedIds]) }] : []),
             ...(onCreateBand ? [{ id: 'band', label: 'Create band', onClick: () => onCreateBand([...selectedIds]) }] : []),
           ] : [
-            ...(process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES === 'true' ? [{ id: 'opportunity', label: 'Create Band opportunity', onClick: () => setOpportunityStudents(contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).map(contact => ({ id: contact.id, name: `${contact.first_name} ${contact.last_name}`.trim() }))), disabledReason: contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).length !== selectedIds.size ? 'Select students individually in the Students view.' : undefined }] : []),
+            ...[{ id: 'opportunity', label: 'Create opportunity', onClick: () => setOpportunityStudents(contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).map(contact => ({ id: contact.id, name: `${contact.first_name} ${contact.last_name}`.trim() }))), disabledReason: contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).length !== selectedIds.size ? 'Select students individually in the Students view.' : undefined }],
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}

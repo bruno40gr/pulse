@@ -13,6 +13,7 @@ function setup(options = {}) {
       students: [{ id: 's1', tenant_id: HEAD, person_id: 'p1', client_status: 'member' }, { id: 's2', tenant_id: HEAD, person_id: 'p2', client_status: 'active' }, { id: 's3', tenant_id: HEAD, person_id: 'p3', client_status: 'member' }],
       instructors: options.instructors || [],
       band_memberships: options.memberships || [],
+      band_profiles: options.profiles || [],
       people: [{ id: 'p1', tenant_id: HEAD, first_name: 'Ada', last_name: 'Lovelace' }, { id: 'p2', tenant_id: HEAD, first_name: 'Bo', last_name: 'Chen' }, { id: 'p3', tenant_id: HEAD, first_name: 'Cy', last_name: 'Diaz' }] },
     errors: options.errors || {}, queryResult: options.queryResult })
   return h
@@ -85,4 +86,14 @@ test('explicit band memberships are merged into the roster', async () => {
   assert.equal(response.status, 200)
   const band = (await response.json()).bands.find(row => row.name === 'Band A')
   assert.deepEqual(Array.from(band.members, member => member.name), ['Ada Lovelace', 'Bo Chen', 'Cy Diaz'])
+})
+
+test('rehearsal-space clients and archived bands leave the working roster', async () => {
+  const h = setup({ profiles: [
+    { tenant_id: HEAD, band_name: 'Band A', status: 'archived' },
+    { tenant_id: HEAD, band_name: 'Band B', status: 'external' },
+  ] })
+  const response = await h.load(route).GET(request())
+  assert.equal(response.status, 200)
+  assert.deepEqual(Array.from((await response.json()).bands, band => [band.name, band.status]), [['Band C', 'active']])
 })

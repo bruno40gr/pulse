@@ -97,6 +97,7 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     return chain
   } }
   const route = load('app/api/contacts/route.ts', {
+    '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
     '@/lib/permissions': { PERMISSIONS: { contactsRead: 'contacts.read' } },
     '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant' } },
     'next/server': { NextResponse: { json: value => value } },

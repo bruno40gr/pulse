@@ -331,6 +331,7 @@ export async function GET(request: Request) {
           .select('id', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
           .in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
+          .is('person_id', null)
           .neq('source_form', WINBACK_SOURCE_FORM)
           .eq('status', 'new'),
         LEADS_QUERY_TIMEOUT_MS,

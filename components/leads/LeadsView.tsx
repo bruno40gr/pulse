@@ -1556,7 +1556,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
       width: 'minmax(180px, 1.2fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}><TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>{lead.opportunity_origin === 'existing_student' ? <Badge size="sm" variant="info">Current student</Badge> : lead.opportunity_origin === 'new_lead' ? <Badge size="sm">New</Badge> : null}</div>,
+      render: (lead) => <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}><TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>{lead.opportunity_origin === 'existing_student' ? <Badge size="sm" variant="info">Current student</Badge> : null}</div>,
     },
     ...(matching && !adapter ? [{
       id: 'tentativeBands', header: 'Tentative bands', width: 'minmax(150px, 1fr)',
