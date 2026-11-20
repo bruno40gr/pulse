@@ -85,17 +85,42 @@ export async function PATCH(request: Request) {
   } catch { return Response.json({ error: 'Could not save that instrument.' }, { status: 503, headers }) }
 }
 
-/** Remove an explicit membership. Enrollments are never deleted here. */
+/**
+ * Remove a member from a band. This is destructive and deliberate: an explicit
+ * membership is deleted and the band enrollment for this band is ended, so the
+ * member leaves the band programme rather than only the list.
+ */
 export async function DELETE(request: Request) {
   if (!bandWorkspaceEnabled()) return Response.json({ error: 'Not found.' }, { status: 404, headers })
   const body = await readBody(request)
   const auth = await authorize(request, body)
   if (!auth.ok) return auth.response
   try {
-    const result = await supabaseAdmin.from('band_memberships').delete()
+    const membership = await supabaseAdmin.from('band_memberships').delete()
       .eq('tenant_id', auth.tenantId).eq('band_name', auth.band).eq('person_id', auth.personId).select('person_id')
-    if (result.error) throw result.error
-    if (!result.data?.length) return Response.json({ error: 'An enrolled member is removed from their enrollment, not from this list.' }, { status: 409, headers })
-    return Response.json({ removed: true }, { headers })
+    if (membership.error) throw membership.error
+    let ended = 0
+
+    const student = await supabaseAdmin.from('students').select('id').eq('tenant_id', auth.tenantId).eq('person_id', auth.personId).maybeSingle()
+    if (student.error) throw student.error
+    if (student.data) {
+      const enrollments = await supabaseAdmin.from('enrollments')
+        .select('id,custom_fields,instructor_person_id')
+        .eq('tenant_id', auth.tenantId).eq('student_id', student.data.id).eq('service_type', 'band')
+      if (enrollments.error) throw enrollments.error
+      for (const row of enrollments.data || []) {
+        const fields = row.custom_fields || {}
+        if ((fields.band_name || '') !== auth.band) continue
+        if (String(fields.status || '').toLowerCase() === 'ended') continue
+        const result = await supabaseAdmin.from('enrollments')
+          .update({ custom_fields: { ...fields, status: 'ended', ended_source: 'removed from band', ended_at: new Date().toISOString() } })
+          .eq('id', row.id)
+        if (result.error) throw result.error
+        ended += 1
+      }
+    }
+
+    if (!membership.data?.length && ended === 0) return Response.json({ error: 'That person is not in this band.' }, { status: 404, headers })
+    return Response.json({ removed: true, endedEnrollments: ended }, { headers })
   } catch { return Response.json({ error: 'Could not remove that member.' }, { status: 503, headers }) }
 }

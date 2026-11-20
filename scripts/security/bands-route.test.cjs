@@ -107,3 +107,12 @@ test('a draft band appears before it has any members', async () => {
   assert.equal(draft.schedule, 'Tuesdays 6pm')
   assert.deepEqual(Array.from(draft.members), [])
 })
+
+test('an ended band enrolment leaves the roster', async () => {
+  const h = setup({ queryResult: ({ table }) => table === 'enrollments' ? { data: [
+    { id: 'e1', tenant_id: HEAD, student_id: 's1', service_type: 'band', session_name: 'Band A', custom_fields: { band_name: 'Band A', status: 'ended' } },
+  ], error: null } : undefined })
+  const response = await h.load(route).GET(request())
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).bands.length, 0)
+})

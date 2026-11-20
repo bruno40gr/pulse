@@ -196,13 +196,16 @@ export default function ProductionBandsWorkspace() {
               {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...(row.instrument ? [row.instrument] : [])])].map(option => <option key={option} value={option}>{option}</option>)}
             </Select> },
             { id: 'membership', header: 'Membership', width: '.8fr', render: row => MEMBERSHIP_LABEL[row.membership] || row.membership },
-            { id: 'menu', header: '', width: '56px', render: row => row.source === 'enrollment' ? null : (
+            { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
                 ...(row.membership === 'confirmed' ? [] : [
                   { label: 'Enroll student', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'confirmed' }) },
                   { label: 'Request enrollment', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'pending' }) },
                 ]),
-                { label: 'Remove from band', onSelect: () => void mutate('DELETE', '/api/bands/members', { band: band.name, person_id: row.person_id }) },
+                { label: 'Remove from band', onSelect: () => {
+                  if (!window.confirm(`Remove ${row.name} from ${band.name}? This ends their band enrolment for this band.`)) return
+                  void mutate('DELETE', '/api/bands/members', { band: band.name, person_id: row.person_id })
+                } },
               ]} />) },
           ]} />
         </DenseSectionPanel> : <DenseSectionPanel title={panelTab[0].toUpperCase() + panelTab.slice(1)}>

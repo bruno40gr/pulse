@@ -1065,3 +1065,12 @@ rows use the three-dot menu: Enroll student (confirmed), Request enrollment
 
 Not built: band creation drafts, payments and scheduling. Enrollment here is the
 membership transition only; it does not take payment or book rehearsal time.
+
+### Remove from band is destructive (2026-11-20)
+
+Remove from band now removes the explicit membership **and** ends the band
+enrollment for that band (`custom_fields.status = 'ended'`,
+`ended_source = 'removed from band'`), with a confirmation. Ended band
+enrollments leave the roster, so the member is gone from the band programme, not
+just the list. History is retained rather than rows deleted, so an audit trail
+survives while the band no longer claims them.

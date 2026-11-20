@@ -1,5 +1,6 @@
 import { bandWorkspaceEnabled } from '@/lib/band-feature'
 import { assembleBandRoster, type RosterRow } from '@/lib/band-roster'
+import { isCurrentEnrollment } from '@/lib/current-enrollment'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -34,7 +35,8 @@ export async function GET(request: Request) {
       if (result.data.length < pageSize) break
     }
 
-    const studentIds = [...new Set(enrollments.map(row => row.student_id).filter(Boolean))]
+    const activeEnrollments = enrollments.filter(row => isCurrentEnrollment(row))
+    const studentIds = [...new Set(activeEnrollments.map(row => row.student_id).filter(Boolean))]
     const students: { id: string; person_id: string; client_status: string | null }[] = []
     for (let offset = 0; offset < studentIds.length; offset += 100) {
       const result = await supabaseAdmin.from('students').select('id,person_id,client_status')
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
       return person ? `${person.first_name || ''} ${person.last_name || ''}`.trim() || null : null
     }
 
-    const rows: RosterRow[] = enrollments.map(enrollment => {
+    const rows: RosterRow[] = activeEnrollments.map(enrollment => {
       const student = studentById.get(enrollment.student_id)
       const memberId = student?.person_id ?? null
       const labelled = enrollment.custom_fields?.band_name

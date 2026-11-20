@@ -36,11 +36,28 @@ test('an instrument change falls back to the band enrollment for an enrolled mem
   const enrollmentWrite = h.getWrites().find(query => query.table === 'enrollments')
   assert.equal(enrollmentWrite.payload.custom_fields.band_instrument, 'Drums')
 })
-test('an enrolled member is not removed from the roster by this action', async () => {
+test('removing an enrolled member ends their band enrolment', async () => {
   const h = setup({ queryResult: ({ table, operation }) => table === 'band_memberships' && operation === 'delete' ? { data: [], error: null } : undefined })
   const response = await h.load(route).DELETE(request('DELETE'))
-  assert.equal(response.status, 409)
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.equal(body.removed, true)
+  assert.equal(body.endedEnrollments, 1)
+  const write = h.getWrites().find(query => query.table === 'enrollments' && query.operation === 'update')
+  assert.equal(write.payload.custom_fields.status, 'ended')
+  assert.equal(write.payload.custom_fields.ended_source, 'removed from band')
 })
+test('removing someone who is not in the band reports it instead of pretending', async () => {
+  const h = setup({
+    queryResult: ({ table, operation }) => {
+      if (table === 'band_memberships' && operation === 'delete') return { data: [], error: null }
+      if (table === 'enrollments') return { data: [{ id: 'e1', custom_fields: { band_name: 'Other Band' } }], error: null }
+    },
+  })
+  const response = await h.load(route).DELETE(request('DELETE'))
+  assert.equal(response.status, 404)
+})
+
 test('writes stay closed without the flag, a session, or a permission and never cross accounts', async () => {
   for (const [options, req, status] of [
     [{ disabled: true }, request('POST'), 404],
