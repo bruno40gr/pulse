@@ -1019,3 +1019,20 @@ played instrument. SunKast therefore reports Breannah Gonzalez, Brooks Henderson
 and Harper Cole plus Bruno Wong as coach. Rhett Walde still has no recorded band
 (track "Bass 101", session "Voice - Level 1"); it needs an assignment rather than
 a guess.
+
+### Current-service sync (2026-11-20)
+
+Ten current services were added from the 2026-11-19 export with their own
+teachers: Ruby (Bass/Drew), Mia (Voice/Josh), Jayden (Piano/Josh, Drums/Noah,
+Trombone/Drew, Trombone/Noah), Camille (Piano/Jessica), Santi and Catalina
+(semi-private Piano/Alex Bird) and Shaun (Voice/Josh). Existing rows were never
+replaced.
+
+All 11 enrollments still naming departed teacher Briana Lopez are marked
+`custom_fields.status = 'ended'` with history retained, and ended enrollments are
+excluded from a contact's current subscriptions.
+
+Still open: the same sync for the remaining export clients, a band assignment for
+Rhett Walde (track "Bass 101", session "Voice - Level 1"), and La Paz members
+Vito Trinchese and Drew Johnson, who exist in Opus but not in imported
+enrollments.

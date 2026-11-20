@@ -10,6 +10,7 @@ import { resolveInstructor, type ResolvedInstructor } from '@/lib/instructors'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { getImportProfile, saveImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
+import { isCurrentEnrollment } from '@/lib/current-enrollment'
 
 type DedupPerson = {
   id: string
@@ -288,7 +289,7 @@ export async function GET(request: Request) {
       return enrichDemoContact({
         id: person.id,
         student_id: nonStudentBooking ? null : (student.id ?? null),
-        profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry)).map((entry: any) => {
+        profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry) && isCurrentEnrollment(entry)).map((entry: any) => {
           const teacher = personById.get(entry.instructor_person_id)
           return {
             id: entry.id, instrument: entry.instrument, service_type: entry.service_type, plan_name: entry.plan_name, session_name: entry.session_name,
