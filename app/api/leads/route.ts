@@ -193,7 +193,28 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
   }
 }
 
+
+/** Which opportunities are already a known student, and which are net-new names. */
+async function attachLinkedStudents<T extends { id: string }>(tenantId: string, rows: T[]) {
+  const linked = new Map<string, string>()
+  const ids = rows.map(row => row.id).filter(Boolean)
+  let failed = false
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const result = await crmSupabaseAdmin.from('contact_band_opportunity_links')
+      .select('lead_id,person_id').eq('tenant_id', tenantId).in('lead_id', ids.slice(offset, offset + 100))
+    if (result.error || !Array.isArray(result.data)) { failed = true; break }
+    for (const link of result.data) if (link.person_id) linked.set(link.lead_id, link.person_id)
+  }
+  return rows.map(row => ({
+    ...row,
+    linked_person_id: linked.get(row.id) ?? null,
+    // Never infer an existing student from a name; unknown stays unknown.
+    opportunity_origin: failed ? 'unknown' as const : linked.has(row.id) ? 'existing_student' as const : 'new_lead' as const,
+  }))
+}
+
 function formatLeadRow(row: LeadListRow) {
+
   return {
     id: row.id,
     tenant_id: row.tenant_id,
@@ -400,7 +421,8 @@ export async function GET(request: Request) {
         updated_at: row.updated_at,
         crm_contacts: row.crm_contacts,
       }))
-      const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
+      const withOrigin = await attachLinkedStudents(tenantId, baseRows)
+      const formatted = includeActivity ? await enrichLeadActivity(tenantId, withOrigin) : withOrigin
 
       if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
       const [counts, totals] = await Promise.all([countsPromise, totalsPromise])
@@ -480,7 +502,8 @@ export async function GET(request: Request) {
     })
 
     const baseRows = (data || []).map((row) => formatLeadRow(row as LeadListRow))
-    const formatted = includeActivity ? await enrichLeadActivity(tenantId, baseRows) : baseRows
+    const withOrigin = await attachLinkedStudents(tenantId, baseRows)
+    const formatted = includeActivity ? await enrichLeadActivity(tenantId, withOrigin) : withOrigin
     if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
     const [counts, totals] = await Promise.all([countsPromise, totalsPromise])
     return NextResponse.json({ leads: formatted, counts, pipelineValue: totals.pipelineValue, closedSinceOct1: totals.closedSinceOct1 })
