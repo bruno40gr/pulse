@@ -39,11 +39,13 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
       .then(async response => {
         const rows = response.ok ? await response.json() : null
         if (!Array.isArray(rows)) throw new Error('Could not load students.')
-        setPeople(rows.map((person: { id: string; first_name?: string; last_name?: string; account_holder_name?: string }) => ({
-          id: person.id,
-          name: `${person.first_name || ''} ${person.last_name || ''}`.trim(),
-          account: person.account_holder_name || '',
-        })).filter((person: Candidate) => person.name))
+        // Candidates are students: parents and account holders are not members.
+        setPeople(rows.filter((person: { is_student?: boolean }) => person.is_student === true)
+          .map((person: { id: string; first_name?: string; last_name?: string; account_holder_name?: string }) => ({
+            id: person.id,
+            name: `${person.first_name || ''} ${person.last_name || ''}`.trim(),
+            account: person.account_holder_name || '',
+          })).filter((person: Candidate) => person.name))
       })
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load students.') })
     return () => controller.abort()

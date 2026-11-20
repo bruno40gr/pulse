@@ -18,6 +18,7 @@ test('Create new band opens the two-step wizard instead of modals', () => {
   assert.match(wizard, /label="Band name" required/)
   assert.match(wizard, /label="Find candidates \(optional\)"/)
   assert.match(wizard, /ariaLabel="Band candidates"/)
+  assert.match(wizard, /filter\(\(person: \{ is_student\?: boolean \}\) => person\.is_student === true\)/)
 })
 
 test('creating a band writes the profile and each candidate as a prospect', () => {
