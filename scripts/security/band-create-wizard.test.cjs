@@ -16,8 +16,8 @@ test('Create new band opens the two-step wizard instead of modals', () => {
   assert.match(wizard, /const STEPS = \['Band details', 'Review'\] as const/)
   assert.match(wizard, /<RadioOptionGroup label="Group type"/)
   assert.match(wizard, /label="Band name" required/)
-  assert.match(wizard, /label="Find candidates \(optional\)"/)
-  assert.match(wizard, /ariaLabel="Band candidates"/)
+  assert.match(wizard, /<BandStudentPicker/)
+  assert.doesNotMatch(wizard, /<Modal|Add external student/)
   assert.match(wizard, /filter\(\(person: \{ is_student\?: boolean \}\) => person\.is_student === true\)/)
 })
 

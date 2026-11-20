@@ -1,5 +1,6 @@
 'use client'
 
+import { ParticipantPicker } from '@/components/contacts/ParticipantPicker'
 import { ParticipationPolicies } from '@/components/ui/ParticipationPolicies'
 
 import { useCallback, useState } from 'react'
@@ -137,10 +138,14 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
         {record.step === 2 && <><Notice>Prototype roster only. Billing and live enrollment are not implemented.</Notice><Checkbox label="I understand no subscription, invoice or payment will be created" checked={record.data.billingReviewed} onChange={event => patch({ ...record, data: { ...record.data, billingReviewed: event.target.checked } })} /></>}
       </div></DenseSectionPanel>}
       {record.kind === 'registration' && <DenseSectionPanel title={steps[record.step]} style={{ border: 0, padding: 0 }}><div className={styles.stack}>
-        {record.step === 1 && <><Select label="Participant" value={record.data.personId} onChange={e => patch({ ...record, data: { ...record.data, personId: e.target.value, agreed: false, responses: {}, policyOverrides: [] } })}><option value="">Choose a participant</option>{context.people.map(person => {
-          const registered = !!event && eventAlreadyRegistered(event, context.registrations || [], person.id, record.data.activityId)
-          return <option key={person.id} value={person.id} disabled={registered}>{person.name} · {registered ? 'Already registered' : person.family}</option>
-        })}<option value="new">Add a new participant</option></Select>{record.data.personId === 'new' && <FieldGrid><Input label="Participant name" value={record.data.name} onChange={e => patch({ ...record, data: { ...record.data, name: e.target.value } })} /><Input label="Contact email" type="email" value={record.data.email} onChange={e => patch({ ...record, data: { ...record.data, email: e.target.value } })} /></FieldGrid>}</>}
+        {record.step === 1 && <ParticipantPicker
+          options={context.people.map(person => ({ id: person.id, name: person.name, detail: `${person.email} ${person.family}`, disabled: !!event && eventAlreadyRegistered(event, context.registrations || [], person.id, record.data.activityId) }))}
+          selectedIds={record.data.personId && record.data.personId !== 'new' ? [record.data.personId] : []}
+          onSelectionChange={ids => patch({ ...record, data: { ...record.data, personId: ids[0] || '', agreed: false, responses: {}, policyOverrides: [] } })}
+          mode={record.data.personId === 'new' ? 'new' : 'existing'}
+          onModeChange={mode => patch({ ...record, data: { ...record.data, personId: mode === 'new' ? 'new' : '', agreed: false, responses: {}, policyOverrides: [] } })}
+          draft={{ name: record.data.name, email: record.data.email }}
+          onDraftChange={draft => patch({ ...record, data: { ...record.data, ...draft } })} />}
         {record.step === 0 && <><div className={styles.selectorAction}><Select label="Event" value={record.data.eventId} onChange={e => { const chosen = context.events.find(item => item.id === e.target.value); patch({ ...record, data: { ...record.data, eventId: e.target.value, activityId: chosen ? eventRegistrationActivity(chosen, '') : '', personId: record.parentId ? record.data.personId : '', agreed: false, responses: {}, policyOverrides: [] } }) }}><option value="">Choose an event</option>{context.events.map(event => <option key={event.id} value={event.id} disabled={!event.activities.some(activity => activitySpace(event, activity.id, context.registrations || []) > 0)}>{event.name}{event.published ? '' : ' (staff draft)'}</option>)}</Select><Button variant="secondary" onClick={() => onCreate(record, 'event')}><Plus size={16} aria-hidden="true" />Create event</Button></div>{event && eventHasMultipleSessions(event) && <Select label="Session" value={record.data.activityId} onChange={e => patch({ ...record, data: { ...record.data, activityId: e.target.value, personId: record.parentId ? record.data.personId : '', agreed: false } })}><option value="">Choose a session</option>{event.activities.map(activity => <option key={activity.id} value={activity.id} disabled={activitySpace(event, activity.id, context.registrations || []) === 0}>{activity.name} · {activitySpace(event, activity.id, context.registrations || []) || 'Full'}{activitySpace(event, activity.id, context.registrations || []) > 0 ? ' spaces' : ''}</option>)}</Select>}</>}
         {record.step === 2 && <>
           <ParticipationPolicies agreements={[{ id: event?.id || record.id, title: 'Participation agreement', content: event?.waiver || '' }]} accepted={record.data.agreed} onAccept={agreed => patch({ ...record, data: { ...record.data, agreed } })} />
