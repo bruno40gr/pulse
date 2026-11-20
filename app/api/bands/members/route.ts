@@ -24,6 +24,11 @@ async function authorize(request: Request, body: Record<string, unknown> | null)
   return { ok: true as const, tenantId: access.tenantId, band: band.trim(), personId }
 }
 
+const MEMBERSHIPS = new Set(['prospect', 'pending', 'confirmed'])
+function cleanMembership(value: unknown): string {
+  return typeof value === 'string' && MEMBERSHIPS.has(value.trim()) ? value.trim() : 'confirmed'
+}
+
 function cleanInstrument(value: unknown): string | null {
   if (value === null || value === undefined) return null
   if (typeof value !== 'string') return null
@@ -37,11 +42,13 @@ export async function POST(request: Request) {
   const body = await readBody(request)
   const auth = await authorize(request, body)
   if (!auth.ok) return auth.response
+  const requestedMembership = typeof body?.membership === 'string' ? body.membership.trim() : null
+  if (requestedMembership && !MEMBERSHIPS.has(requestedMembership)) return Response.json({ error: 'Choose a valid membership state.' }, { status: 400, headers })
   try {
     const person = await supabaseAdmin.from('people').select('id').eq('tenant_id', auth.tenantId).eq('id', auth.personId).maybeSingle()
     if (person.error || !person.data) return Response.json({ error: 'Choose an existing student.' }, { status: 400, headers })
     const result = await supabaseAdmin.from('band_memberships')
-      .upsert({ tenant_id: auth.tenantId, band_name: auth.band, person_id: auth.personId, instrument: cleanInstrument(body?.instrument), membership: 'confirmed', source: 'staff added' }, { onConflict: 'tenant_id,band_name,person_id' })
+      .upsert({ tenant_id: auth.tenantId, band_name: auth.band, person_id: auth.personId, instrument: cleanInstrument(body?.instrument), membership: cleanMembership(body?.membership), source: 'staff added' }, { onConflict: 'tenant_id,band_name,person_id' })
     if (result.error) throw result.error
     return Response.json({ added: true }, { status: 201, headers })
   } catch { return Response.json({ error: 'Could not add that member.' }, { status: 503, headers }) }
@@ -54,9 +61,14 @@ export async function PATCH(request: Request) {
   const auth = await authorize(request, body)
   if (!auth.ok) return auth.response
   const instrument = cleanInstrument(body?.instrument)
+  const requestedMembership = typeof body?.membership === 'string' ? body.membership.trim() : null
+  if (requestedMembership && !MEMBERSHIPS.has(requestedMembership)) return Response.json({ error: 'Choose a valid membership state.' }, { status: 400, headers })
+  const membershipValue = requestedMembership
   try {
+    const patch: Record<string, unknown> = { instrument }
+    if (membershipValue) patch.membership = membershipValue
     const membership = await supabaseAdmin.from('band_memberships')
-      .update({ instrument }).eq('tenant_id', auth.tenantId).eq('band_name', auth.band).eq('person_id', auth.personId).select('person_id')
+      .update(patch).eq('tenant_id', auth.tenantId).eq('band_name', auth.band).eq('person_id', auth.personId).select('person_id')
     if (membership.error) throw membership.error
     if (!membership.data?.length) {
       // An enrolled member has no explicit row: store the band instrument on the enrollment.

@@ -1050,3 +1050,18 @@ enrollments.
 - The Leads marker reads **Current student**, and current students no longer count
   toward the open-pipeline counters used by the navigation badge.
 - The tentative-band explanation notice is removed.
+
+### Prospects and membership states (2026-11-20)
+
+`band_memberships.membership` carries the state: `prospect`, `pending`
+(requested), `confirmed` (enrolled). A prospect is any open Band opportunity about
+a real person, and the same person can be a prospect of several bands at once —
+the primary key includes the band.
+
+The band panel's Add students lists **Students seeking a band** first, then all
+Contacts; prospects join as `prospect`, chosen contacts join as `confirmed`. Member
+rows use the three-dot menu: Enroll student (confirmed), Request enrollment
+(pending), Remove from band.
+
+Not built: band creation drafts, payments and scheduling. Enrollment here is the
+membership transition only; it does not take payment or book rehearsal time.

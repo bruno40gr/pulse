@@ -54,3 +54,26 @@ test('writes stay closed without the flag, a session, or a permission and never 
     assert.equal(h.getWrites().length, 0)
   }
 })
+
+test('a prospect can be added to more than one band without becoming a member', async () => {
+  const h = setup()
+  const response = await h.load(route).POST(request('POST', { tenant_id: HEAD, band: 'La Paz', person_id: person, membership: 'prospect' }))
+  assert.equal(response.status, 201)
+  const write = h.getWrites().find(query => query.table === 'band_memberships')
+  assert.equal(write.payload.membership, 'prospect')
+  const other = await h.load(route).POST(request('POST', { tenant_id: HEAD, band: 'SunKast', person_id: person, membership: 'prospect' }))
+  assert.equal(other.status, 201)
+  assert.deepEqual(Array.from(h.getWrites().filter(query => query.table === 'band_memberships'), query => query.payload.band_name), ['La Paz', 'SunKast'])
+})
+test('membership transitions accept confirmed and pending, and reject anything else', async () => {
+  for (const membership of ['confirmed', 'pending']) {
+    const h = setup()
+    const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', person_id: person, membership }))
+    assert.equal(response.status, 200)
+    assert.equal(h.getWrites().find(query => query.table === 'band_memberships').payload.membership, membership)
+  }
+  const h = setup()
+  const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', person_id: person, membership: 'enrolled' }))
+  assert.equal(response.status, 400)
+  assert.equal(h.getWrites().length, 0)
+})

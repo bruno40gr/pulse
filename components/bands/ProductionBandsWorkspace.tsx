@@ -34,6 +34,7 @@ type Status = 'active' | 'forming' | 'external' | 'archived'
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
 const COMING_SOON = ['scheduling', 'notes', 'curriculum', 'communications'] as const
 const STATUS_LABEL: Record<string, string> = { active: 'Active', forming: 'Forming', external: 'Rehearsal client', archived: 'Archived' }
+const MEMBERSHIP_LABEL: Record<string, string> = { confirmed: 'Confirmed', pending: 'Pending', prospect: 'Prospect' }
 
 async function readList<T>(url: string, key: string, signal: AbortSignal): Promise<T[]> {
   const response = await fetch(url, { cache: 'no-store', signal })
@@ -55,6 +56,8 @@ export default function ProductionBandsWorkspace() {
   const [draft, setDraft] = useState({ name: '', schedule: '', image_url: '', status: 'active' as Status })
   const [adding, setAdding] = useState(false)
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [prospects, setProspects] = useState<Candidate[]>([])
+  const [pickedProspects, setPickedProspects] = useState<string[]>([])
   const [picked, setPicked] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -109,15 +112,22 @@ export default function ProductionBandsWorkspace() {
   }
 
   const openAdd = async () => {
-    setAdding(true); setPicked([]); setError('')
+    setAdding(true); setPicked([]); setPickedProspects([]); setError('')
+    const existing = new Set((band?.members || []).map(member => member.person_id))
     try {
-      const response = await fetch(`/api/contacts?${tenantQuery()}`, { cache: 'no-store' })
-      const data = await response.json()
-      if (!response.ok || !Array.isArray(data)) throw new Error('Could not load contacts.')
-      const existing = new Set((band?.members || []).map(member => member.person_id))
-      setCandidates(data.filter((person: { id: string }) => !existing.has(person.id))
+      const [contactsResponse, prospectResponse] = await Promise.all([
+        fetch(`/api/contacts?${tenantQuery()}`, { cache: 'no-store' }),
+        fetch(`/api/bands/candidates?${tenantQuery()}`, { cache: 'no-store' }),
+      ])
+      const contacts = contactsResponse.ok ? await contactsResponse.json() : null
+      if (!Array.isArray(contacts)) throw new Error('Could not load contacts.')
+      setCandidates(contacts.filter((person: { id: string }) => !existing.has(person.id))
         .map((person: { id: string; first_name: string; last_name: string }) => ({ id: person.id, name: `${person.first_name} ${person.last_name}`.trim() }))
         .filter((person: Candidate) => person.name))
+      const pool = prospectResponse.ok ? await prospectResponse.json() : null
+      setProspects(Array.isArray(pool?.prospects)
+        ? pool.prospects.filter((person: { person_id: string }) => !existing.has(person.person_id)).map((person: { person_id: string; name: string }) => ({ id: person.person_id, name: person.name }))
+        : [])
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load contacts.') }
   }
 
@@ -172,12 +182,12 @@ export default function ProductionBandsWorkspace() {
               <option value="">Not set</option>
               {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...(row.instrument ? [row.instrument] : [])])].map(option => <option key={option} value={option}>{option}</option>)}
             </Select> },
-            { id: 'membership', header: 'Membership', width: '.8fr', render: row => row.membership === 'confirmed' ? 'Confirmed' : 'Pending' },
+            { id: 'membership', header: 'Membership', width: '.8fr', render: row => MEMBERSHIP_LABEL[row.membership] || row.membership },
             { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
                 ...(row.membership === 'confirmed' ? [] : [
-                  { label: 'Enroll student', onSelect: () => void mutate('POST', '/api/bands/members', { band: band.name, person_id: row.person_id, action: 'enroll' }) },
-                  { label: 'Request enrollment', onSelect: () => void mutate('POST', '/api/bands/members', { band: band.name, person_id: row.person_id, action: 'request' }) },
+                  { label: 'Enroll student', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'confirmed' }) },
+                  { label: 'Request enrollment', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'pending' }) },
                 ]),
                 { label: 'Remove from band', onSelect: () => void mutate('DELETE', '/api/bands/members', { band: band.name, person_id: row.person_id }) },
               ]} />) },
@@ -215,15 +225,25 @@ export default function ProductionBandsWorkspace() {
     </Modal>}
     {adding && band && <Modal isOpen onClose={() => setAdding(false)} ariaLabel="Add students">
       <ModalHeader title={`Add students to ${band.name}`} onClose={() => setAdding(false)} />
-      <ModalBody>
-        {!candidates.length ? <Notice>Everyone in Contacts is already in this band.</Notice>
-          : candidates.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={picked.includes(candidate.id)}
-              onChange={event => setPicked(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
+      <ModalBody style={{ display: 'grid', gap: spacing.lg }}>
+        <div>
+          <strong>Students seeking a band</strong>
+          {!prospects.length ? <Notice>No student is currently seeking a band.</Notice>
+            : prospects.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={pickedProspects.includes(candidate.id)}
+                onChange={event => setPickedProspects(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
+        </div>
+        <div>
+          <strong>Contacts</strong>
+          {!candidates.length ? <Notice>Everyone in Contacts is already in this band.</Notice>
+            : candidates.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={picked.includes(candidate.id)}
+                onChange={event => setPicked(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
+        </div>
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" onClick={() => setAdding(false)} disabled={saving}>Cancel</Button>
-        <Button disabled={saving || !picked.length} onClick={async () => {
-          for (const personId of picked) { if (!(await mutate('POST', '/api/bands/members', { band: band.name, person_id: personId }))) return }
+        <Button disabled={saving || (!picked.length && !pickedProspects.length)} onClick={async () => {
+          for (const personId of pickedProspects) { if (!(await mutate('POST', '/api/bands/members', { band: band.name, person_id: personId, membership: 'prospect' }))) return }
+          for (const personId of picked) { if (!(await mutate('POST', '/api/bands/members', { band: band.name, person_id: personId, membership: 'confirmed' }))) return }
           setAdding(false)
         }}>{saving ? 'Adding…' : 'Add to band'}</Button>
       </ModalFooter>
