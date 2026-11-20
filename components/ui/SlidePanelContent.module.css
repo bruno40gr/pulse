@@ -1,0 +1,8 @@
+.canvas { padding: 18px 24px 24px; overflow-y: auto; min-height: 0; min-width: 0; flex: 1; container-type: inline-size; }
+.canvas[data-density='compact'] { padding: 14px 16px 18px; }
+.content { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; min-width: 0; }
+.content > * { min-width: 0; }
+@container (min-width: 760px) {
+  .content[data-layout='columns'] { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+}
+@media (max-width: 700px) { .canvas { padding: 14px 16px 18px; } }

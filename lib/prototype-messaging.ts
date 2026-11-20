@@ -28,9 +28,9 @@ export function mockTextHtml(text: string) {
 export function emailRecipientIds(recipients: MockEmailRecipients) {
   return [...new Set([...recipients.to, ...recipients.cc, ...recipients.bcc])]
 }
-export function validMockEmailRecipients(recipients: MockEmailRecipients, people: MockRecipient[]) {
+export function validMockEmailRecipients(recipients: MockEmailRecipients, people: MockRecipient[], allowBccOnly = false) {
   const ids = [...recipients.to, ...recipients.cc, ...recipients.bcc]
-  return recipients.to.length > 0 && ids.length === new Set(ids).size && ids.every(id => people.some(person => person.id === id && person.email))
+  return (allowBccOnly ? ids.length > 0 : recipients.to.length > 0) && ids.length === new Set(ids).size && ids.every(id => people.some(person => person.id === id && person.email))
 }
 
 

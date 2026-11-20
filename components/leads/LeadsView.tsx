@@ -639,8 +639,15 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
     lost: 0,
   })
   const [pipelineValue, setPipelineValue] = useState(0)
+  const [newLeadCounts, setNewLeadCounts] = useState({ lesson_inquiry: 0, service_inquiry: 0 })
   const [closedSinceOct1, setClosedSinceOct1] = useState(0)
   const [summaryRevision, setSummaryRevision] = useState(0)
+  useEffect(() => {
+    const refresh = () => setSummaryRevision(current => current + 1)
+    window.addEventListener(LEAD_COUNT_EVENT, refresh)
+    window.addEventListener('focus', refresh)
+    return () => { window.removeEventListener(LEAD_COUNT_EVENT, refresh); window.removeEventListener('focus', refresh) }
+  }, [])
   const [summaryError, setSummaryError] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -694,6 +701,8 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
           if (!response.ok) throw new Error('Summary unavailable')
           if (controller.signal.aborted || getActiveTenantId() !== tenantId) return
           if (data.counts) setTabCounts(data.counts)
+          setNewLeadCounts({ lesson_inquiry: Number.isSafeInteger(data.newCounts?.lesson_inquiry) ? Math.max(0, data.newCounts.lesson_inquiry) : 0,
+            service_inquiry: Number.isSafeInteger(data.newCounts?.service_inquiry) ? Math.max(0, data.newCounts.service_inquiry) : 0 })
           setPipelineValue(typeof data.pipelineValue === 'number' ? data.pipelineValue : 0)
           setClosedSinceOct1(typeof data.closedSinceOct1 === 'number' ? data.closedSinceOct1 : 0)
         })
@@ -852,7 +861,6 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
     window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
     leadListCacheGenerationRef.current += 1
     leadListCacheRef.current.clear()
-    setSummaryRevision(current => current + 1)
   }
 
   const loadMoreLeads = async () => {
@@ -1472,8 +1480,9 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
   const leadTabItems = useMemo(
     () => LEAD_TABS
       .filter((tab) => !isMobileLayout || tab.key !== 'job_application')
-      .map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0 })),
-    [isMobileLayout, tabCounts],
+      .map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0,
+        notificationCount: tab.key === 'lesson_inquiry' || tab.key === 'service_inquiry' ? newLeadCounts[tab.key] : undefined })),
+    [isMobileLayout, tabCounts, newLeadCounts],
   )
 
   const selectedCount = selectedIds.size

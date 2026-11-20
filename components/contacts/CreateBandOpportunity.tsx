@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { LEAD_COUNT_EVENT } from '@/lib/lead-count'
 import { Button } from '@/components/ui/Button'
 import { Notice } from '@/components/ui/Notice'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
@@ -21,6 +22,7 @@ export default function CreateBandOpportunity({ tenantId, students, onClose }: {
       if (!response.ok) throw new Error(body.error || 'Could not create opportunities.')
       if (!Array.isArray(body.opportunities)) throw new Error('The response could not be verified. Check Opportunities before retrying.')
       setResults(body.opportunities)
+      window.dispatchEvent(new Event(LEAD_COUNT_EVENT))
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create opportunities.') }
     finally { setSaving(false) }
   }

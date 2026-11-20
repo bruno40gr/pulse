@@ -2,6 +2,14 @@
 
 These rules apply to prototypes and production work. Read alongside `AGENTS.md` and `docs/ui-layout-rules.md`. A prototype is not permission to replace established UI or make unapproved UX decisions.
 
+## Band profile surfaces
+
+BandOS profile sections use the shared `SlidePanelContent` canvas (configurable
+tone, density and responsive stack/columns) and existing `DenseSectionPanel`
+cards. Do not reintroduce per-tab framing or a second messaging editor. Reuse the
+Contacts SMS/individual-email composers and its recipient picker/routing for
+band messaging. See `docs/band-panel-ui.md` for delivery modes and limitations.
+
 ## Decision ownership
 
 - The user leads all UX decisions: layout, navigation, wording, visual design, action placement and interaction patterns. Follow agreed direction. Identify gaps and ask about material UX choices instead of inventing solutions.

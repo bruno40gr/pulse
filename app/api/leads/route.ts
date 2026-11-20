@@ -140,7 +140,6 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .in('intake_type', LESSON_LEAD_TYPES)
-    .is('person_id', null)
     .neq('source_form', WINBACK_SOURCE_FORM)
     .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const serviceQuery = crmSupabaseAdmin
@@ -148,7 +147,6 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('intake_type', 'service_inquiry')
-    .is('person_id', null)
     .neq('source_form', WINBACK_SOURCE_FORM)
     .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const jobsQuery = crmSupabaseAdmin
@@ -195,6 +193,23 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     enrolled: enrolledResult.count ?? 0,
     lost: lostResult.count ?? 0,
   }
+}
+
+/** Notification counts are net-new inquiries, not all open opportunities in the tabs. */
+async function getNewLeadCounts(tenantId: string) {
+  const count = async (types: readonly string[]) => {
+    const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes')
+      .select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
+      .in('intake_type', types).is('person_id', null)
+      .neq('source_form', WINBACK_SOURCE_FORM)
+      // Legacy band opportunities predate person_id and are still existing students.
+      .neq('source_form', 'contact-band-opportunity').eq('status', 'new'),
+    LEADS_QUERY_TIMEOUT_MS, 'net-new lead count query')
+    if (result.error) throw result.error
+    return result.count ?? 0
+  }
+  const [lesson_inquiry, service_inquiry] = await Promise.all([count(LESSON_LEAD_TYPES), count(['service_inquiry'])])
+  return { lesson_inquiry, service_inquiry }
 }
 
 
@@ -326,19 +341,8 @@ export async function GET(request: Request) {
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error, requestId: requestLog.requestId }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     if (url.searchParams.get('count_only') === '1') {
-      const result = await withTimeout(
-        crmSupabaseAdmin.from('lead_intakes')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId)
-          .in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
-          .is('person_id', null)
-          .neq('source_form', WINBACK_SOURCE_FORM)
-          .eq('status', 'new'),
-        LEADS_QUERY_TIMEOUT_MS,
-        'new lead count query',
-      )
-      if (result.error) throw result.error
-      return NextResponse.json({ count: result.count ?? 0 }, { headers: { 'Cache-Control': 'no-store' } })
+      const newCounts = await getNewLeadCounts(tenantId)
+      return NextResponse.json({ count: newCounts.lesson_inquiry + newCounts.service_inquiry, newCounts }, { headers: { 'Cache-Control': 'no-store' } })
     }
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
@@ -350,8 +354,8 @@ export async function GET(request: Request) {
     const includeCounts = url.searchParams.get('include_counts') === '1'
     const includeActivity = url.searchParams.get('include_activity') !== '0'
     if (url.searchParams.get('summary_only') === '1') {
-      const [counts, totals] = await Promise.all([getLeadTabCounts(tenantId, status), getPipelineTotals(tenantId)])
-      return NextResponse.json({ counts, ...totals }, { headers: { 'Cache-Control': 'private, no-store' } })
+      const [counts, newCounts, totals] = await Promise.all([getLeadTabCounts(tenantId, status), getNewLeadCounts(tenantId), getPipelineTotals(tenantId)])
+      return NextResponse.json({ counts, newCounts, ...totals }, { headers: { 'Cache-Control': 'private, no-store' } })
     }
     const offset = Number(url.searchParams.get('offset') || '0')
     const limit = Number(url.searchParams.get('limit') || LEADS_LIST_LIMIT)

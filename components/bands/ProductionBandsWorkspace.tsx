@@ -13,9 +13,13 @@ import { Modal, ModalBody, ModalFooter, ModalHeader, SlidePanel, SlidePanelHeade
 import { Button } from '@/components/ui/Button'
 import { BandStudentPicker } from '@/components/bands/BandStudentPicker'
 import DashboardNotes from '@/components/notes/DashboardNotes'
+import BandCommunications from '@/components/bands/BandCommunications'
+import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
+import { SlidePanelContent } from '@/components/ui/SlidePanelContent'
+import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
+import { Mail, MessageSquare, Pencil } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { OverflowMenu } from '@/components/ui/OverflowMenu'
-import { Avatar } from '@/components/ui/Avatar'
 import { DetailField } from '@/components/ui/DetailField'
 import { FieldGrid } from '@/components/ui/FieldGrid'
 import { PersonName } from '@/components/ui/PersonName'
@@ -36,7 +40,7 @@ type Row = { key: string; name: string; status: 'Active' | 'Forming'; members: n
 type Status = 'draft' | 'active' | 'forming' | 'external' | 'archived'
 
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
-const COMING_SOON = ['scheduling', 'curriculum', 'communications'] as const
+const COMING_SOON = ['scheduling', 'curriculum'] as const
 const STATUS_LABEL: Record<string, string> = { draft: 'Draft', active: 'Active', forming: 'Forming', external: 'Rehearsal client', archived: 'Archived' }
 const MEMBERSHIP_LABEL: Record<string, string> = { confirmed: 'Confirmed', pending: 'Pending', prospect: 'Prospect' }
 
@@ -56,6 +60,7 @@ export default function ProductionBandsWorkspace() {
   const [tentativeState, setTentativeState] = useState<LoadState>('loading')
   const [opened, setOpened] = useState<string | null>(null)
   const [panelTab, setPanelTab] = useState<string>('details')
+  const [communicationChannel, setCommunicationChannel] = useState<'sms' | 'email'>('sms')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ name: '', schedule: '', image_url: '', status: 'active' as Status })
   const [adding, setAdding] = useState(false)
@@ -171,33 +176,35 @@ export default function ProductionBandsWorkspace() {
     </>}
     {band && <SlidePanel isOpen onClose={() => setOpened(null)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH}>
       <SlidePanelHeader title={band.name}
+        avatar={{ firstName: band.name, lastName: '', src: band.image_url || undefined, size: 48 }}
         subtitle={`${band.members.length} ${band.members.length === 1 ? 'member' : 'members'}${band.coach ? ` · Coach ${band.coach}` : ''}`}
-        actions={<Button variant="secondary" onClick={openEdit} disabled={saving}>Edit band</Button>}
         onClose={() => setOpened(null)} />
-      <div style={{ overflowX: 'auto', flexShrink: 0 }}>
+      <SlidePanelActionBar isMobile={mobile}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.sm }}>
+          <Button variant="secondary" onClick={() => { setCommunicationChannel('sms'); setPanelTab('communications') }}><MessageSquare size={14} />Send SMS</Button>
+          <Button variant="secondary" onClick={() => { setCommunicationChannel('email'); setPanelTab('communications') }}><Mail size={14} />Send email</Button>
+        </div>
+        <div style={{ marginLeft: mobile ? 0 : 'auto' }}><Button variant="ghost" onClick={openEdit} disabled={saving}><Pencil size={14} />Edit band</Button></div>
+      </SlidePanelActionBar>
+      <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
         <Tabs ariaLabel="Band sections" items={[
           { key: 'details', label: 'Details' },
           { key: 'members', label: 'Members' },
           { key: 'notes', label: 'Notes' },
           ...COMING_SOON.map(key => ({ key, label: key[0].toUpperCase() + key.slice(1) })),
-        ]} activeKey={panelTab} onChange={setPanelTab} style={{ minWidth: 'max-content' }} />
+          { key: 'communications', label: 'Communications' },
+        ]} activeKey={panelTab} onChange={setPanelTab} style={{ width: 'max-content', minWidth: '100%' }} />
       </div>
-      <div style={{ padding: spacing.lg, overflowY: 'auto', minHeight: 0, display: 'grid', gap: spacing.lg }}>
+      <SlidePanelContent>
         {error && <Notice variant="error">{error}</Notice>}
-        {panelTab === 'details' ? <div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.lg }}>
-            <Avatar firstName={band.name} lastName="" src={band.image_url || undefined} size={64} />
-            <div style={{ flex: 1, minWidth: 0 }}>
+        {panelTab === 'details' ? <DenseSectionPanel title="Band details" actions={<Button variant="secondary" size="sm" onClick={openEdit}>Edit details</Button>}>
             <FieldGrid columns={2}>
               <DetailField label="Status" value={STATUS_LABEL[band.status || 'active'] || band.status} />
               <DetailField label="Instructor" value={band.coach || 'Unassigned'} />
               <DetailField label="Rehearsal" value={band.schedule || 'Not scheduled'} />
               <DetailField label="Members" value={String(band.members.length)} />
             </FieldGrid>
-            </div>
-          </div>
-        </div> : panelTab === 'members' ? <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button onClick={() => void openAdd()} disabled={saving}>Add students</Button></div>
+        </DenseSectionPanel> : panelTab === 'members' ? <DenseSectionPanel title={`Members (${band.members.length})`} actions={<Button onClick={() => void openAdd()} disabled={saving}>Add students</Button>}>
           <ResponsiveDataTable style={{ border: 'none', borderRadius: 0 }} rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
             { id: 'name', header: 'Student', width: '1.2fr', render: row => <PersonName>{row.name}</PersonName> },
             { id: 'instrument', header: 'Instruments', width: '1.3fr', render: row => (
@@ -215,8 +222,11 @@ export default function ProductionBandsWorkspace() {
                 ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => setRemoving(row) }]),
               ]} />) },
           ]} />
-        </> : panelTab === 'notes' ? <DashboardNotes key={`${getActiveTenantId()}:${band.name}`} bandName={band.name} embedded /> : <Notice>Coming soon.</Notice>}
-      </div>
+        </DenseSectionPanel> : panelTab === 'notes' ? <DenseSectionPanel title="Internal notes">
+          <DashboardNotes key={`${getActiveTenantId()}:${band.name}`} bandName={band.name} embedded />
+        </DenseSectionPanel> : panelTab === 'communications' ? <BandCommunications key={`${band.name}:${communicationChannel}`} bandName={band.name} members={band.members} initialChannel={communicationChannel} />
+          : <DenseSectionPanel title={panelTab === 'scheduling' ? 'Scheduling' : 'Curriculum'}><Notice>{panelTab === 'scheduling' ? 'Band scheduling is coming soon. Rehearsal information is available in Details.' : 'Band curriculum is coming soon.'}</Notice></DenseSectionPanel>}
+      </SlidePanelContent>
     </SlidePanel>}
     {editing && band && <Modal isOpen onClose={() => setEditing(false)} ariaLabel="Edit band">
       <ModalHeader title="Edit band" onClose={() => setEditing(false)} />

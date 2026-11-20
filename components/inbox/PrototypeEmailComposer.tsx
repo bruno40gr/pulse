@@ -20,7 +20,7 @@ import { fillMockTemplate, mockTextHtml, validMockEmailRecipients, type MockEmai
 
 const line: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 
-export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, companyLogoUrl, includeSignatureByDefault = true, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false }: {
+export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, companyLogoUrl, includeSignatureByDefault = true, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false, allowBccOnly = false }: {
   name: string; email: string; student: string; draft: PrototypeEmailDraft
   onChange: (draft: PrototypeEmailDraft) => void
   onSend: (body: string, html: string) => void
@@ -31,6 +31,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   senderEmail?: string; disabled?: boolean
   fromControl?: ReactNode; recipientSummary?: ReactNode; sendLabel?: string
   title?: string; onBack?: () => void; hideSendAction?: boolean
+  allowBccOnly?: boolean
   onCollapse: () => void; onDiscard: () => void; replying: boolean; people: MockRecipient[]; templates: MockTemplate[]; onCreateTemplate: (template: MockTemplate) => void
 }) {
   const [managingRecipients, setManagingRecipients] = useState(false)
@@ -73,7 +74,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   }
 
   const sendAction = !hideSendAction && <div aria-label="Email actions" style={{ ...line, justifyContent: 'flex-end', flexWrap: 'nowrap', flexShrink: 0 }}>
-      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = messageHtml(); onSend(prototypeHtmlText(content, trustedImages), content) }}><Send size={14} />{sendLabel}</Button>
+      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people, allowBccOnly) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = messageHtml(); onSend(prototypeHtmlText(content, trustedImages), content) }}><Send size={14} />{sendLabel}</Button>
     </div>
 
   return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>

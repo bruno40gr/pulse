@@ -10,7 +10,11 @@ function setup(options = {}) {
     actor: options.anonymous ? undefined : { personId: 'staff', instructorId: null, displayName: 'Staff', access: { kind: 'demo', tenantId: HEAD } },
     fixtures: {
       tenants: [{ id: HEAD, is_demo: true }, { id: DEMO, is_demo: true }],
-      lead_intakes: [lead('lesson'), lead('tour', { intake_type: 'tour_request' }), lead('service', { intake_type: 'service_inquiry' }), lead('contacted', { status: 'contacted' }), lead('won', { status: 'won' }), lead('winback', { source_form: '2026-disenrollment-import' }), lead('job', { intake_type: 'job_application' }), lead('other-tenant', { tenant_id: DEMO })],
+      lead_intakes: [lead('lesson'), lead('tour', { intake_type: 'tour_request' }), lead('service', { intake_type: 'service_inquiry' }),
+        lead('existing-student-band', { intake_type: 'service_inquiry', person_id: 'student' }),
+        lead('legacy-student-band', { intake_type: 'service_inquiry', source_form: 'contact-band-opportunity' }),
+        lead('existing-student-lesson', { person_id: 'student' }),
+        lead('contacted', { status: 'contacted' }), lead('won', { status: 'won' }), lead('winback', { source_form: '2026-disenrollment-import' }), lead('job', { intake_type: 'job_application' }), lead('other-tenant', { tenant_id: DEMO })],
     },
     errors: options.error ? { lead_intakes: { message: 'Count unavailable' } } : {},
   })
@@ -21,11 +25,15 @@ test('sidebar count includes only new inquiries in the authorized tenant', async
   const { h, get } = setup()
   const response = await get()
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { count: 3 })
+  assert.deepEqual(await response.json(), { count: 3, newCounts: { lesson_inquiry: 2, service_inquiry: 1 } })
   assert.equal(response.headers.get('cache-control'), 'no-store')
   const queries = h.getQueries().filter(q => q.table === 'lead_intakes')
-  assert.equal(queries.length, 1)
-  assert.ok(queries[0].filters.some(f => f[0] === 'select' && f[2]?.head === true && f[2]?.count === 'exact'))
+  assert.equal(queries.length, 2)
+  for (const query of queries) {
+    assert.ok(query.filters.some(f => f[0] === 'select' && f[2]?.head === true && f[2]?.count === 'exact'))
+    assert.ok(query.filters.some(f => f[0] === 'is' && f[1] === 'person_id' && f[2] === null))
+    assert.ok(query.filters.some(f => f[0] === 'neq' && f[1] === 'source_form' && f[2] === 'contact-band-opportunity'))
+  }
   assert.equal(h.getWrites().length, 0)
 })
 

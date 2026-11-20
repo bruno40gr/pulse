@@ -10,6 +10,7 @@ export interface TabItem<T extends string = string> {
   label: string
   count?: number
   countAppearance?: 'bubble'
+  notificationCount?: number
 }
 
 interface TabsProps<T extends string = string> {
@@ -70,6 +71,13 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
             }}
           >
             <span>{tab.label}</span>
+            {typeof tab.notificationCount === 'number' && tab.notificationCount > 0 && <span
+              aria-label={`${tab.notificationCount} new ${tab.label.toLowerCase()}`}
+              style={{ display: 'inline-block', minWidth: 19, height: 19, padding: '0 5px', boxSizing: 'border-box',
+                borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: typography.sizeXs,
+                fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
+              {tab.notificationCount}
+            </span>}
             {(!compact || tab.countAppearance === 'bubble') && typeof tab.count === 'number' && (
               <span style={{
                 color: active ? colors.textSecondary : colors.textMuted,

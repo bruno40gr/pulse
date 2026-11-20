@@ -42,14 +42,17 @@ test('other tenants never inherit this account people', async () => {
   assert.equal(rows.some(row => row.id === 'l2'), false)
 })
 
-test('current students do not inflate the pipeline counters', async () => {
+test('tab totals include current-student opportunities while net-new badges exclude them', async () => {
   const h = setup()
   const response = await h.load(route).GET(new Request(`https://synthetic.invalid/api/leads?tenant=${HEAD}&summary_only=1`))
   assert.equal(response.status, 200)
-  // Open-pipeline counters (lesson and service tabs) are what the nav badge shows.
+  const data = await response.json()
+  assert.equal(data.counts.lesson_inquiry, 2)
+  assert.equal(data.newCounts.lesson_inquiry, 0, 'both fixture records originate from existing-student band flow')
+  assert.equal(data.newCounts.service_inquiry, 0)
   const counts = h.getQueries().filter(query => query.table === 'lead_intakes' && query.filters.some(filter => filter[0] === 'not' && filter[1] === 'status'))
   assert.ok(counts.length >= 2)
   for (const query of counts) {
-    assert.ok(query.filters.some(filter => filter[0] === 'is' && filter[1] === 'person_id' && filter[2] === null), 'counter must exclude person-linked opportunities')
+    assert.equal(query.filters.some(filter => filter[0] === 'is' && filter[1] === 'person_id'), false, 'tab total must match the list including existing students')
   }
 })
