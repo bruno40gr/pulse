@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge, Button, Notice, Select, Tabs, SectionTitle } from '@/components/ui'
-import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
+import { Button, Notice, Select, Tabs } from '@/components/ui'
+import { SectionTitle } from '@/components/ui/SectionTitle'
+import { CampaignCard } from '@/components/campaigns/CampaignCard'
 import { ResponsiveDataTable, type DataTableColumn } from '@/components/ui/DataGridTable'
 import { TableResultCount, TableSearchControl } from '@/components/ui/TableWorkspaceControls'
 import { useRouter } from 'next/navigation'
@@ -129,30 +130,39 @@ export function EmailCampaignHistory({ tenant }: { tenant: string }) {
   return <section aria-labelledby="email-campaign-heading" style={{ display: 'grid', gap: spacing.md, marginBottom: spacing.xl }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
       <h2 id="email-campaign-heading">Email campaigns</h2>
-      <Button variant="secondary" size="sm" onClick={() => setRevision(value => value + 1)}>Refresh email history</Button>
+      <Button variant="secondary" size="sm" onClick={() => setRevision(value => value + 1)}>Refresh</Button>
     </div>
     {error ? <Notice variant="error">{error}</Notice> : data === null ? <p role="status">Loading email campaigns…</p>
       : data.campaigns.length === 0 && <p>No email campaigns recorded.</p>}
-    {data?.limited && <Notice>Showing campaigns found in the 200 most recent email progress records.</Notice>}
+
     {data?.campaigns.map(campaign => {
       const needsAttention = campaign.failed > 0 || campaign.uncertain > 0 || campaign.unattempted > 0
       const recoverable = isShowcaseRecovery(tenant, campaign.id)
       const expanded = (selected ?? data.campaigns.find(item => isShowcaseRecovery(tenant, item.id))?.id) === campaign.id
       const d = campaign.diagnostic
-      return <DenseSectionPanel key={campaign.id} title={campaign.subject || 'Bulk email (subject not recorded)'} actions={<Button variant="secondary" size="sm" aria-expanded={expanded} onClick={() => { setView(recoverable ? 'follow-up' : 'attempts'); setSelected(expanded ? '' : campaign.id) }}>{expanded ? 'Hide details' : recoverable ? 'View recipients' : 'View send attempts'}</Button>} contentStyle={{ display: 'grid', gap: spacing.md }}>
-        {needsAttention && <div><Badge variant="warning">Needs attention</Badge></div>}
-        <div>{campaign.sender && `${campaign.sender} · `}Last progress update {new Date(campaign.updatedAt).toLocaleString()}</div>
-        <div>{campaign.accepted} accepted · {campaign.failed} failed · {campaign.unattempted} not sent · {campaign.uncertain} need verification · {campaign.excluded} contacts excluded</div>
-        {expanded && (!recoverable || view !== 'follow-up') && (d ? <Notice variant="warning" title="Last recorded provider issue">
-          {d.category === 'rate_limit' ? 'Gmail reported a sending limit. Wait before trying again.'
-            : d.category === 'mailbox_access' ? 'Check the shared mailbox and its send permissions.'
-              : d.category === 'uncertain' ? 'Check Gmail Sent before attempting to resend.' : 'Gmail rejected a send. Review the attempt before retrying.'}
-          {d.httpStatus ? ` HTTP ${d.httpStatus}.` : ''}{d.reason ? ` ${d.reason}.` : ''}
-        </Notice> : campaign.failed > 0 && <Notice variant="warning">Gmail rejected at least one send. The exact provider error was not recorded.</Notice>)}
-        {expanded && recoverable && <Tabs items={[{ key: 'follow-up', label: 'Not sent' }, { key: 'failed', label: 'Failed', count: campaign.failed }, { key: 'attempts', label: 'All original attempts' }]} activeKey={view} onChange={setView} ariaLabel="Campaign recipient views" />}
-        {expanded && (recoverable && view === 'follow-up' ? <FollowUp key={`${campaign.id}:${revision}`} campaign={campaign} tenant={tenant} /> : <RecipientList key={`${campaign.id}:${revision}:${view}`} campaign={campaign} tenant={tenant} failedOnly={view === 'failed'} />)}
-        {!recoverable && campaign.unattempted > 0 && <p style={{ color: colors.textSecondary }}>The original recipient list wasn’t saved. This campaign can’t be resumed from history.</p>}
-      </DenseSectionPanel>
+      return <CampaignCard
+        key={campaign.id}
+        headline={campaign.subject || 'Bulk email'}
+        meta={campaign.sender ? `Email · ${campaign.sender}` : 'Email'}
+        status={{ label: needsAttention ? 'Needs attention' : 'Sent', variant: needsAttention ? 'warning' : 'success' }}
+        date={new Date(campaign.updatedAt).toLocaleDateString()}
+        selected={expanded}
+        onClick={() => { setView(recoverable ? 'follow-up' : 'attempts'); setSelected(expanded ? '' : campaign.id) }}
+        stats={[
+          { label: 'Sent to', value: campaign.accepted + campaign.failed + campaign.unattempted },
+          { label: 'Accepted', value: campaign.accepted, color: colors.success },
+          { label: 'Failed', value: campaign.failed, color: campaign.failed > 0 ? colors.error : colors.textMuted },
+          { label: 'Not sent', value: campaign.unattempted, color: campaign.unattempted > 0 ? colors.yellow : colors.textMuted },
+          ...(campaign.uncertain > 0 ? [{ label: 'Unverified', value: campaign.uncertain, color: colors.yellow }] : []),
+        ]}
+      >
+        {expanded && <div style={{ marginTop: spacing.lg, display: 'grid', gap: spacing.md }}>
+          {d && <p style={{ margin: 0, color: colors.textSecondary }}>{[d.category, d.reason].filter(Boolean).join(' · ')}{d.httpStatus ? ` · HTTP ${d.httpStatus}` : ''}</p>}
+          {recoverable && <Tabs items={[{ key: 'follow-up', label: 'Not sent' }, { key: 'failed', label: 'Failed', count: campaign.failed }, { key: 'attempts', label: 'All attempts' }]} activeKey={view} onChange={setView} ariaLabel="Campaign recipient views" />}
+          {recoverable && view === 'follow-up' ? <FollowUp key={`${campaign.id}:${revision}`} campaign={campaign} tenant={tenant} /> : <RecipientList key={`${campaign.id}:${revision}:${view}`} campaign={campaign} tenant={tenant} failedOnly={view === 'failed'} />}
+          {!recoverable && campaign.unattempted > 0 && <p style={{ margin: 0, color: colors.textSecondary }}>Original recipients weren’t saved.</p>}
+        </div>}
+      </CampaignCard>
     })}
   </section>
 }

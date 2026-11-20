@@ -17,7 +17,9 @@ import { useIdentity } from '@/components/layout/IdentityProvider'
 import { useWorkspaceHistory } from '@/lib/useWorkspaceHistory'
 import { BackControl } from '@/components/ui/BackControl'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
+import { RichDataTable } from '@/components/ui/RichDataTable'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
+import { CONVERSATION_TABLE_SCHEMA } from '@/lib/conversation-table-preferences'
 import { PersonName } from '@/components/ui/PersonName'
 import { EmptyState } from '@/components/ui/EmptyState'
 import PrototypeEmailComposer, { type PrototypeEmailDraft } from '@/components/inbox/PrototypeEmailComposer'
@@ -153,8 +155,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const [channelFilter, setChannelFilter] = useState<ConversationFilter>('all')
   const [dateFrom, setDateFrom] = useState(() => currentEmailMonth().from)
   const [dateTo, setDateTo] = useState(() => currentEmailMonth().to)
-  const [sort, setSort] = useState<ConversationSort>('time')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const tablePreferences = useTablePreferences(CONVERSATION_TABLE_SCHEMA)
+  const [sort, setSort] = useState<ConversationSort>(() => (tablePreferences.preferences.sort?.key as ConversationSort) || 'time')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => tablePreferences.preferences.sort?.direction || 'desc')
+  const storedSort = tablePreferences.preferences.sort
+  useEffect(() => {
+    if (!storedSort) return
+    setSort(storedSort.key as ConversationSort)
+    setSortDirection(storedSort.direction)
+  }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const workspace = useRef<HTMLDivElement>(null)
   const [workspaceHeight, setWorkspaceHeight] = useState<number>()
   const remembered = useRef<Record<string, ConversationLocation>>({})
@@ -599,10 +608,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           {(['all', 'sms', 'email'] as const).map(channel => <ControlButton key={channel} kind="toggle" selected={channelFilter === channel} aria-pressed={channelFilter === channel} onClick={() => setChannelFilter(channel)}>{channel === 'all' ? 'All' : channel === 'sms' ? 'SMS' : 'Email'}</ControlButton>)}
         </div>
       </header>
-      <ResponsiveDataTable rows={visibleContacts} getRowKey={person => person.id} ariaLabel="Communications" minDesktopWidth={360} alignToSelectionInset stickyHeaderOffset={0}
+      <RichDataTable preferenceSchema={CONVERSATION_TABLE_SCHEMA} preferenceState={tablePreferences} rows={visibleContacts} getRowKey={person => person.id} ariaLabel="Communications" alignToSelectionInset stickyHeaderOffset={0}
         loading={summaryLoading && visibleContacts.length === 0} skeletonRows={8}
         getRowStyle={person => conversationAttention(person.threads).unread ? { background: '#F0F8FA' } : undefined}
-        sort={{ key: sort, direction: sortDirection }} onSortChange={next => { setSort(next.key); setSortDirection(next.direction) }}
+        sort={{ key: sort, direction: sortDirection }} onSortChange={next => { setSort(next.key); setSortDirection(next.direction); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: next }) }}
         onRowClick={person => selectContact(person.id)} emptyContent="No communications match your filters."
         columns={[
           { id: 'name', header: 'Name', width: 'minmax(220px, 2fr)', sortable: true, sortKey: 'name', render: person => { const attention = conversationAttention(person.threads); return <div><div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>{attention.unattended && <span role="img" aria-label={attention.unread ? 'Unread and unattended message' : 'Unattended message'} title={`Awaiting your reply · ${attention.channels.join(' and ')}${attention.unread ? ' · Unread' : ''}`} style={{ color: colors.tealDark, display: 'inline-flex', flexShrink: 0 }}>{attention.channels.includes('sms') && <ArrowDownLeft size={20} aria-hidden="true" />}{attention.channels.includes('email') && <Mail size={20} aria-hidden="true" />}</span>}<PersonName as="button" aria-label={`Open conversation with ${person.name}`} onClick={() => selectContact(person.id)} style={{ textAlign: 'left' }}>{person.name}</PersonName></div><div style={{ ...meta, marginTop: spacing.xs }}>{attention.unattended && <span style={{ color: colors.tealDark }}>{attention.unread ? 'Unread · Unattended' : 'Unattended'} · </span>}{channelFilter !== 'email' && `${person.newSms} new SMS`}{channelFilter !== 'sms' && (loadedEmailPeople.includes(person.id) || emailSummaries.some(thread => thread.contactId === person.id)) ? `${channelFilter === 'all' ? ' · ' : ''}${person.newEmails} unread emails` : ''}</div></div> } },

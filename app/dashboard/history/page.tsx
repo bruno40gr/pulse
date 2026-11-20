@@ -11,6 +11,7 @@ import { Button } from '@/components/ui'
 import { PageHeader } from '@/components/ui'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmailCampaignHistory } from '@/components/campaigns/EmailCampaignHistory'
+import { CampaignCard } from '@/components/campaigns/CampaignCard'
 import { Notice } from '@/components/ui/Notice'
 
 interface CampaignStats {
@@ -96,90 +97,28 @@ export default function HistoryPage() {
       {!loading && campaigns.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
           {campaigns.map(campaign => (
-            <div
+            <CampaignCard
               key={campaign.id}
+              headline={campaign.message.length > 120 ? `${campaign.message.slice(0, 120)}...` : campaign.message}
+              meta={campaign.filter_query}
+              status={{ label: campaign.status, variant: statusVariant(campaign.status) }}
+              date={campaign.sent_at ? formatDate(campaign.sent_at) : formatDate(campaign.created_at)}
+              selected={selected?.id === campaign.id}
               onClick={() => setSelected(selected?.id === campaign.id ? null : campaign)}
-              style={{
-                background: colors.surface,
-                border: `1px solid ${selected?.id === campaign.id ? colors.espresso : colors.border}`,
-                borderRadius: radius.xl,
-                padding: spacing['2xl'],
-                cursor: 'pointer',
-                transition: 'border-color 0.15s',
-              }}
+              stats={[
+                { label: 'Sent to', value: campaign.stats.total },
+                { label: 'Delivered', value: campaign.stats.delivered, color: colors.success },
+                { label: 'Failed', value: campaign.stats.failed, color: campaign.stats.failed > 0 ? colors.error : colors.textMuted },
+                { label: 'Replies', value: campaign.stats.replies > 0
+                  ? <ControlButton kind="link" onClick={event => { event.stopPropagation(); router.push(`/dashboard/inbox?campaign=${campaign.id}`) }}>{campaign.stats.replies} →</ControlButton>
+                  : campaign.stats.replies, color: campaign.stats.replies > 0 ? colors.teal : colors.textMuted },
+                { label: 'Delivery rate', value: `${campaign.stats.delivery_rate}%`, color: campaign.stats.delivery_rate > 90 ? colors.success : campaign.stats.delivery_rate > 70 ? colors.yellow : colors.error },
+              ]}
             >
-              {/* Campaign header row */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: spacing.md }}>
-                <div style={{ flex: 1, minWidth: 0, marginRight: spacing.lg }}>
-                  <div style={{ fontSize: typography.sizeBase, color: colors.text, fontFamily: typography.fontSans, lineHeight: 1.5, marginBottom: spacing.xs }}>
-                    {campaign.message.length > 120
-                      ? campaign.message.slice(0, 120) + '...'
-                      : campaign.message}
-                  </div>
-                  {campaign.filter_query && (
-                    <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans }}>
-                      {campaign.filter_query}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
-                  <Badge variant={statusVariant(campaign.status)}>
-                    {campaign.status}
-                  </Badge>
-                  <span style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans }}>
-                    {campaign.sent_at ? formatDate(campaign.sent_at) : formatDate(campaign.created_at)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div style={{ display: 'flex', gap: spacing['2xl'], borderTop: `1px solid ${colors.borderLight}`, paddingTop: spacing.md }}>
-                {[
-                  { label: 'Sent to', value: campaign.stats.total },
-                  { label: 'Delivered', value: campaign.stats.delivered, color: colors.success },
-                  { label: 'Failed', value: campaign.stats.failed, color: campaign.stats.failed > 0 ? colors.error : colors.textMuted },
-                  { label: 'Replies', value: (
-                    <span>
-                      {campaign.stats.replies > 0 ? (
-                        <ControlButton kind="link"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/dashboard/inbox?campaign=${campaign.id}`)
-                          }}
-
-                        >
-                          {campaign.stats.replies} →
-                        </ControlButton>
-                      ) : (
-                        campaign.stats.replies
-                      )}
-                    </span>
-                  ), color: campaign.stats.replies > 0 ? colors.teal : colors.textMuted },
-                  { label: 'Delivery rate', value: `${campaign.stats.delivery_rate}%`, color: campaign.stats.delivery_rate > 90 ? colors.success : campaign.stats.delivery_rate > 70 ? colors.yellow : colors.error },
-                ].map(({ label, value, color }) => (
-                  <div key={label}>
-                    <div style={{ fontSize: typography.sizeXs, color: colors.textMuted, fontFamily: typography.fontSans, marginBottom: '2px' }}>
-                      {label}
-                    </div>
-                    <div style={{ fontSize: typography.sizeLg, fontWeight: typography.weightSemibold, color: color || colors.text, fontFamily: typography.fontSans }}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Expanded detail */}
-              {selected?.id === campaign.id && (
-                <div style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTop: `1px solid ${colors.borderLight}` }}>
-                  <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
-                    {campaign.sent_at
-                      ? `Sent ${formatDate(campaign.sent_at)} at ${formatTime(campaign.sent_at)}`
-                      : `Created ${formatDate(campaign.created_at)}`}
-                    {campaign.channel && ` · ${campaign.channel.toUpperCase()}`}
-                  </div>
-                </div>
-              )}
-            </div>
+              {selected?.id === campaign.id && <div style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTop: `1px solid ${colors.borderLight}`, ...typography.helper, color: colors.textMuted }}>
+                {campaign.sent_at ? `Sent ${formatDate(campaign.sent_at)} at ${formatTime(campaign.sent_at)}` : `Created ${formatDate(campaign.created_at)}`}{campaign.channel && ` · ${campaign.channel.toUpperCase()}`}
+              </div>}
+            </CampaignCard>
           ))}
         </div>
       )}

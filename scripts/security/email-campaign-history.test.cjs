@@ -105,3 +105,13 @@ test('the recovery invitation closes on the first performance day in Pacific tim
   assert.equal(showcaseRecoveryOpen(Date.parse('2026-11-28T07:59:59Z')), true)
   assert.equal(showcaseRecoveryOpen(Date.parse('2026-11-28T08:00:00Z')), false)
 })
+test('SMS and email campaigns render the same campaign card', () => {
+  const page = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../app/dashboard/history/page.tsx'), 'utf8')
+  const email = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../components/campaigns/EmailCampaignHistory.tsx'), 'utf8')
+  assert.match(page, /<CampaignCard/)
+  assert.match(email, /<CampaignCard/)
+  assert.doesNotMatch(email, /DenseSectionPanel/)
+  assert.doesNotMatch(email, /Showing campaigns found in the 200 most recent/)
+  const card = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../components/campaigns/CampaignCard.tsx'), 'utf8')
+  for (const label of ['headline', 'status', 'date', 'stats']) assert.ok(card.includes(label))
+})

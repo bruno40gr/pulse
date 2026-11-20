@@ -131,11 +131,12 @@ export async function GET(request: Request) {
         image_url: profiles.get(band.name)?.image_url ?? null,
       }))
 
-    // A draft has no members yet, so it is not in the assembled roster.
+    // A band with no members yet is not in the assembled roster, so its profile is
+    // the only record of it. Drafts and newly created bands both stay visible.
     const known = new Set(bands.map(band => band.name))
     for (const [name, profile] of profiles) {
-      if (profile.status !== 'draft' || known.has(name)) continue
-      bands.push({ name, coach: null, members: [], status: 'draft', schedule: profile.schedule, image_url: profile.image_url })
+      if (known.has(name) || ['external', 'archived'].includes(profile.status)) continue
+      bands.push({ name, coach: null, members: [], status: profile.status, schedule: profile.schedule, image_url: profile.image_url })
     }
     bands.sort((left, right) => left.name.localeCompare(right.name))
     return Response.json({ bands }, { headers })

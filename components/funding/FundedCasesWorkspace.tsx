@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, type ComponentProps } from 'react'
 import { useRouter } from 'next/navigation'
-import { Badge, Button, Notice, PageHeader, ResponsiveDataTable, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Badge, Button, Notice, PageHeader, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { RichDataTable } from '@/components/ui/RichDataTable'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
+import { FUNDING_TABLE_SCHEMA } from '@/lib/funding-table-preferences'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { PersonName } from '@/components/ui/PersonName'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -26,7 +29,12 @@ export default function FundedCasesWorkspace() {
   const router = useRouter()
   const [cases, setCases] = useState<FundingCase[]>([])
   const [studentFilter, setStudentFilter] = useState<StudentFilter>('all')
-  const [caseSort, setCaseSort] = useState<DataTableSort<CaseSortKey>>({ key: 'dueDate', direction: 'asc' })
+  const tablePreferences = useTablePreferences(FUNDING_TABLE_SCHEMA)
+  const [caseSort, setCaseSort] = useState<DataTableSort<CaseSortKey>>(() => (tablePreferences.preferences.sort as DataTableSort<CaseSortKey>) || { key: 'dueDate', direction: 'asc' })
+  const storedSort = tablePreferences.preferences.sort
+  useEffect(() => {
+    if (storedSort) setCaseSort({ key: storedSort.key as CaseSortKey, direction: storedSort.direction })
+  }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const [contactPanel, setContactPanel] = useState<{ contact: PanelContact; fundingCase: FundingCase } | null>(null)
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null)
   const [invoiceEdit, setInvoiceEdit] = useState<{ caseId: string; invoice: FundingInvoice } | null>(null)
@@ -199,14 +207,15 @@ export default function FundedCasesWorkspace() {
       <div style={{ overflowX: 'auto', marginBottom: spacing.md }}>
         <Tabs items={studentTabs} activeKey={studentFilter} onChange={setStudentFilter} compact={isMobile} style={isMobile ? { minWidth: 360 } : undefined} />
       </div>
-      <ResponsiveDataTable
+      <RichDataTable
+        preferenceSchema={FUNDING_TABLE_SCHEMA}
+        preferenceState={tablePreferences}
         rows={visibleCases}
         columns={caseColumns}
         getRowKey={item => item.id}
         sort={caseSort}
-        onSortChange={setCaseSort}
+        onSortChange={nextSort => { setCaseSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
         emptyContent="No funded students in this view."
-        minDesktopWidth={1120}
         onRowClick={item => void openContactPanel(item)}
         ariaLabel="Funded Students"
       />

@@ -5,7 +5,10 @@ import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect, type ComponentProps } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
-import { Avatar, Button, PageHeader, ResponsiveDataTable, SlidePanel, SlidePanelHeader, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Avatar, Button, PageHeader, SlidePanel, SlidePanelHeader, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { RichDataTable } from '@/components/ui/RichDataTable'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
+import { STAFF_TABLE_SCHEMA } from '@/lib/staff-table-preferences'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
@@ -13,7 +16,7 @@ import { colors, typography, spacing, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
-type StaffSortKey = 'name' | 'contact' | 'status'
+type StaffSortKey = import('@/lib/staff-table-preferences').StaffSortKey
 
 interface StaffMember {
   id: string
@@ -41,7 +44,12 @@ export default function StaffPage() {
   const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
-  const [staffSort, setStaffSort] = useState<DataTableSort<StaffSortKey>>({ key: 'name', direction: 'asc' })
+  const tablePreferences = useTablePreferences(STAFF_TABLE_SCHEMA)
+  const [staffSort, setStaffSort] = useState<DataTableSort<StaffSortKey>>(() => (tablePreferences.preferences.sort as DataTableSort<StaffSortKey>) || { key: 'name', direction: 'asc' })
+  const storedSort = tablePreferences.preferences.sort
+  useEffect(() => {
+    if (storedSort) setStaffSort({ key: storedSort.key as StaffSortKey, direction: storedSort.direction })
+  }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const isMobile = useIsMobile()
   const contactHistory = useMobilePanelHistory({
     isOpen: Boolean(selectedContact),
@@ -181,12 +189,14 @@ export default function StaffPage() {
         </div>
       )}
 
-      <ResponsiveDataTable
+      <RichDataTable
+        preferenceSchema={STAFF_TABLE_SCHEMA}
+        preferenceState={tablePreferences}
         rows={sortedStaff}
         columns={staffColumns}
         getRowKey={(member) => member.id}
         sort={staffSort}
-        onSortChange={setStaffSort}
+        onSortChange={nextSort => { setStaffSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
         selection={{
           selectedKeys: selectedStaffIds,
           isSelectable: (member) => Boolean(member.person_id),
@@ -200,7 +210,6 @@ export default function StaffPage() {
         loading={loading}
         skeletonRows={6}
         emptyContent="No staff found."
-        minDesktopWidth={720}
         onRowClick={(member) => {
           if (member.person_id) void openContact(member.person_id)
         }}

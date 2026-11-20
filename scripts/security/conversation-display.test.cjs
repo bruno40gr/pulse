@@ -43,7 +43,7 @@ test('channel filtering scopes history, attention, counts, search and sorting wi
 })
 test('list channel controls share contact header placement and opening respects the filter', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('<ResponsiveDataTable rows={visibleContacts}'))
+  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('<RichDataTable preferenceSchema={CONVERSATION_TABLE_SCHEMA}'))
   assert.match(list, /<header/)
   assert.match(list, /justifyContent: 'flex-end'/)
   assert.doesNotMatch(list, /<SectionTitle|<SurfacePanel/)

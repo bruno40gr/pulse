@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import LeadsView from '@/components/leads/LeadsView'
+import { CreateBandWizard } from '@/components/bands/CreateBandWizard'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Tabs } from '@/components/ui/Tabs'
@@ -66,6 +67,7 @@ export default function ProductionBandsWorkspace() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<Member | null>(null)
+  const [creating, setCreating] = useState(false)
   const mobile = useIsMobile()
 
   const load = useCallback((signal: AbortSignal) => {
@@ -119,16 +121,6 @@ export default function ProductionBandsWorkspace() {
     finally { if (!quiet) setSaving(false) }
   }
 
-  const createDraft = async () => {
-    const taken = new Set([...bands.map(row => row.name.toLowerCase()), ...tentative.map(row => row.name.toLowerCase())])
-    let name = 'New band'
-    for (let index = 2; taken.has(name.toLowerCase()); index += 1) name = `New band ${index}`
-    if (!(await mutate('PATCH', '/api/bands/profile', { band: name, name, status: 'draft' }, true))) return
-    setDraft({ name, schedule: '', image_url: '', status: 'draft' })
-    setOpened(name)
-    setEditing(true)
-  }
-
   const openEdit = () => {
     if (!band) return
     setDraft({ name: band.name, schedule: band.schedule || '', image_url: band.image_url || '', status: (band.status as Status) || 'active' })
@@ -155,8 +147,10 @@ export default function ProductionBandsWorkspace() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load contacts.') }
   }
 
+  if (creating) return <CreateBandWizard onClose={() => setCreating(false)} onCreated={name => { setCreating(false); setOpened(name); reload() }} />
+
   return <PageContainer>
-    <PageHeader title="BandOS" right={<Button onClick={() => void createDraft()} disabled={saving}>Create new band</Button>} />
+    <PageHeader title="BandOS" right={<Button onClick={() => setCreating(true)} disabled={saving}>Create new band</Button>} />
     <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
     {view === 'matching' ? <LeadsView matching /> : <>
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>
