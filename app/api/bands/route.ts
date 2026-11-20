@@ -49,8 +49,8 @@ export async function GET(request: Request) {
     }
     if (students.length !== studentIds.length || people.length !== personIds.length) throw new Error('Incomplete roster')
 
-    // A staff person can also hold an enrollment-shaped teaching record (for
-    // example a band instructor). Those are never student band membership.
+    // Instructors can be band members in their own right, coached by another
+    // instructor (for example La Paz). Staff are labelled, never filtered out.
     const staffPersonIds = new Set<string>()
     for (let offset = 0; ; offset += 500) {
       const result = await supabaseAdmin.from('instructors').select('person_id').eq('tenant_id', access.tenantId).order('id').range(offset, offset + 499)
@@ -61,15 +61,15 @@ export async function GET(request: Request) {
 
     const studentById = new Map(students.map(row => [row.id, row]))
     const personById = new Map(people.map(row => [row.id, row]))
-    const bands = new Map<string, { name: string; members: { person_id: string; name: string; client_status: string | null }[] }>()
+    const bands = new Map<string, { name: string; members: { person_id: string; name: string; client_status: string | null; is_staff: boolean }[] }>()
     for (const enrollment of enrollments) {
       const name = bandName(enrollment)
       const student = studentById.get(enrollment.student_id)
       const person = student ? personById.get(student.person_id) : undefined
-      if (!name || !student || !person || staffPersonIds.has(person.id)) continue
+      if (!name || !student || !person) continue
       const band = bands.get(name) || { name, members: [] }
       if (!band.members.some(member => member.person_id === person.id)) {
-        band.members.push({ person_id: person.id, name: `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unnamed member', client_status: student.client_status })
+        band.members.push({ person_id: person.id, name: `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unnamed member', client_status: student.client_status, is_staff: staffPersonIds.has(person.id) })
       }
       bands.set(name, band)
     }

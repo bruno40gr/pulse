@@ -8,18 +8,14 @@
  * The page is a client component, so the public name must also be honoured; an
  * explicit `false` on either name turns the surface off.
  */
-function enabled(value: string | undefined): boolean {
-  return value === 'true'
-}
-
 /** Read-only surfaces: Bands page, enrolled roster, tentative listing, nav link. */
 export function bandWorkspaceEnabled(): boolean {
   return process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
     && process.env.ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
 }
 
-/** Writes: create opportunities, create/relate tentative bands. Opt-in only. */
+/** Writes: create opportunities, create/relate tentative bands. */
 export function bandWritesEnabled(): boolean {
-  return enabled(process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES)
-    || enabled(process.env.ENABLE_CONTACT_BAND_OPPORTUNITIES)
+  return process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
+    && process.env.ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
 }

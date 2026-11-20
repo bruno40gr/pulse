@@ -55,18 +55,20 @@ test('fails closed when roster lookups error', async () => {
   }
 })
 
-test('staff teaching records never become band members', async () => {
+test('an instructor can be a band member and is labelled as staff', async () => {
   const h = setup({ instructors: [{ id: 'i1', tenant_id: HEAD, person_id: 'p2' }] })
   const response = await h.load(route).GET(request())
   assert.equal(response.status, 200)
   const { bands } = await response.json()
-  assert.deepEqual(Array.from(bands[0].members, member => member.name), ['Ada Lovelace'])
-  assert.equal(bands.some(band => band.members.some(member => member.person_id === 'p2')), false)
+  assert.deepEqual(Array.from(bands[0].members, member => member.name), ['Ada Lovelace', 'Bo Chen'])
+  assert.deepEqual(Array.from(bands[0].members, member => member.is_staff), [false, true])
 })
-test('a band with only a staff record is omitted rather than shown as empty', async () => {
+test('a band whose only member is an instructor is still shown', async () => {
   const h = setup({ instructors: [{ id: 'i1', tenant_id: HEAD, person_id: 'p3' }] })
   const { bands } = await (await h.load(route).GET(request())).json()
-  assert.equal(bands.some(band => band.name === 'Band C'), false)
+  const band = bands.find(row => row.name === 'Band C')
+  assert.ok(band)
+  assert.deepEqual(Array.from(band.members, member => [member.name, member.is_staff]), [['Cy Diaz', true]])
 })
 
 test('either flag name enables the API so the page cannot outrun its endpoints', async () => {

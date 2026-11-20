@@ -982,3 +982,19 @@ were written.
 
 The application code for these features is **not deployed**, so the live app does
 not yet render the new opportunities or the operational Bands page.
+
+### Band membership correction (2026-11-20)
+
+Instructors can be band members, coached by another instructor (La Paz: Ethan
+Carlson plus staff member Mae Strider, both coached by Josh Brent). The roster no
+longer filters staff out; members carry `is_staff` and the member panel labels
+them "Instructor (member)".
+
+Read and write surfaces are now both on by default; an explicit `false` on either
+flag name disables them.
+
+Tentative bands now come from the provided review lists rather than per-row
+column inference: **Potential Band 1** = Samme Foss, Jerrylee Estep, Luke DeVault;
+**Potential Band 2** = Brianna Reese, Bailey Noel, Bella Simmons. Members were
+resolved by unique first name within the 24 linked opportunities and verified in
+production (3 + 3).

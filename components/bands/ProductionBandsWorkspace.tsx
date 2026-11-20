@@ -15,9 +15,9 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-type Member = { person_id: string; name: string; client_status: string | null }
+type Member = { person_id: string; name: string; client_status: string | null; is_staff: boolean }
 type Band = { name: string; members: Member[] }
-type TentativeGroup = { id: string; name: string }
+type TentativeGroup = { id: string; name: string; member_count?: number }
 type LoadState = 'loading' | 'ready' | 'error'
 
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
@@ -80,7 +80,8 @@ export default function ProductionBandsWorkspace() {
         {tentativeState === 'error' ? <Notice variant="error">Could not load tentative bands. The band roster above is unaffected.</Notice>
           : tentativeState === 'loading' ? <p role="status">Loading tentative bands…</p>
             : <ResponsiveDataTable rows={tentative} getRowKey={row => row.id} ariaLabel="Tentative bands" minDesktopWidth={400} emptyContent="No tentative bands yet." columns={[
-              { id: 'name', header: 'Tentative band', width: '1fr', render: row => row.name },
+              { id: 'name', header: 'Tentative band', width: '1.2fr', render: row => row.name },
+              { id: 'members', header: 'Candidates', width: '.6fr', render: row => row.member_count ?? 0 },
             ]} />}
       </DenseSectionPanel>
     </>}
@@ -90,6 +91,7 @@ export default function ProductionBandsWorkspace() {
         <DenseSectionPanel title="Members">
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={320} emptyContent="No enrolled members." columns={[
             { id: 'name', header: 'Member', width: '1fr', render: row => <PersonName>{row.name}</PersonName> },
+            { id: 'role', header: 'Role', width: '.7fr', render: row => row.is_staff ? 'Instructor (member)' : 'Student' },
             { id: 'status', header: 'Status', width: '.7fr', render: row => row.client_status || 'Unknown' },
           ]} />
         </DenseSectionPanel>

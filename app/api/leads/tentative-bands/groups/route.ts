@@ -16,7 +16,15 @@ export async function GET(request: Request) {
       groups.push(...result.data)
       if (result.data.length < 500) break
     }
-    return Response.json({ groups }, { headers })
+    const counts = new Map<string, number>()
+    for (let offset = 0; ; offset += 500) {
+      const result = await crmSupabaseAdmin.from('band_tentative_opportunities').select('band_id')
+        .eq('tenant_id', access.tenantId).order('band_id').range(offset, offset + 499)
+      if (result.error || !Array.isArray(result.data)) throw new Error('Members unavailable')
+      for (const row of result.data) counts.set(row.band_id, (counts.get(row.band_id) || 0) + 1)
+      if (result.data.length < 500) break
+    }
+    return Response.json({ groups: groups.map(group => ({ ...group, member_count: counts.get(group.id) || 0 })) }, { headers })
   } catch { return Response.json({ error: 'Could not load tentative bands.' }, { status: 503, headers }) }
 }
 
