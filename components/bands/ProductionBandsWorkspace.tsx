@@ -103,8 +103,11 @@ export default function ProductionBandsWorkspace() {
       const data = await response.json()
       if (!response.ok || !Array.isArray(data)) throw new Error('Could not load students.')
       const existing = new Set((band?.members || []).map(member => member.person_id))
-      setCandidates(data.filter((person: { is_student?: boolean; id: string }) => person.is_student && !existing.has(person.id))
-        .map((person: { id: string; first_name: string; last_name: string }) => ({ id: person.id, name: `${person.first_name} ${person.last_name}`.trim() })))
+      // Anyone in Contacts can join a band: staff play too, and they may have no
+      // student record of their own.
+      setCandidates(data.filter((person: { id: string }) => !existing.has(person.id))
+        .map((person: { id: string; first_name: string; last_name: string }) => ({ id: person.id, name: `${person.first_name} ${person.last_name}`.trim() }))
+        .filter((person: { name: string }) => person.name))
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load students.') }
   }
 
@@ -162,7 +165,7 @@ export default function ProductionBandsWorkspace() {
     {adding && band && <Modal isOpen onClose={() => setAdding(false)} ariaLabel="Add students">
       <ModalHeader title={`Add students to ${band.name}`} onClose={() => setAdding(false)} />
       <ModalBody>
-        {!candidates.length ? <Notice>Every current student is already in this band.</Notice>
+        {!candidates.length ? <Notice>Everyone in Contacts is already in this band.</Notice>
           : candidates.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={picked.includes(candidate.id)}
               onChange={event => setPicked(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
       </ModalBody>
