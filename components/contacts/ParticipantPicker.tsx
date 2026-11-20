@@ -4,7 +4,8 @@ import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useId, useState } from 'react'
 import { RadioOptionGroup } from '@/components/ui/RadioOptionGroup'
 import { Input } from '@/components/ui/Input'
-import { FieldGrid } from '@/components/ui/FieldGrid'
+import { ContactDetailsFields, type ContactDetails } from '@/components/contacts/ContactDetailsFields'
+import { SectionTitle } from '@/components/ui/SectionTitle'
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { PersonName } from '@/components/ui/PersonName'
 import { Notice } from '@/components/ui/Notice'
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { spacing, colors, interaction } from '@/lib/tokens'
 
 export type ParticipantOption = { id: string; name: string; detail?: string; group?: string; disabled?: boolean }
-export type NewParticipant = { name: string; email: string }
+export type NewParticipant = ContactDetails
 
 /** Shared event/band contact selection. Persistence belongs to the caller. */
 export function ParticipantPicker({ options, selectedIds, onSelectionChange, multiple = false, mode, onModeChange, draft, onDraftChange, onCreate, creating = false, disabled = false, state = 'ready', error, label = 'Participants' }: {
@@ -41,15 +42,13 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
       : selectedIds.includes(person.id) ? [] : [person.id])
   }
   return <div style={{ display: 'grid', gap: spacing.md, minWidth: 0 }}>
-    <RadioOptionGroup label="Contact type" hideLabel layout="inline" value={mode}
+    <RadioOptionGroup label="Contact type" hideLabel value={mode}
       options={[{ id: 'existing', label: 'Existing contact' }, { id: 'new', label: 'New contact' }]}
       onChange={next => { if (!creating && !disabled) { setQuery(''); onModeChange(next as 'existing' | 'new') } }} />
     {mode === 'new' ? <div style={{ minHeight: 240, display: 'grid', alignContent: 'start', gap: spacing.md }}>
-      <FieldGrid>
-        <Input label="Participant name" required value={draft.name} disabled={creating || disabled} onChange={event => onDraftChange({ ...draft, name: event.target.value })} />
-        <Input label="Contact email" type="email" value={draft.email} disabled={creating || disabled} onChange={event => onDraftChange({ ...draft, email: event.target.value })} />
-      </FieldGrid>
-      {onCreate && <div><Button variant="secondary" disabled={creating || disabled || !draft.name.trim()} onClick={onCreate}>{creating ? 'Adding…' : 'Add and select'}</Button></div>}
+      <SectionTitle as="h3">Contact details</SectionTitle>
+      <ContactDetailsFields value={draft} disabled={creating || disabled} onChange={(field, value) => onDraftChange({ ...draft, [field]: value })} />
+      {onCreate && <div><Button variant="secondary" disabled={creating || disabled || !`${draft.firstName} ${draft.lastName}`.trim()} onClick={onCreate}>{creating ? 'Adding…' : 'Add and select'}</Button></div>}
     </div> : <>
       <Input label="Search contacts" type="search" placeholder="Name or email" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
       <div role="region" aria-label={label} aria-busy={state === 'loading'} tabIndex={0}

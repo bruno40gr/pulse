@@ -20,6 +20,10 @@ export async function POST(request: Request) {
   const lastName = text((body as Record<string, unknown>).last_name, 80)
   const email = text((body as Record<string, unknown>).email, 254).toLowerCase()
   const phone = text((body as Record<string, unknown>).phone, 40)
+  const birthday = text((body as Record<string, unknown>).date_of_birth, 40)
+  if (birthday && (!/^\d{4}-\d{2}-\d{2}$/.test(birthday) || Number.isNaN(Date.parse(`${birthday}T12:00:00Z`)) || new Date(`${birthday}T12:00:00Z`).toISOString().slice(0, 10) !== birthday || birthday < '1900-01-01' || birthday > new Date().toISOString().slice(0, 10))) {
+    return Response.json({ error: 'Enter a valid birthday.' }, { status: 400, headers })
+  }
   if (!firstName && !lastName) return Response.json({ error: 'Enter the student’s name.' }, { status: 400, headers })
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Response.json({ error: 'Enter a valid email address.' }, { status: 400, headers })
 
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     const person = await supabaseAdmin.from('people')
-      .insert({ tenant_id: access.tenantId, first_name: firstName || null, last_name: lastName || null, email: email || null, phone: phone || null, custom_fields: {} })
+      .insert({ tenant_id: access.tenantId, first_name: firstName || null, last_name: lastName || null, email: email || null, phone: phone || null, date_of_birth: birthday || null, custom_fields: {} })
       .select('id')
       .single()
     if (person.error || !person.data) throw person.error || new Error('Could not create the student')

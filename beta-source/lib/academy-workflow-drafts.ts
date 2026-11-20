@@ -11,7 +11,7 @@ export type WorkflowDraft = DraftBase & (
   | { kind: 'group'; data: AcademyGroup }
   | { kind: 'event'; data: ExplorerEvent }
   | { kind: 'membership'; data: { groupId: string; memberIds: string[]; billingReviewed: boolean } }
-  | { kind: 'registration'; data: { personId: string; name: string; email: string; eventId: string; activityId: string; agreed: boolean; responses?: Record<string, string>; policyOverrides?: string[] } }
+  | { kind: 'registration'; data: { personId: string; name: string; email: string; firstName?: string; lastName?: string; phone?: string; birthday?: string; eventId: string; activityId: string; agreed: boolean; responses?: Record<string, string>; policyOverrides?: string[] } }
 )
 export type WorkflowContext = { academy: AcademySettings; people: ExplorerPerson[]; staffIds: string[]; events: ExplorerEvent[]; tasks?: ProgramTask[]; registrations?: ExplorerRegistration[]; registrationAudience?: 'staff' | 'family' }
 export const workflowLabels = { program: 'Band / group program', enrollment: 'Individual / semi-private lessons', group: 'Create group', event: 'Create event', membership: 'Group membership', registration: 'Event' }

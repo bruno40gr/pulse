@@ -34,7 +34,7 @@ function nodes(tree) {
 }
 const find = (tree, type) => nodes(tree).find(node => node.type === type)
 const people = [{ id: 'a', name: 'Ada', detail: 'ada@example.test' }, { id: 'b', name: 'Bo', disabled: true }, { id: 'c', name: 'Cy', group: 'Seeking a band' }]
-const base = { options: people, selectedIds: [], mode: 'existing', draft: { name: '', email: '' }, onSelectionChange() {}, onModeChange() {}, onDraftChange() {} }
+const base = { options: people, selectedIds: [], mode: 'existing', draft: { firstName: '', lastName: '', email: '', phone: '', birthday: '' }, onSelectionChange() {}, onModeChange() {}, onDraftChange() {} }
 
 test('loading and failure never masquerade as an empty contact list; region remains bounded', () => {
   const render = component('components/contacts/ParticipantPicker.tsx')
@@ -83,9 +83,10 @@ test('new-contact fields are inline and do not discard selected contacts', () =>
   const tree = render({ ...base, mode: 'new', selectedIds: ['a'], onDraftChange: value => { draft = value }, onCreate() {} })
   assert.equal(find(tree, 'Modal'), undefined)
   assert.equal(find(tree, 'ResponsiveDataTable'), undefined)
-  const input = nodes(tree).find(node => node.props?.label === 'Participant name')
-  input.props.onChange({ target: { value: 'New Student' } })
-  assert.equal(draft.name, 'New Student')
+  const fields = find(tree, 'ContactDetailsFields')
+  fields.props.onChange('firstName', 'New')
+  assert.equal(draft.firstName, 'New')
+  assert.equal(find(tree, 'RadioOptionGroup').props.layout, undefined)
   assert.equal(find(tree, 'Button').props.disabled, true)
 })
 
@@ -100,7 +101,7 @@ test('production new-contact adapter retains errors inline and selects canonical
   const props = { ...base, state: 'ready', onCreated: person => { created = person } }
   let tree = render(props)
   tree.props.onModeChange('new')
-  tree.props.onDraftChange({ name: 'New Student', email: 'new@example.test' })
+  tree.props.onDraftChange({ firstName: 'New', lastName: 'Student', email: 'new@example.test', phone: '5551234567', birthday: '2012-03-04' })
   tree = render(props)
   await tree.props.onCreate()
   // onCreate is a click callback: flush the async request chain.
@@ -116,6 +117,19 @@ test('production new-contact adapter retains errors inline and selects canonical
   assert.equal(render(props).props.mode, 'existing')
   assert.equal(calls[1].body.tenant_id, 'test-tenant')
   assert.equal(calls[1].body.last_name, 'Student')
+  assert.equal(calls[1].body.phone, '5551234567')
+  assert.equal(calls[1].body.date_of_birth, '2012-03-04')
+})
+
+test('shared contact details preserve the reference field order, types and changes', () => {
+  const render = component('components/contacts/ContactDetailsFields.tsx')
+  const changes = []
+  const inputs = nodes(render({ value: base.draft, disabled: true, onChange: (...args) => changes.push(args) })).filter(node => node.type === 'Input')
+  assert.deepEqual(inputs.map(node => node.props.label), ['First name', 'Last name', 'Email', 'Phone', 'Birthday'])
+  assert.deepEqual(inputs.map(node => node.props.type), [undefined, undefined, 'email', 'tel', 'date'])
+  for (const input of inputs) assert.equal(input.props.disabled, true)
+  inputs[3].props.onChange({ target: { value: '123' } })
+  assert.deepEqual(changes, [['phone', '123']])
 })
 
 test('events, band creation and existing-band additions share the actual composition', () => {

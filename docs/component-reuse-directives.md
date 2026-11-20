@@ -12,6 +12,8 @@ These rules apply to prototypes and production work. Read alongside `AGENTS.md` 
 
 ## Reuse the actual experience
 
+- Adding a person to an event, band or other entity follows `docs/adding-people-convention.md`: stacked existing/new radios and the shared five-field contact form.
+
 - Inspect the existing implementation and its callers before changing it. Identify the actual workspace, table, selection toolbar, row menu, creation form and detail panel relevant to the task.
 - Reuse complete compositions and behavior, not just low-level components. Library buttons and fields inside a custom replacement do not establish fidelity to the existing experience.
 - Preserve the established table columns, cell rendering, family hierarchy, filters, preferences, navigation and detail-panel behavior unless the user approves a specific change.

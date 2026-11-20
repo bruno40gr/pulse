@@ -16,21 +16,20 @@ export function BandStudentPicker({ options, selectedIds, onSelectionChange, onC
   onBusyChange?: (busy: boolean) => void
 }) {
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
-  const [draft, setDraft] = useState({ name: '', email: '' })
+  const [draft, setDraft] = useState({ firstName: '', lastName: '', email: '', phone: '', birthday: '' })
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const create = async () => {
     setCreating(true); onBusyChange?.(true); setCreateError('')
     try {
-      const [first_name, ...rest] = draft.name.trim().split(/\s+/)
       const response = await fetch('/api/contacts/person', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: getActiveTenantId(), first_name, last_name: rest.join(' '), email: draft.email }),
+        body: JSON.stringify({ tenant_id: getActiveTenantId(), first_name: draft.firstName, last_name: draft.lastName, email: draft.email, phone: draft.phone, date_of_birth: draft.birthday }),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.person?.id) throw new Error(data?.error || 'Could not add that student.')
       onCreated({ id: data.person.id, name: data.person.name, detail: draft.email })
-      setDraft({ name: '', email: '' }); setMode('existing')
+      setDraft({ firstName: '', lastName: '', email: '', phone: '', birthday: '' }); setMode('existing')
     } catch (cause) { setCreateError(cause instanceof Error ? cause.message : 'Could not add that student.') }
     finally { setCreating(false); onBusyChange?.(false) }
   }

@@ -27,12 +27,14 @@ const request = body => new Request('https://synthetic.invalid/api/contacts/pers
 
 test('an external student becomes a person and a student in the same account', async () => {
   const h = setup({ queryResult: ({ table, operation }) => table === 'people' && operation === 'insert' ? { data: { id: 'new-person' }, error: null } : table === 'students' && operation === 'insert' ? { data: { id: 'new-student' }, error: null } : undefined })
-  const response = await h.load(route).POST(request({ first_name: 'Ada', last_name: 'Lovelace', email: 'ADA@example.com' }))
+  const response = await h.load(route).POST(request({ first_name: 'Ada', last_name: 'Lovelace', email: 'ADA@example.com', phone: '5551234567', date_of_birth: '2012-03-04' }))
   assert.equal(response.status, 201)
   assert.deepEqual(await response.json(), { person: { id: 'new-person', name: 'Ada Lovelace' } })
   const person = h.getWrites().find(query => query.table === 'people' && query.operation === 'insert')
   assert.equal(person.payload.tenant_id, HEAD)
   assert.equal(person.payload.email, 'ada@example.com')
+  assert.equal(person.payload.phone, '5551234567')
+  assert.equal(person.payload.date_of_birth, '2012-03-04')
   const student = h.getWrites().find(query => query.table === 'students' && query.operation === 'insert')
   assert.equal(student.payload.person_id, 'new-person')
   assert.equal(student.payload.client_status, 'active')
@@ -45,6 +47,15 @@ test('a name is required and a malformed email is refused', async () => {
   const bad = await h.load(route).POST(request({ first_name: 'Ada', email: 'not-an-email' }))
   assert.equal(bad.status, 400)
   assert.equal(h.getWrites().length, 0)
+})
+
+test('invalid, impossible and future birthdays are refused before writing', async () => {
+  for (const date_of_birth of ['invalid', '2025-02-29', '2012-04-31', '1899-12-31', '9999-01-01']) {
+    const h = setup()
+    const response = await h.load(route).POST(request({ first_name: 'Ada', date_of_birth }))
+    assert.equal(response.status, 400, date_of_birth)
+    assert.equal(h.getWrites().length, 0)
+  }
 })
 
 test('an existing email is reported instead of creating a duplicate person', async () => {

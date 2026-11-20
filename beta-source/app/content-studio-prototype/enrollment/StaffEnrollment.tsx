@@ -5,6 +5,7 @@ import { EnrollmentTimeError } from '@/beta-source/lib/academy-calendar-booking'
 import { EnrollmentLayout } from '@/components/ui/EnrollmentLayout'
 import { personFieldErrors } from '@/beta-source/lib/academy-staff-enrollment'
 import { Input } from '@/components/ui/Input'
+import { ContactDetailsFields } from '@/components/contacts/ContactDetailsFields'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { RadioOptionGroup } from '@/components/ui/RadioOptionGroup'
 import { Switch } from '@/components/ui/Switch'
@@ -95,14 +96,9 @@ export function PersonPicker({ title, value, people, onChange, onAdd, contactSel
         if (typeof HTMLElement !== 'undefined' && event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('button')) return
         if (value && !personDetailsError(value)) { onAdd(value); if (!contactSelection) setCreating(false) }
       }}>
-        <FieldGrid>
-          <Input label="First name" error={errors.firstName} autoComplete="off" value={value?.firstName || ''} onChange={event => update('firstName', event.target.value)} />
-          <Input label="Last name" error={errors.lastName} autoComplete="off" value={value?.lastName || ''} onChange={event => update('lastName', event.target.value)} />
-          <Input label="Email" error={errors.email} type="email" autoComplete="off" value={value?.email || ''} onChange={event => update('email', event.target.value)} />
-          <Input label="Phone" error={errors.phone} type="tel" autoComplete="off" value={value?.phone || ''} onChange={event => update('phone', event.target.value)} />
-          <Input label="Birthday" error={errors.birthday} type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={value?.birthday || ''} onChange={event => update('birthday', event.target.value)} />
+        <ContactDetailsFields value={{ firstName: value?.firstName || '', lastName: value?.lastName || '', email: value?.email || '', phone: value?.phone || '', birthday: value?.birthday || '' }} onChange={update} errors={errors}>
           {onRelationship && <Select label={relationshipLabel} value={relationship || ''} onChange={event => onRelationship(event.target.value)}><option value="">Choose relationship</option>{['Self', 'Child', 'Grandchild', 'Sibling', 'Other'].map(value => <option key={value}>{value}</option>)}</Select>}
-        </FieldGrid>
+        </ContactDetailsFields>
       </div></div> : <div style={contactSelection ? { marginTop: spacing.lg } : undefined}>
         <SearchSelect fieldLabel={contactSelection ? "Search for a contact" : undefined} defaultOpen={false} label="Find a person" options={people.map(person => ({ value: person.id, label: `${fullName(person)} ${person.email} ${person.phone}`, content: <><strong>{fullName(person)}</strong><span> · {person.email}</span></> }))} onSelect={id => { const person = people.find(item => item.id === id); if (person) { onChange(person); setSelectedExisting(true); setFinding(false); setCreating(false) } }} onClose={() => { if (!contactSelection) { setFinding(false); setCreating(true) } }} />
         {!contactSelection && <Button type="button" variant="ghost" onClick={() => { setFinding(false); setCreating(true) }}>Enter details</Button>}
