@@ -29,6 +29,12 @@ function cleanMembership(value: unknown): string {
   return typeof value === 'string' && MEMBERSHIPS.has(value.trim()) ? value.trim() : 'confirmed'
 }
 
+function cleanInstruments(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null
+  const list = value.filter((item): item is string => typeof item === 'string').map(item => item.trim()).filter(item => item && item.length <= 60)
+  return [...new Set(list)]
+}
+
 function cleanInstrument(value: unknown): string | null {
   if (value === null || value === undefined) return null
   if (typeof value !== 'string') return null
@@ -47,8 +53,10 @@ export async function POST(request: Request) {
   try {
     const person = await supabaseAdmin.from('people').select('id').eq('tenant_id', auth.tenantId).eq('id', auth.personId).maybeSingle()
     if (person.error || !person.data) return Response.json({ error: 'Choose an existing student.' }, { status: 400, headers })
+    const instruments = cleanInstruments(body?.instruments)
+    const single = cleanInstrument(body?.instrument) ?? instruments?.[0] ?? null
     const result = await supabaseAdmin.from('band_memberships')
-      .upsert({ tenant_id: auth.tenantId, band_name: auth.band, person_id: auth.personId, instrument: cleanInstrument(body?.instrument), membership: cleanMembership(body?.membership), source: 'staff added' }, { onConflict: 'tenant_id,band_name,person_id' })
+      .upsert({ tenant_id: auth.tenantId, band_name: auth.band, person_id: auth.personId, instrument: single, instruments: instruments ?? (single ? [single] : null), membership: cleanMembership(body?.membership), source: 'staff added' }, { onConflict: 'tenant_id,band_name,person_id' })
     if (result.error) throw result.error
     return Response.json({ added: true }, { status: 201, headers })
   } catch { return Response.json({ error: 'Could not add that member.' }, { status: 503, headers }) }
@@ -65,7 +73,9 @@ export async function PATCH(request: Request) {
   if (requestedMembership && !MEMBERSHIPS.has(requestedMembership)) return Response.json({ error: 'Choose a valid membership state.' }, { status: 400, headers })
   const membershipValue = requestedMembership
   try {
-    const patch: Record<string, unknown> = { instrument }
+    const instruments = cleanInstruments(body?.instruments)
+    const patch: Record<string, unknown> = { instrument: instruments ? (instruments[0] ?? null) : instrument }
+    if (instruments) patch.instruments = instruments
     if (membershipValue) patch.membership = membershipValue
     const membership = await supabaseAdmin.from('band_memberships')
       .update(patch).eq('tenant_id', auth.tenantId).eq('band_name', auth.band).eq('person_id', auth.personId).select('person_id')

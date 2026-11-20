@@ -90,7 +90,10 @@ export async function GET(request: Request) {
         member_id: memberId,
         member_name: displayName(memberId),
         member_status: student?.client_status ?? null,
-        member_instrument: typeof enrollment.custom_fields?.band_instrument === 'string' ? enrollment.custom_fields.band_instrument : enrollment.custom_fields?.band_instrument === null ? null : (enrollment.instrument ?? null),
+        member_instruments: Array.isArray(enrollment.custom_fields?.band_instruments)
+          ? (enrollment.custom_fields.band_instruments as string[])
+          : typeof enrollment.custom_fields?.band_instrument === 'string' ? [enrollment.custom_fields.band_instrument]
+            : enrollment.instrument ? [enrollment.instrument] : [],
         member_membership: 'confirmed',
         member_source: 'enrollment' as const,
         member_is_staff: Boolean(memberId && staffPersonIds.has(memberId)),
@@ -102,13 +105,13 @@ export async function GET(request: Request) {
     // Explicit memberships cover people no enrollment row captures.
     const explicit: RosterRow[] = []
     for (let offset = 0; ; offset += 500) {
-      const result = await supabaseAdmin.from('band_memberships').select('band_name,person_id,instrument,membership')
+      const result = await supabaseAdmin.from('band_memberships').select('band_name,person_id,instrument,instruments,membership')
         .eq('tenant_id', access.tenantId).order('band_name').range(offset, offset + 499)
       if (result.error || !Array.isArray(result.data)) throw new Error('Memberships unavailable')
       for (const row of result.data) {
         const name = displayName(row.person_id)
         if (!name) throw new Error('Membership person missing')
-        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, member_instrument: row.instrument ?? null, member_membership: row.membership || 'confirmed', member_source: 'membership' as const, coach_id: null, coach_name: null })
+        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, member_instruments: Array.isArray(row.instruments) && row.instruments.length ? row.instruments : (row.instrument ? [row.instrument] : []), member_membership: row.membership || 'confirmed', member_source: 'membership' as const, coach_id: null, coach_name: null })
       }
       if (result.data.length < 500) break
     }

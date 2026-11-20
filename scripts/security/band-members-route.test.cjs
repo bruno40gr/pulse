@@ -94,3 +94,12 @@ test('membership transitions accept confirmed and pending, and reject anything e
   assert.equal(response.status, 400)
   assert.equal(h.getWrites().length, 0)
 })
+
+test('a member can hold several instruments', async () => {
+  const h = setup()
+  const response = await h.load(route).POST(request('POST', { tenant_id: HEAD, band: 'La Paz', person_id: person, instruments: ['Bass', 'Vocals'] }))
+  assert.equal(response.status, 201)
+  const write = h.getWrites().find(query => query.table === 'band_memberships')
+  assert.deepEqual(Array.from(write.payload.instruments), ['Bass', 'Vocals'])
+  assert.equal(write.payload.instrument, 'Bass')
+})

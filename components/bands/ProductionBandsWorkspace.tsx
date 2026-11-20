@@ -26,7 +26,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-type Member = { person_id: string; name: string; instrument: string | null; membership: string; source: 'enrollment' | 'membership' }
+type Member = { person_id: string; name: string; instruments: string[]; membership: string; source: 'enrollment' | 'membership' }
 type Band = { name: string; coach: string | null; members: Member[]; status?: string; schedule?: string | null; image_url?: string | null }
 type TentativeGroup = { id: string; name: string; member_count?: number; members?: { person_id: string; name: string }[] }
 type Candidate = { id: string; name: string }
@@ -64,6 +64,9 @@ export default function ProductionBandsWorkspace() {
   const [picked, setPicked] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [editingInstruments, setEditingInstruments] = useState<Member | null>(null)
+  const [instrumentDraft, setInstrumentDraft] = useState<string[]>([])
+  const [removing, setRemoving] = useState<Member | null>(null)
   const mobile = useIsMobile()
 
   const load = useCallback((signal: AbortSignal) => {
@@ -94,7 +97,7 @@ export default function ProductionBandsWorkspace() {
     name: group.name,
     coach: null,
     status: 'forming',
-    members: (group.members || []).map(member => ({ person_id: member.person_id, name: member.name, instrument: null, membership: 'prospect', source: 'membership' as const })),
+    members: (group.members || []).map(member => ({ person_id: member.person_id, name: member.name, instruments: [], membership: 'prospect', source: 'membership' as const })),
   })
 
   const allBands = [...bands, ...tentative.map(formingBand)]
@@ -199,11 +202,11 @@ export default function ProductionBandsWorkspace() {
         </DenseSectionPanel> : panelTab === 'members' ? <DenseSectionPanel title="Members" actions={<Button onClick={() => void openAdd()} disabled={saving}>Add students</Button>}>
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
             { id: 'name', header: 'Student', width: '1.2fr', render: row => <PersonName>{row.name}</PersonName> },
-            { id: 'instrument', header: 'Instrument', width: '1fr', render: row => <Select aria-label={`Instrument for ${row.name}`} value={row.instrument || ''} disabled={saving}
-              onChange={event => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, instrument: event.target.value })}>
-              <option value="">Not set</option>
-              {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...(row.instrument ? [row.instrument] : [])])].map(option => <option key={option} value={option}>{option}</option>)}
-            </Select> },
+            { id: 'instrument', header: 'Instruments', width: '1.1fr', render: row => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{row.instruments.length ? row.instruments.join(', ') : 'Not set'}</span>
+                <Button variant="ghost" disabled={saving} onClick={() => { setInstrumentDraft(row.instruments); setEditingInstruments(row) }}>Edit</Button>
+              </div>) },
             { id: 'membership', header: 'Membership', width: '.8fr', render: row => band.status === 'forming' ? 'Prospect' : (MEMBERSHIP_LABEL[row.membership] || row.membership) },
             { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
@@ -211,14 +214,11 @@ export default function ProductionBandsWorkspace() {
                   { label: 'Enroll student', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'confirmed' }) },
                   { label: 'Request enrollment', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'pending' }) },
                 ] : []),
-                ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => {
-                  if (!window.confirm(`Remove ${row.name} from ${band.name}? This ends their band enrolment for this band.`)) return
-                  void mutate('DELETE', '/api/bands/members', { band: band.name, person_id: row.person_id })
-                } }]),
+                ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => setRemoving(row) }]),
               ]} />) },
           ]} />
         </DenseSectionPanel> : <DenseSectionPanel title={panelTab[0].toUpperCase() + panelTab.slice(1)}>
-          <Notice>Coming soon. This band keeps the same records; this section is not available yet.</Notice>
+          <Notice>Coming soon.</Notice>
         </DenseSectionPanel>}
       </div>
     </SlidePanel>}
@@ -271,6 +271,33 @@ export default function ProductionBandsWorkspace() {
           for (const personId of picked) { if (!(await mutate('POST', '/api/bands/members', { band: band.name, person_id: personId, membership: 'confirmed' }))) return }
           setAdding(false)
         }}>{saving ? 'Adding…' : 'Add to band'}</Button>
+      </ModalFooter>
+    </Modal>}
+    {editingInstruments && band && <Modal isOpen onClose={() => setEditingInstruments(null)} ariaLabel="Edit instruments">
+      <ModalHeader title={`Instruments for ${editingInstruments.name}`} onClose={() => setEditingInstruments(null)} />
+      <ModalBody style={{ display: 'grid', gap: spacing.sm }}>
+        {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...instrumentDraft])].map(option => (
+          <Checkbox key={option} label={option} checked={instrumentDraft.includes(option)}
+            onChange={event => setInstrumentDraft(current => event.target.checked ? [...current, option] : current.filter(value => value !== option))} />
+        ))}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" onClick={() => setEditingInstruments(null)} disabled={saving}>Cancel</Button>
+        <Button disabled={saving} onClick={async () => {
+          if (await mutate('PATCH', '/api/bands/members', { band: band.name, person_id: editingInstruments.person_id, instruments: instrumentDraft })) setEditingInstruments(null)
+        }}>{saving ? 'Saving…' : 'Save'}</Button>
+      </ModalFooter>
+    </Modal>}
+    {removing && band && <Modal isOpen onClose={() => setRemoving(null)} ariaLabel="Remove from band">
+      <ModalHeader title="Remove from band" onClose={() => setRemoving(null)} />
+      <ModalBody>
+        <p>Remove {removing.name} from {band.name}? This ends their band enrolment for this band.</p>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" onClick={() => setRemoving(null)} disabled={saving}>Cancel</Button>
+        <Button disabled={saving} onClick={async () => {
+          if (await mutate('DELETE', '/api/bands/members', { band: band.name, person_id: removing.person_id })) setRemoving(null)
+        }}>{saving ? 'Removing…' : 'Remove'}</Button>
       </ModalFooter>
     </Modal>}
   </PageContainer>
