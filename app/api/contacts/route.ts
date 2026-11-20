@@ -291,7 +291,8 @@ export async function GET(request: Request) {
         profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry)).map((entry: any) => {
           const teacher = personById.get(entry.instructor_person_id)
           return {
-            id: entry.id, instrument: entry.instrument, plan_name: entry.plan_name, session_name: entry.session_name,
+            id: entry.id, instrument: entry.instrument, service_type: entry.service_type, plan_name: entry.plan_name, session_name: entry.session_name,
+            instructor_person_id: entry.instructor_person_id, appointment_class_name: entry.custom_fields?.appointment_class_name ?? null,
             lesson_day: entry.lesson_day, lesson_time: entry.lesson_time,
             instructor: teacher ? `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() : entry.custom_fields?.instructor ?? null,
           }
@@ -509,14 +510,13 @@ export async function POST(request: Request) {
       if (existingAccount) {
         accountId = existingAccount.id
         const needsEmail = !existingAccount.email && accountEmail
-        const needsPhone = !existingAccount.phone && accountPhone
-        if (needsEmail || needsPhone) {
+        // A heuristic account match does not establish whose phone it is.
+        // Existing phone fields, including blanks, require separate review.
+        if (needsEmail) {
           const accountUpdate: Record<string, string> = {}
           if (needsEmail) accountUpdate.email = accountEmail!
-          if (needsPhone) accountUpdate.phone = accountPhone!
           await supabaseAdmin.from('accounts').update(accountUpdate).eq('id', accountId)
           existingAccount.email = existingAccount.email || accountEmail
-          existingAccount.phone = existingAccount.phone || accountPhone
           registerAccount(existingAccount)
         }
       } else {
@@ -558,6 +558,9 @@ export async function POST(request: Request) {
         const cleanPersonFields = Object.fromEntries(
           Object.entries(personFields).filter(([k, v]) => {
             if (v === null || v === undefined || v === '') return false
+            // Existing numbers may have been corrected manually. Even filling a blank
+            // requires a verified identity and a separate reviewed update.
+            if (k === 'phone') return false
             // Staff identities are owned by the Staff UI. A roster import must never
             // rewrite an instructor's name/email/phone from a matching student row.
             if (isStaff && (k === 'first_name' || k === 'last_name' || k === 'email' || k === 'phone' || k === 'date_of_birth')) return false

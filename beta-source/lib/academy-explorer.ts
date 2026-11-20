@@ -20,6 +20,8 @@ export function offeringCatalog(kind: AcademyKind): Pick<AcademySettings, 'group
       event(0, 'Camp', 'A themed program with a start and end date, often during school breaks. Participants learn together across scheduled activities.', 'A five-day songwriting camp ending with a student showcase.'),
       event(1, 'Workshop', 'A short event focused on one skill or topic, without ongoing membership.', 'A Saturday improvisation workshop.'),
       event(2, 'Performance', 'A recital or showcase where students and groups present what they have prepared.', 'An end-of-term recital featuring individual students and bands.', 'Link participating groups from their group workspace. Participant registration does not include audience ticketing.'),
+      option('birthday-party', 'Birthday party', 'A private celebration booking.', 'A Saturday birthday party.', eventSettings),
+      option('open-mic', 'Open mic', 'An event with an open sign-up for performers.', 'An afternoon open mic.', eventSettings),
     ],
   }
   if (kind === 'martial') return {

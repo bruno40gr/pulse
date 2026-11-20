@@ -7,6 +7,7 @@ type FilterContact = ContactPresentation & {
   first_name: string; last_name: string; client_status: string; last_attended: string | null
   funded?: boolean; instructor?: { person_id: string | null; name: string | null } | null
   status_class?: 'active' | 'inactive' | 'unknown'
+  profile_enrollments?: { service_type?: string | null; instrument?: string | null; session_name?: string | null; appointment_class_name?: string | null; instructor_person_id?: string | null }[]
 }
 
 /** Applied filters only; editing a drawer draft never invokes a query. */
@@ -17,7 +18,10 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
     if (!value) continue
     switch (key) {
       case 'client_types':
-        if (!matchesClientTypes(contact.custom_fields?.client_types, value)) return false
+        // Imported lesson enrollments are a separate source from explicitly recorded service types.
+        if (!matchesClientTypes(contact.custom_fields?.client_types, value) &&
+          !(value.split('|').includes('Lessons') && contact.is_student !== false &&
+            contact.profile_enrollments?.some(enrollment => ['private', 'semi-private', 'group', 'band'].includes((enrollment.service_type || '').trim().toLowerCase())))) return false
         break
       case 'name':
         if (!contains(`${contact.first_name} ${contact.last_name}`, value) && !contains(contact.account_holder_name, value)) return false
@@ -41,13 +45,14 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
         break
       }
       case 'instructor':
-        if (contact.instructor?.person_id !== value) return false
+        if (contact.instructor?.person_id !== value && !contact.profile_enrollments?.some(enrollment => enrollment.instructor_person_id === value)) return false
         break
       case 'program':
-        if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value)) return false
+        if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value) && !contact.profile_enrollments?.some(enrollment => enrollment.instrument === value)) return false
         break
       case 'service_class':
-        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => contact.custom_fields?.[key] === value)) return false
+        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => contact.custom_fields?.[key] === value) &&
+          !contact.profile_enrollments?.some(enrollment => [enrollment.service_type, enrollment.session_name, enrollment.appointment_class_name].includes(value))) return false
         break
       case 'funded':
         if (Boolean(contact.funded) !== (value === 'yes')) return false

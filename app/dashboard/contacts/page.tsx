@@ -5,6 +5,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useContext } from 'react'
 import { ContactSampleContext, ContactPrototypeContext, ContactNameOpenContext } from '@/components/contacts/ContactPrototypeContext'
 import ContactBulkComposer from '@/components/inbox/ContactBulkComposer'
+import CreateBandOpportunity from '@/components/contacts/CreateBandOpportunity'
 import { TableContextActionBar, TableResultCount, TableSearchControl, TableFiltersButton } from '@/components/ui/TableWorkspaceControls'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { tableRowSelection, type SelectionModifiers } from '@/lib/table-row-selection'
@@ -48,7 +49,7 @@ export interface Contact {
   message_routing?: string
   account_id?: string | null
   account_member_since?: string | null
-  profile_enrollments?: { id: string; instrument: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
+  profile_enrollments?: { id: string; instrument: string | null; service_type?: string | null; instructor_person_id?: string | null; appointment_class_name?: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
   first_name: string
   last_name: string
   phone: string | null
@@ -162,6 +163,7 @@ export default function ContactsPage() {
   const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
+  const [opportunityStudents, setOpportunityStudents] = useState<{ id: string; name: string }[] | null>(null)
   const [singleComposeContact, setSingleComposeContact] = useState<Contact | null>(null)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1)
   const [syncing, setSyncing] = useState(false)
@@ -473,12 +475,18 @@ export default function ContactsPage() {
       const value = contact.custom_fields?.[key]
       return typeof value === 'string' && value.trim() ? [value] : []
     })),
+    ...contacts.flatMap(contact => (contact.profile_enrollments || []).flatMap(enrollment => keys.flatMap(key => {
+      const value = enrollment[key as keyof typeof enrollment]
+      return typeof value === 'string' && value.trim() ? [value] : []
+    }))),
   ])].sort((a, b) => a.localeCompare(b))
   const programOptions = optionsFor(['program', 'instrument'])
   const serviceOptions = optionsFor(['service_type', 'session_name', 'appointment_class_name'])
   const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
-  const instructors = [...new Map(contacts.flatMap(contact => contact.instructor?.person_id && contact.instructor.name
-    ? [[contact.instructor.person_id, contact.instructor.name] as const] : [])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const instructors = [...new Map(contacts.flatMap(contact => [
+    ...(contact.instructor?.person_id && contact.instructor.name ? [[contact.instructor.person_id, contact.instructor.name] as const] : []),
+    ...(contact.profile_enrollments || []).flatMap(enrollment => enrollment.instructor_person_id && enrollment.instructor ? [[enrollment.instructor_person_id, enrollment.instructor] as const] : []),
+  ])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
   const updateFilterDraft = (key: string, value: string) => setFilterDraft(previous => {
     const next = { ...previous }
     if (value) next[key] = value
@@ -705,6 +713,7 @@ export default function ContactsPage() {
             ...(onCreateOpportunity ? [{ id: 'opportunity', label: 'Create opportunity', onClick: () => onCreateOpportunity([...selectedIds]) }] : []),
             ...(onCreateBand ? [{ id: 'band', label: 'Create band', onClick: () => onCreateBand([...selectedIds]) }] : []),
           ] : [
+            ...(process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES === 'true' ? [{ id: 'opportunity', label: 'Create Band opportunity', onClick: () => setOpportunityStudents(contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).map(contact => ({ id: contact.id, name: `${contact.first_name} ${contact.last_name}`.trim() }))), disabledReason: contacts.filter(contact => selectedIds.has(contact.id) && contact.is_student === true).length !== selectedIds.size ? 'Select students individually in the Students view.' : undefined }] : []),
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}
@@ -947,6 +956,7 @@ export default function ContactsPage() {
         </form>
       </SlidePanel>
 
+      {opportunityStudents && <CreateBandOpportunity tenantId={tenantId} students={opportunityStudents} onClose={() => setOpportunityStudents(null)} />}
       <CSVImporter
         isOpen={isImporterOpen}
         onClose={() => setIsImporterOpen(false)}

@@ -928,3 +928,57 @@ Established shared `interaction` roles (blue selected/on/progress/focus; pale-bl
 Migrated enrollment raw self/deferred-payment checkboxes and duration/cadence/trial/payer fields; normalized table selection, weekdays, switches, radio cards, pills, tabs, both steppers, Setup progress and teacher/slot selection styling. Removed duplicate focus rings. See `docs/ui-interaction-colors.md` for the audit inventory and intentional exceptions; this is not a claim that every custom component or neutral hex literal has been eliminated.
 
 Validation: 177 academy/Beta/interaction tests pass; TypeScript clean; focused lint clean (broader edited-tree lint retains warnings). Desktop/mobile interaction colors/keyboard/forced-colors, shared layout, calendar actions and enrollment/band completion browser regressions pass. No database/API/billing-rule changes.
+
+## Operational Bands & Ensembles promotion (2026-11-19, gated)
+
+Bands & ensembles is now an operational route at `/dashboard/bands`, not a Beta
+sample screen. It is hidden from navigation and returns 404 unless
+`NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES`/`ENABLE_CONTACT_BAND_OPPORTUNITIES`
+are `true`; no Beta sample store or adapter is loaded by the page.
+
+- `GET /api/bands` is the read-only enrolled roster: tenant-scoped band
+  enrollments grouped by band label with member names and client status. It
+  paginates and fails closed; it never writes.
+- `Tentative bands` in the same view are separate candidacies, never enrollments
+  and never a copied opportunity status.
+- `Students seeking a band` reuses the shared Leads workspace over canonical
+  `lead_intakes` service opportunities, so the same record and status appear in
+  both Leads and Bands.
+- Creation and tentative-link APIs remain flag-gated and were rehearsed against
+  an isolated PostgreSQL container only. The production migration has not been
+  applied.
+- The reusable (non-Band) Contacts "Create opportunity" flow and the roster
+  service sync are not implemented; the current Contacts action is Band-only.
+
+### Gate and failure isolation (2026-11-19)
+
+The page and APIs previously read different flag names, so enabling only the
+public flag rendered the page while every endpoint returned 404. All callers now
+use `bandOpportunitiesEnabled()` and either name enables the feature.
+
+Roster and tentative-band reads are independent: an unapplied tentative migration
+shows its own message and never blanks the roster. Verified in-browser for both
+sections succeeding, tentative unavailable, and roster unavailable.
+
+Local `.env.local` targets the staging project, which has no band enrollments and
+no tentative tables; an empty roster there is data, not a failure. The migrated
+schema and the real roster exist only in the production project.
+
+### Production migrations applied (2026-11-19)
+
+Applied to the production project with tracked migrations:
+
+1. `contact_band_opportunities` — link table, tentative groups/links, and the two
+transactional functions. Verified: 3 tables, RLS on all three, unique name index,
+and both functions executable only by `service_role`/`postgres`.
+2. `band_opportunities_24` — one canonical Band service opportunity per reviewed
+Band-interest student. Verified: 24 links, 24 `service_inquiry`/`Band`/`new`
+leads tagged `service_type=band`, 24 distinct students, 0 duplicate links.
+3. `vasquez_bass_students` — the three clients with no production person. Payer
+evidence put Santi and Catalina Vasquez under a new **Nichole Vasquez** account
+(the existing "Catalina Vasquez" account actually holds the Delgado household)
+and Shaun Bass under the existing **Kay Bass** account. No phone or email values
+were written.
+
+The application code for these features is **not deployed**, so the live app does
+not yet render the new opportunities or the operational Bands page.

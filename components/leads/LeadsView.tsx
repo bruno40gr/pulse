@@ -30,6 +30,7 @@ import { loadAccountContext } from '@/lib/account-context-client'
 import { LeadDetailPanel } from './LeadDetailPanel'
 import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LeadInlineEditor } from './LeadInlineEditor'
+import TentativeBandsEditor from './TentativeBandsEditor'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { matchesLeadInquirySearch } from '@/lib/lead-inquiry-search'
 import { leadStudentDetailRows, leadStudentsPatch, readLeadStudents, syncStudentContact } from '@/lib/lead-students'
@@ -577,9 +578,39 @@ export default function LeadsView({ adapter, correctionPrototype = true, matchin
 
 function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: LeadWorkspaceAdapter; correctionPrototype: boolean; matching: boolean }) {
   const request = useLeadWorkspaceRequest()
-  const fetchJson = useCallback(<T,>(input: string, init?: RequestInit, timeoutMs?: number) => fetchJsonWithTimeout<T>(request, matching && input.startsWith('/api/leads?') ? `${input}&band_scope=1&band_id=unassigned` : input, init, timeoutMs), [request, matching])
+  const fetchJson = useCallback(<T,>(input: string, init?: RequestInit, timeoutMs?: number) => fetchJsonWithTimeout<T>(request, matching && input.startsWith('/api/leads?') ? `${input}&band_scope=1` : input, init, timeoutMs), [request, matching])
 
   const [leads, setLeads] = useState<LeadRecord[]>([])
+  const [tentativeBands, setTentativeBands] = useState<Record<string, string[]>>({})
+  const [tentativeBandsState, setTentativeBandsState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [editingTentativeLead, setEditingTentativeLead] = useState<string | null>(null)
+  const [tentativeRevision, setTentativeRevision] = useState(0)
+  const loadedLeadIds = useMemo(() => leads.map(lead => lead.id).sort().join(','), [leads])
+  useEffect(() => {
+    if (!matching || adapter || process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'true') return
+    const ids = loadedLeadIds ? loadedLeadIds.split(',') : []
+    if (!ids.length) { setTentativeBands({}); setTentativeBandsState('ready'); return }
+    const controller = new AbortController()
+    setTentativeBands({}); setTentativeBandsState('loading')
+    void (async () => {
+      const associations: { lead_id: string; band_id: string; name: string }[] = []
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const params = new URLSearchParams({ tenant: getActiveTenantId() })
+        for (const id of ids.slice(offset, offset + 100)) params.append('lead_id', id)
+        const response = await fetch(`/api/leads/tentative-bands?${params}`, { cache: 'no-store', signal: controller.signal })
+        if (!response.ok) throw new Error('Could not load tentative bands')
+        const body = await response.json()
+        if (!Array.isArray(body.associations) || body.associations.some((item: { lead_id?: unknown; band_id?: unknown; name?: unknown }) => typeof item.lead_id !== 'string' || !ids.includes(item.lead_id) || typeof item.band_id !== 'string' || typeof item.name !== 'string')) throw new Error('Invalid tentative bands')
+        associations.push(...body.associations)
+      }
+      if (!controller.signal.aborted) {
+        const byLead: Record<string, string[]> = {}
+        for (const item of associations) (byLead[item.lead_id] ||= []).push(item.name)
+        setTentativeBands(byLead); setTentativeBandsState('ready')
+      }
+    })().catch(() => { if (!controller.signal.aborted) setTentativeBandsState('error') })
+    return () => controller.abort()
+  }, [adapter, loadedLeadIds, matching, tentativeRevision])
   const [rowNow, setRowNow] = useState(() => Date.now())
   useEffect(() => {
     const now = Date.now()
@@ -1419,9 +1450,9 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
 
   useEffect(() => {
     if (selectedLead && !leadBelongsToTab(selectedLead, activeTab)) {
-      closeLead()
+      if (!(matching && selectedLead.payload?.service_type === 'band' && !['won', 'lost', 'ghosted_us', 'ghosted'].includes(selectedLead.status))) closeLead()
     }
-  }, [activeTab, selectedLead])
+  }, [activeTab, selectedLead, matching])
 
   useEffect(() => {
     if (!isMobileLayout) setDetailPanelTab('details')
@@ -1524,6 +1555,10 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
       sortKey: 'name',
       render: (lead) => <TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>,
     },
+    ...(matching && !adapter ? [{
+      id: 'tentativeBands', header: 'Tentative bands', width: 'minmax(150px, 1fr)',
+      render: (lead: LeadRecord) => <div style={secondaryCellStyle}>{tentativeBandsState === 'loading' ? 'Loading…' : tentativeBandsState === 'error' ? 'Unavailable' : tentativeBands[lead.id]?.join(', ') || '—'} {lead.source_form === 'contact-band-opportunity' && process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES === 'true' && <Button variant="secondary" size="sm" onClick={() => setEditingTentativeLead(lead.id)}>Edit</Button>}</div>,
+    }] : []),
     {
       id: 'phone',
       header: 'Phone',
@@ -1990,6 +2025,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
         </form>
       </SlidePanel>
       <PageContainer style={matching ? { padding: 0 } : undefined}>
+        {editingTentativeLead && <TentativeBandsEditor tenantId={tenantId} leadId={editingTentativeLead} onClose={() => setEditingTentativeLead(null)} onSaved={() => setTentativeRevision(value => value + 1)} />}
         {!matching && <PageHeader
           title="Leads"
           right={(

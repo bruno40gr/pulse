@@ -306,6 +306,10 @@ export async function GET(request: Request) {
     const status = url.searchParams.get('status')
     const category = url.searchParams.get('category')
     const intakeType = url.searchParams.get('intake_type') || 'lesson_inquiry'
+    const bandScope = url.searchParams.get('band_scope')
+    if (bandScope !== null && (bandScope !== '1' || intakeType !== 'lesson_inquiry' || url.searchParams.has('band_id'))) {
+      return NextResponse.json({ error: 'Invalid band opportunity filter.' }, { status: 400 })
+    }
     const includeCounts = url.searchParams.get('include_counts') === '1'
     const includeActivity = url.searchParams.get('include_activity') !== '0'
     if (url.searchParams.get('summary_only') === '1') {
@@ -440,13 +444,19 @@ export async function GET(request: Request) {
 
     if (status) query = query.eq('status', status)
     if (category) query = query.eq('category', category)
+    // Only explicitly tagged opportunities are included. Do not infer identity or
+    // band interest from a name, student text, or a generic lesson label.
+    if (bandScope === '1') query = query.eq('payload->>service_type', 'band')
     if (intakeType === 'winback') query = query.eq('source_form', WINBACK_SOURCE_FORM).neq('status', 'won')
     else if (intakeType === 'enrolled' || intakeType === 'lost') {
       query = query.in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
       query = intakeType === 'enrolled' ? query.eq('status', 'won') : query.neq('source_form', WINBACK_SOURCE_FORM).in('status', ['lost', 'ghosted_us', 'ghosted'])
     }
     else if (intakeType) {
-      query = intakeType === 'lesson_inquiry' ? query.in('intake_type', LESSON_LEAD_TYPES) : query.eq('intake_type', intakeType)
+      // Band matching includes explicitly tagged service opportunities as well as
+      // legacy lesson inquiries; both remain the same canonical lead_intakes rows.
+      query = bandScope === '1' ? query.in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry'])
+        : intakeType === 'lesson_inquiry' ? query.in('intake_type', LESSON_LEAD_TYPES) : query.eq('intake_type', intakeType)
       if (intakeType === 'lesson_inquiry' || intakeType === 'service_inquiry') query = query.neq('source_form', WINBACK_SOURCE_FORM).not('status', 'in', '(won,lost,ghosted_us,ghosted)')
     }
 

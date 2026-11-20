@@ -20,13 +20,16 @@ import { assembleGroup, safeResourceUrl, type AcademyGroup, type AcademySettings
 import type { ExplorerEvent, ExplorerPerson } from '@/beta-source/lib/event-explorer'
 import type { SetupRecord } from '../school-setup/setup-content'
 import styles from './explorer.module.css'
+import BandReview from './BandReview'
+import type { BandReviewData } from '@/lib/band-review-data'
 
-export default function GroupsWorkspace({ academy, people, events, staff, onChange, onOpenEvent, onCreate, onOpenBand, matchingQueue, creationDrafts }: {
+export default function GroupsWorkspace({ academy, people, events, staff, onChange, onOpenEvent, onCreate, onOpenBand, matchingQueue, creationDrafts, review }: {
   academy: AcademySettings; people: ExplorerPerson[]; staff: SetupRecord[]; events: ExplorerEvent[];
   onChange: (value: AcademySettings) => void; onOpenEvent: (id: string) => void; onCreate: () => void;
   onOpenBand?: (id: string) => void;
   matchingQueue?: React.ReactNode;
   creationDrafts?: React.ReactNode;
+  review?: BandReviewData;
 }) {
   const [view, setView] = useState<'bands' | 'matching'>('bands')
   const [draft, setDraft] = useState<AcademyGroup | null>(null)
@@ -35,6 +38,11 @@ export default function GroupsWorkspace({ academy, people, events, staff, onChan
   const [resourceName, setResourceName] = useState('')
   const [resourceUrl, setResourceUrl] = useState('')
   const [resourceKind, setResourceKind] = useState<GroupResource['kind']>('Document')
+  if (review) return <>
+    <PageHeader title="Bands & ensembles" />
+    <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'Bands & ensembles' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
+    <BandReview data={review} view={view} />
+  </>
   const update = (change: Partial<AcademyGroup>) => { setDraft(current => current ? { ...current, ...change } : current); setError('') }
   const back = () => {
     const original = academy.groups.find(group => group.id === draft?.id)

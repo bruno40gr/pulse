@@ -43,6 +43,17 @@ test('missing or malformed client types never match a selected type; clearing th
     assert.equal(matchesContactFilters(contact, { client_types: '' }), true)
   }
 })
+test('lesson client type matches recorded lesson enrollments without rewriting contact types', () => {
+  for (const service_type of ['private', 'semi-private', 'group', 'band']) {
+    const contact = { ...student, custom_fields: {}, profile_enrollments: [{ service_type }] }
+    assert.equal(matchesContactFilters(contact, { client_types: 'Lessons' }), true)
+    assert.equal(matchesContactFilters(contact, { client_types: 'Recording studio|Lessons' }), true)
+    assert.equal(matchesContactFilters(contact, { client_types: 'Recording studio' }), false)
+    assert.equal(matchesContactFilters({ ...contact, is_student: false }, { client_types: 'Lessons' }), false)
+  }
+  assert.equal(matchesContactFilters({ ...student, profile_enrollments: [{ service_type: 'rehearsal' }] }, { client_types: 'Lessons' }), false)
+  assert.equal(matchesContactFilters({ ...student, profile_enrollments: [] }, { client_types: 'Lessons' }), false)
+})
 test('default filter includes only active recorded students', () => {
   assert.equal(matchesContactFilters(student, DEFAULT_CONTACT_FILTERS, now), true)
   assert.equal(matchesContactFilters({ ...student, is_student: false }, DEFAULT_CONTACT_FILTERS, now), false)
@@ -78,4 +89,12 @@ test('one service/class filter matches either imported representation; program i
   }
   assert.equal(matchesContactFilters(student, { service_class: 'Private Piano' }), false)
   assert.equal(matchesContactFilters({ ...student, custom_fields: { instrument: 'Piano' } }, { program: 'Piano' }), true)
+})
+test('filter options can match a secondary enrollment rather than only the first', () => {
+  const contact = { ...student, profile_enrollments: [
+    { instrument: 'Piano', service_type: 'private', instructor_person_id: 'teacher' },
+    { instrument: 'Guitar', service_type: 'band', session_name: 'Band A', appointment_class_name: 'Ensemble', instructor_person_id: 'other' },
+  ] }
+  for (const filters of [{ program: 'Guitar' }, { service_class: 'band' }, { service_class: 'Band A' }, { service_class: 'Ensemble' }, { instructor: 'other' }]) assert.equal(matchesContactFilters(contact, filters), true)
+  assert.equal(matchesContactFilters(contact, { instructor: 'missing' }), false)
 })

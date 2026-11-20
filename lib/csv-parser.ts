@@ -408,13 +408,17 @@ function parseCSVLegacy(rows: CsvRow[], headers: string[]): ParsedContact[] {
 
 export async function parseCSV(csv: string, mappings?: FieldMapping[]): Promise<ParsedContact[]> {
   const result = Papa.parse<CsvRow>(csv, { header: true, skipEmptyLines: true })
-  const rows = result.data
+  const headers = result.meta.fields || []
+  // Subscription exports include historical ended plans. Do not turn those
+  // into current enrollments; retain pending rows for the reviewed import.
+  const rows = detectType(headers) === 'subscriptions' && headers.includes('Status')
+    ? result.data.filter(row => ['active', 'pending'].includes((row.Status || '').trim().toLowerCase()))
+    : result.data
   if (rows.length === 0) return []
 
   if (mappings && mappings.length > 0) {
     return parseCSVWithMappings(rows, mappings)
   }
 
-  const headers = result.meta.fields || Object.keys(rows[0] || {})
-  return parseCSVLegacy(rows, headers)
+  return parseCSVLegacy(rows, headers.length ? headers : Object.keys(rows[0] || {}))
 }

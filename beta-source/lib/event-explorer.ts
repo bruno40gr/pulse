@@ -1,4 +1,6 @@
-/** Fictional exploration only. No persistence, messaging or payment adapters. */
+import type { PerformancePreview } from './performance-preview'
+
+/** Fictional exploration only. No live messaging or payment adapters. */
 export type PeopleView = 'students' | 'customers' | 'participants' | 'all' | 'leads'
 export type InquiryStage = 'New' | 'Contacted' | 'Booked' | 'Processing' | 'Won' | 'Enrolled' | 'Lost' | 'Spam' | 'Ghosted us' | 'Disenrolled'
 export type ExplorerInquiry = { enrollmentSentAt?: string; serviceType?: 'band'; bandId?: string; accountId?: string; programId?: string; proposalId?: string; origin?: 'staff_initiated' | 'family_inquiry'; source?: string; createdAt?: string; updatedAt?: string; winbackStatus?: 'to_contact' | 'contacted' | 'interested' | 're_enrolled' | 'closed'; id: string; personId: string; interest: string; stage: InquiryStage; category: string; followUp: string; note: string }
@@ -7,7 +9,7 @@ export type ExplorerClientType = typeof explorerClientTypes[number]
 export type ExplorerPerson = { subscriptions?: { instrument: string; status: 'active' | 'pending' | 'cancelled'; recurring: boolean }[]; clientTypes?: ExplorerClientType[]; source?: string; accountId?: string; instruments?: string[]; id: string; name: string; email: string; family: string; roles: string[]; enrolled: boolean; customer: boolean }
 export type ExplorerActivity = { rooms?: string[]; multipleRooms?: boolean; id: string; name: string; ages: string; capacity: number; teacher: string; room: string; schedule: string }
 export type EventSchedule = { days: string[]; from: string; to: string }
-export type ExplorerEvent = { multipleSessions?: boolean; scheduleMode?: 'single' | 'multiple'; sessionPrice?: string; paymentHandling?: Record<string, 'online' | 'manual'>; dailySchedule?: EventSchedule; paymentMethods?: string[]; questionChoices?: string[]; typeId?: string; id: string; name: string; description: string; image: string; start: string; end: string; schedule: string; location: string; published: boolean; activities: ExplorerActivity[]; signup: string; payment: string; price: string; deposit: string; access: string; approval: boolean; hold: string; allocation: string; cancellation: string; waiver: string; questions: string; message: string }
+export type ExplorerEvent = { performancePreview?: PerformancePreview; multipleSessions?: boolean; scheduleMode?: 'single' | 'multiple'; sessionPrice?: string; paymentHandling?: Record<string, 'online' | 'manual'>; dailySchedule?: EventSchedule; paymentMethods?: string[]; questionChoices?: string[]; typeId?: string; id: string; name: string; description: string; image: string; start: string; end: string; schedule: string; location: string; published: boolean; activities: ExplorerActivity[]; signup: string; payment: string; price: string; deposit: string; access: string; approval: boolean; hold: string; allocation: string; cancellation: string; waiver: string; questions: string; message: string }
 export type ExplorerRegistration = { id: string; eventId: string; activityId: string; personId: string; status: 'Confirmed' | 'Awaiting approval' | 'Awaiting payment' | 'Waitlisted' | 'Cancelled'; attended: boolean; responses?: Record<string, string>; policyOverrides?: string[] }
 export const explorerPeople: ExplorerPerson[] = [
   { id: 'sophie', subscriptions: [{ instrument: 'Guitar', status: 'active', recurring: true }], accountId: 'kim', instruments: ['Guitar', 'Voice'], name: 'Sophie Kim', email: 'sam.kim@example.invalid', family: 'Kim family · Sam Kim (parent)', roles: ['Student'], enrolled: true, customer: false },
@@ -52,7 +54,7 @@ export function eventScheduleMode(event: ExplorerEvent): 'single' | 'multiple' {
   return event.scheduleMode || (event.start && event.start === event.end ? 'single' : 'multiple')
 }
 export function eventTypeScheduleMode(name: string): 'single' | 'multiple' {
-  return /workshop|performance/i.test(name) ? 'single' : 'multiple'
+  return /workshop|performance|birthday party|open mic/i.test(name) ? 'single' : 'multiple'
 }
 /** Keep the single-date UI and legacy date/schedule fields in sync. */
 export function updateEventSchedule(event: ExplorerEvent, change: Partial<ExplorerEvent>): ExplorerEvent {

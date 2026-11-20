@@ -109,6 +109,12 @@ function createHarness() {
     }).outputText
     const localRequire = id => {
       if (id === 'node:crypto' || id === 'node:buffer') return require(id)
+      if (id === 'node:path') return require('node:path')
+      if (id === 'node:fs/promises') return { readFile: async file => {
+        const content = scenario.syntheticFiles?.[path.basename(file)]
+        if (typeof content !== 'string') throw new Error('Synthetic file unavailable')
+        return content
+      } }
       if (id === 'next/server') return { NextResponse: SyntheticResponse }
       if (id === '@/lib/supabase/admin') return { supabaseAdmin: primary }
       if (id === '@/lib/supabase/crm-admin') return { crmSupabaseAdmin: crm }

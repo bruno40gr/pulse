@@ -43,7 +43,7 @@ import { saveCalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { loadLocalAcademyWorkspace, saveLocalAcademyWorkspace, validAcademyWorkspace, readAcademyWorkspaceResponse, type AcademyWorkspaceState } from '@/beta-source/lib/academy-workspace-storage'
 import { Notice } from '@/components/ui/Notice'
 import { Button } from '@/components/ui/Button'
-export default function DemoWorkspace({ onboarding = false }: { onboarding?: boolean }) {
+export default function DemoWorkspace({ onboarding = false, bandReview }: { onboarding?: boolean; bandReview?: import('@/lib/band-review-data').BandReviewData }) {
   const params = useSearchParams()
   const router = useRouter()
   const [queue, updateQueue] = usePortalQueue()
@@ -230,7 +230,9 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
   if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/odeon-demo?screen=calendar">Open sample calendar</a></Notice>
   if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
   return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent || (workflow && enrollmentFocused)}>
-    {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{tenant
+    {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{bandReview
+      ? 'Private local band review · Read only · No bookings or imports'
+      : tenant
       ? 'School account · Changes are shared with every staff member of this school'
       : 'Beta · Sample data · Fictional records only · No real payments or messages · Saved on this browser · Not shared with other testers'}</div>}
     {storageError && <Notice variant="error">{storageError}</Notice>}
@@ -256,7 +258,7 @@ export default function DemoWorkspace({ onboarding = false }: { onboarding?: boo
     today={betaPreviewToday}
     onExit={() => { const next = new URLSearchParams(params.toString()); next.delete('screen'); router.push(`/odeon-demo?${next}`) }}
     onApply={change => setSnapshot(current => ({ ...current, data: change(current.data) }))}
-  /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} onEnrollmentFocus={setEnrollmentFocused} teachingLoad={teachingLoad} /> : staff ? <>
+  /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded bandReview={bandReview} samplePerformance={!tenant && snapshot.data.demoSchool === true} initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} onEnrollmentFocus={setEnrollmentFocused} teachingLoad={teachingLoad} /> : staff ? <>
       <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
       {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} onWorkflow={beginWorkflow} />} />}

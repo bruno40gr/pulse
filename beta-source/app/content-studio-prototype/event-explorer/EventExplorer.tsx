@@ -57,6 +57,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PersonName } from '@/components/ui/PersonName'
 import EventFields from './EventFields'
+import PerformanceWorkspace from './PerformanceWorkspace'
 import { colors, typography } from '@/lib/tokens'
 import { createExplorerState, eventRegistrationActivity, activitySpace, newExplorerEvent, eventErrors, registerExplorerPerson, type ExplorerEvent, type ExplorerRegistration, type ExplorerInquiry } from '@/beta-source/lib/event-explorer'
 import styles from './explorer.module.css'
@@ -77,7 +78,9 @@ export type BetaWorkflowCompletion =
 
 
 
-export default function EventExplorer({ embedded = false, initialScreen = 'events', configuredData, onConfiguredChange, intent, onIntentHandled, onWorkflowCompleted, onEnrollmentFocus, teachingLoad = [], bookingContext }: {
+export default function EventExplorer({ embedded = false, initialScreen = 'events', configuredData, onConfiguredChange, intent, onIntentHandled, onWorkflowCompleted, onEnrollmentFocus, teachingLoad = [], bookingContext, samplePerformance = false, bandReview }: {
+  bandReview?: import('@/lib/band-review-data').BandReviewData;
+  samplePerformance?: boolean;
   bookingContext?: BookingContext; embedded?: boolean; initialScreen?: BetaWorkflowScreen; configuredData?: Record<string, SetupRecord[]>;
   onConfiguredChange?: (data: Record<string, SetupRecord[]>) => void;
   intent?: { id: string; kind: 'enrollment' | 'opportunity' | 'group'; ids: string[]; calendarLesson?: Partial<LessonChoice> } | null;
@@ -114,7 +117,13 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   const [portal, setPortal] = useState(false)
   const tasks = queue.tasks, setTasks = queueSetter('tasks')
   const bookings = queue.bookings, setBookings = queueSetter('bookings')
-  const academy = queue.academy, setAcademy = queueSetter('academy')
+  const setAcademy = queueSetter('academy')
+  const academy = useMemo(() => {
+    const current = queue.academy
+    if (!samplePerformance || current.kind !== 'music') return current
+    const additions = academySettings('music').eventTypes.filter(type => ['birthday-party', 'open-mic'].includes(type.id) && !current.eventTypes.some(existing => existing.id === type.id))
+    return additions.length ? { ...current, eventTypes: [...current.eventTypes, ...additions] } : current
+  }, [queue.academy, samplePerformance])
   const enrollmentRequests = queue.requests, setEnrollmentRequests = queueSetter('requests')
   const [requestTargets, setRequestTargets] = useState<{ bandId: string; ids: string[] } | null>(null)
   const [requestAccount, setRequestAccount] = useState<string | null>(null)
@@ -143,6 +152,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   const academyTeachers = useMemo(() => betaAcademyTeachers(configuredSetup), [configuredSetup])
   const [screen, setScreen] = useState<Screen>(initialScreen)
   const [eventId, setEventId] = useState<string | null>(null)
+  const [managingPerformance, setManagingPerformance] = useState(false)
   const [tab, setTab] = useState<EventTab>('details')
   const [, setPersonId] = useState<string | null>(null)
   const [opportunityIds, setOpportunityIds] = useState<string[] | null>(null)
@@ -221,7 +231,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
       return { ...current, drafts: [...current.drafts.filter(item => item.id !== record.id), record], inquiries: record.kind === 'program' ? syncProgramLeads(current.inquiries, record.id, record.data) : current.inquiries }
     })
   }, [updateQueue])
-  const navigate = (next: Screen) => { setScreen(next); setActiveId(null); setActiveBandEnrollment(null); setBandPanelId(null); setStudentPanelId(null); setEventId(null); setPersonId(null); setErrors([]); setNotice(''); setPreview(false); setLessonChooser(false); setPortal(false) }
+  const navigate = (next: Screen) => { setScreen(next); setActiveId(null); setActiveBandEnrollment(null); setBandPanelId(null); setStudentPanelId(null); setEventId(null); setManagingPerformance(false); setPersonId(null); setErrors([]); setNotice(''); setPreview(false); setLessonChooser(false); setPortal(false) }
   const externalScreen = useRef(initialScreen)
   useEffect(() => {
     if (embedded && externalScreen.current !== initialScreen) {
@@ -230,6 +240,8 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
     }
   }, [embedded, initialScreen])
   const openEvent = (id: string) => { navigate('events'); setEventId(id); setTab('details') }
+  const canManagePerformance = (item: ExplorerEvent) => samplePerformance && /^performance$/i.test(academy.eventTypes.find(type => type.id === item.typeId)?.name || '')
+  const openPerformance = (id: string) => { openEvent(id); setManagingPerformance(true) }
   const startDraft = (kind: WorkflowDraft['kind'], origin: WorkflowDraft['origin'] = 'hub', members?: string[], lesson?: Pick<LessonChoice, 'service' | 'instrument'> & Partial<Pick<LessonChoice, 'frequency'>>, calendarLesson?: Partial<LessonChoice>) => {
     const record = newWorkflowDraft(kind, academy, origin)
     if (record.kind === 'event') record.data.location = locations[0]?.values.name || ''
@@ -353,6 +365,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   }
   const renderEventTable = () => <Table label="Events" rows={state.events} columns={[
     { id: 'name', header: 'Event', width: '2fr', render: row => <PersonName as="button" onClick={() => openEvent(row.id)}>{row.name || 'Untitled event'}</PersonName> },
+    { id: 'type', header: 'Type', width: '1.25fr', render: row => canManagePerformance(row) ? <PersonName as="button" aria-label={`Manage performance: ${row.name || 'Untitled event'}`} onClick={() => openPerformance(row.id)}>Performance</PersonName> : academy.eventTypes.find(type => type.id === row.typeId)?.name || 'Not set' },
     { id: 'dates', header: 'Date range', width: '1.5fr', render: row => `${row.start || 'Not set'} – ${row.end || 'Not set'}` },
     { id: 'activities', header: 'Activities', width: '.6fr', render: row => row.activities.length },
     { id: 'registrations', header: 'Registrations', width: '.8fr', render: row => state.registrations.filter(item => item.eventId === row.id && item.status !== 'Cancelled').length },
@@ -416,7 +429,10 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   } else if (screen === 'setup') {
     content = <AcademySetup bookingContext={bookingContext} configuredDiscountPolicy={discountSetup.policy} configuredDiscounts={discountSetup.discounts} onDiscountsChange={saveDiscountSetup} events={state.events} configuredData={configuredSetup} onDataChange={saveSetup} key={academy.kind} academy={academy} onChange={setAcademy} onInstitution={changeInstitution} onExit={() => navigate('events')} />
   } else if (screen === 'groups') {
-    content = <GroupsWorkspace creationDrafts={renderCreationDrafts('group')} matchingQueue={academy.kind === 'music' ? <OpportunitiesWorkspace adapter={opportunityAdapter} matching /> : undefined} onOpenBand={academy.kind === 'music' ? setBandPanelId : undefined} onCreate={() => startDraft('group', 'groups')} staff={staff} academy={academy} people={state.people} events={state.events} onChange={setAcademy} onOpenEvent={openEvent} />
+    content = <GroupsWorkspace review={bandReview} creationDrafts={renderCreationDrafts('group')} matchingQueue={academy.kind === 'music' ? <OpportunitiesWorkspace adapter={opportunityAdapter} matching /> : undefined} onOpenBand={academy.kind === 'music' ? setBandPanelId : undefined} onCreate={() => startDraft('group', 'groups')} staff={staff} academy={academy} people={state.people} events={state.events} onChange={setAcademy} onOpenEvent={openEvent} />
+  } else if (screen === 'events' && event && managingPerformance && canManagePerformance(event)) {
+    content = <><PageHeader title={event.name || 'Performance'} onBack={() => navigate('events')} right={<Button variant="secondary" onClick={() => openEvent(event.id)}>Event details</Button>} />
+      <PerformanceWorkspace key={event.id} event={event} people={state.people} onChange={performancePreview => updateEvent({ performancePreview })} /></>
   } else if (screen === 'events' && event) {
     const registrations = state.registrations.filter(item => item.eventId === event.id)
     const link = `https://academy.example.invalid/events/${encodeURIComponent(event.id)}`
@@ -433,7 +449,17 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
       ]} /></DenseSectionPanel><DenseSectionPanel title="Participant message" actions={<Button variant="secondary" onClick={() => setNotice(event.message.trim() ? 'Message draft saved.' : 'Write a message first.')}>Save draft</Button>}><Textarea label="Message draft" value={event.message} onChange={e => updateEvent({ message: e.target.value })} /></DenseSectionPanel></>}
     </>
   } else if (screen === 'events') {
-    content = <><PageHeader title="Events" right={<Button onClick={() => startDraft('event', 'events')}>Create event</Button>} /><Stats items={[[ 'Events', state.events.length ], ['Published', state.events.filter(item => item.published).length], ['Registrations', state.registrations.filter(item => item.status !== 'Cancelled').length]]} />{renderCreationDrafts('event')}{renderEventTable()}</>
+    const performanceType = samplePerformance && academy.eventTypes.find(type => type.enabled && /^performance$/i.test(type.name))
+    const openSample = () => {
+      if (!performanceType) return
+      const id = 'sample-performance-showcase'
+      setState(current => current.events.some(item => item.id === id) ? current : { ...current, events: [...current.events, {
+        ...newExplorerEvent(id), typeId: performanceType.id, name: 'Student Showcase (sample)', price: '0', scheduleMode: 'single',
+        start: '2026-12-12', end: '2026-12-12', schedule: '2–4 PM', dailySchedule: { days: ['Saturday'], from: '14:00', to: '16:00' },
+      }] })
+      openPerformance(id)
+    }
+    content = <><PageHeader title="Events" right={<div className={styles.inlineActions}>{performanceType && <Button variant="secondary" onClick={openSample}>Preview performance workflow</Button>}<Button onClick={() => startDraft('event', 'events')}>Create event</Button></div>} /><Stats items={[[ 'Events', state.events.length ], ['Published', state.events.filter(item => item.published).length], ['Registrations', state.registrations.filter(item => item.status !== 'Cancelled').length]]} />{renderCreationDrafts('event')}{renderEventTable()}</>
   } else if (screen === 'people') {
     content = <ContactsWorkspace onCreate={beginOpportunity} people={state.people.map(person => academy.singleLessons.some(booking => booking.personId === person.id) ? { ...person, clientTypes: [...new Set([...(person.clientTypes || []), 'Lessons' as const])] } : person)} registrations={state.registrations} onBook={() => setLessonChooser(true)} />
   } else if (screen === 'opportunities') {

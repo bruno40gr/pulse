@@ -227,6 +227,24 @@ for (const legacy of [false, true]) test(`populated mapped CSV imports without t
     ['2026-10-02', 'absent'], ['2026-10-01', 'attended'],
   ])
 })
+
+test('CSV imports never overwrite or fill phone numbers on existing people or accounts', async () => {
+  for (const existingPhone of ['+12025550101', null]) {
+    const scenario = staffScenario({ permissions: ['contacts.manage'] })
+    scenario.fixtures.people = [{ id: 'person', tenant_id: HEAD, first_name: 'Synthetic', last_name: 'Student', phone: existingPhone, email: 'student@example.invalid', custom_fields: {} }]
+    scenario.fixtures.accounts = [{ id: 'account', tenant_id: HEAD, name: 'Synthetic Family', email: 'family@example.invalid', phone: existingPhone }]
+    scenario.fixtures.students = [{ id: 'student', tenant_id: HEAD, person_id: 'person', account_id: 'account' }]
+    const { harness } = setup(scenario)
+    const csv = 'Student,Email,Phone,Family,Family Email,Family Phone\nSynthetic Student,student@example.invalid,2025550199,Synthetic Family,family@example.invalid,2025550198\n'
+    const mappings = [['Student', 'full_name'], ['Email', 'email'], ['Phone', 'phone'], ['Family', 'account_holder_name'], ['Family Email', 'account_holder_email'], ['Family Phone', 'account_holder_phone']].map(([csv_column, field_key]) => ({ csv_column, field_key }))
+    const response = await harness.load('app/api/contacts/route.ts').POST(request('', { csv, mappings }))
+    assert.equal(response.status, 200)
+    assert.equal((await response.json()).updated, 1)
+    for (const write of harness.getWrites().filter(q => ['people', 'accounts'].includes(q.table) && q.operation === 'update')) {
+      assert.equal(Object.hasOwn(write.payload, 'phone'), false)
+    }
+  }
+})
 test('Headliner campaign creation keeps its existing response and school', async () => {
   const { harness } = setup(staffScenario({ permissions: ['communications.send'] }))
   const response = await harness.load('app/api/campaigns/route.ts').POST(request('', { message: 'Synthetic message' }))
