@@ -51,14 +51,15 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
       case 'program':
         if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value) && !contact.profile_enrollments?.some(enrollment => enrollment.instrument === value)) return false
         break
+      // Multi-select filters store their picks joined with a pipe.
       case 'lesson':
-        if (!lessonServicesForContact(contact).some(service => matchesLesson(service, value))) return false
+        if (!lessonServicesForContact(contact).some(service => value.split('|').some(pick => matchesLesson(service, pick)))) return false
         break
       case 'service_format':
-        if (!lessonServicesForContact(contact).some(service => matchesFormat(service, value))) return false
+        if (!lessonServicesForContact(contact).some(service => value.split('|').some(pick => matchesFormat(service, pick)))) return false
         break
       case 'level':
-        if (!lessonServicesForContact(contact).some(service => matchesLevel(service, value))) return false
+        if (!lessonServicesForContact(contact).some(service => value.split('|').some(pick => matchesLevel(service, pick)))) return false
         break
       // Kept so a saved filter from before the dimensions existed still narrows.
       case 'service_class':

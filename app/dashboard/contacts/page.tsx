@@ -1,6 +1,7 @@
 'use client'
 
-import { lessonServiceOptions, lessonServicesForContact } from '@/lib/service-types'
+import { lessonFilterOptions, lessonServiceOptions, lessonServicesForContact } from '@/lib/service-types'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 import { PageContainer } from '@/components/ui/PageContainer'
 
 import { useContext } from 'react'
@@ -487,6 +488,8 @@ export default function ContactsPage() {
     ...(contact.instructor?.person_id && contact.instructor.name ? [[contact.instructor.person_id, contact.instructor.name] as const] : []),
     ...(contact.profile_enrollments || []).flatMap(enrollment => enrollment.instructor_person_id && enrollment.instructor ? [[enrollment.instructor_person_id, enrollment.instructor] as const] : []),
   ])).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const multiValue = (key: string) => (filterDraft[key] || '').split('|').filter(Boolean)
+  const updateMulti = (key: string, values: string[]) => updateFilterDraft(key, values.join('|'))
   const updateFilterDraft = (key: string, value: string) => setFilterDraft(previous => {
     const next = { ...previous }
     if (value) next[key] = value
@@ -923,26 +926,10 @@ export default function ContactsPage() {
               <Select controlSize="compact" label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
                 <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </Select>
-              <Select controlSize="compact" label="Lesson" value={filterDraft.lesson || ''} onChange={event => updateFilterDraft('lesson', event.target.value)}>
-                <option value="">Any lesson</option>{lessonOptionSet.lessons.map(value => <option key={value} value={value}>{value}</option>)}
-              </Select>
-              <Select controlSize="compact" label="Service" hint="How the lesson is delivered." value={filterDraft.service_format || ''} onChange={event => updateFilterDraft('service_format', event.target.value)}>
-                <option value="">Any service</option>{lessonOptionSet.formats.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </Select>
-              <Select controlSize="compact" label="Level" value={filterDraft.level || ''} onChange={event => updateFilterDraft('level', event.target.value)}>
-                <option value="">Any level</option>{lessonOptionSet.levels.map(value => <option key={value} value={value}>{value}</option>)}
-              </Select>
-              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-                <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>
-                {CONTACT_CLIENT_TYPES.map(type => <label key={type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minHeight: 32, ...typography.bodySmall }}>
-                  <input type="checkbox" style={{ accentColor: interaction.selected }}
-                    checked={(filterDraft.client_types || '').split('|').includes(type)}
-                    onChange={event => {
-                      const selected = (filterDraft.client_types || '').split('|').filter(Boolean)
-                      updateFilterDraft('client_types', (event.target.checked ? [...selected, type] : selected.filter(value => value !== type)).join('|'))
-                    }} />{type}
-                </label>)}
-              </fieldset>
+              <MultiSelect label="Lesson" ariaLabel="Lesson" value={multiValue('lesson')} menuMinWidth={240} options={lessonFilterOptions(lessonOptionSet.lessons)} onChange={next => updateMulti('lesson', next)} />
+              <MultiSelect label="Format" ariaLabel="Lesson format" value={multiValue('service_format')} options={lessonOptionSet.formats.map(option => ({ value: option.value, label: option.label }))} onChange={next => updateMulti('service_format', next)} />
+              <MultiSelect label="Level" ariaLabel="Lesson level" value={multiValue('level')} options={lessonOptionSet.levels.map(value => ({ value, label: value }))} onChange={next => updateMulti('level', next)} />
+              <MultiSelect label="Services" ariaLabel="Services" menuMinWidth={260} value={multiValue('client_types')} options={CONTACT_CLIENT_TYPES.map(type => ({ value: type, label: type }))} onChange={next => updateMulti('client_types', next)} />
               <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
                 <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
               </Select>

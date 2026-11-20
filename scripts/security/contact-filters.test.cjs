@@ -5,12 +5,13 @@ const { createHarness } = require('./synthetic-harness.cjs')
 const { matchesContactFilters, DEFAULT_CONTACT_FILTERS } = createHarness().load('lib/contact-filters.ts')
 const { CONTACT_CLIENT_TYPES } = createHarness().load('lib/contact-client-types.ts')
 const { SERVICE_TYPE_OPTIONS } = createHarness().load('lib/lead-value.ts')
-test('Contacts filters place client type immediately above funding and omit imported status choices', () => {
+test('Contacts filters place services immediately above funding and omit imported status choices', () => {
   const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../app/dashboard/contacts/page.tsx'), 'utf8')
   const filters = source.slice(source.indexOf('<SlidePanel isOpen={showFilters}'))
-  assert.ok(filters.indexOf('label="Lesson"') < filters.indexOf('>Client type</legend>'))
-  assert.ok(filters.indexOf('label="Service" footer') < 0)
-  assert.ok(filters.indexOf('>Client type</legend>') < filters.indexOf('label="Funding"'))
+  assert.ok(filters.indexOf('label="Lesson"') < filters.indexOf('label="Services"'))
+  assert.equal(filters.includes('>Client type</legend>'), false)
+  assert.equal(filters.includes('label="Service"'), false)
+  assert.ok(filters.indexOf('label="Services"') < filters.indexOf('label="Funding"'))
   assert.ok(!filters.includes('label="Status"'))
   assert.ok(!source.includes('const statusOptions ='))
 })
@@ -119,4 +120,16 @@ test('lesson, service and level are three independent filters', () => {
   assert.equal(matchesContactFilters(contact, { lesson: 'Piano', service_format: 'semi', level: 'Level 2' }), true)
   const bandOnly = { ...student, profile_enrollments: [{ service_type: 'band', session_name: 'La Paz' }] }
   assert.equal(matchesContactFilters(bandOnly, { lesson: 'Band', service_format: 'group', level: 'Level 2' }), false)
+})
+
+test('multi-select lesson, format and level filters match any chosen value', () => {
+  const contact = { ...student, profile_enrollments: [
+    { service_type: 'band', session_name: 'La Paz' },
+    { service_type: 'Piano - Level 2 (30 min) - Semi-Private' },
+  ] }
+  assert.equal(matchesContactFilters(contact, { lesson: 'Drums|Piano' }), true)
+  assert.equal(matchesContactFilters(contact, { lesson: 'Drums|Guitar' }), false)
+  assert.equal(matchesContactFilters(contact, { service_format: 'private|semi' }), true)
+  assert.equal(matchesContactFilters(contact, { level: 'Level 1|Level 2' }), true)
+  assert.equal(matchesContactFilters(contact, { level: 'Level 1' }), false)
 })

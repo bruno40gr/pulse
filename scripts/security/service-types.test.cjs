@@ -2,7 +2,7 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createHarness } = require('./synthetic-harness.cjs')
-const { parseLessonService, lessonServiceFor, lessonServiceOptions, lessonServicesForContact } = createHarness().load('lib/service-types.ts')
+const { parseLessonService, lessonServiceFor, lessonServiceOptions, lessonServicesForContact, lessonFilterOptions, LESSON_LEVEL_OPTIONS } = createHarness().load('lib/service-types.ts')
 
 const fields = (value, serviceType) => {
   const parsed = parseLessonService(value, serviceType)
@@ -48,4 +48,20 @@ test('filters are offered from the dimensions the data actually contains', () =>
   assert.equal(options.lessons.join(), 'Band,Guitar,Piano')
   assert.equal(options.levels.join(), 'Level 1,Level 2')
   assert.equal(options.formats.map(option => option.label).join(), 'Private,Semi-private,Group')
+})
+
+test('duration is its own axis and never part of the lesson', () => {
+  assert.equal(fields('Piano - Level 1 (30 min)'), fields('Piano - Level 1 (60 min)'))
+  assert.equal(fields('Piano - Level 1 (60 min)'), 'Piano|Level 1')
+  assert.equal(fields('Bass - 60 minutes'), 'Bass')
+})
+
+test('levels stop at three', () => {
+  assert.equal(LESSON_LEVEL_OPTIONS.join(), 'Level 1,Level 2,Level 3')
+  assert.equal(fields('Piano - Level 4 (30 min)'), 'Piano|Level 3')
+})
+
+test('lesson options list instruments, then group classes, then Band', () => {
+  const options = lessonFilterOptions(['Tiny Keys', 'Band', 'Piano', 'Little Rockers', 'Drums'])
+  assert.equal(options.map(option => `${option.group}:${option.label}`).join(), 'Instruments:Piano,Instruments:Drums,Group classes:Little Rockers,Group classes:Tiny Keys,Band:Band')
 })

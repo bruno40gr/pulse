@@ -25,7 +25,7 @@ export const LESSON_FORMAT_OPTIONS: { value: LessonFormat; label: string }[] = [
   { value: 'group', label: 'Group' },
 ]
 
-export const LESSON_LEVEL_OPTIONS = ['Level 1', 'Level 2', 'Level 3', 'Level 4']
+export const LESSON_LEVEL_OPTIONS = ['Level 1', 'Level 2', 'Level 3']
 
 /** Group classes are programs in their own right, not instruments. */
 const GROUP_PROGRAMS: { match: RegExp; lesson: string }[] = [
@@ -46,8 +46,13 @@ function withoutSchedule(label: string) {
     .replace(/\s*[-–—]\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$/i, '').trim()
 }
 
+function withoutDuration(label: string) {
+  // "(30 min)", "- 60 minutes": another axis, not part of the service.
+  return label.replace(/\(\s*\d+\s*min(ute)?s?\s*\)/gi, '').replace(/\s*[-–—]\s*\d+\s*min(ute)?s?\b/gi, '').trim()
+}
+
 function tidy(raw: string) {
-  return withoutSchedule(raw.replace(/\s+/g, ' ').trim())
+  return withoutDuration(withoutSchedule(raw.replace(/\s+/g, ' ').trim()))
 }
 
 function readFormat(label: string, serviceType?: string | null): LessonFormat | null {
@@ -60,7 +65,8 @@ function readFormat(label: string, serviceType?: string | null): LessonFormat | 
 
 function readLevel(label: string): string | null {
   const match = label.match(/\blevel\s*([1-9])\b/i)
-  return match ? `Level ${match[1]}` : null
+  // The school teaches three levels; a fourth label is the same rung, renamed.
+  return match ? `Level ${Math.min(Number(match[1]), LESSON_LEVEL_OPTIONS.length)}` : null
 }
 
 function readLesson(label: string): string | null {
@@ -161,4 +167,22 @@ export function lessonServicesForContact(contact: { custom_fields?: Record<strin
     if (parsed) services.push(parsed)
   }
   return services
+}
+
+/** Group classes are listed before Band, in the order staff read them. */
+export const GROUP_CLASS_ORDER = ['Little Rockers', 'Tiny Keys', 'Songwriting']
+
+/**
+ * Lesson options for a filter, grouped the way the school's programme list reads:
+ * instruments first, then the group classes, then Band.
+ */
+export function lessonFilterOptions(lessons: string[]) {
+  const present = new Set(lessons)
+  const instruments = LESSON_INSTRUMENT_OPTIONS.filter(option => present.has(option)).map(option => ({ value: option, label: option, group: 'Instruments' }))
+  const others = [...present].filter(lesson => !LESSON_INSTRUMENT_OPTIONS.includes(lesson) && lesson !== 'Band')
+  const classes = GROUP_CLASS_ORDER.filter(lesson => present.has(lesson))
+    .concat(others.filter(lesson => !GROUP_CLASS_ORDER.includes(lesson)).sort((a, b) => a.localeCompare(b)))
+    .map(lesson => ({ value: lesson, label: lesson, group: 'Group classes' }))
+  const band = present.has('Band') ? [{ value: 'Band', label: 'Band', group: 'Band' }] : []
+  return [...instruments, ...classes, ...band]
 }
