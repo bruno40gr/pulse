@@ -44,6 +44,7 @@ type LeadContact = {
 }
 
 type LeadRecord = {
+  person_id?: string | null
   id: string
   tenant_id: string
   contact_id: string
@@ -83,6 +84,22 @@ type JobApplicationRecord = {
   created_at: string
   updated_at: string
   crm_contacts: LeadContact | LeadContact[] | null
+}
+
+
+/** A lead about an existing person shows that person, never a cloned contact. */
+async function resolveLeadContact<T>(tenantId: string, personId: string | null | undefined, fallback: T) {
+  if (!personId) return fallback
+  try {
+    const result = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone').eq('tenant_id', tenantId).eq('id', personId).maybeSingle()
+    if (result.error || !result.data) return fallback
+    return {
+      id: result.data.id,
+      full_name: `${result.data.first_name || ''} ${result.data.last_name || ''}`.trim(),
+      email: result.data.email,
+      phone: result.data.phone,
+    } as T
+  } catch { return fallback }
 }
 
 function unwrapContact(contact: LeadContact | LeadContact[] | null) {
@@ -228,6 +245,7 @@ export async function GET(
           id,
           tenant_id,
           contact_id,
+          person_id,
           intake_type,
           source_system,
           source_form,
@@ -332,7 +350,7 @@ export async function GET(
       ...lead,
       follow_up_at: getFollowUpFromPayload(lead.payload, 'follow_up_at'),
       follow_up_note: getFollowUpFromPayload(lead.payload, 'follow_up_note'),
-      contact: unwrapContact(lead.crm_contacts),
+      contact: await resolveLeadContact(tenantId, lead.person_id, unwrapContact(lead.crm_contacts)),
       events: events || [],
       notes_history: notesWithAuthors,
     }, { headers: responseHeaders() })
@@ -831,6 +849,7 @@ export async function PATCH(
           id,
           tenant_id,
           contact_id,
+          person_id,
           intake_type,
           source_system,
           source_form,

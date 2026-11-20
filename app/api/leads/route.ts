@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { LESSON_LEAD_TYPES } from '@/lib/lead-lesson-details'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { createRequestLogContext, getDurationMs, withTimeout } from '@/lib/request-runtime'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { requireOwner, requirePermission } from '@/lib/request-context'
@@ -20,6 +21,7 @@ type LeadContact = {
 }
 
 type LeadListRow = {
+  person_id?: string | null
   id: string
   tenant_id: string
   contact_id: string
@@ -194,23 +196,33 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
 }
 
 
-/** Which opportunities are already a known student, and which are net-new names. */
-async function attachLinkedStudents<T extends { id: string }>(tenantId: string, rows: T[]) {
-  const linked = new Map<string, string>()
-  const ids = rows.map(row => row.id).filter(Boolean)
+/**
+ * One person may be a student, an instructor and a lead at once, so an existing
+ * person is referenced directly instead of cloned into a second contact record.
+ */
+async function attachPersonIdentity<T extends { id: string; person_id?: string | null; contact?: unknown }>(tenantId: string, rows: T[]): Promise<Array<T & { linked_person_id: string | null; opportunity_origin: 'existing_student' | 'new_lead' | 'unknown' }>> {
+  const personIds = [...new Set(rows.map(row => row.person_id).filter((id): id is string => Boolean(id)))]
+  const people = new Map<string, { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }>()
   let failed = false
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const result = await crmSupabaseAdmin.from('contact_band_opportunity_links')
-      .select('lead_id,person_id').eq('tenant_id', tenantId).in('lead_id', ids.slice(offset, offset + 100))
+  for (let offset = 0; offset < personIds.length; offset += 100) {
+    const result = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone')
+      .eq('tenant_id', tenantId).in('id', personIds.slice(offset, offset + 100))
     if (result.error || !Array.isArray(result.data)) { failed = true; break }
-    for (const link of result.data) if (link.person_id) linked.set(link.lead_id, link.person_id)
+    for (const person of result.data) people.set(person.id, person)
   }
-  return rows.map(row => ({
-    ...row,
-    linked_person_id: linked.get(row.id) ?? null,
-    // Never infer an existing student from a name; unknown stays unknown.
-    opportunity_origin: failed ? 'unknown' as const : linked.has(row.id) ? 'existing_student' as const : 'new_lead' as const,
-  }))
+  if (failed) return rows.map(row => ({ ...row, linked_person_id: null, opportunity_origin: 'unknown' as const })) as Array<T & { linked_person_id: string | null; opportunity_origin: 'existing_student' | 'new_lead' | 'unknown' }>
+  if (personIds.some(id => !people.has(id))) return rows.map(row => ({ ...row, linked_person_id: null, opportunity_origin: 'unknown' as const })) as Array<T & { linked_person_id: string | null; opportunity_origin: 'existing_student' | 'new_lead' | 'unknown' }>
+  return rows.map(row => {
+    const person = row.person_id ? people.get(row.person_id) : undefined
+    return {
+      ...row,
+      linked_person_id: row.person_id ?? null,
+      opportunity_origin: person ? 'existing_student' as const : 'new_lead' as const,
+      contact: person ? {
+        id: row.person_id, full_name: `${person.first_name || ''} ${person.last_name || ''}`.trim(), email: person.email, phone: person.phone,
+      } : row.contact,
+    }
+  }) as Array<T & { linked_person_id: string | null; opportunity_origin: 'existing_student' | 'new_lead' | 'unknown' }>
 }
 
 function formatLeadRow(row: LeadListRow) {
@@ -219,6 +231,7 @@ function formatLeadRow(row: LeadListRow) {
     id: row.id,
     tenant_id: row.tenant_id,
     contact_id: row.contact_id,
+    person_id: row.person_id ?? null,
     intake_type: row.intake_type,
     source_system: row.source_system,
     source_form: row.source_form,
@@ -421,7 +434,7 @@ export async function GET(request: Request) {
         updated_at: row.updated_at,
         crm_contacts: row.crm_contacts,
       }))
-      const withOrigin = await attachLinkedStudents(tenantId, baseRows)
+      const withOrigin = await attachPersonIdentity(tenantId, baseRows)
       const formatted = includeActivity ? await enrichLeadActivity(tenantId, withOrigin) : withOrigin
 
       if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
@@ -435,6 +448,7 @@ export async function GET(request: Request) {
         id,
         tenant_id,
         contact_id,
+        person_id,
         intake_type,
         source_system,
         source_form,
@@ -502,7 +516,7 @@ export async function GET(request: Request) {
     })
 
     const baseRows = (data || []).map((row) => formatLeadRow(row as LeadListRow))
-    const withOrigin = await attachLinkedStudents(tenantId, baseRows)
+    const withOrigin = await attachPersonIdentity(tenantId, baseRows)
     const formatted = includeActivity ? await enrichLeadActivity(tenantId, withOrigin) : withOrigin
     if (!countsPromise || !totalsPromise) return NextResponse.json(formatted)
     const [counts, totals] = await Promise.all([countsPromise, totalsPromise])

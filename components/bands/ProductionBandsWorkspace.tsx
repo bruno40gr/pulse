@@ -15,7 +15,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-type Member = { person_id: string; name: string; client_status: string | null; is_staff: boolean }
+type Member = { person_id: string; name: string; client_status: string | null; is_staff: boolean; role: 'member' | 'instructor' }
 type Band = { name: string; members: Member[] }
 type TentativeGroup = { id: string; name: string; member_count?: number }
 type LoadState = 'loading' | 'ready' | 'error'
@@ -91,7 +91,7 @@ export default function ProductionBandsWorkspace() {
         <DenseSectionPanel title="Members">
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={320} emptyContent="No enrolled members." columns={[
             { id: 'name', header: 'Member', width: '1fr', render: row => <PersonName>{row.name}</PersonName> },
-            { id: 'role', header: 'Role', width: '.7fr', render: row => row.is_staff ? 'Instructor (member)' : 'Student' },
+            { id: 'role', header: 'Role', width: '.7fr', render: row => row.role === 'instructor' ? 'Instructor' : row.is_staff ? 'Instructor (member)' : 'Student' },
             { id: 'status', header: 'Status', width: '.7fr', render: row => row.client_status || 'Unknown' },
           ]} />
         </DenseSectionPanel>

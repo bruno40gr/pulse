@@ -998,3 +998,24 @@ column inference: **Potential Band 1** = Samme Foss, Jerrylee Estep, Luke DeVaul
 **Potential Band 2** = Brianna Reese, Bailey Noel, Bella Simmons. Members were
 resolved by unique first name within the 24 linked opportunities and verified in
 production (3 + 3).
+
+### One person, one identity (2026-11-20)
+
+Instructor, student and lead roles coexist on one person; the earlier roster
+exclusion of staff contradicted `docs/family-migration-preview.md` and has been
+removed. La Paz keeps its instructor member and adds its coach.
+
+`lead_intakes.person_id` now points at the existing person, so an opportunity for
+an enrolled student creates **no** cloned CRM contact. `contact_id` is nullable
+and used only for genuinely anonymous website leads.
+
+Incident: removing the clones first deleted the 24 band opportunities, because
+`lead_intakes.contact_id` is `ON DELETE CASCADE`. They were restored from the
+tracked person list and re-linked (24 leads, 24 links, 6 tentative links). The
+recorded migration clears `contact_id` before deleting shells.
+
+Band names are normalized: `band_name` holds the ensemble, `instrument` holds the
+played instrument. SunKast therefore reports Breannah Gonzalez, Brooks Henderson
+and Harper Cole plus Bruno Wong as coach. Rhett Walde still has no recorded band
+(track "Bass 101", session "Voice - Level 1"); it needs an assignment rather than
+a guess.
