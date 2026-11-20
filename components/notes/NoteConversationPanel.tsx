@@ -61,13 +61,14 @@ function MentionText({ body }: { body: string }) {
 }
 
 interface NoteConversationPanelProps {
+  readOnly?: boolean
   note: NoteConversationNote | null
   tenantId: string
   onReplyAdded: (noteId: string, replyCount: number, participantCount?: number) => void
   onClose: () => void
 }
 
-export default function NoteConversationPanel({ note, tenantId, onReplyAdded, onClose }: NoteConversationPanelProps) {
+export default function NoteConversationPanel({ note, tenantId, onReplyAdded, onClose, readOnly = false }: NoteConversationPanelProps) {
   const [replies, setReplies] = useState<NoteReply[]>([])
   const [loading, setLoading] = useState(false)
   const [replyBody, setReplyBody] = useState('')
@@ -110,11 +111,9 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || 'Could not save reply.')
-      setReplies((current) => {
-        const nextReplies = [...current, data]
-        onReplyAdded(note.id, nextReplies.length, typeof data.participant_count === 'number' ? data.participant_count : undefined)
-        return nextReplies
-      })
+      const nextReplies = [...replies, data]
+      setReplies(nextReplies)
+      onReplyAdded(note.id, nextReplies.length, typeof data.participant_count === 'number' ? data.participant_count : undefined)
       setReplyBody('')
       setReplyMentionIds([])
     } catch (saveError) {
@@ -188,7 +187,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
             ))}
           </div>
 
-          <div style={{ borderTop: `1px solid ${colors.borderLight}`, flexShrink: 0, padding: spacing['2xl'] }}>
+          {!readOnly && <div style={{ borderTop: `1px solid ${colors.borderLight}`, flexShrink: 0, padding: spacing['2xl'] }}>
             {error && <div role="alert" style={{ color: colors.error, fontFamily: typography.fontSans, fontSize: typography.sizeSm, marginBottom: spacing.sm }}>{error}</div>}
             <MentionTextarea
               value={replyBody}
@@ -206,7 +205,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
                 {saving ? 'Saving…' : 'Send reply'}
               </Button>
             </div>
-          </div>
+          </div>}
         </>
       )}
     </SlidePanel>

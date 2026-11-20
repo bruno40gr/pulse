@@ -6,6 +6,7 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { validateNoteTask, NoteTaskError } from '@/lib/note-task-access'
+import { validateBandNoteRecipients } from '@/lib/band-note-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -28,7 +29,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const existingNote = await getNote(id, tenantId)
-    if (!existingNote || !await canAccessNote(existingNote as NotePrivacyRecord, tenantAccess.context?.membershipId)) {
+    if (!existingNote || !await canAccessNote(existingNote as NotePrivacyRecord, tenantAccess.context?.membershipId, tenantAccess.context, true)) {
       return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
     }
 
@@ -50,6 +51,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Save task details separately from other note settings.' }, { status: 400 })
     }
     const task = body.follow_up === undefined ? null : await validateNoteTask(tenantId, body.follow_up, tenantAccess.context, existingNote.follow_up?.personId)
+    if (existingNote.band_name) await validateBandNoteRecipients(tenantId, [...mentionMembershipIds, ...(task ? [task.ownerId] : [])])
     if (Object.keys(updates).length === 0 && !task) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 })
 
     updates.updated_at = new Date().toISOString()
@@ -106,7 +108,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const note = await getNote(id, tenantAccess.tenantId)
-    if (!note || !await canAccessNote(note as NotePrivacyRecord, tenantAccess.context?.membershipId)) {
+    if (!note || !await canAccessNote(note as NotePrivacyRecord, tenantAccess.context?.membershipId, tenantAccess.context, true)) {
       return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
     }
     const { error } = await supabaseAdmin.from('notes').delete().eq('id', id).eq('tenant_id', tenantAccess.tenantId)

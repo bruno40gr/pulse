@@ -54,6 +54,7 @@ function NoteBody({ body }: { body: string }) {
 }
 
 interface NoteCardProps {
+  readOnly?: boolean
   note: Note
   owners: TaskOwner[]
   editing: boolean
@@ -94,19 +95,19 @@ function NoteCard(props: NoteCardProps) {
   const owner = props.owners.find(person => person.id === note.follow_up?.ownerId)
   return <div className={styles.sticky} ref={root} onBlur={event => {
     if (editing && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) props.onSaveEdit()
-  }} onClick={() => { if (!editing) props.onStartEdit() }}
+  }} onClick={() => { if (!editing && !props.readOnly) props.onStartEdit() }}
     style={{ width: '100%', maxWidth: 390, minHeight: 300, maxHeight: 460, boxSizing: 'border-box', overflowY: editing ? 'auto' : 'hidden', background: bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
     <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
-      <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>
+      {!props.readOnly && <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>}
       <div style={{ flex: 1 }} />
-      <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />
+      {!props.readOnly && <TaskCompletionButton completed={!!note.completed_at} aria-label={note.completed_at ? 'Mark note as open' : 'Mark note as done'} onClick={props.onToggleComplete} />}
 
     </div>
     <div style={{ flex: 1, minHeight: 0, textDecoration: note.completed_at ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>
       {editing ? <>
         <input autoFocus aria-label="Note title" placeholder="Title" value={props.editTitle} onChange={event => props.onEditTitle(event.target.value)} style={{ ...plainInput, fontWeight: 600, fontSize: 15, marginBottom: spacing.sm }} />
         <MentionTextarea taskMentions highlightMentions onRelatedPersonMention={props.onRelatedPersonMention} value={props.editBody} onChange={props.onEditBody} mentionMembershipIds={props.editMentionIds} onMentionMembershipIdsChange={props.onEditMentionIds} placeholder="Take a note…" style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, minHeight: 130, resize: 'vertical' }} />
-      </> : <div tabIndex={0} role="button" aria-label={`Edit ${note.title || 'note'}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onStartEdit() } }}>
+      </> : <div tabIndex={props.readOnly ? undefined : 0} role={props.readOnly ? undefined : 'button'} aria-label={props.readOnly ? undefined : `Edit ${note.title || 'note'}`} onKeyDown={event => { if (!props.readOnly && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); props.onStartEdit() } }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, whiteSpace: 'pre-wrap' }}>{note.title}</div>
         <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 10, overflow: 'hidden' }}><NoteBody body={note.body} /></div>
       </div>}
@@ -133,10 +134,12 @@ function NoteCard(props: NoteCardProps) {
   </div>
 }
 
-export default function DashboardNotes() {
+export default function DashboardNotes({ bandName, embedded = false }: { bandName?: string; embedded?: boolean } = {}) {
   const [tenantId] = useState(() => getActiveTenantId())
   const [notes, setNotes] = useState<Note[]>([])
   const [ready, setReady] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [canWrite, setCanWrite] = useState(!bandName)
   const [owners, setOwners] = useState<TaskOwner[]>([])
   const [membershipId, setMembershipId] = useState('')
   const [people, setPeople] = useState<TaskPerson[]>([])
@@ -195,11 +198,12 @@ export default function DashboardNotes() {
 
   useEffect(() => {
     let cancelled = false
-    void fetch(`/api/notes?tenant=${encodeURIComponent(tenantId)}&show_done=true`).then(async response => {
+    setReady(false); setLoadError(''); setNotes([])
+    void fetch(`/api/notes?tenant=${encodeURIComponent(tenantId)}&show_done=true${bandName ? `&band=${encodeURIComponent(bandName)}` : ''}`).then(async response => {
       if (!response.ok) throw new Error('Could not load notes. Please reload to retry.')
       const data = await response.json()
-      if (!cancelled) setNotes(Array.isArray(data) ? data : [])
-    }).catch(error => { if (!cancelled) setNotice(error.message) }).finally(() => { if (!cancelled) setReady(true) })
+      if (!cancelled) { setNotes(Array.isArray(data) ? data : []); if (bandName) setCanWrite(response.headers.get('X-Notes-Can-Manage') === 'true') }
+    }).catch(error => { if (!cancelled) setLoadError(error.message) }).finally(() => { if (!cancelled) setReady(true) })
     void fetch(`/api/notes/directory?tenant=${encodeURIComponent(tenantId)}&owners=true`).then(async response => {
       if (!response.ok) throw new Error('Could not load staff. Task assignment is unavailable; reload to retry.')
       const data = await response.json()
@@ -217,7 +221,7 @@ export default function DashboardNotes() {
       }
     }).catch(error => { if (!cancelled) setNotice(error.message) })
     return () => { cancelled = true }
-  }, [tenantId])
+  }, [tenantId, bandName])
 
   useEffect(() => {
     if (!ready || linkedNoteHandled.current) return
@@ -309,7 +313,7 @@ export default function DashboardNotes() {
     if (!title && draftBody.trim()) {
       try { title = (await request('/api/notes/title', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: draftBody.trim() }) })).title || null } catch { /* Title generation is optional; content must still save. */ }
     }
-    return request('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body: draftBody.trim(), color: draftColor, pinned: false, is_private: draftPrivate, note_date: today, mention_membership_ids: draftMentionIds, ...(task ? { follow_up: task } : {}) }) })
+    return request('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body: draftBody.trim(), color: draftColor, pinned: false, is_private: draftPrivate, note_date: today, mention_membership_ids: draftMentionIds, ...(bandName ? { band_name: bandName } : {}), ...(task ? { follow_up: task } : {}) }) })
   }
   const saveTask = async () => {
     if (saving || !editing) return
@@ -351,8 +355,8 @@ export default function DashboardNotes() {
   }).sort((a, b) => Number(b.pinned) - Number(a.pinned) ||
     (filter !== 'all' ? (a.follow_up?.dueDate || '').localeCompare(b.follow_up?.dueDate || '') : b.created_at.localeCompare(a.created_at)))
   return <div className={styles.surface}><PageContainer style={{ boxSizing: 'border-box', minWidth: 0 }}>
-    <PageHeader title="Notes" />
-    <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap', marginTop: `-${spacing.lg}`, marginBottom: spacing.xl }}>
+    {!embedded && <PageHeader title="Notes" />}
+    <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.md, flexWrap: 'wrap', marginTop: embedded ? 0 : `-${spacing.lg}`, marginBottom: spacing.xl }}>
       <Select label="Date" controlSize="toolbar" fullWidth={false} value={dateFilter} onChange={event => {
         if (event.target.value === 'range') setRangeOpen(true)
         else setDateFilter(event.target.value)
@@ -367,7 +371,7 @@ export default function DashboardNotes() {
         <ToggleSwitch checked={!showDone} onChange={checked => { const next = !checked; setShowDone(next); saveView({ showDone: next }) }} label="Hide notes marked ‘done’" />
       </div>
     </div>
-      <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
+      {canWrite && !loadError && <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
         <div className={styles.sticky} style={{ background: composerBg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: radius.xl, boxShadow: shadows.md, padding: spacing.lg }}>
           <input
             value={draftTitle}
@@ -448,18 +452,18 @@ export default function DashboardNotes() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
-    {!ready ? <LoadingSkeleton label="Loading notes" variant="cards" /> : visible.length === 0 ? <p>No notes match these filters.</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(0, min(100%, 390px)))', gap: spacing.md, alignItems: 'start', justifyContent: 'start' }}>
+    {!ready ? <LoadingSkeleton label="Loading notes" variant="cards" /> : loadError ? <p role="alert">{loadError}</p> : visible.length === 0 ? <p>No notes match these filters.</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(0, min(100%, 390px)))', gap: spacing.md, alignItems: 'start', justifyContent: 'start' }}>
       {visible.map(note => <article key={note.id} aria-label={note.title || 'Untitled note'}>
-        <NoteCard note={note} owners={owners}
+        <NoteCard note={note} owners={owners} readOnly={!canWrite}
           onRelatedPersonMention={person => relatedMentions.current.set(note.id, person)}
           editing={editingId === note.id} editTitle={editTitle} editBody={editBody} editMentionIds={editMentionIds}
           onStartEdit={() => { if (pendingSave.current || (editingId && editingId !== note.id)) return; setEditingId(note.id); setEditTitle(note.title || ''); setEditBody(note.body); setEditMentionIds([]) }} onEditTitle={setEditTitle} onEditBody={setEditBody} onEditMentionIds={setEditMentionIds}
           onSaveEdit={() => { void saveInline(note) }}
           onPin={() => changeNote(note, { pinned: !note.pinned })} onColor={color => changeNote(note, { color })} onToggleComplete={() => toggleDone(note)}
           onDelete={() => deleteNote(note)} onReply={() => setConversation(note)}
-          onTask={() => { void (async () => {
+          onTask={() => { if (!canWrite) return; void (async () => {
             const current = editingId === note.id ? await saveInline(note) : note
             if (current) openEditor(current)
           })() }} />
@@ -471,7 +475,7 @@ export default function DashboardNotes() {
       <ModalBody><FieldGrid columns={1}><Input label="From" type="date" value={dateFrom} max={dateTo || undefined} onChange={event => setDateFrom(event.target.value)} /><Input label="To" type="date" min={dateFrom || undefined} value={dateTo} onChange={event => setDateTo(event.target.value)} /></FieldGrid></ModalBody>
       <ModalFooter><Button variant="secondary" onClick={() => setRangeOpen(false)}>Cancel</Button><Button disabled={!dateFrom || !dateTo || dateFrom > dateTo} onClick={() => { setDateFilter('range'); setRangeOpen(false) }}>Apply</Button></ModalFooter>
     </Modal>
-    <NoteConversationPanel note={conversation} tenantId={tenantId} onClose={() => setConversation(null)} onReplyAdded={(id, count, participantCount) => {
+    <NoteConversationPanel note={conversation} tenantId={tenantId} readOnly={!canWrite} onClose={() => setConversation(null)} onReplyAdded={(id, count, participantCount) => {
       setNotes(current => current.map(note => note.id === id ? { ...note, reply_count: count, ...(participantCount === undefined ? {} : { participant_count: participantCount }) } : note))
     }} />
     <SlidePanel isOpen={!!editing} onClose={() => { if (!saving) setEditing(null) }} ariaLabel="Task details" width="min(100vw, 560px)">

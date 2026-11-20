@@ -12,6 +12,7 @@ import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { Modal, ModalBody, ModalFooter, ModalHeader, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { BandStudentPicker } from '@/components/bands/BandStudentPicker'
+import DashboardNotes from '@/components/notes/DashboardNotes'
 import { Input } from '@/components/ui/Input'
 import { OverflowMenu } from '@/components/ui/OverflowMenu'
 import { Avatar } from '@/components/ui/Avatar'
@@ -35,7 +36,7 @@ type Row = { key: string; name: string; status: 'Active' | 'Forming'; members: n
 type Status = 'draft' | 'active' | 'forming' | 'external' | 'archived'
 
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
-const COMING_SOON = ['scheduling', 'notes', 'curriculum', 'communications'] as const
+const COMING_SOON = ['scheduling', 'curriculum', 'communications'] as const
 const STATUS_LABEL: Record<string, string> = { draft: 'Draft', active: 'Active', forming: 'Forming', external: 'Rehearsal client', archived: 'Archived' }
 const MEMBERSHIP_LABEL: Record<string, string> = { confirmed: 'Confirmed', pending: 'Pending', prospect: 'Prospect' }
 
@@ -177,6 +178,7 @@ export default function ProductionBandsWorkspace() {
         <Tabs ariaLabel="Band sections" items={[
           { key: 'details', label: 'Details' },
           { key: 'members', label: 'Members' },
+          { key: 'notes', label: 'Notes' },
           ...COMING_SOON.map(key => ({ key, label: key[0].toUpperCase() + key.slice(1) })),
         ]} activeKey={panelTab} onChange={setPanelTab} style={{ minWidth: 'max-content' }} />
       </div>
@@ -213,7 +215,7 @@ export default function ProductionBandsWorkspace() {
                 ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => setRemoving(row) }]),
               ]} />) },
           ]} />
-        </> : <Notice>Coming soon.</Notice>}
+        </> : panelTab === 'notes' ? <DashboardNotes key={`${getActiveTenantId()}:${band.name}`} bandName={band.name} embedded /> : <Notice>Coming soon.</Notice>}
       </div>
     </SlidePanel>}
     {editing && band && <Modal isOpen onClose={() => setEditing(false)} ariaLabel="Edit band">

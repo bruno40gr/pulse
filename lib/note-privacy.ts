@@ -1,10 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { canAccessBandNotes } from '@/lib/band-note-access'
+import type { MembershipRequestContext } from '@/lib/request-context'
 
 export type NotePrivacyRecord = {
   id: string
   tenant_id: string
   is_private: boolean
   created_by_membership_id: string | null
+  band_name?: string | null
 }
 
 export async function getPrivateNoteParticipantIds(tenantId: string, noteIds: string[]): Promise<Map<string, Set<string>>> {
@@ -26,7 +29,8 @@ export async function getPrivateNoteParticipantIds(tenantId: string, noteIds: st
   return participants
 }
 
-export async function canAccessNote(note: NotePrivacyRecord, membershipId: string | null | undefined): Promise<boolean> {
+export async function canAccessNote(note: NotePrivacyRecord, membershipId: string | null | undefined, context?: MembershipRequestContext | null, write = false): Promise<boolean> {
+  if (note.band_name && !canAccessBandNotes(context, write)) return false
   if (!note.is_private) return true
   if (!membershipId) return false
 

@@ -6,6 +6,7 @@ import { resolveRequestTenant } from '@/lib/tenant-access'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { validateNoteTask, NoteTaskError } from '@/lib/note-task-access'
+import { bandExistsForNotes, canAccessBandNotes, validateBandNoteRecipients } from '@/lib/band-note-access'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -21,6 +22,12 @@ export async function GET(request: Request) {
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const url = new URL(request.url)
+    const band = url.searchParams.get('band')
+    if (band !== null) {
+      if (!canAccessBandNotes(tenantAccess.context)) return NextResponse.json({ error: 'Staff notes access is required.' }, { status: 403 })
+      if (!band.trim() || band.length > 200) return NextResponse.json({ error: 'Choose a band.' }, { status: 400 })
+      if (!await bandExistsForNotes(request, band)) return NextResponse.json({ error: 'Band not found.' }, { status: 404 })
+    }
     const noteDate = url.searchParams.get('date')
     if (noteDate && !isDateValue(noteDate)) return NextResponse.json({ error: 'A valid note date is required.' }, { status: 400 })
     const dateFrom = url.searchParams.get('date_from')
@@ -37,20 +44,22 @@ export async function GET(request: Request) {
       .order('pinned', { ascending: false })
       .order('created_at', { ascending: false })
     if (noteDate) query = query.eq('note_date', noteDate)
+    if (band !== null) query = query.eq('band_name', band)
     if (dateFrom) query = query.gte('note_date', dateFrom)
     if (dateTo) query = query.lte('note_date', dateTo)
     if (!showDone) query = query.is('completed_at', null)
 
     const { data, error } = await query
     if (error) throw error
-    const notes = data || []
-    if (notes.length === 0) return NextResponse.json([])
+    const notes = (data || []).filter(note => !note.band_name || canAccessBandNotes(tenantAccess.context))
+    const responseHeaders = { 'Cache-Control': 'private, no-store', 'X-Notes-Can-Manage': String(canAccessBandNotes(tenantAccess.context, true)) }
+    if (notes.length === 0) return NextResponse.json([], { headers: responseHeaders })
 
     const privateNoteIds = notes.filter((note) => note.is_private).map((note) => note.id)
     const participantsByNote = await getPrivateNoteParticipantIds(tenantId, privateNoteIds)
     const membershipId = tenantAccess.context?.membershipId
     const visibleNotes = notes.filter((note) => !note.is_private || Boolean(membershipId && participantsByNote.get(note.id)?.has(membershipId)))
-    if (visibleNotes.length === 0) return NextResponse.json([])
+    if (visibleNotes.length === 0) return NextResponse.json([], { headers: responseHeaders })
 
     const { data: replyRows, error: replyError } = await supabaseAdmin
       .from('note_replies')
@@ -65,7 +74,7 @@ export async function GET(request: Request) {
       ...note,
       reply_count: replyCounts.get(note.id) || 0,
       participant_count: note.is_private ? participantsByNote.get(note.id)?.size || 0 : 0,
-    })))
+    })), { headers: responseHeaders })
   } catch (error) {
     console.error('[notes][list] Error', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
@@ -80,6 +89,12 @@ export async function POST(request: Request) {
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const body = await request.json()
+    const band = body.band_name
+    if (band !== undefined) {
+      if (!canAccessBandNotes(tenantAccess.context, true)) return NextResponse.json({ error: 'Staff notes access is required.' }, { status: 403 })
+      if (typeof band !== 'string' || !band.trim() || band.length > 200) return NextResponse.json({ error: 'Choose a band.' }, { status: 400 })
+      if (!await bandExistsForNotes(request, band)) return NextResponse.json({ error: 'Band not found.' }, { status: 404 })
+    }
     const title = typeof body.title === 'string' ? body.title.trim() : ''
     const noteBody = typeof body.body === 'string' ? body.body.trim() : ''
     if (!title && !noteBody) return NextResponse.json({ error: 'Note is empty.' }, { status: 400 })
@@ -92,9 +107,17 @@ export async function POST(request: Request) {
       ? await validateMentionMembershipIds(tenantId, body.mention_membership_ids)
       : []
     const task = body.follow_up === undefined ? null : await validateNoteTask(tenantId, body.follow_up, tenantAccess.context)
+    if (band !== undefined) {
+      await validateBandNoteRecipients(tenantId, [...mentionMembershipIds, ...(task ? [task.ownerId] : [])])
+      // Imported bands may not have a profile yet. Establish the existing band's
+      // identity without overwriting its details; the FK follows future renames.
+      const profile = await supabaseAdmin.from('band_profiles').upsert({ tenant_id: tenantId, band_name: band, status: 'active' }, { onConflict: 'tenant_id,band_name', ignoreDuplicates: true })
+      if (profile.error) throw profile.error
+    }
 
     const { data, error } = await supabaseAdmin.from('notes').insert({
       tenant_id: tenantId,
+      ...(band !== undefined ? { band_name: band } : {}),
       title: title || null,
       body: noteBody,
       color: typeof body.color === 'string' && body.color ? body.color : 'yellow',
