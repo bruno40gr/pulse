@@ -12,10 +12,12 @@ export type RosterRow = {
   member_id: string | null
   member_name: string | null
   member_status: string | null
+  member_instrument?: string | null
+  member_membership?: string | null
   coach_id: string | null
   coach_name: string | null
 }
-export type BandMember = { person_id: string; name: string }
+export type BandMember = { person_id: string; name: string; instrument: string | null; membership: string }
 export type Band = { name: string; coach: string | null; members: BandMember[] }
 
 const INSTRUMENT_TRACK = /^(bass|drums?|guitar|voice|vocals?|piano|keys|keyboard|percussion|alto|tenor|trumpet|trombone|violin|flute|clarinet|ukulele|cello)\b[\s\S]*?\d/i
@@ -56,7 +58,7 @@ export function assembleBandRoster(rows: RosterRow[]): Band[] {
     const band = bandNameFor(row, known)
     if (!band) continue
     if (row.member_id && row.member_name) {
-      add(band, { person_id: row.member_id, name: row.member_name })
+      add(band, { person_id: row.member_id, name: row.member_name, instrument: row.member_instrument ?? null, membership: row.member_membership || 'confirmed' })
     }
     // A coach is staff, not a member: it is reported separately so an
     // instructor who plays is listed as a member and one who only coaches is not.

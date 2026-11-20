@@ -14,6 +14,7 @@ type EnrollmentRow = {
   session_name: string | null
   custom_fields: Record<string, unknown> | null
   instructor_person_id: string | null
+  instrument: string | null
 }
 
 /** Read-only roster: enrolled band members (including instructors who play), separate from tentative candidacies. */
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     const enrollments: EnrollmentRow[] = []
     for (let offset = 0; ; offset += pageSize) {
       const result = await supabaseAdmin.from('enrollments')
-        .select('id,student_id,service_type,session_name,custom_fields,instructor_person_id')
+        .select('id,student_id,service_type,session_name,custom_fields,instructor_person_id,instrument')
         .eq('tenant_id', access.tenantId).eq('service_type', 'band')
         .order('id').range(offset, offset + pageSize - 1)
       if (result.error || !Array.isArray(result.data)) throw new Error('Enrollments unavailable')
@@ -87,6 +88,8 @@ export async function GET(request: Request) {
         member_id: memberId,
         member_name: displayName(memberId),
         member_status: student?.client_status ?? null,
+        member_instrument: typeof enrollment.custom_fields?.band_instrument === 'string' ? enrollment.custom_fields.band_instrument : enrollment.custom_fields?.band_instrument === null ? null : (enrollment.instrument ?? null),
+        member_membership: 'confirmed',
         member_is_staff: Boolean(memberId && staffPersonIds.has(memberId)),
         coach_id: enrollment.instructor_person_id,
         coach_name: displayName(enrollment.instructor_person_id),
@@ -96,13 +99,13 @@ export async function GET(request: Request) {
     // Explicit memberships cover people no enrollment row captures.
     const explicit: RosterRow[] = []
     for (let offset = 0; ; offset += 500) {
-      const result = await supabaseAdmin.from('band_memberships').select('band_name,person_id')
+      const result = await supabaseAdmin.from('band_memberships').select('band_name,person_id,instrument,membership')
         .eq('tenant_id', access.tenantId).order('band_name').range(offset, offset + 499)
       if (result.error || !Array.isArray(result.data)) throw new Error('Memberships unavailable')
       for (const row of result.data) {
         const name = displayName(row.person_id)
         if (!name) throw new Error('Membership person missing')
-        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, coach_id: null, coach_name: null })
+        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, member_instrument: row.instrument ?? null, member_membership: row.membership || 'confirmed', coach_id: null, coach_name: null })
       }
       if (result.data.length < 500) break
     }
