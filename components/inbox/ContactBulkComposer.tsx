@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, Select } from '@/components/ui'
 import { PrototypeRecipientSearch } from './PrototypeRecipients'
 import ComposePanel from '@/components/campaigns/ComposePanel'
@@ -42,6 +43,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
   const [error, setError] = useState('')
   const [recipientError, setRecipientError] = useState('')
   const [senderError, setSenderError] = useState('')
+  const [senderLoading, setSenderLoading] = useState(channel === 'email')
   const [notice, setNotice] = useState('')
   const [restored, setRestored] = useState(false)
   const [smsBody, setSmsBody] = useState('')
@@ -77,6 +79,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     let cancelled = false
     const query = `?tenant=${encodeURIComponent(tenantId)}`
     setAudience(null); setError(''); setRecipientError(''); setSenderError('')
+    setSenderLoading(channel === 'email'); setSenders([])
     void json(`/api/communications/recipients${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactIds: recoveryOf ? [] : selectionKey.split(','), channel, recoveryOf }) })
       .then(result => { if (!cancelled) setAudience(result) }).catch(error => { if (!cancelled) setRecipientError(error.message) })
     if (channel === 'email') {
@@ -86,7 +89,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
         setDraft(current => ({ ...current, senderEmail: current.senderEmail || result.senders[0]?.email || '' }))
         if (recoveryOf && !result.senders.some((item: OrganisationSender) => item.email === SHOWCASE_SENDER && item.name === 'Headliner Music Academy')) setSenderError('The Headliner Music Academy sender is unavailable. Check Organisation email settings.')
         else if (!result.senders.length) setSenderError("Set up your organization email in Settings. If you don't have permission, ask the account owner.")
-      }).catch(error => { if (!cancelled) setSenderError(error.message) })
+      }).catch(error => { if (!cancelled) setSenderError(error.message) }).finally(() => { if (!cancelled) setSenderLoading(false) })
       void json(`/api/conversations/signature${query}`).then(result => { if (!cancelled) setSignature(result) }).catch(() => {})
       void json(`/api/conversations/templates${query}`).then(result => { if (!cancelled) setTemplates(result.templates || []) }).catch(() => {})
     }
@@ -121,10 +124,9 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     } catch (error) { setError(error instanceof Error ? error.message : 'Check Sent before trying again.') } finally { setSending(false) }
   }
 
-  if (!audience) return <div style={{ padding: spacing.lg, display: 'grid', gap: spacing.lg }}>
-    {recipientError ? <Notice variant="error">{recipientError}</Notice> : 'Checking recipients…'}
-    {senderError && <Notice variant="error">{senderError}</Notice>}
-  </div>
+  if (recipientError) return <Notice variant="error">{recipientError}</Notice>
+  if (!audience || senderLoading || !restored) return <div style={{ padding: spacing.lg }}><LoadingSkeleton label={channel === 'email' ? 'Loading email composer' : 'Loading text message composer'} rows={4} /></div>
+  if (channel === 'email' && senderError) return <Notice variant="error">{senderError}</Notice>
   if (channel === 'sms') return <ComposePanel recipientIds={contactIds} recipientCount={audience.recipients.length} filterExplanation="" channel="sms" composeSource="scratch" draft={{ body: smsBody, onChange: updateSmsBody }} onClose={onClose} onSent={() => { try { sessionStorage.removeItem(smsStorageKey) } catch { /* Delivery already completed. */ } onClose() }} resolvedAudience={{ count: audience.recipients.length, version: audience.version, recipients: audience.recipients }} excludedRecipients={audience.excluded} />
   const count = recoveryOf ? destinations.length : audience.recipients.length
   return <>

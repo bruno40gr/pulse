@@ -98,9 +98,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 }
 
 function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void; showBrand?: boolean }) {
+  const pathname = usePathname()
   const [navigationAccess, setNavigationAccess] = useState<NavigationAccess>({})
   const [conversationCount, setConversationCount] = useState(0)
   const [leadCount, setLeadCount] = useState(0)
+  const [leadCountError, setLeadCountError] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -120,19 +122,22 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       try {
         const response = await fetch(`/api/leads?tenant=${encodeURIComponent(tenantId)}&count_only=1`, { cache: 'no-store', signal })
         const data = await response.json()
+        if (!response.ok || !Number.isSafeInteger(data.count) || data.count < 0) throw new Error('Lead count unavailable')
         if (!cancelled && !signal.aborted && response.ok && requestRevision === revision && tenantId === getActiveTenantId()) {
-          setLeadCount(Number.isSafeInteger(data.count) && data.count >= 0 ? data.count : 0)
+          setLeadCount(data.count); setLeadCountError(false)
         }
-      } catch {}
+      } catch { if (!cancelled && !signal.aborted && requestRevision === revision) setLeadCountError(true) }
     })
     const handleCountChange = () => { revision += 1; poller.refresh() }
     window.addEventListener(LEAD_COUNT_EVENT, handleCountChange)
+    window.addEventListener('focus', handleCountChange)
     return () => {
       cancelled = true
       poller.stop()
       window.removeEventListener(LEAD_COUNT_EVENT, handleCountChange)
+      window.removeEventListener('focus', handleCountChange)
     }
-  }, [])
+  }, [pathname])
 
   useEffect(() => {
     let cancelled = false
@@ -184,7 +189,7 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
       <div style={{ padding: '12px 8px 0' }}>
         <NotificationBell inverse variant="user" onNavigate={onNavigate} />
       </div>
-      <WorkAreaNavigation access={navigationAccess} leadCount={leadCount} conversationCount={conversationCount} onNavigate={onNavigate} />
+      <WorkAreaNavigation access={navigationAccess} leadCount={leadCount} leadCountError={leadCountError} conversationCount={conversationCount} onNavigate={onNavigate} />
       <div style={{ padding: '0 8px 12px' }}>
         <LogoutButton onLogout={onNavigate} />
       </div>

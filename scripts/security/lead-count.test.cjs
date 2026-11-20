@@ -14,6 +14,7 @@ function setup(options = {}) {
         lead('existing-student-band', { intake_type: 'service_inquiry', person_id: 'student' }),
         lead('legacy-student-band', { intake_type: 'service_inquiry', source_form: 'contact-band-opportunity' }),
         lead('existing-student-lesson', { person_id: 'student' }),
+        lead('booked', { status: 'booked' }), lead('enrolling', { status: 'processing' }), lead('lost', { status: 'lost' }), lead('spam', { status: 'spam' }),
         lead('contacted', { status: 'contacted' }), lead('won', { status: 'won' }), lead('winback', { source_form: '2026-disenrollment-import' }), lead('job', { intake_type: 'job_application' }), lead('other-tenant', { tenant_id: DEMO })],
     },
     errors: options.error ? { lead_intakes: { message: 'Count unavailable' } } : {},
@@ -21,11 +22,11 @@ function setup(options = {}) {
   return { h, get: () => h.load('app/api/leads/route.ts').GET(new Request(`https://synthetic.invalid/api/leads?tenant=${HEAD}&count_only=1`)) }
 }
 
-test('sidebar count includes only new inquiries in the authorized tenant', async () => {
+test('sidebar counts net-new people across open statuses in the authorized tenant', async () => {
   const { h, get } = setup()
   const response = await get()
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { count: 3, newCounts: { lesson_inquiry: 2, service_inquiry: 1 } })
+  assert.deepEqual(await response.json(), { count: 6, newCounts: { lesson_inquiry: 5, service_inquiry: 1 } })
   assert.equal(response.headers.get('cache-control'), 'no-store')
   const queries = h.getQueries().filter(q => q.table === 'lead_intakes')
   assert.equal(queries.length, 2)

@@ -2,6 +2,22 @@
 
 Control selection/focus colors and primitive ownership follow `docs/ui-interaction-colors.md`.
 
+## Skeleton-first loading
+
+- Every data-driven screen, drawer, tab and composer defaults to the shared
+  `LoadingSkeleton` while its required initial data is pending. Keep stable
+  framing where useful, but do not render a partially hydrated editor.
+- Empty arrays and missing values during loading are not verified empty/setup
+  states. Never flash “No records”, zero metrics, or “Set up organisation email”
+  before the requests that establish that state have settled.
+- Gate the ready surface on every required dependency (for email: recipients
+  AND authorised senders). Show genuine empty/setup/error states only after
+  loading finishes. Failed requests must not masquerade as an empty success.
+- Route `loading.tsx` is a fallback, not a replacement for client-fetch loading
+  states. Use the shared skeleton's accessible label and `aria-busy` semantics.
+- Regression tests must delay requests independently and verify no empty/setup
+  content flashes, then check success, confirmed empty, and failure transitions.
+
 ## Flat surfaces
 
 - Use `spacing.lg` for peer-card gutters in the lead detail surface: summary cards, vertical card stacks, column separation and the content inset below the toolbar. Align Notes and summary-card top edges; do not add a Notes-only inset or extra column-side padding. Internal field spacing is independent of card gutters.

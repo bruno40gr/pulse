@@ -41,7 +41,7 @@ const base = process.env.LEAD_TABLE_REVIEW_URL || 'http://127.0.0.1:3177'
       await badge.waitFor({ state: 'hidden' })
       count = 3
       const polled = page.waitForResponse(response => response.url().includes('/api/leads?'))
-      await page.clock.runFor(5100)
+      await page.clock.runFor(60100)
       await polled
       await link.getByLabel('3 new leads', { exact: true }).waitFor()
       assert.deepEqual(errors, [])

@@ -13,8 +13,8 @@ import styles from './WorkAreaNavigation.module.css'
 
 const icons = { operations: LayoutDashboard, beta: FlaskConical, onboarding: GraduationCap, funding: Wallet, website: Globe }
 
-export default function WorkAreaNavigation({ access, leadCount, conversationCount, onNavigate, switcherOnly = false, light = false, onBeforeNavigate }: {
-  access: NavigationAccess; leadCount: number; conversationCount: number; onNavigate: () => void; switcherOnly?: boolean; light?: boolean; onBeforeNavigate?: () => boolean
+export default function WorkAreaNavigation({ access, leadCount, leadCountError = false, conversationCount, onNavigate, switcherOnly = false, light = false, onBeforeNavigate }: {
+  access: NavigationAccess; leadCount: number; leadCountError?: boolean; conversationCount: number; onNavigate: () => void; switcherOnly?: boolean; light?: boolean; onBeforeNavigate?: () => boolean
 }) {
   const pathname = usePathname()
   const areaId = workAreaForPath(pathname)
@@ -68,7 +68,7 @@ export default function WorkAreaNavigation({ access, leadCount, conversationCoun
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
         if (link.href === '/dashboard/inbox' && pathname === link.href) { event.preventDefault(); window.dispatchEvent(new CustomEvent(CONVERSATIONS_HOME_EVENT)) }
         onNavigate()
-      }}>{link.label}{count > 0 && <span className={styles.count} aria-label={`${count} ${link.href === '/dashboard/leads' ? 'new leads' : 'unread messages'}`}>{count}</span>}</Link>
+      }}>{link.label}{count > 0 && <span className={styles.count} aria-label={`${count} ${link.href === '/dashboard/leads' ? 'new leads' : 'unread messages'}`}>{count}</span>}{link.href === '/dashboard/leads' && leadCountError && <span role="status" aria-label="Lead count unavailable" title="Lead count unavailable; open Leads to review inquiries">!</span>}</Link>
     })}</nav>
     <div className={styles.footer}>
       <Link href="/odeon-demo?screen=calendar" aria-label="BETA academy preview" onClick={onNavigate} className={styles.link} style={{ justifyContent: 'space-between', background: colors.yellow, color: colors.espresso, fontWeight: 700 }}><span>BETA</span><span style={{ fontSize: 12, fontWeight: 500 }}>Academy preview</span></Link>

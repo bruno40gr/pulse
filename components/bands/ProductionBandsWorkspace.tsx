@@ -12,7 +12,7 @@ import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { Modal, ModalBody, ModalFooter, ModalHeader, SlidePanel, SlidePanelHeader } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { BandStudentPicker } from '@/components/bands/BandStudentPicker'
-import DashboardNotes from '@/components/notes/DashboardNotes'
+import BandNotes from '@/components/bands/BandNotes'
 import BandCommunications from '@/components/bands/BandCommunications'
 import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
 import { SlidePanelContent } from '@/components/ui/SlidePanelContent'
@@ -222,8 +222,8 @@ export default function ProductionBandsWorkspace() {
                 ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => setRemoving(row) }]),
               ]} />) },
           ]} />
-        </DenseSectionPanel> : panelTab === 'notes' ? <DenseSectionPanel title="Internal notes">
-          <DashboardNotes key={`${getActiveTenantId()}:${band.name}`} bandName={band.name} embedded />
+        </DenseSectionPanel> : panelTab === 'notes' ? <DenseSectionPanel>
+          <BandNotes key={`${getActiveTenantId()}:${band.name}`} bandName={band.name} />
         </DenseSectionPanel> : panelTab === 'communications' ? <BandCommunications key={`${band.name}:${communicationChannel}`} bandName={band.name} members={band.members} initialChannel={communicationChannel} />
           : <DenseSectionPanel title={panelTab === 'scheduling' ? 'Scheduling' : 'Curriculum'}><Notice>{panelTab === 'scheduling' ? 'Band scheduling is coming soon. Rehearsal information is available in Details.' : 'Band curriculum is coming soon.'}</Notice></DenseSectionPanel>}
       </SlidePanelContent>

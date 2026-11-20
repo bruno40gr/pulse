@@ -195,7 +195,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
   }
 }
 
-/** Notification counts are net-new inquiries, not all open opportunities in the tabs. */
+/** Net-new means unlinked people, not only the first workflow status. */
 async function getNewLeadCounts(tenantId: string) {
   const count = async (types: readonly string[]) => {
     const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes')
@@ -203,7 +203,7 @@ async function getNewLeadCounts(tenantId: string) {
       .in('intake_type', types).is('person_id', null)
       .neq('source_form', WINBACK_SOURCE_FORM)
       // Legacy band opportunities predate person_id and are still existing students.
-      .neq('source_form', 'contact-band-opportunity').eq('status', 'new'),
+      .neq('source_form', 'contact-band-opportunity').in('status', ['new', 'contacted', 'booked', 'processing']),
     LEADS_QUERY_TIMEOUT_MS, 'net-new lead count query')
     if (result.error) throw result.error
     return result.count ?? 0

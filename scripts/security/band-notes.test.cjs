@@ -158,7 +158,10 @@ test('read-only staff receive read-only capability; roster failures fail closed'
 
 test('band notes reuse the actual notes composition and migration preserves rename/history boundaries', () => {
   const source = file => fs.readFileSync(path.join(__dirname, '../..', file), 'utf8')
-  assert.match(source('components/bands/ProductionBandsWorkspace.tsx'), /<DashboardNotes[^>]+bandName=\{band.name\} embedded/)
+  assert.match(source('components/bands/ProductionBandsWorkspace.tsx'), /<BandNotes[^>]+bandName=\{band.name\}/)
+  const bandNotes = source('components/bands/BandNotes.tsx')
+  assert.match(bandNotes, /<NotesSection/)
+  assert.doesNotMatch(bandNotes, /DashboardNotes|ColorSwatch|noteBackground/)
   const notes = source('components/notes/DashboardNotes.tsx')
   assert.match(notes, /band_name: bandName/)
   assert.match(notes, /readOnly=\{!canWrite\}/)

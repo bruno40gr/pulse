@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { Button, Notice, Select } from '@/components/ui'
 import PrototypeEmailComposer, { type PrototypeEmailDraft } from './PrototypeEmailComposer'
 import ExcludedRecipientsNotice from './ExcludedRecipientsNotice'
@@ -68,7 +69,7 @@ export default function ContactGroupEmailComposer({ tenantId, contactIds, onClos
       setError(`${error instanceof Error ? error.message : 'Delivery could not be confirmed.'} This composer is locked to prevent duplicate sends. Check Sent before starting another email.`)
     } finally { inFlight.current = false; setSending(false) }
   }
-  if (!audience) return <Notice variant={error ? 'error' : 'info'}>{error || 'Checking recipients…'}</Notice>
+  if (!audience) return error ? <Notice variant="error">{error}</Notice> : <div style={{ padding: spacing.lg }}><LoadingSkeleton label="Loading email composer" rows={4} /></div>
   if (sent) return <Notice><div role="status">Email sent.</div><Button variant="secondary" onClick={onClose}>Back to recipients</Button></Notice>
   return <>
     <Notice style={{ margin: spacing.lg }}>BCC hides account-holder addresses. CC and To make addresses visible to the other recipients. With no To recipients, the organisation sender is used as To.</Notice>

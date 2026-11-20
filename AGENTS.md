@@ -15,6 +15,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## UI conventions
 
+- Data-driven screens, drawers, tabs and composers are skeleton-first. Use the
+  shared `LoadingSkeleton` until all required initial requests settle; never
+  flash empty results, setup prompts or partially hydrated forms while loading.
+  Follow the skeleton-first rule and delayed-request checks in
+  `docs/ui-layout-rules.md`.
+
 - Follow `docs/Odeon-AI-vision.md` for the agreed human/agent operating direction.
   Explicitly flag over-polishing before cosmetic iteration or unnecessary new
   surfaces: explain the limited benefit, opportunity cost and recommended deferral.

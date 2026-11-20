@@ -1,9 +1,13 @@
 # Internal band notes
 
-BandOS's band detail panel reuses `DashboardNotes` in the Notes tab. It is the
-same composition as the general Notes workspace, scoped by tenant and band:
-notes, editing, completion, colors, pinning, private participants, replies,
-mentions and follow-up tasks remain in the existing notes system.
+BandOS's Notes tab reuses `NotesSection`, the chronological list/editor used by
+contact details and lead panels. It supports adding, editing, completion and staff
+mentions, with author/timestamp history and a skeleton during loading. It does
+not use sticky cards, colors, pins or a dashboard-style note board. Existing
+band notes remain in the same tenant/band-scoped storage with privacy and access
+checks intact; no note data is discarded. Previously saved private notes remain
+visible only to their participants. Replies/tasks remain in the existing notes
+system rather than being recreated in the profile editor.
 
 ## Access
 
