@@ -40,7 +40,9 @@ leave the nullable column/function intact. Do not drop task data to roll back UI
   unless explicitly cleared or changed.
 - All notes includes notes and tasks; Open tasks excludes completed tasks; My
   tasks uses the authenticated membership, not a display name. Hide done applies
-  to All notes and My tasks. Date filters use the existing `note_date` field.
+  to All notes and My tasks, and is remembered per tenant and membership in
+  `pulse_notes_view_v1`, so a reload keeps the view instead of resetting it. Date
+  filters use the existing `note_date` field.
 - Plain notes and tasks both retain the header Mark done / Done control. Plain
   note completion does not create a task; it uses the same notes.manage permission
   and private-note access check, persists across reloads, and respects Hide done.
