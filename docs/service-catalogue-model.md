@@ -1,9 +1,9 @@
 # Service catalogue model — proposal (not implemented)
 
-Status: **proposal only.** Nothing here is built. It records the agreed direction
-and the current problem so the work can be picked up with context. Filtering by
-these dimensions is blocked on this model; the Contacts filter drawer currently
-reflects the existing catalogue, which is why it reads as a list of one-offs.
+Status: **read-side implemented.** `lib/service-types.ts` decomposes each imported
+label into lesson, service format and level, and the Contacts filter drawer now
+offers those three dimensions instead of one enumerated service name. Enrollment,
+pricing and the write path are still on the old catalogue rows.
 
 ## The problem
 

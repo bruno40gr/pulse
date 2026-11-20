@@ -1,4 +1,4 @@
-import { serviceTypeMatches } from './service-types'
+import { lessonServicesForContact, matchesFormat, matchesLesson, matchesLevel } from './service-types'
 import { contactDestination, type ContactPresentation } from './contact-presentation'
 import { matchesClientTypes } from './contact-client-types'
 
@@ -51,9 +51,18 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
       case 'program':
         if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value) && !contact.profile_enrollments?.some(enrollment => enrollment.instrument === value)) return false
         break
+      case 'lesson':
+        if (!lessonServicesForContact(contact).some(service => matchesLesson(service, value))) return false
+        break
+      case 'service_format':
+        if (!lessonServicesForContact(contact).some(service => matchesFormat(service, value))) return false
+        break
+      case 'level':
+        if (!lessonServicesForContact(contact).some(service => matchesLevel(service, value))) return false
+        break
+      // Kept so a saved filter from before the dimensions existed still narrows.
       case 'service_class':
-        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => serviceTypeMatches(contact.custom_fields?.[key] as string | undefined, value)) &&
-          !contact.profile_enrollments?.some(enrollment => [enrollment.service_type, enrollment.session_name, enrollment.appointment_class_name].some(stored => serviceTypeMatches(stored, value)))) return false
+        if (!lessonServicesForContact(contact).some(service => matchesLesson(service, value))) return false
         break
       case 'funded':
         if (Boolean(contact.funded) !== (value === 'yes')) return false

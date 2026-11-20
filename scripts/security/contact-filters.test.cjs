@@ -8,7 +8,8 @@ const { SERVICE_TYPE_OPTIONS } = createHarness().load('lib/lead-value.ts')
 test('Contacts filters place client type immediately above funding and omit imported status choices', () => {
   const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../app/dashboard/contacts/page.tsx'), 'utf8')
   const filters = source.slice(source.indexOf('<SlidePanel isOpen={showFilters}'))
-  assert.ok(filters.indexOf('label="Service / class"') < filters.indexOf('>Client type</legend>'))
+  assert.ok(filters.indexOf('label="Lesson"') < filters.indexOf('>Client type</legend>'))
+  assert.ok(filters.indexOf('label="Service" footer') < 0)
   assert.ok(filters.indexOf('>Client type</legend>') < filters.indexOf('label="Funding"'))
   assert.ok(!filters.includes('label="Status"'))
   assert.ok(!source.includes('const statusOptions ='))
@@ -102,4 +103,20 @@ test('filter options can match a secondary enrollment rather than only the first
 test('labels that carry no service value stop matching as filters', () => {
   const contact = { ...student, custom_fields: { service_type: 'band' }, profile_enrollments: [{ service_type: 'band', session_name: 'Band A', appointment_class_name: 'Ensemble' }] }
   for (const value of ['band', 'Band A', 'Ensemble']) assert.equal(matchesContactFilters(contact, { service_class: value }), false)
+})
+test('lesson, service and level are three independent filters', () => {
+  const contact = { ...student, profile_enrollments: [
+    { service_type: 'band', session_name: 'La Paz' },
+    { service_type: 'Piano - Level 2 (30 min) - Semi-Private' },
+  ] }
+  assert.equal(matchesContactFilters(contact, { lesson: 'Piano' }), true)
+  assert.equal(matchesContactFilters(contact, { lesson: 'Band' }), true)
+  assert.equal(matchesContactFilters(contact, { lesson: 'Drums' }), false)
+  assert.equal(matchesContactFilters(contact, { service_format: 'semi' }), true)
+  assert.equal(matchesContactFilters(contact, { service_format: 'private' }), false)
+  assert.equal(matchesContactFilters(contact, { level: 'Level 2' }), true)
+  assert.equal(matchesContactFilters(contact, { level: 'Level 3' }), false)
+  assert.equal(matchesContactFilters(contact, { lesson: 'Piano', service_format: 'semi', level: 'Level 2' }), true)
+  const bandOnly = { ...student, profile_enrollments: [{ service_type: 'band', session_name: 'La Paz' }] }
+  assert.equal(matchesContactFilters(bandOnly, { lesson: 'Band', service_format: 'group', level: 'Level 2' }), false)
 })

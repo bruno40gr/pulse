@@ -1,6 +1,6 @@
 'use client'
 
-import { canonicalServiceTypes } from '@/lib/service-types'
+import { lessonServiceOptions, lessonServicesForContact } from '@/lib/service-types'
 import { PageContainer } from '@/components/ui/PageContainer'
 
 import { useContext } from 'react'
@@ -481,8 +481,7 @@ export default function ContactsPage() {
       return typeof value === 'string' && value.trim() ? [value] : []
     }))),
   ])].sort((a, b) => a.localeCompare(b))
-  const programOptions = optionsFor(['program', 'instrument'])
-  const serviceOptions = canonicalServiceTypes(optionsFor(['service_type', 'session_name', 'appointment_class_name']))
+  const lessonOptionSet = lessonServiceOptions(contacts.flatMap(contact => lessonServicesForContact(contact)))
   const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
   const instructors = [...new Map(contacts.flatMap(contact => [
     ...(contact.instructor?.person_id && contact.instructor.name ? [[contact.instructor.person_id, contact.instructor.name] as const] : []),
@@ -924,11 +923,14 @@ export default function ContactsPage() {
               <Select controlSize="compact" label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
                 <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </Select>
-              <Select controlSize="compact" label="Program" value={filterDraft.program || ''} onChange={event => updateFilterDraft('program', event.target.value)}>
-                <option value="">Any program</option>{programOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              <Select controlSize="compact" label="Lesson" value={filterDraft.lesson || ''} onChange={event => updateFilterDraft('lesson', event.target.value)}>
+                <option value="">Any lesson</option>{lessonOptionSet.lessons.map(value => <option key={value} value={value}>{value}</option>)}
               </Select>
-              <Select controlSize="compact" label="Service / class" value={filterDraft.service_class || ''} onChange={event => updateFilterDraft('service_class', event.target.value)}>
-                <option value="">Any service or class</option>{serviceOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              <Select controlSize="compact" label="Service" hint="How the lesson is delivered." value={filterDraft.service_format || ''} onChange={event => updateFilterDraft('service_format', event.target.value)}>
+                <option value="">Any service</option>{lessonOptionSet.formats.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Select controlSize="compact" label="Level" value={filterDraft.level || ''} onChange={event => updateFilterDraft('level', event.target.value)}>
+                <option value="">Any level</option>{lessonOptionSet.levels.map(value => <option key={value} value={value}>{value}</option>)}
               </Select>
               <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
                 <legend style={{ ...typography.bodySmall, marginBottom: spacing.sm }}>Client type</legend>

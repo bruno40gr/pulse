@@ -1,68 +1,164 @@
 import { LESSON_INSTRUMENT_OPTIONS } from './lead-lesson-details'
 
 /**
- * Opus exports carry one service label per enrolment, one service per class, and
- * one per ensemble. Many of those labels stopped meaning anything in Odeon: the
- * delivery mode on its own ("band", "group", "private"), a band's name, or a
- * session with its rehearsal slot glued on ("Rock City - SAT 9:30 AM").
+ * Lessons are assembled from dimensions, not from one enumerated label
+ * (docs/service-catalogue-model.md): the lesson (instrument or branded program),
+ * the service format (private, semi-private, group) and the level.
  *
- * Filters and rosters only need the thing being taught, so every stored label is
- * reduced to a canonical service. Anything carrying no service value is dropped
- * rather than offered as a filter option.
+ * Opus stores the same arrangement as a single fragmented string per enrolment —
+ * "Piano - Level 1 (30 min) - Semi-Private", "Tiny Keys - Level 2 (Group) - SAT
+ * 9:30 AM", or an ensemble's name with no service value at all. Each label is
+ * decomposed back into those dimensions so filters can speak in the same terms
+ * staff do.
  */
-const DELIVERY_ONLY = new Set(['band', 'group', 'private', 'semi-private', 'semiprivate', 'semi private', 'lesson', 'lessons', 'makeup', 'make-up', 'trial', 'drop-in'])
+export type LessonFormat = 'private' | 'semi' | 'group'
 
-const ALIASES: Record<string, string> = {
-  voice: 'Voice', vocals: 'Voice', vocal: 'Voice', 'voice & vocals': 'Voice', 'voice and vocals': 'Voice', singing: 'Voice',
-  sax: 'Saxophone', 'alto saxophone': 'Saxophone', 'tenor saxophone': 'Saxophone',
-  keys: 'Piano', keyboard: 'Piano', keyboards: 'Piano',
-  guitar: 'Guitar', bass: 'Bass', 'bass guitar': 'Bass', drums: 'Drums', drumkit: 'Drums', 'drum kit': 'Drums',
-  violin: 'Violin', viola: 'Violin', cello: 'Cello', ukulele: 'Ukulele', flute: 'Flute', clarinet: 'Clarinet', trumpet: 'Trumpet', trombone: 'Other', tuba: 'Other',
+export interface LessonService {
+  lesson: string | null
+  format: LessonFormat | null
+  level: string | null
 }
 
-/** Named programs whose instrument is fixed, so the program label is the service. */
-const PROGRAMS: { match: RegExp; service: string }[] = [
-  { match: /tiny keys|kids n keys|foundations of piano/i, service: 'Piano' },
-  { match: /foundations of guitar|little rockers/i, service: 'Guitar' },
-  { match: /beat making|songwriting|composition/i, service: 'Other' },
+export const LESSON_FORMAT_OPTIONS: { value: LessonFormat; label: string }[] = [
+  { value: 'private', label: 'Private' },
+  { value: 'semi', label: 'Semi-private' },
+  { value: 'group', label: 'Group' },
+]
+
+export const LESSON_LEVEL_OPTIONS = ['Level 1', 'Level 2', 'Level 3', 'Level 4']
+
+/** Group classes are programs in their own right, not instruments. */
+const GROUP_PROGRAMS: { match: RegExp; lesson: string }[] = [
+  { match: /\btiny keys\b|\bkids n keys\b/i, lesson: 'Tiny Keys' },
+  { match: /\blittle rockers\b|\brock city\b/i, lesson: 'Little Rockers' },
+  { match: /\bsongwriting\b/i, lesson: 'Songwriting' },
 ]
 
 const INSTRUMENTS = LESSON_INSTRUMENT_OPTIONS.filter(option => option !== 'Other').sort((a, b) => b.length - a.length)
 
-function tidy(raw: string) {
-  return raw.replace(/\s+/g, ' ').trim()
-}
+const INSTRUMENT_ALIASES: Record<string, string> = { voice: 'Voice', vocals: 'Voice', 'voice & vocals': 'Voice', singing: 'Voice', sax: 'Saxophone', keys: 'Piano', keyboard: 'Piano', 'bass guitar': 'Bass', trombone: 'Other', tuba: 'Other', viola: 'Violin' }
+
+const DELIVERY_ONLY = new Set(['band', 'group', 'private', 'semi-private', 'semiprivate', 'semi private', 'lesson', 'lessons', 'makeup', 'make-up'])
 
 function withoutSchedule(label: string) {
-  // "… - SAT 9:30 AM", "… - Wednesday @ 5:00 PM", "… - WED 2:30 PM"
-  return label.replace(/\s*[-–—]\s*(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\b.*$/i, '').trim()
+  // "— SAT 9:30 AM", "- Wednesday @ 5:00 PM", "(Group) - WED 2:30 PM"
+  return label.replace(/\s*[-–—]\s*(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\b.*$/i, '')
+    .replace(/\s*[-–—]\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$/i, '').trim()
 }
 
-function withoutLevel(label: string) {
-  return label.replace(/\s*[-–—]\s*level\s*\d+.*$/i, '').replace(/\s*\((group|make-?up|semi-?private)\)\s*$/i, '').trim()
+function tidy(raw: string) {
+  return withoutSchedule(raw.replace(/\s+/g, ' ').trim())
 }
 
-export function canonicalServiceType(raw?: string | null): string | null {
-  if (!raw) return null
-  const label = withoutLevel(withoutSchedule(tidy(raw)))
-  if (!label) return null
-  const key = label.toLowerCase()
-  if (DELIVERY_ONLY.has(key)) return null
-  const program = PROGRAMS.find(entry => entry.match.test(label))
-  if (program) return program.service
-  const alias = ALIASES[key]
-  if (alias) return alias
-  const instrument = INSTRUMENTS.find(option => new RegExp(`(^|\\W)${option.toLowerCase()}(\\W|$)`, 'i').test(label))
-  if (instrument) return instrument
-  // A person, band or room name carries no service value.
+function readFormat(label: string, serviceType?: string | null): LessonFormat | null {
+  const text = `${serviceType || ''} ${label}`.toLowerCase()
+  if (/semi[- ]?private/.test(text)) return 'semi'
+  if (/\bprivate\b/.test(text)) return 'private'
+  if (/\bgroup\b|\bband\b|\bensemble\b/.test(text)) return 'group'
   return null
 }
 
-export function canonicalServiceTypes(values: (string | null | undefined)[]): string[] {
-  return [...new Set(values.map(canonicalServiceType).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b))
+function readLevel(label: string): string | null {
+  const match = label.match(/\blevel\s*([1-9])\b/i)
+  return match ? `Level ${match[1]}` : null
 }
 
-/** True when a stored label means the canonical service, e.g. "Piano - Level 2 (30 min)" for "Piano". */
-export function serviceTypeMatches(stored: string | null | undefined, canonical: string) {
-  return canonicalServiceType(stored) === canonical
+function readLesson(label: string): string | null {
+  if (!label) return null
+  const program = GROUP_PROGRAMS.find(entry => entry.match.test(label))
+  if (program) return program.lesson
+  const alias = Object.keys(INSTRUMENT_ALIASES).sort((a, b) => b.length - a.length)
+    .find(key => new RegExp(`(^|[^a-z])${key}([^a-z]|$)`, 'i').test(label))
+  if (alias) return INSTRUMENT_ALIASES[alias]
+  const instrument = INSTRUMENTS.find(option => new RegExp(`(^|[^a-z])${option.toLowerCase()}([^a-z]|$)`, 'i').test(label))
+  return instrument || null
+}
+
+/** True when the label is the bare delivery mode, e.g. "semi-private". */
+export function isFormatOnly(label?: string | null) {
+  return Boolean(label && DELIVERY_ONLY.has(tidy(label).toLowerCase()))
+}
+
+/**
+ * Decompose one stored label. `serviceType` is the row's own service type when
+ * the label came from a session or class column, so "band" there makes a band
+ * name a Band group rather than an unrecognised proper noun.
+ */
+export function parseLessonService(raw?: string | null, serviceType?: string | null): LessonService | null {
+  const label = raw ? tidy(raw) : ''
+  const type = serviceType ? tidy(serviceType) : ''
+  const typeIsBand = /^(band|ensemble)$/i.test(type)
+  const lesson = typeIsBand ? 'Band' : readLesson(label) || readLesson(type)
+  const format = readFormat(label, type) || (lesson && (GROUP_PROGRAMS.some(entry => entry.lesson === lesson) || lesson === 'Band') ? 'group' : null)
+  const level = readLevel(label) || readLevel(type)
+  if (!lesson && !format && !level) return null
+  return { lesson, format, level }
+}
+
+/** One enrolment carries the same lesson across its service, session and class fields. */
+export function lessonServiceFor(enrollment: { service_type?: string | null; session_name?: string | null; appointment_class_name?: string | null; instrument?: string | null }) {
+  if (!enrollment) return null
+  const parts = [enrollment.session_name, enrollment.appointment_class_name].filter(Boolean) as string[]
+  const parsed = parts.map(part => parseLessonService(part, enrollment.service_type)).filter(Boolean) as LessonService[]
+  const fromService = parseLessonService(enrollment.service_type, enrollment.service_type)
+  if (fromService) parsed.push(fromService)
+  if (!parsed.length) {
+    const instrument = readLesson(enrollment.instrument || '')
+    return instrument ? { lesson: instrument, format: null, level: null } : null
+  }
+  return {
+    lesson: parsed.find(item => item.lesson)?.lesson ?? null,
+    format: parsed.find(item => item.format)?.format ?? null,
+    level: parsed.find(item => item.level)?.level ?? null,
+  }
+}
+
+export function matchesLesson(service: LessonService | null, lesson: string) {
+  return service?.lesson === lesson
+}
+
+export function matchesFormat(service: LessonService | null, format: string) {
+  return service?.format === format
+}
+
+export function matchesLevel(service: LessonService | null, level: string) {
+  return service?.level === level
+}
+
+/** Every dimension present in the data, so filters only offer what exists. */
+export function lessonServiceOptions(services: (LessonService | null)[]) {
+  const lessons = new Set<string>()
+  const levels = new Set<string>()
+  for (const service of services) {
+    if (!service) continue
+    if (service.lesson) lessons.add(service.lesson)
+    if (service.level) levels.add(service.level)
+  }
+  return {
+    lessons: [...lessons].sort((a, b) => a.localeCompare(b)),
+    formats: LESSON_FORMAT_OPTIONS,
+    levels: LESSON_LEVEL_OPTIONS.filter(level => levels.has(level)),
+  }
+}
+
+/** The lesson alone, for callers that only need the service being taught. */
+export function canonicalServiceType(raw?: string | null): string | null {
+  return parseLessonService(raw)?.lesson ?? null
+}
+
+/** Every lesson a contact carries, from recorded fields and imported enrolments. */
+export function lessonServicesForContact(contact: { custom_fields?: Record<string, unknown> | null; profile_enrollments?: { service_type?: string | null; session_name?: string | null; appointment_class_name?: string | null; instrument?: string | null }[] | null }) {
+  const services: LessonService[] = []
+  for (const key of ['service_type', 'session_name', 'appointment_class_name'] as const) {
+    const value = contact.custom_fields?.[key]
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = parseLessonService(value, key === 'service_type' ? value : null)
+      if (parsed) services.push(parsed)
+    }
+  }
+  for (const enrollment of contact.profile_enrollments || []) {
+    const parsed = lessonServiceFor(enrollment)
+    if (parsed) services.push(parsed)
+  }
+  return services
 }
