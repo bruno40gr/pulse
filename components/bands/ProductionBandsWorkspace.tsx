@@ -5,6 +5,7 @@ import LeadsView from '@/components/leads/LeadsView'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Tabs } from '@/components/ui/Tabs'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 import { Notice } from '@/components/ui/Notice'
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { Modal, ModalBody, ModalFooter, ModalHeader, SlidePanel, SlidePanelHeader } from '@/components/ui'
@@ -202,10 +203,10 @@ export default function ProductionBandsWorkspace() {
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
             { id: 'name', header: 'Student', width: '1.2fr', render: row => <PersonName>{row.name}</PersonName> },
             { id: 'instrument', header: 'Instruments', width: '1.3fr', render: row => (
-              <Select multiple size={3} aria-label={`Instruments for ${row.name}`} value={row.instruments} disabled={saving}
-                onChange={event => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, instruments: Array.from(event.target.selectedOptions, option => option.value) })}>
-                {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...row.instruments])].map(option => <option key={option} value={option}>{option}</option>)}
-              </Select>) },
+              <MultiSelect label="" ariaLabel={`Instruments for ${row.name}`} appearance="subtle" menuMinWidth={220} disabled={saving}
+                value={row.instruments}
+                options={[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...row.instruments])].map(option => ({ value: option, label: option }))}
+                onChange={next => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, instruments: next })} />) },
             { id: 'membership', header: 'Membership', width: '.8fr', render: row => band.status === 'forming' ? 'Prospect' : (MEMBERSHIP_LABEL[row.membership] || row.membership) },
             { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[

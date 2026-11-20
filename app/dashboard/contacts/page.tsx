@@ -1,5 +1,6 @@
 'use client'
 
+import { canonicalServiceTypes } from '@/lib/service-types'
 import { PageContainer } from '@/components/ui/PageContainer'
 
 import { useContext } from 'react'
@@ -481,7 +482,7 @@ export default function ContactsPage() {
     }))),
   ])].sort((a, b) => a.localeCompare(b))
   const programOptions = optionsFor(['program', 'instrument'])
-  const serviceOptions = optionsFor(['service_type', 'session_name', 'appointment_class_name'])
+  const serviceOptions = canonicalServiceTypes(optionsFor(['service_type', 'session_name', 'appointment_class_name']))
   const appliedFilterCount = displayIds === null ? Object.values(appliedFilters).filter(value => value.trim()).length : 0
   const instructors = [...new Map(contacts.flatMap(contact => [
     ...(contact.instructor?.person_id && contact.instructor.name ? [[contact.instructor.person_id, contact.instructor.name] as const] : []),

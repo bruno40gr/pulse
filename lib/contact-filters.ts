@@ -1,3 +1,4 @@
+import { serviceTypeMatches } from './service-types'
 import { contactDestination, type ContactPresentation } from './contact-presentation'
 import { matchesClientTypes } from './contact-client-types'
 
@@ -51,8 +52,8 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
         if (!['program', 'instrument'].some(key => contact.custom_fields?.[key] === value) && !contact.profile_enrollments?.some(enrollment => enrollment.instrument === value)) return false
         break
       case 'service_class':
-        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => contact.custom_fields?.[key] === value) &&
-          !contact.profile_enrollments?.some(enrollment => [enrollment.service_type, enrollment.session_name, enrollment.appointment_class_name].includes(value))) return false
+        if (!['service_type', 'session_name', 'appointment_class_name'].some(key => serviceTypeMatches(contact.custom_fields?.[key] as string | undefined, value)) &&
+          !contact.profile_enrollments?.some(enrollment => [enrollment.service_type, enrollment.session_name, enrollment.appointment_class_name].some(stored => serviceTypeMatches(stored, value)))) return false
         break
       case 'funded':
         if (Boolean(contact.funded) !== (value === 'yes')) return false
