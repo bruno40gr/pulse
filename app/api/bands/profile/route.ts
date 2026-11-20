@@ -4,7 +4,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const headers = { 'Cache-Control': 'private, no-store' }
-const allowed = new Set(['active', 'forming', 'external', 'archived'])
+const allowed = new Set(['draft', 'active', 'forming', 'external', 'archived'])
 
 async function guard(request: Request) {
   if (!bandWorkspaceEnabled() || !bandWritesEnabled()) return { ok: false as const, response: Response.json({ error: 'Not found.' }, { status: 404, headers }) }

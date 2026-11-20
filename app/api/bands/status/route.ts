@@ -4,7 +4,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const headers = { 'Cache-Control': 'private, no-store' }
-const allowed = new Set(['active', 'forming', 'external', 'archived'])
+const allowed = new Set(['draft', 'active', 'forming', 'external', 'archived'])
 
 /** Archive or restore a band. History is never deleted. */
 export async function POST(request: Request) {

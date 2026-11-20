@@ -64,3 +64,12 @@ test('invalid status, foreign account, missing permission and no flag never writ
     assert.equal(h.getWrites().length, 0)
   }
 })
+
+test('a draft band can be created and later promoted', async () => {
+  for (const status of ['draft', 'active']) {
+    const h = setup()
+    const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'New band', name: 'New band', status }))
+    assert.equal(response.status, 200)
+    assert.equal(h.getWrites().find(query => query.table === 'band_profiles').payload.status, status)
+  }
+})

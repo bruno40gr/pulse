@@ -29,11 +29,11 @@ type TentativeGroup = { id: string; name: string; member_count?: number }
 type Candidate = { id: string; name: string }
 type LoadState = 'loading' | 'ready' | 'error'
 type Row = { key: string; name: string; status: 'Active' | 'Forming'; members: number; coach: string | null; band?: Band }
-type Status = 'active' | 'forming' | 'external' | 'archived'
+type Status = 'draft' | 'active' | 'forming' | 'external' | 'archived'
 
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
 const COMING_SOON = ['scheduling', 'notes', 'curriculum', 'communications'] as const
-const STATUS_LABEL: Record<string, string> = { active: 'Active', forming: 'Forming', external: 'Rehearsal client', archived: 'Archived' }
+const STATUS_LABEL: Record<string, string> = { draft: 'Draft', active: 'Active', forming: 'Forming', external: 'Rehearsal client', archived: 'Archived' }
 const MEMBERSHIP_LABEL: Record<string, string> = { confirmed: 'Confirmed', pending: 'Pending', prospect: 'Prospect' }
 
 async function readList<T>(url: string, key: string, signal: AbortSignal): Promise<T[]> {
@@ -105,6 +105,16 @@ export default function ProductionBandsWorkspace() {
     finally { if (!quiet) setSaving(false) }
   }
 
+  const createDraft = async () => {
+    const taken = new Set([...bands.map(row => row.name.toLowerCase()), ...tentative.map(row => row.name.toLowerCase())])
+    let name = 'New band'
+    for (let index = 2; taken.has(name.toLowerCase()); index += 1) name = `New band ${index}`
+    if (!(await mutate('PATCH', '/api/bands/profile', { band: name, name, status: 'draft' }, true))) return
+    setDraft({ name, schedule: '', image_url: '', status: 'draft' })
+    setOpened(name)
+    setEditing(true)
+  }
+
   const openEdit = () => {
     if (!band) return
     setDraft({ name: band.name, schedule: band.schedule || '', image_url: band.image_url || '', status: (band.status as Status) || 'active' })
@@ -132,7 +142,7 @@ export default function ProductionBandsWorkspace() {
   }
 
   return <PageContainer>
-    <PageHeader title="Bands & ensembles" />
+    <PageHeader title="Bands & ensembles" right={<Button onClick={() => void createDraft()} disabled={saving}>Create new band</Button>} />
     <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'Bands & ensembles' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
     {view === 'matching' ? <LeadsView matching /> : <DenseSectionPanel title="Bands & ensembles">
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>

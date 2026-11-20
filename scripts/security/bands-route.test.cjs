@@ -97,3 +97,13 @@ test('rehearsal-space clients and archived bands leave the working roster', asyn
   assert.equal(response.status, 200)
   assert.deepEqual(Array.from((await response.json()).bands, band => [band.name, band.status]), [['Band C', 'active']])
 })
+
+test('a draft band appears before it has any members', async () => {
+  const h = setup({ profiles: [{ tenant_id: HEAD, band_name: 'New band', status: 'draft', schedule: 'Tuesdays 6pm', image_url: null }] })
+  const response = await h.load(route).GET(request())
+  assert.equal(response.status, 200)
+  const draft = (await response.json()).bands.find(band => band.name === 'New band')
+  assert.equal(draft.status, 'draft')
+  assert.equal(draft.schedule, 'Tuesdays 6pm')
+  assert.deepEqual(Array.from(draft.members), [])
+})
