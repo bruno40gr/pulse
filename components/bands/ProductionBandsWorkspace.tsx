@@ -62,10 +62,9 @@ export default function ProductionBandsWorkspace() {
   const [prospects, setProspects] = useState<Candidate[]>([])
   const [pickedProspects, setPickedProspects] = useState<string[]>([])
   const [picked, setPicked] = useState<string[]>([])
+  const [addQuery, setAddQuery] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [editingInstruments, setEditingInstruments] = useState<Member | null>(null)
-  const [instrumentDraft, setInstrumentDraft] = useState<string[]>([])
   const [removing, setRemoving] = useState<Member | null>(null)
   const mobile = useIsMobile()
 
@@ -137,7 +136,7 @@ export default function ProductionBandsWorkspace() {
   }
 
   const openAdd = async () => {
-    setAdding(true); setPicked([]); setPickedProspects([]); setError('')
+    setAdding(true); setPicked([]); setPickedProspects([]); setAddQuery(''); setError('')
     const existing = new Set((band?.members || []).map(member => member.person_id))
     try {
       const [contactsResponse, prospectResponse] = await Promise.all([
@@ -157,9 +156,9 @@ export default function ProductionBandsWorkspace() {
   }
 
   return <PageContainer>
-    <PageHeader title="Bands & ensembles" right={<Button onClick={() => void createDraft()} disabled={saving}>Create new band</Button>} />
-    <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'Bands & ensembles' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
-    {view === 'matching' ? <LeadsView matching /> : <DenseSectionPanel title="Bands & ensembles">
+    <PageHeader title="BandOS" right={<Button onClick={() => void createDraft()} disabled={saving}>Create new band</Button>} />
+    <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
+    {view === 'matching' ? <LeadsView matching /> : <>
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>
         : bandsState === 'loading' ? <p role="status">Loading bands…</p> : <>
           {tentativeState === 'error' && <Notice variant="warning">Forming bands could not be loaded. Active bands are unaffected.</Notice>}
@@ -172,7 +171,7 @@ export default function ProductionBandsWorkspace() {
             { id: 'coach', header: 'Teacher / staff', width: '1fr', render: row => row.coach || 'Unassigned' },
           ]} />
         </>}
-    </DenseSectionPanel>}
+    </>}
     {band && <SlidePanel isOpen onClose={() => setOpened(null)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH}>
       <SlidePanelHeader title={band.name}
         subtitle={`${band.members.length} ${band.members.length === 1 ? 'member' : 'members'}${band.coach ? ` · Coach ${band.coach}` : ''}`}
@@ -187,7 +186,7 @@ export default function ProductionBandsWorkspace() {
       </div>
       <div style={{ padding: spacing.lg, overflowY: 'auto', minHeight: 0, display: 'grid', gap: spacing.lg }}>
         {error && <Notice variant="error">{error}</Notice>}
-        {panelTab === 'details' ? <DenseSectionPanel title="Details">
+        {panelTab === 'details' ? <div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.lg }}>
             <Avatar firstName={band.name} lastName="" src={band.image_url || undefined} size={64} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -199,14 +198,15 @@ export default function ProductionBandsWorkspace() {
             </FieldGrid>
             </div>
           </div>
-        </DenseSectionPanel> : panelTab === 'members' ? <DenseSectionPanel title="Members" actions={<Button onClick={() => void openAdd()} disabled={saving}>Add students</Button>}>
+        </div> : panelTab === 'members' ? <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button onClick={() => void openAdd()} disabled={saving}>Add students</Button></div>
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
             { id: 'name', header: 'Student', width: '1.2fr', render: row => <PersonName>{row.name}</PersonName> },
-            { id: 'instrument', header: 'Instruments', width: '1.1fr', render: row => (
-              <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
-                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{row.instruments.length ? row.instruments.join(', ') : 'Not set'}</span>
-                <Button variant="ghost" disabled={saving} onClick={() => { setInstrumentDraft(row.instruments); setEditingInstruments(row) }}>Edit</Button>
-              </div>) },
+            { id: 'instrument', header: 'Instruments', width: '1.3fr', render: row => (
+              <Select multiple size={3} aria-label={`Instruments for ${row.name}`} value={row.instruments} disabled={saving}
+                onChange={event => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, instruments: Array.from(event.target.selectedOptions, option => option.value) })}>
+                {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...row.instruments])].map(option => <option key={option} value={option}>{option}</option>)}
+              </Select>) },
             { id: 'membership', header: 'Membership', width: '.8fr', render: row => band.status === 'forming' ? 'Prospect' : (MEMBERSHIP_LABEL[row.membership] || row.membership) },
             { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
@@ -217,9 +217,7 @@ export default function ProductionBandsWorkspace() {
                 ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => setRemoving(row) }]),
               ]} />) },
           ]} />
-        </DenseSectionPanel> : <DenseSectionPanel title={panelTab[0].toUpperCase() + panelTab.slice(1)}>
-          <Notice>Coming soon.</Notice>
-        </DenseSectionPanel>}
+        </> : <Notice>Coming soon.</Notice>}
       </div>
     </SlidePanel>}
     {editing && band && <Modal isOpen onClose={() => setEditing(false)} ariaLabel="Edit band">
@@ -251,16 +249,17 @@ export default function ProductionBandsWorkspace() {
     {adding && band && <Modal isOpen onClose={() => setAdding(false)} ariaLabel="Add students">
       <ModalHeader title={`Add students to ${band.name}`} onClose={() => setAdding(false)} />
       <ModalBody style={{ display: 'grid', gap: spacing.lg }}>
+        <Input label="Search contacts" placeholder="Name or email" value={addQuery} onChange={event => setAddQuery(event.target.value)} />
         <div>
           <strong>Students seeking a band</strong>
           {!prospects.length ? <Notice>No student is currently seeking a band.</Notice>
-            : prospects.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={pickedProspects.includes(candidate.id)}
+            : prospects.filter(candidate => candidate.name.toLowerCase().includes(addQuery.trim().toLowerCase())).map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={pickedProspects.includes(candidate.id)}
                 onChange={event => setPickedProspects(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
         </div>
         <div>
           <strong>Contacts</strong>
           {!candidates.length ? <Notice>Everyone in Contacts is already in this band.</Notice>
-            : candidates.map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={picked.includes(candidate.id)}
+            : candidates.filter(candidate => candidate.name.toLowerCase().includes(addQuery.trim().toLowerCase())).map(candidate => <Checkbox key={candidate.id} label={candidate.name} checked={picked.includes(candidate.id)}
                 onChange={event => setPicked(current => event.target.checked ? [...current, candidate.id] : current.filter(id => id !== candidate.id))} />)}
         </div>
       </ModalBody>
@@ -271,21 +270,6 @@ export default function ProductionBandsWorkspace() {
           for (const personId of picked) { if (!(await mutate('POST', '/api/bands/members', { band: band.name, person_id: personId, membership: 'confirmed' }))) return }
           setAdding(false)
         }}>{saving ? 'Adding…' : 'Add to band'}</Button>
-      </ModalFooter>
-    </Modal>}
-    {editingInstruments && band && <Modal isOpen onClose={() => setEditingInstruments(null)} ariaLabel="Edit instruments">
-      <ModalHeader title={`Instruments for ${editingInstruments.name}`} onClose={() => setEditingInstruments(null)} />
-      <ModalBody style={{ display: 'grid', gap: spacing.sm }}>
-        {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...instrumentDraft])].map(option => (
-          <Checkbox key={option} label={option} checked={instrumentDraft.includes(option)}
-            onChange={event => setInstrumentDraft(current => event.target.checked ? [...current, option] : current.filter(value => value !== option))} />
-        ))}
-      </ModalBody>
-      <ModalFooter>
-        <Button variant="secondary" onClick={() => setEditingInstruments(null)} disabled={saving}>Cancel</Button>
-        <Button disabled={saving} onClick={async () => {
-          if (await mutate('PATCH', '/api/bands/members', { band: band.name, person_id: editingInstruments.person_id, instruments: instrumentDraft })) setEditingInstruments(null)
-        }}>{saving ? 'Saving…' : 'Save'}</Button>
       </ModalFooter>
     </Modal>}
     {removing && band && <Modal isOpen onClose={() => setRemoving(null)} ariaLabel="Remove from band">

@@ -32,7 +32,7 @@ export function workAreasForAccess(access: NavigationAccess): WorkArea[] {
       { href: '/dashboard/notes', label: 'Notes' },
       { href: '/dashboard/leads', label: 'Leads' },
       { href: '/dashboard/contacts', label: 'Contacts' },
-      ...(bandWorkspaceEnabled() ? [{ href: '/dashboard/bands', label: 'Bands & ensembles' }] : []),
+      ...(bandWorkspaceEnabled() ? [{ href: '/dashboard/bands', label: 'BandOS' }] : []),
       { href: '/dashboard/inbox', label: 'Communications' },
       { href: '/dashboard/history', label: 'Campaigns' },
       { href: '/dashboard/staff', label: 'Teachers & staff' },

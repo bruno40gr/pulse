@@ -2,6 +2,7 @@ import { bandWritesEnabled, bandWorkspaceEnabled } from '@/lib/band-feature'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -51,8 +52,18 @@ export async function POST(request: Request) {
   const requestedMembership = typeof body?.membership === 'string' ? body.membership.trim() : null
   if (requestedMembership && !MEMBERSHIPS.has(requestedMembership)) return Response.json({ error: 'Choose a valid membership state.' }, { status: 400, headers })
   try {
-    const person = await supabaseAdmin.from('people').select('id').eq('tenant_id', auth.tenantId).eq('id', auth.personId).maybeSingle()
+    const person = await supabaseAdmin.from('people').select('id,first_name,last_name').eq('tenant_id', auth.tenantId).eq('id', auth.personId).maybeSingle()
     if (person.error || !person.data) return Response.json({ error: 'Choose an existing student.' }, { status: 400, headers })
+
+    // Joining a band is an interest in the band service: the same person gains a
+    // canonical Band opportunity, so they appear in Opportunities and in Students
+    // seeking a band as well. It is idempotent and never duplicates an open one.
+    const displayName = `${person.data.first_name || ''} ${person.data.last_name || ''}`.trim()
+    const opportunity = await crmSupabaseAdmin.rpc('create_contact_band_opportunities', {
+      p_tenant: auth.tenantId,
+      p_students: [{ person_id: auth.personId, name: displayName || 'Band member' }],
+    })
+    if (opportunity.error) throw opportunity.error
     const instruments = cleanInstruments(body?.instruments)
     const single = cleanInstrument(body?.instrument) ?? instruments?.[0] ?? null
     const result = await supabaseAdmin.from('band_memberships')

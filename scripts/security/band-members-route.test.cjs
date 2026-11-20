@@ -17,7 +17,7 @@ function setup(options = {}) {
       students: [{ id: 's1', tenant_id: HEAD, person_id: person }],
       enrollments: [{ id: 'e1', tenant_id: HEAD, student_id: 's1', service_type: 'band', custom_fields: { band_name: 'La Paz' } }],
       band_memberships: [],
-    }, queryResult: options.queryResult })
+    }, queryResult: options.queryResult, rpcErrors: options.rpcError ? { create_contact_band_opportunities: { message: 'offline' } } : {} })
   return h
 }
 const request = (method, body = { tenant_id: HEAD, band: 'La Paz', person_id: person }) => new Request('https://synthetic.invalid/api/bands/members', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -102,4 +102,20 @@ test('a member can hold several instruments', async () => {
   const write = h.getWrites().find(query => query.table === 'band_memberships')
   assert.deepEqual(Array.from(write.payload.instruments), ['Bass', 'Vocals'])
   assert.equal(write.payload.instrument, 'Bass')
+})
+
+test('adding a member also creates their band opportunity so they appear in both views', async () => {
+  const h = setup()
+  const response = await h.load(route).POST(request('POST', { tenant_id: HEAD, band: 'La Paz', person_id: person, membership: 'prospect' }))
+  assert.equal(response.status, 201)
+  const call = h.getQueries().find(query => query.operation === 'rpc' && query.table === 'create_contact_band_opportunities')
+  assert.ok(call)
+  assert.equal(call.payload.p_tenant, HEAD)
+  assert.equal(call.payload.p_students[0].person_id, person)
+})
+test('a failed opportunity write stops the member being added', async () => {
+  const h = setup({ rpcError: true })
+  const response = await h.load(route).POST(request('POST', { tenant_id: HEAD, band: 'La Paz', person_id: person, membership: 'prospect' }))
+  assert.equal(response.status, 503)
+  assert.equal(h.getWrites().some(query => query.table === 'band_memberships'), false)
 })
