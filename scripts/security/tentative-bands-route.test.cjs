@@ -10,7 +10,9 @@ function setup(options = {}) {
   h.setScenario({ env: { ENABLE_CONTACT_BAND_OPPORTUNITIES: options.disabled ? 'false' : 'true' }, actor: options.anonymous ? null : { personId: 'viewer', displayName: 'Viewer' },
     fixtures: { tenant_memberships: [{ id: 'm', tenant_id: HEAD, person_id: 'viewer', role_id: 'r', legacy_access_enabled: true, status: 'unclaimed' }], roles: [{ id: 'r', tenant_id: HEAD, key: options.noPermission ? 'staff' : 'owner' }], role_permissions: [],
       band_tentative_opportunities: [{ tenant_id: HEAD, lead_id: lead, band_id: band }, { tenant_id: DEMO, lead_id: lead, band_id: 'foreign' }],
-      band_tentative_groups: [{ tenant_id: HEAD, id: band, name: 'Synthetic Band' }] }, errors: options.errors || {}, queryResult: options.queryResult, rpcResults: { set_band_tentative_opportunities: 1 }, rpcErrors: options.rpcError ? { set_band_tentative_opportunities: { message: 'offline' } } : {} })
+      band_tentative_groups: [{ tenant_id: HEAD, id: band, name: 'Synthetic Band' }],
+      lead_intakes: [{ id: lead, tenant_id: HEAD, person_id: 'p1' }],
+      people: [{ id: 'p1', tenant_id: HEAD, first_name: 'Ada', last_name: 'Lovelace' }] }, errors: options.errors || {}, queryResult: options.queryResult, rpcResults: { set_band_tentative_opportunities: 1 }, rpcErrors: options.rpcError ? { set_band_tentative_opportunities: { message: 'offline' } } : {} })
   return h
 }
 const request = (tenant = HEAD, id = lead) => new Request(`http://synthetic.invalid/api/leads/tentative-bands?tenant=${tenant}&lead_id=${id}`)
@@ -64,7 +66,9 @@ test('group listing and creation enforce tenant permissions', async () => {
   const create = (tenant = HEAD, name = 'New Band') => new Request('http://synthetic.invalid/api/leads/tentative-bands/groups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tenant_id: tenant, name }) })
   const h = setup(), response = await h.load(groupsRoute).GET(read)
   const listed = await (await h.load(groupsRoute).GET(read)).json()
-  assert.equal(listed.groups[0].name, 'Synthetic Band'); assert.equal(listed.groups[0].member_count, 1)
+  assert.equal(listed.groups[0].name, 'Synthetic Band')
+  assert.equal(listed.groups[0].member_count, 1)
+  assert.deepEqual(Array.from(listed.groups[0].members, member => member.name), ['Ada Lovelace'])
   const created = await h.load(groupsRoute).POST(create())
   assert.equal(created.status, 201)
   assert.equal(h.getQueries().find(q => q.table === 'band_tentative_groups' && q.operation === 'insert').payload.tenant_id, HEAD)

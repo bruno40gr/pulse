@@ -28,7 +28,7 @@ import { getActiveTenantId } from '@/lib/tenant'
 
 type Member = { person_id: string; name: string; instrument: string | null; membership: string; source: 'enrollment' | 'membership' }
 type Band = { name: string; coach: string | null; members: Member[]; status?: string; schedule?: string | null; image_url?: string | null }
-type TentativeGroup = { id: string; name: string; member_count?: number }
+type TentativeGroup = { id: string; name: string; member_count?: number; members?: { person_id: string; name: string }[] }
 type Candidate = { id: string; name: string }
 type LoadState = 'loading' | 'ready' | 'error'
 type Row = { key: string; name: string; status: 'Active' | 'Forming'; members: number; coach: string | null; band?: Band }
@@ -90,10 +90,19 @@ export default function ProductionBandsWorkspace() {
     return () => controller.abort()
   }, [load, view])
 
-  const band = opened ? bands.find(row => row.name === opened) : undefined
+  const formingBand = (group: TentativeGroup): Band => ({
+    name: group.name,
+    coach: null,
+    status: 'forming',
+    members: (group.members || []).map(member => ({ person_id: member.person_id, name: member.name, instrument: null, membership: 'prospect', source: 'membership' as const })),
+  })
+
+  const allBands = [...bands, ...tentative.map(formingBand)]
+  const band = opened ? allBands.find(row => row.name === opened) : undefined
+  // Every band opens its panel: a forming band is still a band.
   const rows: Row[] = [
     ...bands.map(row => ({ key: row.name, name: row.name, status: 'Active' as const, members: row.members.length, coach: row.coach, band: row })),
-    ...tentative.map(group => ({ key: `forming:${group.id}`, name: group.name, status: 'Forming' as const, members: group.member_count ?? 0, coach: null })),
+    ...tentative.map(group => ({ key: `forming:${group.id}`, name: group.name, status: 'Forming' as const, members: group.member_count ?? 0, coach: null, band: formingBand(group) })),
   ]
 
   const mutate = async (method: 'POST' | 'PATCH' | 'DELETE', path: string, payload: Record<string, unknown>, quiet = false) => {
@@ -195,17 +204,17 @@ export default function ProductionBandsWorkspace() {
               <option value="">Not set</option>
               {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...(row.instrument ? [row.instrument] : [])])].map(option => <option key={option} value={option}>{option}</option>)}
             </Select> },
-            { id: 'membership', header: 'Membership', width: '.8fr', render: row => MEMBERSHIP_LABEL[row.membership] || row.membership },
+            { id: 'membership', header: 'Membership', width: '.8fr', render: row => band.status === 'forming' ? 'Prospect' : (MEMBERSHIP_LABEL[row.membership] || row.membership) },
             { id: 'menu', header: '', width: '56px', render: row => (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
-                ...(row.membership === 'confirmed' ? [] : [
+                ...(band.status === 'forming' || row.membership !== 'confirmed' ? [
                   { label: 'Enroll student', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'confirmed' }) },
                   { label: 'Request enrollment', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'pending' }) },
-                ]),
-                { label: 'Remove from band', onSelect: () => {
+                ] : []),
+                ...(band.status === 'forming' ? [] : [{ label: 'Remove from band', onSelect: () => {
                   if (!window.confirm(`Remove ${row.name} from ${band.name}? This ends their band enrolment for this band.`)) return
                   void mutate('DELETE', '/api/bands/members', { band: band.name, person_id: row.person_id })
-                } },
+                } }]),
               ]} />) },
           ]} />
         </DenseSectionPanel> : <DenseSectionPanel title={panelTab[0].toUpperCase() + panelTab.slice(1)}>

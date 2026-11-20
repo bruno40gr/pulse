@@ -1,9 +1,12 @@
+import { bandWritesEnabled, bandWorkspaceEnabled } from '@/lib/band-feature'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
-import { bandWritesEnabled, bandWorkspaceEnabled } from '@/lib/band-feature'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const headers = { 'Cache-Control': 'private, no-store' }
+
+/** Forming bands: their candidates are prospects, never confirmed members. */
 export async function GET(request: Request) {
   if (!bandWorkspaceEnabled()) return Response.json({ error: 'Not found.' }, { status: 404, headers })
   const access = await authorizeTenantRequest(request, { permission: PERMISSIONS.leadsRead, allowDemo: false })
@@ -16,15 +19,48 @@ export async function GET(request: Request) {
       groups.push(...result.data)
       if (result.data.length < 500) break
     }
-    const counts = new Map<string, number>()
+
+    // Candidates come from the linked opportunities, so a forming band holds the
+    // same people as the opportunity they came from.
+    const links: { band_id: string; lead_id: string }[] = []
     for (let offset = 0; ; offset += 500) {
-      const result = await crmSupabaseAdmin.from('band_tentative_opportunities').select('band_id')
+      const result = await crmSupabaseAdmin.from('band_tentative_opportunities').select('band_id,lead_id')
         .eq('tenant_id', access.tenantId).order('band_id').range(offset, offset + 499)
-      if (result.error || !Array.isArray(result.data)) throw new Error('Members unavailable')
-      for (const row of result.data) counts.set(row.band_id, (counts.get(row.band_id) || 0) + 1)
+      if (result.error || !Array.isArray(result.data)) throw new Error('Candidates unavailable')
+      links.push(...result.data)
       if (result.data.length < 500) break
     }
-    return Response.json({ groups: groups.map(group => ({ ...group, member_count: counts.get(group.id) || 0 })) }, { headers })
+    const leadIds = [...new Set(links.map(link => link.lead_id))]
+    const personByLead = new Map<string, string>()
+    for (let offset = 0; offset < leadIds.length; offset += 100) {
+      const result = await crmSupabaseAdmin.from('lead_intakes').select('id,person_id')
+        .eq('tenant_id', access.tenantId).in('id', leadIds.slice(offset, offset + 100))
+      if (result.error || !Array.isArray(result.data)) throw new Error('Leads unavailable')
+      for (const row of result.data) if (row.person_id) personByLead.set(row.id, row.person_id)
+    }
+    const personIds = [...new Set([...personByLead.values()])]
+    const names = new Map<string, string>()
+    for (let offset = 0; offset < personIds.length; offset += 100) {
+      const result = await supabaseAdmin.from('people').select('id,first_name,last_name')
+        .eq('tenant_id', access.tenantId).in('id', personIds.slice(offset, offset + 100))
+      if (result.error || !Array.isArray(result.data)) throw new Error('People unavailable')
+      for (const person of result.data) names.set(person.id, `${person.first_name || ''} ${person.last_name || ''}`.trim())
+    }
+    const members = new Map<string, { person_id: string; name: string }[]>()
+    for (const link of links) {
+      const personId = personByLead.get(link.lead_id)
+      const name = personId ? names.get(personId) : null
+      if (!personId || !name) continue
+      const list = members.get(link.band_id) || []
+      if (!list.some(member => member.person_id === personId)) list.push({ person_id: personId, name })
+      members.set(link.band_id, list)
+    }
+
+    return Response.json({ groups: groups.map(group => ({
+      ...group,
+      member_count: (members.get(group.id) || []).length,
+      members: (members.get(group.id) || []).sort((left, right) => left.name.localeCompare(right.name)),
+    })) }, { headers })
   } catch { return Response.json({ error: 'Could not load tentative bands.' }, { status: 503, headers }) }
 }
 
