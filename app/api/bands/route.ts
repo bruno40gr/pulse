@@ -118,14 +118,29 @@ export async function GET(request: Request) {
 
     // Rehearsal-space clients name their booking and are not academy ensembles;
     // archived bands keep their history but leave the working roster.
-    const profiles = new Map<string, { status: string; schedule: string | null; image_url: string | null }>()
-    const profileRead = await supabaseAdmin.from('band_profiles').select('band_name,status,schedule,image_url').eq('tenant_id', access.tenantId)
-    if (!profileRead.error && Array.isArray(profileRead.data)) for (const row of profileRead.data) profiles.set(row.band_name, { status: row.status, schedule: row.schedule ?? null, image_url: row.image_url ?? null })
+    type ProfileRow = { band_name: string; status: string; schedule: string | null; image_url: string | null; coach_person_id?: string | null }
+    const profiles = new Map<string, { status: string; schedule: string | null; image_url: string | null; coachPersonId: string | null }>()
+    let profileRead: { data: unknown; error: { message?: string } | null } = await supabaseAdmin.from('band_profiles').select('band_name,status,schedule,image_url,coach_person_id').eq('tenant_id', access.tenantId)
+    // The coach column ships with its migration; the roster still loads without it.
+    if (profileRead.error) profileRead = await supabaseAdmin.from('band_profiles').select('band_name,status,schedule,image_url').eq('tenant_id', access.tenantId)
+    const profileRows = (!profileRead.error && Array.isArray(profileRead.data) ? profileRead.data : []) as ProfileRow[]
+    const coachIds = [...new Set(profileRows.map(row => row.coach_person_id).filter(Boolean))] as string[]
+    const coachNames = new Map<string, string>()
+    if (coachIds.length) {
+      const coaches = await supabaseAdmin.from('people').select('id,first_name,last_name').eq('tenant_id', access.tenantId).in('id', coachIds)
+      if (!coaches.error && Array.isArray(coaches.data)) for (const person of coaches.data) {
+        const name = `${person.first_name || ''} ${person.last_name || ''}`.trim()
+        if (name) coachNames.set(person.id, name)
+      }
+    }
+    for (const row of profileRows) profiles.set(row.band_name, { status: row.status, schedule: row.schedule ?? null, image_url: row.image_url ?? null, coachPersonId: row.coach_person_id ?? null })
 
     const bands = assembleBandRoster([...rows, ...explicit])
       .filter(band => !['external', 'archived'].includes(profiles.get(band.name)?.status || 'active'))
       .map(band => ({
         ...band,
+        // An enrolment instructor is the teacher; the band assignment covers a band without lessons.
+        coach: band.coach || coachNames.get(profiles.get(band.name)?.coachPersonId || '') || null,
         status: profiles.get(band.name)?.status || 'active',
         schedule: profiles.get(band.name)?.schedule ?? null,
         image_url: profiles.get(band.name)?.image_url ?? null,
@@ -136,7 +151,7 @@ export async function GET(request: Request) {
     const known = new Set(bands.map(band => band.name))
     for (const [name, profile] of profiles) {
       if (known.has(name) || ['external', 'archived'].includes(profile.status)) continue
-      bands.push({ name, coach: null, members: [], status: profile.status, schedule: profile.schedule, image_url: profile.image_url })
+      bands.push({ name, coach: coachNames.get(profile.coachPersonId || '') || null, members: [], status: profile.status, schedule: profile.schedule, image_url: profile.image_url })
     }
     bands.sort((left, right) => left.name.localeCompare(right.name))
     return Response.json({ bands }, { headers })

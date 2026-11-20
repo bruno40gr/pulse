@@ -43,11 +43,12 @@ test('channel filtering scopes history, attention, counts, search and sorting wi
 })
 test('list channel controls share contact header placement and opening respects the filter', () => {
   const source = fs.readFileSync(path.join(root, 'components/inbox/Conversations.tsx'), 'utf8')
-  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('<RichDataTable preferenceSchema={CONVERSATION_TABLE_SCHEMA}'))
-  assert.match(list, /<header/)
-  assert.match(list, /justifyContent: 'flex-end'/)
+  const list = source.slice(source.indexOf('<section aria-label="Communications list">'), source.indexOf('columns={['))
+  // The channel toggles share the table's own control row with Table preferences,
+  // so the list does not stack a second header above it.
+  assert.match(list, /displayToolbar=\{<div role="group" aria-label="Filter conversation channel"/)
+  assert.doesNotMatch(list, /<header/)
   assert.doesNotMatch(list, /<SectionTitle|<SurfacePanel/)
-  assert.match(list, /aria-label="Filter conversation channel"/)
   assert.match(list, /<ControlButton key=\{channel\} kind="toggle"/)
   assert.match(list, /aria-pressed=\{channelFilter === channel\}/)
   assert.match(source, /filterConversationChannels\(contacts, channelFilter\)\.filter/)

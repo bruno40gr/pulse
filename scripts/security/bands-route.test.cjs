@@ -116,3 +116,13 @@ test('an ended band enrolment leaves the roster', async () => {
   assert.equal(response.status, 200)
   assert.equal((await response.json()).bands.length, 0)
 })
+
+test('a band with no enrolments takes its teacher from the band profile', async () => {
+  // The profile is the only record of a band before it has members.
+  const h = setup({ profiles: [{ band_name: 'New Band', tenant_id: HEAD, status: 'active', coach_person_id: 'p1' }] })
+  const response = await h.load(route).GET(request())
+  const { bands } = await response.json()
+  const band = bands.find(row => row.name === 'New Band')
+  assert.equal(band.coach, 'Ada Lovelace')
+  assert.equal(band.members.length, 0)
+})

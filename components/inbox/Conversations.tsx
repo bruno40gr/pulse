@@ -603,12 +603,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       {Object.entries(emailDrafts).map(([id, saved]) => <Notice key={id} title="You have a message in draft" style={{ marginBottom: spacing.md }}><p style={{ ...meta, ...draftPreviewStyle }}>{draftPreview(saved.bodyText || prototypeHtmlText(saved.html) || saved.subject || 'New email')}</p><div style={row}><Button variant="secondary" onClick={() => { setEmailDrafts(current => { const next = { ...current }; delete next[id]; return next }); setThreads(current => current.filter(thread => thread.id !== id || thread.messages.length)) }}>Discard draft</Button><Button onClick={() => { const thread = threads.find(item => item.id === id); if (thread) navigate({ view: 'compose', activeId: id, contactId: thread.contactId, channel: 'email', screen: 'reader' }) }}>Continue draft</Button></div></Notice>)}
 
       <section aria-label="Communications list">
-      <header style={{ ...row, flexWrap: 'nowrap', justifyContent: 'flex-end', marginBottom: spacing.sm }}>
-        <div role="group" aria-label="Filter conversation channel" style={{ display: 'flex', gap: spacing.sm, flexShrink: 0 }}>
+      <RichDataTable preferenceSchema={CONVERSATION_TABLE_SCHEMA} preferenceState={tablePreferences} rows={visibleContacts}
+        displayToolbar={<div role="group" aria-label="Filter conversation channel" style={{ display: 'flex', gap: spacing.sm, flexShrink: 0 }}>
           {(['all', 'sms', 'email'] as const).map(channel => <ControlButton key={channel} kind="toggle" selected={channelFilter === channel} aria-pressed={channelFilter === channel} onClick={() => setChannelFilter(channel)}>{channel === 'all' ? 'All' : channel === 'sms' ? 'SMS' : 'Email'}</ControlButton>)}
-        </div>
-      </header>
-      <RichDataTable preferenceSchema={CONVERSATION_TABLE_SCHEMA} preferenceState={tablePreferences} rows={visibleContacts} getRowKey={person => person.id} ariaLabel="Communications" alignToSelectionInset stickyHeaderOffset={0}
+        </div>} getRowKey={person => person.id} ariaLabel="Communications" alignToSelectionInset stickyHeaderOffset={0}
         loading={summaryLoading && visibleContacts.length === 0} skeletonRows={8}
         getRowStyle={person => conversationAttention(person.threads).unread ? { background: '#F0F8FA' } : undefined}
         sort={{ key: sort, direction: sortDirection }} onSortChange={next => { setSort(next.key); setSortDirection(next.direction); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: next }) }}

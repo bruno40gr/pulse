@@ -13,9 +13,10 @@ function setup(options = {}) {
       permissions: grants.map(key => ({ id: key, key })),
       role_permissions: grants.map(key => ({ role_id: 'r', permission_id: key })),
       band_profiles: [],
+      people: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: HEAD, first_name: 'Drew', last_name: 'Johnson' }],
       enrollments: [{ id: 'e1', tenant_id: HEAD, student_id: 's1', service_type: 'band', custom_fields: { band_name: 'La Paz' } }],
       band_memberships: [],
-    }, rpcResults: { rename_band: null }, rpcErrors: options.rpcError ? { rename_band: { message: 'A band with that name already exists' } } : {} })
+    }, queryResult: options.queryResult, rpcResults: { rename_band: null }, rpcErrors: options.rpcError ? { rename_band: { message: 'A band with that name already exists' } } : {} })
   return h
 }
 const request = (method, body) => new Request('https://synthetic.invalid/api/bands/profile', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -72,4 +73,37 @@ test('a draft band can be created and later promoted', async () => {
     assert.equal(response.status, 200)
     assert.equal(h.getWrites().find(query => query.table === 'band_profiles').payload.status, status)
   }
+})
+
+test('a teacher is assigned on the band itself', async () => {
+  const h = setup()
+  const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', coach: '22222222-2222-4222-8222-222222222222' }))
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).coachSaved, true)
+  const write = h.getWrites().find(query => query.table === 'band_profiles')
+  assert.equal(write.payload.coach_person_id, '22222222-2222-4222-8222-222222222222')
+})
+test('a teacher outside the account is refused', async () => {
+  const h = setup()
+  const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', coach: '99999999-9999-4999-8999-999999999999' }))
+  assert.equal(response.status, 400)
+  assert.equal(h.getWrites().some(query => query.table === 'band_profiles'), false)
+})
+test('the band still saves when the coach column is not deployed', async () => {
+  let writes = 0
+  const h = setup({
+    queryResult: ({ table, operation }) => {
+      if (table !== 'band_profiles' || operation === 'select') return undefined
+      writes += 1
+      return writes === 1
+        ? { data: null, error: { message: 'column band_profiles.coach_person_id does not exist' } }
+        : { data: null, error: null }
+    },
+  })
+  const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', coach: '22222222-2222-4222-8222-222222222222' }))
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.equal(body.coachSaved, false)
+  const retry = h.getWrites().filter(query => query.table === 'band_profiles').at(-1)
+  assert.equal('coach_person_id' in retry.payload, false)
 })

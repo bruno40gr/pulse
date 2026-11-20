@@ -6,10 +6,12 @@ import { SurfacePanel } from '@/components/ui/SurfacePanel'
 import { RadioOptionGroup } from '@/components/ui/RadioOptionGroup'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
+import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 import { Notice } from '@/components/ui/Notice'
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { PersonName } from '@/components/ui/PersonName'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
@@ -17,6 +19,7 @@ const STEPS = ['Band details', 'Review'] as const
 const GROUP_TYPES = [{ id: 'band', label: 'Band', description: 'Enrolled students rehearse together on a recurring schedule, building a shared repertoire.' }]
 
 type Candidate = { id: string; name: string; account: string }
+type StaffMember = { person_id: string | null; first_name: string | null; last_name: string | null; is_active?: boolean }
 
 export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
   initialName?: string
@@ -28,10 +31,14 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState('')
   const [query, setQuery] = useState('')
+  const [teacher, setTeacher] = useState('')
+  const [staff, setStaff] = useState<StaffMember[]>([])
   const [people, setPeople] = useState<Candidate[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [addingStudent, setAddingStudent] = useState(false)
+  const [external, setExternal] = useState({ first_name: '', last_name: '', email: '', phone: '' })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -51,8 +58,31 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`/api/staff?tenant=${encodeURIComponent(getActiveTenantId())}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => { const rows = response.ok ? await response.json() : null; if (!controller.signal.aborted && Array.isArray(rows)) setStaff(rows.filter((member: StaffMember) => member.person_id && member.is_active !== false)) })
+      .catch(() => { /* Teacher stays assignable later. */ })
+    return () => controller.abort()
+  }, [])
+
   const matches = people.filter(person => `${person.name} ${person.account}`.toLowerCase().includes(query.trim().toLowerCase()))
   const chosen = people.filter(person => selected.includes(person.id))
+
+  const addExternal = async () => {
+    setSaving(true); setError('')
+    try {
+      const response = await fetch(`/api/contacts/person?tenant=${encodeURIComponent(getActiveTenantId())}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(external),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.person) throw new Error(data?.error || 'Could not add that student.')
+      setPeople(current => [...current, { id: data.person.id, name: data.person.name, account: '' }])
+      setSelected(current => [...current, data.person.id])
+      setAddingStudent(false)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not add that student.') }
+    finally { setSaving(false) }
+  }
 
   const create = async () => {
     const bandName = name.trim()
@@ -62,7 +92,7 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
       const tenant = `tenant=${encodeURIComponent(getActiveTenantId())}`
       const profile = await fetch(`/api/bands/profile?${tenant}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ band: bandName, name: bandName, status: 'active' }),
+        body: JSON.stringify({ band: bandName, name: bandName, status: 'active', ...(teacher ? { coach: teacher } : {}) }),
       })
       if (!profile.ok) throw new Error((await profile.json().catch(() => null))?.error || 'Could not create that band.')
       for (const person of chosen) {
@@ -85,7 +115,14 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
         <RadioOptionGroup label="Group type" value={typeId} options={GROUP_TYPES} onChange={setTypeId} />
         <Input label="Band name" required value={name} onChange={event => setName(event.target.value)} />
         <Textarea label="Band description" value={description} onChange={event => setDescription(event.target.value)} />
-        <Input label="Find candidates (optional)" value={query} onChange={event => setQuery(event.target.value)} />
+        <Select label="Teacher / staff" value={teacher} onChange={event => setTeacher(event.target.value)}>
+          <option value="">Assign later</option>
+          {staff.map(member => <option key={member.person_id} value={member.person_id as string}>{`${member.first_name || ''} ${member.last_name || ''}`.trim()}</option>)}
+        </Select>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 240px', minWidth: 0 }}><Input label="Find candidates (optional)" value={query} onChange={event => setQuery(event.target.value)} /></div>
+          <Button variant="secondary" onClick={() => { setExternal({ first_name: '', last_name: '', email: '', phone: '' }); setAddingStudent(true) }} disabled={saving}>Add external student</Button>
+        </div>
         <ResponsiveDataTable rows={matches} getRowKey={person => person.id} ariaLabel="Band candidates" minDesktopWidth={460} emptyContent="No students match that search."
           selection={{
             selectedKeys: new Set(selected),
@@ -104,6 +141,7 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
           { label: 'Group type', value: GROUP_TYPES.find(type => type.id === typeId)?.label || '' },
           { label: 'Band name', value: name.trim() },
           { label: 'Description', value: description.trim() },
+          { label: 'Teacher / staff', value: staff.find(member => member.person_id === teacher)?.first_name ? `${staff.find(member => member.person_id === teacher)?.first_name} ${staff.find(member => member.person_id === teacher)?.last_name || ''}`.trim() : 'Assign later' },
           { label: 'Candidates', value: chosen.length ? chosen.map(person => person.name).join(', ') : 'None selected' },
         ].map(row => <div key={row.label} style={{ display: 'grid', gap: spacing.xs }}>
           <dt style={{ ...typography.label, color: colors.textMuted }}>{row.label}</dt>
@@ -117,5 +155,18 @@ export function CreateBandWizard({ initialName = '', onClose, onCreated }: {
           : <Button onClick={() => void create()} disabled={saving}>{saving ? 'Creating…' : 'Create band'}</Button>}
       </div>
     </SurfacePanel>
+    <Modal isOpen={addingStudent} onClose={() => setAddingStudent(false)} ariaLabel="Add external student">
+      <ModalHeader title="Add external student" onClose={() => setAddingStudent(false)} />
+      <ModalBody style={{ display: 'grid', gap: spacing.md }}>
+        <Input label="First name" value={external.first_name} onChange={event => setExternal({ ...external, first_name: event.target.value })} />
+        <Input label="Last name" value={external.last_name} onChange={event => setExternal({ ...external, last_name: event.target.value })} />
+        <Input label="Email" type="email" value={external.email} onChange={event => setExternal({ ...external, email: event.target.value })} />
+        <Input label="Phone" type="tel" value={external.phone} onChange={event => setExternal({ ...external, phone: event.target.value })} />
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" onClick={() => setAddingStudent(false)} disabled={saving}>Cancel</Button>
+        <Button onClick={() => void addExternal()} disabled={saving}>{saving ? 'Adding…' : 'Add student'}</Button>
+      </ModalFooter>
+    </Modal>
   </EnrollmentLayout>
 }

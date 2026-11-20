@@ -4,6 +4,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const headers = { 'Cache-Control': 'private, no-store' }
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const allowed = new Set(['draft', 'active', 'forming', 'external', 'archived'])
 
 async function guard(request: Request) {
@@ -47,9 +48,28 @@ export async function PATCH(request: Request) {
     if (status) patch.status = status
     if ('schedule' in body) patch.schedule = text(body.schedule, 400)
     if ('image_url' in body) patch.image_url = text(body.image_url, 2000)
-    const saved = await supabaseAdmin.from('band_profiles').upsert(patch, { onConflict: 'tenant_id,band_name' })
+
+    // The band's teacher is an assignment on the band itself.
+    let coachSaved = true
+    if ('coach' in body) {
+      const coach = typeof body.coach === 'string' ? body.coach.trim() : ''
+      if (coach && !uuid.test(coach)) return Response.json({ error: 'Choose a valid teacher.' }, { status: 400, headers })
+      if (coach) {
+        const teacher = await supabaseAdmin.from('people').select('id').eq('tenant_id', tenantId).eq('id', coach)
+        if (teacher.error || !Array.isArray(teacher.data) || teacher.data.length !== 1) return Response.json({ error: 'Choose a teacher in this account.' }, { status: 400, headers })
+      }
+      patch.coach_person_id = coach || null
+    }
+
+    let saved = await supabaseAdmin.from('band_profiles').upsert(patch, { onConflict: 'tenant_id,band_name' })
+    if (saved.error && 'coach_person_id' in patch && /coach_person_id/i.test(String(saved.error.message || ''))) {
+      // The coach column is not deployed everywhere yet; keep the band itself saved.
+      const { coach_person_id: _ignored, ...withoutCoach } = patch
+      saved = await supabaseAdmin.from('band_profiles').upsert(withoutCoach, { onConflict: 'tenant_id,band_name' })
+      coachSaved = false
+    }
     if (saved.error) throw saved.error
-    return Response.json({ band: currentBand }, { headers })
+    return Response.json({ band: currentBand, coachSaved }, { headers })
   } catch { return Response.json({ error: 'Could not save that band.' }, { status: 503, headers }) }
 }
 
