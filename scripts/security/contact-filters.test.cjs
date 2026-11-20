@@ -83,18 +83,23 @@ test('active-only includes imported Members and configured active statuses, but 
   assert.equal(matchesContactFilters({ ...student, client_status: 'Lost' }, {}), true)
 })
 
-test('one service/class filter matches either imported representation; program includes instrument', () => {
+test('one service/class filter matches the canonical service behind an imported label', () => {
   for (const key of ['service_type', 'session_name', 'appointment_class_name']) {
-    assert.equal(matchesContactFilters({ ...student, custom_fields: { [key]: 'Private Piano' } }, { service_class: 'Private Piano' }), true)
+    assert.equal(matchesContactFilters({ ...student, custom_fields: { [key]: 'Private Piano' } }, { service_class: 'Piano' }), true)
   }
-  assert.equal(matchesContactFilters(student, { service_class: 'Private Piano' }), false)
+  assert.equal(matchesContactFilters({ ...student, custom_fields: { service_type: 'Piano - Level 1 (30 min)' } }, { service_class: 'Piano' }), true)
+  assert.equal(matchesContactFilters(student, { service_class: 'Piano' }), false)
   assert.equal(matchesContactFilters({ ...student, custom_fields: { instrument: 'Piano' } }, { program: 'Piano' }), true)
 })
 test('filter options can match a secondary enrollment rather than only the first', () => {
   const contact = { ...student, profile_enrollments: [
     { instrument: 'Piano', service_type: 'private', instructor_person_id: 'teacher' },
-    { instrument: 'Guitar', service_type: 'band', session_name: 'Band A', appointment_class_name: 'Ensemble', instructor_person_id: 'other' },
+    { instrument: 'Guitar', service_type: 'Guitar - Level 1 (30 min)', session_name: 'Guitar - Level 1 - Adam & Max', appointment_class_name: 'Little Rockers', instructor_person_id: 'other' },
   ] }
-  for (const filters of [{ program: 'Guitar' }, { service_class: 'band' }, { service_class: 'Band A' }, { service_class: 'Ensemble' }, { instructor: 'other' }]) assert.equal(matchesContactFilters(contact, filters), true)
+  for (const filters of [{ program: 'Guitar' }, { service_class: 'Guitar' }, { instructor: 'other' }]) assert.equal(matchesContactFilters(contact, filters), true)
   assert.equal(matchesContactFilters(contact, { instructor: 'missing' }), false)
+})
+test('labels that carry no service value stop matching as filters', () => {
+  const contact = { ...student, custom_fields: { service_type: 'band' }, profile_enrollments: [{ service_type: 'band', session_name: 'Band A', appointment_class_name: 'Ensemble' }] }
+  for (const value of ['band', 'Band A', 'Ensemble']) assert.equal(matchesContactFilters(contact, { service_class: value }), false)
 })
