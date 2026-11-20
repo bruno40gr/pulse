@@ -90,6 +90,7 @@ export async function GET(request: Request) {
         member_status: student?.client_status ?? null,
         member_instrument: typeof enrollment.custom_fields?.band_instrument === 'string' ? enrollment.custom_fields.band_instrument : enrollment.custom_fields?.band_instrument === null ? null : (enrollment.instrument ?? null),
         member_membership: 'confirmed',
+        member_source: 'enrollment' as const,
         member_is_staff: Boolean(memberId && staffPersonIds.has(memberId)),
         coach_id: enrollment.instructor_person_id,
         coach_name: displayName(enrollment.instructor_person_id),
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
       for (const row of result.data) {
         const name = displayName(row.person_id)
         if (!name) throw new Error('Membership person missing')
-        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, member_instrument: row.instrument ?? null, member_membership: row.membership || 'confirmed', coach_id: null, coach_name: null })
+        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, member_instrument: row.instrument ?? null, member_membership: row.membership || 'confirmed', member_source: 'membership' as const, coach_id: null, coach_name: null })
       }
       if (result.data.length < 500) break
     }

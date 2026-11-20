@@ -17,15 +17,17 @@ test('members on an instrument track are grouped onto their real band', () => {
   ])
   assert.deepEqual(Array.from(bands, band => band.name), ['Anomaly Syndrome', 'SunKast'])
   assert.deepEqual(Array.from(bands.find(band => band.name === 'SunKast').members, member => member.name), ['Breannah Gonzalez', 'Brooks Henderson', 'Harper Cole'])
+  assert.ok(bands.find(band => band.name === 'SunKast').members.every(member => member.source === 'enrollment'))
 })
 test('a coach and an explicit member both appear, once each', () => {
   const bands = assembleBandRoster([
     row({ band_name: 'SunKast', session_name: 'SunKast', member_id: 'p3', member_name: 'Brooks Henderson', coach_id: 'c1', coach_name: 'Bruno Wong' }),
-    row({ band_name: 'SunKast', session_name: 'SunKast', member_id: 'p7', member_name: 'Rhett Walde' }),
+    row({ band_name: 'SunKast', session_name: 'SunKast', member_id: 'p7', member_name: 'Rhett Walde', member_source: 'membership' }),
     row({ band_name: 'La Paz', session_name: 'La Paz', member_id: 'p6', member_name: 'Vito Trinchese', coach_id: 'p6', coach_name: 'Vito Trinchese' }),
   ])
   const sunKast = bands.find(band => band.name === 'SunKast')
   assert.deepEqual(Array.from(sunKast.members, member => member.name), ['Brooks Henderson', 'Rhett Walde'])
+  assert.deepEqual(Array.from(sunKast.members, member => member.source), ['enrollment', 'membership'])
   assert.equal(sunKast.coach, 'Bruno Wong')
   const laPaz = bands.find(band => band.name === 'La Paz')
   assert.deepEqual(Array.from(laPaz.members, member => member.name), ['Vito Trinchese'])

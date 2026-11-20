@@ -14,6 +14,9 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { Input } from '@/components/ui/Input'
 import { OverflowMenu } from '@/components/ui/OverflowMenu'
+import { Avatar } from '@/components/ui/Avatar'
+import { DetailField } from '@/components/ui/DetailField'
+import { FieldGrid } from '@/components/ui/FieldGrid'
 import { PersonName } from '@/components/ui/PersonName'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
@@ -23,7 +26,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-type Member = { person_id: string; name: string; instrument: string | null; membership: string }
+type Member = { person_id: string; name: string; instrument: string | null; membership: string; source: 'enrollment' | 'membership' }
 type Band = { name: string; coach: string | null; members: Member[]; status?: string; schedule?: string | null; image_url?: string | null }
 type TentativeGroup = { id: string; name: string; member_count?: number }
 type Candidate = { id: string; name: string }
@@ -173,16 +176,16 @@ export default function ProductionBandsWorkspace() {
       <div style={{ padding: spacing.lg, overflowY: 'auto', minHeight: 0, display: 'grid', gap: spacing.lg }}>
         {error && <Notice variant="error">{error}</Notice>}
         {panelTab === 'details' ? <DenseSectionPanel title="Details">
-          <div style={{ display: 'grid', gap: spacing.lg }}>
-            {band.image_url
-              ? <img src={band.image_url} alt={`${band.name} logo`} style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 12 }} />
-              : <div role="img" aria-label={`${band.name} has no picture`} style={{ width: 96, height: 96, borderRadius: 12, background: '#EEF2F6', display: 'grid', placeItems: 'center', fontSize: 12, color: '#5B6B7A' }}>No picture</div>}
-            <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: `${spacing.sm} ${spacing.xl}`, margin: 0 }}>
-              <dt>Status</dt><dd style={{ margin: 0 }}>{STATUS_LABEL[band.status || 'active'] || band.status}</dd>
-              <dt>Rehearsal</dt><dd style={{ margin: 0 }}>{band.schedule || 'Not scheduled'}</dd>
-              <dt>Instructor</dt><dd style={{ margin: 0 }}>{band.coach || 'Unassigned'}</dd>
-              <dt>Members</dt><dd style={{ margin: 0 }}>{band.members.length}</dd>
-            </dl>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.lg }}>
+            <Avatar firstName={band.name} lastName="" src={band.image_url || undefined} size={64} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+            <FieldGrid columns={2}>
+              <DetailField label="Status" value={STATUS_LABEL[band.status || 'active'] || band.status} />
+              <DetailField label="Instructor" value={band.coach || 'Unassigned'} />
+              <DetailField label="Rehearsal" value={band.schedule || 'Not scheduled'} />
+              <DetailField label="Members" value={String(band.members.length)} />
+            </FieldGrid>
+            </div>
           </div>
         </DenseSectionPanel> : panelTab === 'members' ? <DenseSectionPanel title="Members" actions={<Button onClick={() => void openAdd()} disabled={saving}>Add students</Button>}>
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
@@ -193,7 +196,7 @@ export default function ProductionBandsWorkspace() {
               {[...new Set([...LESSON_INSTRUMENT_OPTIONS, ...(row.instrument ? [row.instrument] : [])])].map(option => <option key={option} value={option}>{option}</option>)}
             </Select> },
             { id: 'membership', header: 'Membership', width: '.8fr', render: row => MEMBERSHIP_LABEL[row.membership] || row.membership },
-            { id: 'menu', header: '', width: '56px', render: row => (
+            { id: 'menu', header: '', width: '56px', render: row => row.source === 'enrollment' ? null : (
               <OverflowMenu label={`Actions for ${row.name}`} items={[
                 ...(row.membership === 'confirmed' ? [] : [
                   { label: 'Enroll student', onSelect: () => void mutate('PATCH', '/api/bands/members', { band: band.name, person_id: row.person_id, membership: 'confirmed' }) },
