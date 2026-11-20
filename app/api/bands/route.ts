@@ -93,7 +93,21 @@ export async function GET(request: Request) {
       }
     })
 
-    return Response.json({ bands: assembleBandRoster(rows) }, { headers })
+    // Explicit memberships cover people no enrollment row captures.
+    const explicit: RosterRow[] = []
+    for (let offset = 0; ; offset += 500) {
+      const result = await supabaseAdmin.from('band_memberships').select('band_name,person_id')
+        .eq('tenant_id', access.tenantId).order('band_name').range(offset, offset + 499)
+      if (result.error || !Array.isArray(result.data)) throw new Error('Memberships unavailable')
+      for (const row of result.data) {
+        const name = displayName(row.person_id)
+        if (!name) throw new Error('Membership person missing')
+        explicit.push({ band_name: row.band_name, session_name: row.band_name, member_id: row.person_id, member_name: name, member_status: null, coach_id: null, coach_name: null })
+      }
+      if (result.data.length < 500) break
+    }
+
+    return Response.json({ bands: assembleBandRoster([...rows, ...explicit]) }, { headers })
   } catch {
     return Response.json({ error: 'Could not load bands.' }, { status: 503, headers })
   }

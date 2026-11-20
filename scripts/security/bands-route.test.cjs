@@ -12,6 +12,7 @@ function setup(options = {}) {
       enrollments: [enrollment('e1', 's1', 'Band A'), enrollment('e2', 's2', 'Band A'), enrollment('e3', 's1', 'Band B'), { ...enrollment('e4', 's3', ''), custom_fields: { band_name: 'Band C' } }, { ...enrollment('e5', 's1', ''), session_name: null, custom_fields: {} }],
       students: [{ id: 's1', tenant_id: HEAD, person_id: 'p1', client_status: 'member' }, { id: 's2', tenant_id: HEAD, person_id: 'p2', client_status: 'active' }, { id: 's3', tenant_id: HEAD, person_id: 'p3', client_status: 'member' }],
       instructors: options.instructors || [],
+      band_memberships: options.memberships || [],
       people: [{ id: 'p1', tenant_id: HEAD, first_name: 'Ada', last_name: 'Lovelace' }, { id: 'p2', tenant_id: HEAD, first_name: 'Bo', last_name: 'Chen' }, { id: 'p3', tenant_id: HEAD, first_name: 'Cy', last_name: 'Diaz' }] },
     errors: options.errors || {}, queryResult: options.queryResult })
   return h
@@ -76,4 +77,12 @@ test('either flag name enables the API so the page cannot outrun its endpoints',
   }
   const h = setup({ env: { ENABLE_CONTACT_BAND_OPPORTUNITIES: 'false', NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES: 'false' } })
   assert.equal((await h.load(route).GET(request())).status, 404)
+})
+
+test('explicit band memberships are merged into the roster', async () => {
+  const h = setup({ memberships: [{ tenant_id: HEAD, band_name: 'Band A', person_id: 'p3' }] })
+  const response = await h.load(route).GET(request())
+  assert.equal(response.status, 200)
+  const band = (await response.json()).bands.find(row => row.name === 'Band A')
+  assert.deepEqual(Array.from(band.members, member => member.name), ['Ada Lovelace', 'Bo Chen', 'Cy Diaz'])
 })
