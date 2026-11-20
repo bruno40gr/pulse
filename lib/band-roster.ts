@@ -12,12 +12,11 @@ export type RosterRow = {
   member_id: string | null
   member_name: string | null
   member_status: string | null
-  member_is_staff: boolean
   coach_id: string | null
   coach_name: string | null
 }
-export type BandMember = { person_id: string; name: string; client_status: string | null; is_staff: boolean; role: 'member' | 'instructor' }
-export type Band = { name: string; members: BandMember[] }
+export type BandMember = { person_id: string; name: string }
+export type Band = { name: string; coach: string | null; members: BandMember[] }
 
 const INSTRUMENT_TRACK = /^(bass|drums?|guitar|voice|vocals?|piano|keys|keyboard|percussion|alto|tenor|trumpet|trombone|violin|flute|clarinet|ukulele|cello)\b[\s\S]*?\d/i
 const LESSON_SESSION = /\b(level|lesson|private|semi-private|group|class)\b/i
@@ -47,26 +46,29 @@ export function bandNameFor(row: RosterRow, known: Set<string>): string | null {
 export function assembleBandRoster(rows: RosterRow[]): Band[] {
   const known = knownBandNames(rows)
   const bands = new Map<string, Map<string, BandMember>>()
+  const coaches = new Map<string, Set<string>>()
   const add = (band: string, member: BandMember) => {
     const members = bands.get(band) || new Map<string, BandMember>()
-    const existing = members.get(member.person_id)
-    // A playing member outranks the same person appearing only as the coach.
-    if (!existing || (existing.role === 'instructor' && member.role === 'member')) members.set(member.person_id, member)
+    if (!members.has(member.person_id)) members.set(member.person_id, member)
     bands.set(band, members)
   }
   for (const row of rows) {
     const band = bandNameFor(row, known)
     if (!band) continue
     if (row.member_id && row.member_name) {
-      add(band, { person_id: row.member_id, name: row.member_name, client_status: row.member_status, is_staff: row.member_is_staff, role: 'member' })
+      add(band, { person_id: row.member_id, name: row.member_name })
     }
-    // An instructor can coach a band without holding a student enrollment.
-    if (row.coach_id && row.coach_name) {
-      add(band, { person_id: row.coach_id, name: row.coach_name, client_status: null, is_staff: true, role: 'instructor' })
+    // A coach is staff, not a member: it is reported separately so an
+    // instructor who plays is listed as a member and one who only coaches is not.
+    if (row.coach_name) {
+      const names = coaches.get(band) || new Set<string>()
+      names.add(row.coach_name)
+      coaches.set(band, names)
     }
   }
   return [...bands.entries()].map(([name, members]) => ({
     name,
+    coach: [...(coaches.get(name) || [])].sort().join(', ') || null,
     members: [...members.values()].sort((left, right) => left.name.localeCompare(right.name)),
   })).sort((left, right) => left.name.localeCompare(right.name))
 }

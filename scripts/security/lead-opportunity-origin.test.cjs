@@ -41,3 +41,15 @@ test('other tenants never inherit this account people', async () => {
   const rows = await (await h.load(route).GET(request())).json()
   assert.equal(rows.some(row => row.id === 'l2'), false)
 })
+
+test('current students do not inflate the pipeline counters', async () => {
+  const h = setup()
+  const response = await h.load(route).GET(new Request(`https://synthetic.invalid/api/leads?tenant=${HEAD}&summary_only=1`))
+  assert.equal(response.status, 200)
+  // Open-pipeline counters (lesson and service tabs) are what the nav badge shows.
+  const counts = h.getQueries().filter(query => query.table === 'lead_intakes' && query.filters.some(filter => filter[0] === 'not' && filter[1] === 'status'))
+  assert.ok(counts.length >= 2)
+  for (const query of counts) {
+    assert.ok(query.filters.some(filter => filter[0] === 'is' && filter[1] === 'person_id' && filter[2] === null), 'counter must exclude person-linked opportunities')
+  }
+})

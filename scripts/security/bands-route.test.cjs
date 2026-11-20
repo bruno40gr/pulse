@@ -23,7 +23,6 @@ test('groups enrolled members into bands and ignores unnamed enrollments', async
   const { bands } = await response.json()
   assert.deepEqual(Array.from(bands, band => band.name), ['Band A', 'Band B', 'Band C'])
   assert.deepEqual(Array.from(bands[0].members, member => member.name), ['Ada Lovelace', 'Bo Chen'])
-  assert.equal(bands[0].members[0].client_status, 'member')
   for (const q of h.getQueries().filter(q => ['enrollments', 'students', 'people'].includes(q.table))) {
     assert.ok(q.filters.some(filter => filter[0] === 'eq' && filter[1] === 'tenant_id' && filter[2] === HEAD))
   }
@@ -55,20 +54,19 @@ test('fails closed when roster lookups error', async () => {
   }
 })
 
-test('an instructor can be a band member and is labelled as staff', async () => {
+test('an instructor can be a band member', async () => {
   const h = setup({ instructors: [{ id: 'i1', tenant_id: HEAD, person_id: 'p2' }] })
   const response = await h.load(route).GET(request())
   assert.equal(response.status, 200)
   const { bands } = await response.json()
   assert.deepEqual(Array.from(bands[0].members, member => member.name), ['Ada Lovelace', 'Bo Chen'])
-  assert.deepEqual(Array.from(bands[0].members, member => member.is_staff), [false, true])
 })
 test('a band whose only member is an instructor is still shown', async () => {
   const h = setup({ instructors: [{ id: 'i1', tenant_id: HEAD, person_id: 'p3' }] })
   const { bands } = await (await h.load(route).GET(request())).json()
   const band = bands.find(row => row.name === 'Band C')
   assert.ok(band)
-  assert.deepEqual(Array.from(band.members, member => [member.name, member.is_staff]), [['Cy Diaz', true]])
+  assert.deepEqual(Array.from(band.members, member => member.name), ['Cy Diaz'])
 })
 
 test('either flag name enables the API so the page cannot outrun its endpoints', async () => {

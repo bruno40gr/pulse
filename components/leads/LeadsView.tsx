@@ -1556,7 +1556,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
       width: 'minmax(180px, 1.2fr)',
       sortable: true,
       sortKey: 'name',
-      render: (lead) => <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}><TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>{lead.opportunity_origin === 'existing_student' ? <Badge size="sm" variant="info">Student</Badge> : lead.opportunity_origin === 'new_lead' ? <Badge size="sm">New</Badge> : null}</div>,
+      render: (lead) => <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}><TablePersonName onOpen={() => openLead(lead.id, lead.intake_type)}>{lead.contact?.full_name || 'Unknown'}</TablePersonName>{lead.opportunity_origin === 'existing_student' ? <Badge size="sm" variant="info">Current student</Badge> : lead.opportunity_origin === 'new_lead' ? <Badge size="sm">New</Badge> : null}</div>,
     },
     ...(matching && !adapter ? [{
       id: 'tentativeBands', header: 'Tentative bands', width: 'minmax(150px, 1fr)',
@@ -1753,7 +1753,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
         <div style={isMobileLayout ? editorialDetailsGridMobileStyle : editorialDetailsGridStyle}>
           <Detail label="Source" value={selectedSource} />
           {typeof selectedLead?.payload.opportunity_origin === 'string' && <Detail label="Interest origin" value={selectedLead.payload.opportunity_origin === 'staff_initiated' ? 'Staff-initiated' : 'Student / family interest'} />}
-          <Detail label="Record" value={selectedLead.opportunity_origin === 'existing_student' ? "Existing student" : selectedLead.opportunity_origin === 'new_lead' ? "Net-new name" : "Unverified"} />
+          <Detail label="Record" value={selectedLead.opportunity_origin === 'existing_student' ? "Current student" : selectedLead.opportunity_origin === 'new_lead' ? "Net-new name" : "Unverified"} />
           {selectedLead.linked_person_id && <DetailField label="Contact record" style={detailCellStyle}>
             <Link href={`/dashboard/contacts?contact=${encodeURIComponent(selectedLead.linked_person_id)}`} target="_blank" rel="noreferrer" style={{ color: colors.link }}>Open in Contacts</Link>
           </DetailField>}

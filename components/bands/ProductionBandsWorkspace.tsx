@@ -15,8 +15,8 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 
-type Member = { person_id: string; name: string; client_status: string | null; is_staff: boolean; role: 'member' | 'instructor' }
-type Band = { name: string; members: Member[] }
+type Member = { person_id: string; name: string }
+type Band = { name: string; coach: string | null; members: Member[] }
 type TentativeGroup = { id: string; name: string; member_count?: number }
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -72,7 +72,7 @@ export default function ProductionBandsWorkspace() {
             : <ResponsiveDataTable rows={bands} getRowKey={row => row.name} ariaLabel="Bands" minDesktopWidth={460} emptyContent="No bands have enrolled members yet." columns={[
               { id: 'name', header: 'Band', width: '1.4fr', render: row => <PersonName as="button" onClick={() => setOpened(row.name)}>{row.name}</PersonName> },
               { id: 'members', header: 'Members', width: '.8fr', render: row => `${row.members.length} ${row.members.length === 1 ? 'member' : 'members'}` },
-              { id: 'statuses', header: 'Statuses', width: '1fr', render: row => [...new Set(row.members.map(member => member.client_status || 'unknown'))].sort().join(', ') },
+              { id: 'coach', header: 'Coach', width: '1fr', render: row => row.coach || '—' },
             ]} />}
       </DenseSectionPanel>
       <DenseSectionPanel title="Tentative bands">
@@ -86,13 +86,11 @@ export default function ProductionBandsWorkspace() {
       </DenseSectionPanel>
     </>}
     {band && <SlidePanel isOpen onClose={() => setOpened(null)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH}>
-      <SlidePanelHeader title={band.name} subtitle={`${band.members.length} ${band.members.length === 1 ? 'member' : 'members'}`} onClose={() => setOpened(null)} />
+      <SlidePanelHeader title={band.name} subtitle={band.coach ? `${band.members.length} ${band.members.length === 1 ? 'member' : 'members'} · Coach ${band.coach}` : `${band.members.length} ${band.members.length === 1 ? 'member' : 'members'}`} onClose={() => setOpened(null)} />
       <div style={{ padding: spacing.lg, overflowY: 'auto', minHeight: 0 }}>
         <DenseSectionPanel title="Members">
           <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={320} emptyContent="No enrolled members." columns={[
             { id: 'name', header: 'Member', width: '1fr', render: row => <PersonName>{row.name}</PersonName> },
-            { id: 'role', header: 'Role', width: '.7fr', render: row => row.role === 'instructor' ? 'Instructor' : row.is_staff ? 'Instructor (member)' : 'Student' },
-            { id: 'status', header: 'Status', width: '.7fr', render: row => row.client_status || 'Unknown' },
           ]} />
         </DenseSectionPanel>
       </div>

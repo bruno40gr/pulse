@@ -46,6 +46,12 @@ export async function GET(request: Request) {
     const personIds = new Set<string>()
     for (const student of students) if (student.person_id) personIds.add(student.person_id)
     for (const enrollment of enrollments) if (enrollment.instructor_person_id) personIds.add(enrollment.instructor_person_id)
+    for (let offset = 0; ; offset += 500) {
+      const result = await supabaseAdmin.from('band_memberships').select('person_id').eq('tenant_id', access.tenantId).order('person_id').range(offset, offset + 499)
+      if (result.error || !Array.isArray(result.data)) throw new Error('Memberships unavailable')
+      for (const row of result.data) if (row.person_id) personIds.add(row.person_id)
+      if (result.data.length < 500) break
+    }
     const people: { id: string; first_name: string | null; last_name: string | null }[] = []
     const personIdList = [...personIds]
     for (let offset = 0; offset < personIdList.length; offset += 100) {

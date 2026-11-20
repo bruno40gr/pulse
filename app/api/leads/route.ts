@@ -140,6 +140,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .in('intake_type', LESSON_LEAD_TYPES)
+    .is('person_id', null)
     .neq('source_form', WINBACK_SOURCE_FORM)
     .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const serviceQuery = crmSupabaseAdmin
@@ -147,6 +148,7 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('intake_type', 'service_inquiry')
+    .is('person_id', null)
     .neq('source_form', WINBACK_SOURCE_FORM)
     .not('status', 'in', '(won,lost,ghosted_us,ghosted)')
   const jobsQuery = crmSupabaseAdmin

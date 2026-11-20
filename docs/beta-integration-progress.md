@@ -1036,3 +1036,17 @@ Still open: the same sync for the remaining export clients, a band assignment fo
 Rhett Walde (track "Bass 101", session "Voice - Level 1"), and La Paz members
 Vito Trinchese and Drew Johnson, who exist in Opus but not in imported
 enrollments.
+
+### Roster corrections (2026-11-20, second pass)
+
+- Band membership that no enrollment captures lives in `band_memberships`
+  (tenant, band, person). Seeded from the review: Rhett Walde in SunKast; Drew
+  Johnson, Marshall James-Solano and Vitto Trinchese in La Paz.
+- A coach is reported in a **Coach** column, not as a member, so an instructor who
+  only coaches is never listed as a player. SunKast: 4 members + Bruno Wong;
+  La Paz: 5 members + Josh Brent.
+- Role and Opus status columns are gone from the Bands screen; the roster shows
+  people, not Opus vocabulary.
+- The Leads marker reads **Current student**, and current students no longer count
+  toward the open-pipeline counters used by the navigation badge.
+- The tentative-band explanation notice is removed.
