@@ -31,8 +31,11 @@ export function TableSearchControl({ value, onChange, onSearch, onClear, label, 
   </form>
 }
 
-export function TableFiltersButton({ onClick, count = 0 }: { onClick: () => void; count?: number }) {
-  return <Button type="button" variant="secondary" size="toolbar" aria-label="Filters" onClick={onClick}><SlidersHorizontal size={16} aria-hidden="true" />Filters{count > 0 && <span aria-label={`${count} filters applied`}>({count})</span>}</Button>
+export function TableFiltersButton({ onClick, count = 0, onClear }: { onClick: () => void; count?: number; onClear?: () => void }) {
+  return <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
+    <Button type="button" variant="secondary" size="toolbar" aria-label="Filters" onClick={onClick}><SlidersHorizontal size={16} aria-hidden="true" />Filters{count > 0 && <span aria-label={`${count} filters applied`}>({count})</span>}</Button>
+    {count > 0 && onClear && <Button type="button" variant="ghost" size="toolbar" onClick={onClear}>Clear</Button>}
+  </div>
 }
 
 /** Composition slots, not domain-specific search/filter logic. */

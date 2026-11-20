@@ -17,6 +17,8 @@ export interface LessonService {
   lesson: string | null
   format: LessonFormat | null
   level: string | null
+  /** Duration is its own axis: 30 or 60 minutes for private and semi-private. */
+  duration: string | null
 }
 
 export const LESSON_FORMAT_OPTIONS: { value: LessonFormat; label: string }[] = [
@@ -52,7 +54,12 @@ function withoutDuration(label: string) {
 }
 
 function tidy(raw: string) {
-  return withoutDuration(withoutSchedule(raw.replace(/\s+/g, ' ').trim()))
+  return withoutSchedule(raw.replace(/\s+/g, ' ').trim())
+}
+
+function readDuration(label: string): string | null {
+  const match = label.match(/(\d+)\s*min(?:ute)?s?\b/i)
+  return match ? `${Number(match[1])} min` : null
 }
 
 function readFormat(label: string, serviceType?: string | null): LessonFormat | null {
@@ -69,7 +76,8 @@ function readLevel(label: string): string | null {
   return match ? `Level ${Math.min(Number(match[1]), LESSON_LEVEL_OPTIONS.length)}` : null
 }
 
-function readLesson(label: string): string | null {
+function readLesson(rawLabel: string): string | null {
+  const label = withoutDuration(rawLabel)
   if (!label) return null
   const program = GROUP_PROGRAMS.find(entry => entry.match.test(label))
   if (program) return program.lesson
@@ -97,8 +105,9 @@ export function parseLessonService(raw?: string | null, serviceType?: string | n
   const lesson = typeIsBand ? 'Band' : readLesson(label) || readLesson(type)
   const format = readFormat(label, type) || (lesson && (GROUP_PROGRAMS.some(entry => entry.lesson === lesson) || lesson === 'Band') ? 'group' : null)
   const level = readLevel(label) || readLevel(type)
-  if (!lesson && !format && !level) return null
-  return { lesson, format, level }
+  const duration = readDuration(label) || readDuration(type)
+  if (!lesson && !format && !level && !duration) return null
+  return { lesson, format, level, duration }
 }
 
 /** One enrolment carries the same lesson across its service, session and class fields. */
@@ -110,12 +119,13 @@ export function lessonServiceFor(enrollment: { service_type?: string | null; ses
   if (fromService) parsed.push(fromService)
   if (!parsed.length) {
     const instrument = readLesson(enrollment.instrument || '')
-    return instrument ? { lesson: instrument, format: null, level: null } : null
+    return instrument ? { lesson: instrument, format: null, level: null, duration: null } : null
   }
   return {
     lesson: parsed.find(item => item.lesson)?.lesson ?? null,
     format: parsed.find(item => item.format)?.format ?? null,
     level: parsed.find(item => item.level)?.level ?? null,
+    duration: parsed.find(item => item.duration)?.duration ?? null,
   }
 }
 
@@ -131,19 +141,26 @@ export function matchesLevel(service: LessonService | null, level: string) {
   return service?.level === level
 }
 
+export function matchesDuration(service: LessonService | null, duration: string) {
+  return service?.duration === duration
+}
+
 /** Every dimension present in the data, so filters only offer what exists. */
 export function lessonServiceOptions(services: (LessonService | null)[]) {
   const lessons = new Set<string>()
   const levels = new Set<string>()
+  const durations = new Set<string>()
   for (const service of services) {
     if (!service) continue
     if (service.lesson) lessons.add(service.lesson)
     if (service.level) levels.add(service.level)
+    if (service.duration) durations.add(service.duration)
   }
   return {
     lessons: [...lessons].sort((a, b) => a.localeCompare(b)),
     formats: LESSON_FORMAT_OPTIONS,
     levels: LESSON_LEVEL_OPTIONS.filter(level => levels.has(level)),
+    durations: [...durations].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)),
   }
 }
 

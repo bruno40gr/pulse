@@ -1,4 +1,4 @@
-import { lessonServicesForContact, matchesFormat, matchesLesson, matchesLevel } from './service-types'
+import { lessonServicesForContact, matchesDuration, matchesFormat, matchesLesson, matchesLevel } from './service-types'
 import { contactDestination, type ContactPresentation } from './contact-presentation'
 import { matchesClientTypes } from './contact-client-types'
 
@@ -60,6 +60,9 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
         break
       case 'level':
         if (!lessonServicesForContact(contact).some(service => value.split('|').some(pick => matchesLevel(service, pick)))) return false
+        break
+      case 'duration':
+        if (!lessonServicesForContact(contact).some(service => value.split('|').some(pick => matchesDuration(service, pick)))) return false
         break
       // Kept so a saved filter from before the dimensions existed still narrows.
       case 'service_class':

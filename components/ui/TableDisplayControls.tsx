@@ -49,6 +49,12 @@ export function useTablePreferences(schema: TablePreferenceSchema) {
     return () => { cancelled = true }
   }, [schema, prototype])
 
+  // A change made before the account resolves is still written once the key is known.
+  useEffect(() => {
+    if (!storageKey || !changed.current) return
+    try { window.localStorage.setItem(storageKey, JSON.stringify(latestPreferences.current)) } catch { /* Session-only fallback. */ }
+  }, [storageKey])
+
   function updatePreferences(next: TablePreferences) {
     next = normalizeTablePreferences(next, schema)
     changed.current = true

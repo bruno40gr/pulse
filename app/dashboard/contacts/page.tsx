@@ -89,7 +89,7 @@ const contactCapabilities = (response: Response): ContactCapabilities => ({
   editNotes: response.ok && response.headers.get('X-Contacts-Can-Edit-Notes') === 'true',
 })
 
-type ContactSortKey = 'name' | 'status' | 'accountManager' | 'contact' | 'instructor'
+type ContactSortKey = import('@/lib/contact-table-preferences').ContactSortKey
 
 interface TenantField {
   field_key: string
@@ -175,8 +175,12 @@ export default function ContactsPage() {
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const [contactPage, setContactPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
-  const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>({ key: 'name', direction: 'asc' })
+  const [pageSize, setPageSize] = useState(() => tablePreferences.preferences.pageSize || 50)
+  const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>(() => (tablePreferences.preferences.sort as DataTableSort<ContactSortKey>) || { key: 'name', direction: 'asc' })
+  const storedSort = tablePreferences.preferences.sort
+  useEffect(() => {
+    if (storedSort) setContactSort({ key: storedSort.key as ContactSortKey, direction: storedSort.direction })
+  }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const [contactView, setContactView] = useState<ContactListView>('family')
   const tenantId = getActiveTenantId()
   const liveHeadliner = tenantId === DEFAULT_TENANT && !sampleContacts && !prototype
@@ -730,7 +734,7 @@ export default function ContactsPage() {
           setLastSelectedIndex(-1)
         }} />}
           search={<TableSearchControl label="Search contacts" placeholder={PLACEHOLDER_MESSAGES[placeholderIndex]} value={query} onChange={setQuery} onSearch={handleSearch} onClear={clearSearch} busy={aiLoading} />}
-          filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} />}
+          filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} onClear={() => { setFilterDraft({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation('') }} />}
           groups={visibleFamilies.map(group => {
             const holderPerson = group.parent
             return {
@@ -774,7 +778,7 @@ export default function ContactsPage() {
           columns={['status', 'name', 'phone', 'email', 'funded', 'instructor'].flatMap(id => contactColumns.filter(column => column.id === id))}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
-          onSortChange={setContactSort}
+          onSortChange={nextSort => { setContactSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
           onToggleMembers={(members, checked) => {
             setSelectedIds(current => {
               const next = new Set(current)
@@ -804,7 +808,7 @@ export default function ContactsPage() {
         />
       )}
 
-      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={setContactPage} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setContactPage(1) }} itemLabel={contactView === 'family' ? 'families' : 'contacts'} />}
+      {!loading && !aiLoading && <TablePagination ariaLabel="Contacts pagination" page={currentPage} pageCount={pageCount} onPageChange={setContactPage} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setContactPage(1); tablePreferences.updatePreferences({ ...tablePreferences.preferences, pageSize: size }) }} itemLabel={contactView === 'family' ? 'families' : 'contacts'} />}
 
       {/* Contact slide panel */}
       {useLivePanel && <LiveContactPanel
@@ -926,10 +930,11 @@ export default function ContactsPage() {
               <Select controlSize="compact" label="Instructor" value={filterDraft.instructor || ''} onChange={event => updateFilterDraft('instructor', event.target.value)}>
                 <option value="">Any instructor</option>{instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </Select>
-              <MultiSelect label="Lesson" ariaLabel="Lesson" value={multiValue('lesson')} menuMinWidth={240} options={lessonFilterOptions(lessonOptionSet.lessons)} onChange={next => updateMulti('lesson', next)} />
-              <MultiSelect label="Format" ariaLabel="Lesson format" value={multiValue('service_format')} options={lessonOptionSet.formats.map(option => ({ value: option.value, label: option.label }))} onChange={next => updateMulti('service_format', next)} />
-              <MultiSelect label="Level" ariaLabel="Lesson level" value={multiValue('level')} options={lessonOptionSet.levels.map(value => ({ value, label: value }))} onChange={next => updateMulti('level', next)} />
-              <MultiSelect label="Services" ariaLabel="Services" menuMinWidth={260} value={multiValue('client_types')} options={CONTACT_CLIENT_TYPES.map(type => ({ value: type, label: type }))} onChange={next => updateMulti('client_types', next)} />
+              <MultiSelect label="Lesson" ariaLabel="Lesson" selectAll value={multiValue('lesson')} menuMinWidth={240} options={lessonFilterOptions(lessonOptionSet.lessons)} onChange={next => updateMulti('lesson', next)} />
+              <MultiSelect label="Format" ariaLabel="Lesson format" selectAll value={multiValue('service_format')} options={lessonOptionSet.formats.map(option => ({ value: option.value, label: option.label }))} onChange={next => updateMulti('service_format', next)} />
+              <MultiSelect label="Level" ariaLabel="Lesson level" selectAll value={multiValue('level')} options={lessonOptionSet.levels.map(value => ({ value, label: value }))} onChange={next => updateMulti('level', next)} />
+              <MultiSelect label="Duration" ariaLabel="Lesson duration" selectAll value={multiValue('duration')} options={lessonOptionSet.durations.map(value => ({ value, label: value }))} onChange={next => updateMulti('duration', next)} />
+              <MultiSelect label="Services" ariaLabel="Services" selectAll menuMinWidth={260} value={multiValue('client_types')} options={CONTACT_CLIENT_TYPES.map(type => ({ value: type, label: type }))} onChange={next => updateMulti('client_types', next)} />
               <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
                 <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
               </Select>
@@ -940,8 +945,8 @@ export default function ContactsPage() {
             </label>
           </div>
           <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap', padding: spacing.lg, borderTop: `1px solid ${colors.borderLight}`, background: colors.surface }}>
-            <Button type="submit">Submit search</Button>
-            <Button type="button" variant="secondary" onClick={() => setFilterDraft({})}>Clear filters</Button>
+            <Button type="button" variant="secondary" onClick={() => { setFilterDraft({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation('') }}>Clear filters</Button>
+            <Button type="submit" style={{ marginLeft: 'auto' }}>Apply Filters</Button>
           </div>
         </form>
       </SlidePanel>

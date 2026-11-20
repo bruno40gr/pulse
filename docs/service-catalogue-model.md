@@ -28,7 +28,7 @@ catalogue row per combination.
 | --- | --- | --- |
 | **Format** | Private · Semiprivate · Group | Owns which programs are valid. |
 | **Program** | Depends on Service | Private/Semiprivate → instrument (Piano, Voice, Guitar, Drums…). Group → branded programs (Tiny Keys, Little Rockers, Band). |
-| **Duration** | 30 or 60 minutes for private and semiprivate | Independent axis, not part of the name and not a filter. |
+| **Duration** | 30 or 60 minutes for private and semiprivate | Independent axis, never part of the name, filterable on its own. |
 | **Level** | Level 1–3 | Three levels; a fourth imported label is the same rung. |
 | **Payment plan** | e.g. weekly / fortnightly | A pricing axis orthogonal to the service. |
 | **Instructor** | Assignment, not a field | Who teaches this service/student. A departure is an assignment change, never a catalogue migration. |

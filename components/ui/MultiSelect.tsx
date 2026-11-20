@@ -5,7 +5,9 @@ import { ChevronDown, Check } from 'lucide-react'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
 
-export function MultiSelect({ label, ariaLabel, value, options, onChange, selectionSummary, minSelected = 0, menuMinWidth, appearance = 'field', summaryLabels = [], disabled = false }: {
+const SELECT_ALL = '__select_all__'
+
+export function MultiSelect({ label, ariaLabel, value, options, onChange, selectionSummary, minSelected = 0, menuMinWidth, appearance = 'field', summaryLabels = [], disabled = false, selectAll = false }: {
   label: string
   ariaLabel: string
   value: string[]
@@ -17,13 +19,17 @@ export function MultiSelect({ label, ariaLabel, value, options, onChange, select
   appearance?: 'field' | 'subtle'
   summaryLabels?: string[]
   disabled?: boolean
+  selectAll?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const id = useId()
   const selected = value
-  const choices: { value: string; label: string; disabled?: boolean; group?: string }[] = [...options, ...selected.filter(item => !options.some(option => option.value === item)).map(item => ({ value: item, label: item }))]
+  const actualChoices: { value: string; label: string; disabled?: boolean; group?: string }[] = [...options, ...selected.filter(item => !options.some(option => option.value === item)).map(item => ({ value: item, label: item }))]
+  const choices: { value: string; label: string; disabled?: boolean; group?: string }[] = selectAll && actualChoices.length ? [{ value: SELECT_ALL, label: 'Select all' }, ...actualChoices] : actualChoices
+  const allSelected = actualChoices.length > 0 && actualChoices.every(option => selected.includes(option.value))
+  const isSelected = (choice: string) => choice === SELECT_ALL ? allSelected : selected.includes(choice)
   useEffect(() => {
     if (!open) return
     const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
@@ -50,17 +56,18 @@ export function MultiSelect({ label, ariaLabel, value, options, onChange, select
     <ControlButton ref={trigger} type="button" kind={appearance === 'subtle' ? 'subtle' : 'row'} disabled={disabled} aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(current => !current)} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); requestAnimationFrame(() => focusOption(event.key === 'ArrowUp' ? choices.length - 1 : 0)) }
       if (event.key === 'Escape' && open) { event.stopPropagation(); setOpen(false) }
-    }} style={{ gridArea: appearance === 'subtle' ? '1 / 1' : undefined, minWidth: appearance === 'subtle' ? 0 : undefined }}>
+    }} style={{ gridArea: appearance === 'subtle' ? '1 / 1' : undefined, minWidth: appearance === 'subtle' ? 0 : undefined, ...(appearance === 'field' ? { border: `1px solid ${colors.border}`, borderRadius: radius.md, background: colors.surface, minHeight: 38 } : {}) }}>
       <span>{selectionSummary ?? (selected.length ? selected.map(item => choices.find(option => option.value === item)?.label || item).join(', ') : 'Select…')}</span><ChevronDown size={16} style={{ flexShrink: 0 }} aria-hidden="true" />
     </ControlButton>
     {open && <div id={id} role="listbox" aria-label={ariaLabel} aria-multiselectable="true" style={{ position: 'absolute', top: '100%', left: 0, right: 0, minWidth: menuMinWidth ? `min(${menuMinWidth}px, calc(100vw - 80px))` : undefined, zIndex: 10, maxHeight: 240, overflowY: 'auto', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.md }}>
-      {choices.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== choices[index - 1]?.group && <div role="presentation" style={{ padding: `${spacing.xs} ${spacing.sm}`, ...typography.label, color: colors.textMuted }}>{option.group}</div>}<ControlButton type="button" role="option" kind="row" selected={selected.includes(option.value)} disabled={option.disabled} aria-disabled={option.disabled || (selected.includes(option.value) && selected.length <= minSelected) || undefined} aria-selected={selected.includes(option.value)} onClick={() => {
-        if (option.disabled || (selected.includes(option.value) && selected.length <= minSelected)) return
-        onChange(choices.filter(item => item.value === option.value ? !selected.includes(item.value) : selected.includes(item.value)).map(item => item.value))
+      {choices.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== choices[index - 1]?.group && <div role="presentation" style={{ padding: `${spacing.xs} ${spacing.sm}`, ...typography.label, color: colors.textMuted }}>{option.group}</div>}<ControlButton type="button" role="option" kind="row" selected={isSelected(option.value)} disabled={option.disabled} aria-disabled={option.disabled || (option.value !== SELECT_ALL && selected.includes(option.value) && selected.length <= minSelected) || undefined} aria-selected={isSelected(option.value)} onClick={() => {
+        if (option.disabled || (option.value !== SELECT_ALL && selected.includes(option.value) && selected.length <= minSelected)) return
+        if (option.value === SELECT_ALL) { onChange(allSelected ? [] : actualChoices.filter(choice => !choice.disabled).map(choice => choice.value)); return }
+        onChange(actualChoices.filter(item => item.value === option.value ? !selected.includes(item.value) : selected.includes(item.value)).map(item => item.value))
       }} onKeyDown={event => {
         if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { event.preventDefault(); focusOption(event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : index + (event.key === 'ArrowDown' ? 1 : -1)) }
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus() }
-      }}>{option.label}{selected.includes(option.value) && <Check size={16} aria-hidden="true" />}</ControlButton></Fragment>)}
+      }}>{option.label}{isSelected(option.value) && <Check size={16} aria-hidden="true" />}</ControlButton></Fragment>)}
     </div>}
   </div>
 }

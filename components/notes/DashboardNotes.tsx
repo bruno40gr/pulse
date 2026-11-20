@@ -145,6 +145,8 @@ export default function DashboardNotes() {
   const [dateTo, setDateTo] = useState('')
   const [rangeOpen, setRangeOpen] = useState(false)
   const [showDone, setShowDone] = useState(true)
+  // Views are a per-account preference, not a per-load default.
+  const viewStorageKey = (id: string) => `pulse_notes_view_v1:${encodeURIComponent(tenantId)}:${encodeURIComponent(id)}`
   const [editing, setEditing] = useState<Note | null>(null)
   const [creatingTask, setCreatingTask] = useState(false)
   const [specificDate, setSpecificDate] = useState(false)
@@ -174,6 +176,15 @@ export default function DashboardNotes() {
   const composerBg = noteBackground(draftColor)
   const mentionedTeammate = mentionedTaskOwners(draftBody, owners)[0]
 
+  const saveView = (patch: { showDone?: boolean; filter?: string }) => {
+    if (!membershipId) return
+    try {
+      const key = viewStorageKey(membershipId)
+      const stored = window.localStorage.getItem(key)
+      window.localStorage.setItem(key, JSON.stringify({ ...(stored ? JSON.parse(stored) : {}), showDone, filter, ...patch }))
+    } catch { /* The view still applies for this visit. */ }
+  }
+
   const request = async (path: string, init?: RequestInit) => {
     const response = await fetch(`${path}${path.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(tenantId)}`, init)
     const data = await response.json()
@@ -191,7 +202,18 @@ export default function DashboardNotes() {
     void fetch(`/api/notes/directory?tenant=${encodeURIComponent(tenantId)}&owners=true`).then(async response => {
       if (!response.ok) throw new Error('Could not load staff. Task assignment is unavailable; reload to retry.')
       const data = await response.json()
-      if (!cancelled) { setOwners(data.owners); setMembershipId(data.membershipId) }
+      if (!cancelled) {
+        setOwners(data.owners)
+        setMembershipId(data.membershipId)
+        try {
+          const stored = window.localStorage.getItem(`pulse_notes_view_v1:${encodeURIComponent(tenantId)}:${encodeURIComponent(data.membershipId)}`)
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (typeof parsed?.showDone === 'boolean') setShowDone(parsed.showDone)
+            if (typeof parsed?.filter === 'string' && ['all', 'open', 'mine'].includes(parsed.filter)) setFilter(parsed.filter)
+          }
+        } catch { /* Keep the default view when storage is unavailable. */ }
+      }
     }).catch(error => { if (!cancelled) setNotice(error.message) })
     return () => { cancelled = true }
   }, [tenantId])
@@ -338,10 +360,10 @@ export default function DashboardNotes() {
       </Select>
       {dateFilter === 'range' && <Button variant="secondary" onClick={() => setRangeOpen(true)}>Edit date range</Button>}
       <div role="group" aria-label="View" style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
-        {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} aria-pressed={filter === view.key} onClick={() => setFilter(view.key)}>{view.label}</Button>)}
+        {([{ key: 'all', label: 'All notes' }, { key: 'open', label: 'Open tasks' }, { key: 'mine', label: 'My tasks' }]).map(view => <Button key={view.key} size="toolbar" variant={filter === view.key ? 'primary' : 'secondary'} aria-pressed={filter === view.key} onClick={() => { setFilter(view.key); saveView({ filter: view.key }) }}>{view.label}</Button>)}
       </div>
       <div style={{ marginLeft: 'auto', minHeight: 42, display: 'flex', alignItems: 'center' }}>
-        <ToggleSwitch checked={!showDone} onChange={checked => setShowDone(!checked)} label="Hide notes marked ‘done’" />
+        <ToggleSwitch checked={!showDone} onChange={checked => { const next = !checked; setShowDone(next); saveView({ showDone: next }) }} label="Hide notes marked ‘done’" />
       </div>
     </div>
       <div style={{ maxWidth: 390, marginBottom: spacing['2xl'] }}>
