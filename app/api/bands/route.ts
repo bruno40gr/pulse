@@ -112,13 +112,18 @@ export async function GET(request: Request) {
 
     // Rehearsal-space clients name their booking and are not academy ensembles;
     // archived bands keep their history but leave the working roster.
-    const statuses = new Map<string, string>()
-    const profileRead = await supabaseAdmin.from('band_profiles').select('band_name,status').eq('tenant_id', access.tenantId)
-    if (!profileRead.error && Array.isArray(profileRead.data)) for (const row of profileRead.data) statuses.set(row.band_name, row.status)
+    const profiles = new Map<string, { status: string; schedule: string | null; image_url: string | null }>()
+    const profileRead = await supabaseAdmin.from('band_profiles').select('band_name,status,schedule,image_url').eq('tenant_id', access.tenantId)
+    if (!profileRead.error && Array.isArray(profileRead.data)) for (const row of profileRead.data) profiles.set(row.band_name, { status: row.status, schedule: row.schedule ?? null, image_url: row.image_url ?? null })
 
     const bands = assembleBandRoster([...rows, ...explicit])
-      .filter(band => !['external', 'archived'].includes(statuses.get(band.name) || 'active'))
-      .map(band => ({ ...band, status: statuses.get(band.name) || 'active' }))
+      .filter(band => !['external', 'archived'].includes(profiles.get(band.name)?.status || 'active'))
+      .map(band => ({
+        ...band,
+        status: profiles.get(band.name)?.status || 'active',
+        schedule: profiles.get(band.name)?.schedule ?? null,
+        image_url: profiles.get(band.name)?.image_url ?? null,
+      }))
     return Response.json({ bands }, { headers })
   } catch {
     return Response.json({ error: 'Could not load bands.' }, { status: 503, headers })
