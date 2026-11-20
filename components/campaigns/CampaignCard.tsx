@@ -3,9 +3,10 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
+import styles from './CampaignCard.module.css'
 
 /** The one campaign row shape: what was sent, its status and its counters. */
-export function CampaignCard({ headline, meta, status, date, stats, selected = false, onClick, children }: {
+export function CampaignCard({ headline, meta, status, date, stats, onClick, children }: {
   headline: string
   meta?: string | null
   status: { label: string; variant: 'success' | 'info' | 'error' | 'neutral' | 'warning' }
@@ -16,13 +17,17 @@ export function CampaignCard({ headline, meta, status, date, stats, selected = f
   children?: ReactNode
 }) {
   return <div
-    onClick={onClick}
+    className={styles.card}
+    onClick={onClick ? event => {
+      if (event.target instanceof Element && event.target.closest('button, a, input, select, textarea, [role="tab"]')) return
+      onClick()
+    } : undefined}
     role={onClick ? 'button' : undefined}
     tabIndex={onClick ? 0 : undefined}
-    onKeyDown={onClick ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick() } } : undefined}
+    onKeyDown={onClick ? event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onClick() } } : undefined}
     style={{
       background: colors.surface,
-      border: `1px solid ${selected ? colors.espresso : colors.border}`,
+      border: `1px solid ${colors.border}`,
       borderRadius: radius.xl,
       padding: spacing['2xl'],
       cursor: onClick ? 'pointer' : undefined,

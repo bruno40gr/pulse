@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useId, useState } from 'react'
 import { RadioOptionGroup } from '@/components/ui/RadioOptionGroup'
 import { Input } from '@/components/ui/Input'
@@ -53,7 +54,7 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
       <Input label="Search contacts" type="search" placeholder="Name or email" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
       <div role="region" aria-label={label} aria-busy={state === 'loading'} tabIndex={0}
         style={{ height: 'clamp(160px, 28dvh, 280px)', overflow: 'auto', overscrollBehavior: 'contain', minWidth: 0 }}>
-        {state === 'loading' ? <p role="status">Loading contacts…</p>
+        {state === 'loading' ? <LoadingSkeleton label="Loading contacts" />
           : state === 'error' ? <Notice variant="error">{error || 'Could not load contacts. Please try again.'}</Notice>
           : <ResponsiveDataTable rows={matches} getRowKey={person => person.id} ariaLabel={label} minDesktopWidth={320}
             emptyContent={query.trim() ? 'No contacts match your search.' : 'No contacts available to add.'}

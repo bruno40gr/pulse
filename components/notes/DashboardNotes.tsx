@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { CalendarDays, Lock, MessageCircle, Pin, Trash2 } from 'lucide-react'
 import { Button, FieldGrid, Input, Modal, ModalBody, ModalFooter, ModalHeader, PageContainer, PageHeader, Select, Textarea, Avatar, Badge } from '@/components/ui'
@@ -449,7 +450,7 @@ export default function DashboardNotes() {
         </div>
       </div>
 
-    {!ready ? <p>Loading notes…</p> : visible.length === 0 ? <p>No notes match these filters.</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(0, min(100%, 390px)))', gap: spacing.md, alignItems: 'start', justifyContent: 'start' }}>
+    {!ready ? <LoadingSkeleton label="Loading notes" variant="cards" /> : visible.length === 0 ? <p>No notes match these filters.</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(0, min(100%, 390px)))', gap: spacing.md, alignItems: 'start', justifyContent: 'start' }}>
       {visible.map(note => <article key={note.id} aria-label={note.title || 'Untitled note'}>
         <NoteCard note={note} owners={owners}
           onRelatedPersonMention={person => relatedMentions.current.set(note.id, person)}

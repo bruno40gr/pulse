@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useRef, useState } from 'react'
 import { CommunicationCanvas, type CommunicationThread } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
 import PrototypeEmailComposer from '@/components/inbox/PrototypeEmailComposer'
@@ -137,7 +138,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
       {children}
     </SlidePanel>}
     emailHistoryPending={loading || historyLoading || syncPending || !!historyError || !!error}
-    notice={(error || historyError || sendError) ? <Notice variant="error">{sendError || error || historyError}</Notice> : (loading || historyLoading || syncPending) ? <p role="status">Loading conversation…</p> : undefined}
+    notice={(error || historyError || sendError) ? <Notice variant="error">{sendError || error || historyError}</Notice> : (loading || historyLoading || syncPending) ? <LoadingSkeleton label="Loading conversation" /> : undefined}
     liveSms={{ disabled: !target || loading || sending || !!error, onSend: body => {
       if (target) void send(`/api/inbox/reply?${tenant}`, { contact_id: target.id.slice('person:'.length), to_phone: target.address, body }, () => onDraft(`${prefix}:sms`, ''))
     }, onDraft: async () => {

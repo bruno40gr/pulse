@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useState } from 'react'
 import { Button, Input, Notice, SectionTitle, SurfacePanel } from '@/components/ui'
 import { colors, spacing, typography } from '@/lib/tokens'
@@ -40,7 +41,7 @@ export default function EmailSignatureSettings({ tenantId }: { tenantId: string 
   if (loading || (!connected && !error)) return null
   return <SurfacePanel padding={spacing['3xl']} style={{ ...typography.body, marginBottom: spacing.xl }}>
     <SectionTitle>Email signature</SectionTitle>
-    {loading ? <p>Loading your signature…</p> : !storageAvailable ? <div style={{ display: 'grid', gap: spacing.lg }}>
+    {loading ? <LoadingSkeleton label="Loading your signature" rows={2} /> : !storageAvailable ? <div style={{ display: 'grid', gap: spacing.lg }}>
       {!error && <Notice title="Signature editing isn’t enabled yet">
         Emails use your profile name below. Once customization is enabled, you can edit your name and add a role here.
       </Notice>}

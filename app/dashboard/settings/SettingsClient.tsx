@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -130,7 +131,7 @@ export default function SettingsClient({ section }: { section?: Tab } = {}) {
       />
 
       {contextLoading ? (
-        <p style={{ color: colors.textMuted, fontSize: typography.sizeBase }}>Loading settings…</p>
+        <LoadingSkeleton label="Loading settings" />
       ) : (
         <>
           {tab === 'roles' && accountContext?.canManageRoles && <AccessManagementClient tenantId={tenantId} embedded />}
@@ -235,7 +236,7 @@ function IntegrationsTab({ tenantId, inputS, labelS, hintS, cardS, sectionTitleS
         <h2 style={sectionTitleS}>Twilio</h2>
 
         {loading ? (
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+          <LoadingSkeleton label="Loading settings" />
         ) : existing && !showForm ? (
           <div style={{ marginTop: spacing.xl }}>
             <div style={{ background: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing['2xl'], display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
@@ -415,7 +416,7 @@ function BrandTab({ tenantId, canAccessDesignSystem, inputS, labelS, hintS, card
         <h2 style={sectionTitleS}>Brand voice</h2>
 
         {loading ? (
-          <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+          <LoadingSkeleton label="Loading settings" />
         ) : (
           <div style={{ marginTop: spacing.xl }}>
             <label style={labelS}>Descriptive text</label>
@@ -512,7 +513,7 @@ function HighlightsSettings({ tenantId, cardS, sectionTitleS }: { tenantId: stri
       <h2 style={sectionTitleS}>AI Highlights</h2>
 
       {loading ? (
-        <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>
+        <LoadingSkeleton label="Loading settings" />
       ) : (
         <div style={{ marginTop: spacing.xl }}>
             {/* Threshold */}

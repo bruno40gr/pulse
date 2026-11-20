@@ -1,5 +1,6 @@
 'use client'
 
+import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { useState, useEffect } from 'react'
@@ -86,12 +87,10 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent }: Sta
     return (
       <SlidePanel isOpen={true} onClose={onClose}>
         <SlidePanelHeader
-          title="Loading..."
+          title="Staff details"
           onClose={onClose}
         />
-        <div style={{ padding: spacing['2xl'], textAlign: 'center', color: colors.textMuted }}>
-          Loading staff details...
-        </div>
+        <ProfilePanelSkeleton />
       </SlidePanel>
     )
   }

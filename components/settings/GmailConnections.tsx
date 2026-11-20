@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Notice, SectionTitle, Select, SurfacePanel } from '@/components/ui'
 import { colors, radius, spacing, typography } from '@/lib/tokens'
@@ -102,7 +103,7 @@ export default function GmailConnections({ tenantId }: { tenantId: string }) {
     </Modal>
     {error && <Notice variant="warning" style={{ marginTop: spacing.md }}>{error}</Notice>}
     {message && <Notice variant="info" style={{ marginTop: spacing.md }}>{message}</Notice>}
-    {!data && !error && <p style={{ color: colors.textMuted, fontSize: typography.sizeBase, marginTop: spacing.lg }}>Loading…</p>}
+    {!data && !error && <LoadingSkeleton label="Loading Gmail connections" rows={2} />}
     {data?.connections.length === 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xl }}>
       <Button onClick={() => { setError(''); setConnectOpen(true) }} disabled={busy || !data.configured}>Connect with Google</Button>
     </div>}

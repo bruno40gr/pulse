@@ -153,7 +153,8 @@ test('connected Gmail matches Twilio status box and standard action buttons', ()
 test('loading Gmail does not offer a duplicate connection before data arrives', () => {
   const GmailConnections = load('components/settings/GmailConnections.tsx').default
   const html = renderToStaticMarkup(React.createElement(GmailConnections, { tenantId: 'synthetic-tenant' }))
-  assert.ok(html.includes('Loading…'))
+  assert.ok(html.includes('aria-label="Loading Gmail connections"'))
+  assert.ok(html.includes('aria-busy="true"'))
   assert.ok(!html.includes('Connect Google mailbox'))
 })
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -54,7 +55,7 @@ export default function TentativeBandsEditor({ tenantId, leadId, onClose, onSave
   }
   return <Modal isOpen onClose={saving ? undefined : onClose} closeOnEscape={!saving} closeOnBackdrop={!saving} ariaLabel="Edit tentative bands">
     <ModalHeader title="Edit tentative bands" onClose={saving ? undefined : onClose} />
-    <ModalBody>{error && <Notice variant="error">{error}</Notice>}{loading ? <p role="status">Loading…</p> : !loadFailed && <>
+    <ModalBody>{error && <Notice variant="error">{error}</Notice>}{loading ? <LoadingSkeleton label="Loading band details" /> : !loadFailed && <>
       <p>Select any tentative bands. This does not enroll the student.</p>
       {!groups.length && <Notice>No tentative bands are available yet.</Notice>}
       {groups.map(group => <Checkbox key={group.id} label={group.name} checked={selected.includes(group.id)} onChange={event => setSelected(current => event.target.checked ? [...current, group.id] : current.filter(id => id !== group.id))} />)}

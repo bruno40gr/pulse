@@ -1,7 +1,6 @@
-import { colors, spacing, typography } from '@/lib/tokens'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
+import { PageContainer } from '@/components/ui/PageContainer'
 
 export default function DashboardLoading() {
-  return <div role="status" aria-live="polite" style={{ padding: spacing.lg, color: colors.textSecondary, fontFamily: typography.fontSans }}>
-    Loading page…
-  </div>
+  return <PageContainer><LoadingSkeleton label="Loading page" rows={4} /></PageContainer>
 }

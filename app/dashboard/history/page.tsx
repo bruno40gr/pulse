@@ -1,11 +1,11 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
-import { colors, typography, spacing, radius } from '@/lib/tokens'
-import { Badge } from '@/components/ui'
+import { colors, typography, spacing } from '@/lib/tokens'
 import { EmptyState } from '@/components/ui'
 import { Button } from '@/components/ui'
 import { PageHeader } from '@/components/ui'
@@ -82,7 +82,7 @@ export default function HistoryPage() {
       <EmailCampaignHistory key={tenantId} tenant={tenantId} />
       <h2>SMS campaigns</h2>
       {loadError && <Notice variant="error">SMS campaign history could not be loaded.</Notice>}
-      {loading && <p role="status">Loading SMS campaigns…</p>}
+      {loading && <LoadingSkeleton label="Loading SMS campaigns" variant="cards" rows={2} />}
 
       {/* Empty state */}
       {!loading && !loadError && campaigns.length === 0 && (

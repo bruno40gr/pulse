@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ResponsiveDataTable } from '@/components/ui/DataGridTable'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { PersonName } from '@/components/ui/PersonName'
@@ -580,16 +581,7 @@ function PeopleAccessPanel({
 }
 
 function AccessLoadingState() {
-  return (
-    <SurfacePanel aria-busy="true" style={{ display: 'grid', gap: spacing.lg }}>
-      <div style={{ width: 180, height: 18, borderRadius: radius.md, background: colors.backgroundSecondary }} />
-      <div style={{ width: 'min(100%, 520px)', height: 12, borderRadius: radius.md, background: colors.borderLight }} />
-      <div style={{ display: 'grid', gap: spacing.sm, marginTop: spacing.sm }}>
-        {[1, 2, 3].map(row => <div key={row} style={{ height: 52, borderRadius: radius.md, background: colors.surfaceMuted }} />)}
-      </div>
-      <span style={{ color: colors.textMuted, fontSize: typography.sizeSm }}>Loading staff accounts…</span>
-    </SurfacePanel>
-  )
+  return <SurfacePanel><LoadingSkeleton label="Loading staff accounts" rows={3} /></SurfacePanel>
 }
 
 function AccessErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {

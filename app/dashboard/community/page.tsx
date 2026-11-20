@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -67,7 +68,7 @@ export default function CommunityPage() {
       <p role="alert" style={{ color: colors.textSecondary, margin: 0 }}>{error}</p>
       {!workspace && <p style={{ color: colors.textSecondary, marginBottom: 0 }}>Adding, reviewing, and selecting posts will be available once the workspace loads. Keep any post links you want to add for then.</p>}
     </DenseSectionPanel>}
-    {!workspace && !error && <p role="status">Loading community workspace…</p>}
+    {!workspace && !error && <LoadingSkeleton label="Loading community workspace" variant="cards" />}
     {workspace && <>
       <form onSubmit={async event => { event.preventDefault(); if (await save({ action: 'add', url })) { setUrl(''); setFilter('inbox') } }} style={{ display: 'flex', gap: spacing.md, flexWrap: 'wrap', alignItems: 'end', marginBlock: spacing.lg }}>
         <div style={{ flex: '1 1 300px' }}><label htmlFor="community-url">Original post URL</label><Input id="community-url" type="url" required value={url} onChange={event => setUrl(event.target.value)} placeholder="https://www.instagram.com/p/…" disabled={busy} /></div>

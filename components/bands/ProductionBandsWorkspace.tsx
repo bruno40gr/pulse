@@ -156,9 +156,9 @@ export default function ProductionBandsWorkspace() {
     <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
     {view === 'matching' ? <LeadsView matching /> : <>
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>
-        : bandsState === 'loading' ? <p role="status">Loading bands…</p> : <>
+        : <>
           {tentativeState === 'error' && <Notice variant="warning">Forming bands could not be loaded. Active bands are unaffected.</Notice>}
-          <ResponsiveDataTable rows={rows} getRowKey={row => row.key} ariaLabel="Bands" minDesktopWidth={520} emptyContent="No bands yet." columns={[
+          <ResponsiveDataTable loading={bandsState === 'loading'} rows={rows} getRowKey={row => row.key} ariaLabel="Bands" minDesktopWidth={520} emptyContent="No bands yet." columns={[
             { id: 'name', header: 'Group', width: '1.5fr', render: row => row.band
               ? <PersonName as="button" onClick={() => { setPanelTab('details'); setOpened(row.name) }}>{row.name}</PersonName>
               : <PersonName>{row.name}</PersonName> },
@@ -196,7 +196,7 @@ export default function ProductionBandsWorkspace() {
           </div>
         </div> : panelTab === 'members' ? <>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button onClick={() => void openAdd()} disabled={saving}>Add students</Button></div>
-          <ResponsiveDataTable rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
+          <ResponsiveDataTable style={{ border: 'none', borderRadius: 0 }} rows={band.members} getRowKey={row => row.person_id} ariaLabel="Band members" minDesktopWidth={560} emptyContent="No members yet." columns={[
             { id: 'name', header: 'Student', width: '1.2fr', render: row => <PersonName>{row.name}</PersonName> },
             { id: 'instrument', header: 'Instruments', width: '1.3fr', render: row => (
               <MultiSelect label="" ariaLabel={`Instruments for ${row.name}`} appearance="subtle" menuMinWidth={220} disabled={saving}

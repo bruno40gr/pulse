@@ -1,0 +1,2 @@
+.block { background: var(--skeleton-color, #e5e7eb); border-radius: 4px; animation: skeletonPulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .block { animation: none; } }

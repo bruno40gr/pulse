@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
@@ -281,7 +282,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
               } : undefined} />
           </>}
         </DenseSectionPanel> : section === 'funding' ? (
-          funding.loading ? <p role="status">Loading funding details…</p> : funding.error ? <DenseSectionPanel title="Funding Program" actions={<Button size="sm" onClick={() => void loadFunding()}>Retry</Button>}><p role="alert">{funding.error}</p></DenseSectionPanel>
+          funding.loading ? <LoadingSkeleton label="Loading funding details" /> : funding.error ? <DenseSectionPanel title="Funding Program" actions={<Button size="sm" onClick={() => void loadFunding()}>Retry</Button>}><p role="alert">{funding.error}</p></DenseSectionPanel>
             : funding.data ? <FundingContactDetails fundingCase={funding.data} embedded showBilling={false} onFundingDetailsUpdated={data => setFunding({ loading: false, data })} />
               : <EmptyState icon={<Landmark />} title="No funding program assigned" description="Funding authorization and coverage details appear here when this student is assigned to a funding program." />
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}

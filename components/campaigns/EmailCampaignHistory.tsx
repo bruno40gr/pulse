@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useState } from 'react'
 import { Button, Notice, Select, Tabs } from '@/components/ui'
 import { SectionTitle } from '@/components/ui/SectionTitle'
@@ -58,7 +59,7 @@ function FollowUp({ campaign, tenant }: { campaign: Campaign; tenant: string }) 
     return () => controller.abort()
   }, [tenant, campaign.id])
   if (error) return <Notice variant="error">{error}</Notice>
-  if (!data) return <p role="status">Checking the current student roster…</p>
+  if (!data) return <LoadingSkeleton label="Checking the current student roster" />
   const remaining = data.rows.filter(row => row.status === 'unattempted').length
   const matches = data.rows.filter(row => `${row.name} ${row.students} ${row.destination}`.toLowerCase().includes(search.trim().toLowerCase()))
   return <section aria-label="Remaining recipients" style={{ display: 'grid', gap: spacing.md, minWidth: 0 }}>
@@ -103,7 +104,7 @@ function RecipientList({ campaign, tenant, failedOnly }: { campaign: Campaign; t
         {EMAIL_RECIPIENT_STATUSES.map(s => <option key={s} value={s}>{labels[s]}</option>)}
       </Select>
     </div>}
-    {requestKey !== loadedKey ? <p role="status">Loading recipients…</p> : error ? <>
+    {requestKey !== loadedKey ? <LoadingSkeleton label="Loading recipients" /> : error ? <>
       <Notice variant="error">{error}</Notice>
       {page > 1 && <div><Button variant="secondary" size="sm" onClick={() => setPage(1)}>Return to page one</Button></div>}
     </> : filtered && <>
@@ -132,7 +133,7 @@ export function EmailCampaignHistory({ tenant }: { tenant: string }) {
       <h2 id="email-campaign-heading">Email campaigns</h2>
       <Button variant="secondary" size="sm" onClick={() => setRevision(value => value + 1)}>Refresh</Button>
     </div>
-    {error ? <Notice variant="error">{error}</Notice> : data === null ? <p role="status">Loading email campaigns…</p>
+    {error ? <Notice variant="error">{error}</Notice> : data === null ? <LoadingSkeleton label="Loading email campaigns" variant="cards" rows={2} />
       : data.campaigns.length === 0 && <p>No email campaigns recorded.</p>}
 
     {data?.campaigns.map(campaign => {

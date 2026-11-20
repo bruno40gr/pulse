@@ -1,4 +1,5 @@
 'use client'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ContactPrototypeContext, ContactBandEnrollmentContext } from './ContactPrototypeContext'
 import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
@@ -875,9 +876,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
             style={{ marginBottom: spacing.lg }}
           >
           {insightsLoading ? (
-            <p role="status" style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
-              Loading AI highlights…
-            </p>
+            <LoadingSkeleton label="Loading AI highlights" rows={2} />
           ) : actionInsights.length === 0 && passiveInsights.length === 0 ? (
             <p style={{ fontSize: '13px', color: colors.textMuted, margin: '10px 0 0', fontFamily: typography.fontSans }}>
               No insights available for this contact yet.

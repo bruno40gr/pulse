@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useCallback, useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { Button, SlidePanel, SlidePanelHeader } from '@/components/ui'
@@ -164,7 +165,7 @@ export default function NoteConversationPanel({ note, tenantId, onReplyAdded, on
             </article>
 
             {loading ? (
-              <div style={{ color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }}>Loading replies…</div>
+              <LoadingSkeleton label="Loading replies" rows={2} />
             ) : replies.length === 0 ? (
               <div style={{ color: colors.textMuted, fontFamily: typography.fontSans, fontSize: typography.sizeSm }}>No replies yet. Start the conversation below.</div>
             ) : replies.map((reply) => (

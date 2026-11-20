@@ -706,7 +706,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     }} />}
 
     <Modal isOpen={leaveSmsOpen} onClose={() => setLeaveSmsOpen(false)} ariaLabel="Discard message and go back" size="sm"><ModalHeader title="Go back to Communications?" onClose={() => setLeaveSmsOpen(false)} /><ModalBody>Going back to Communications will discard the current message</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setLeaveSmsOpen(false)}>Cancel</Button><Button onClick={leaveSms}>Continue</Button></ModalFooter></Modal>
-    {location.channel === 'email' && location.view !== 'contacts' && emailLoading && <p role="status">Loading email…</p>}
+    {location.channel === 'email' && location.view !== 'contacts' && emailLoading && <CommunicationsSkeleton />}
     {notice && <p role="status" style={{ ...meta, marginTop: spacing.xl }}>{notice}</p>}
   </PageContainer>
 }

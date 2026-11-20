@@ -33,6 +33,7 @@ function render(tab, context = owner, runtime = {}) {
     } },
     '@/components/ui': { Button: wrapper, PageContainer: wrapper, PageHeader: () => null },
     '@/components/ui/ControlButton': { ControlButton: ({ children }) => React.createElement('button', null, children) },
+    '@/components/ui/LoadingSkeleton': { LoadingSkeleton: ({ label }) => React.createElement('div', { role: 'status', 'aria-label': label, 'aria-busy': true }) },
     '@/components/access/AccessManagementClient': { default: panel('access') },
     '@/lib/supabase/client': { createClient: () => { throw new Error('No auth calls expected') } },
     '@/lib/display-preferences': {},

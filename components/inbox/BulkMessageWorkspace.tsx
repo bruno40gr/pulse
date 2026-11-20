@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button, Notice, PageContainer, PageHeader, SurfacePanel } from '@/components/ui'
@@ -41,6 +42,6 @@ export default function BulkMessageWorkspace() {
       <SurfacePanel padding="0" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: 'max(440px, calc(100dvh - 160px))', overflow: 'hidden' }}>
         <ContactBulkComposer key={recoveryOf || id} {...selection} recoveryOf={recoveryOf || undefined} onClose={close} />
       </SurfacePanel>
-    </section> : <p role="status">Loading selected contacts…</p>}
+    </section> : <LoadingSkeleton label="Loading selected contacts" />}
   </PageContainer>
 }
