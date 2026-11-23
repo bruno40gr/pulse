@@ -16,6 +16,9 @@ import DashboardShell from '@/beta-source/app/dashboard/DashboardShell'
 import ContactsPage, { type Contact } from '@/app/dashboard/contacts/page'
 import { ContactPrototypeContext, ContactSampleContext } from '@/components/contacts/ContactPrototypeContext'
 import StaffView from '@/beta-source/app/dashboard/staff/StaffView'
+import StaffWorkProfile from '@/beta-source/app/dashboard/staff/StaffWorkProfile'
+import { staffRecordForPerson } from '@/beta-source/lib/staff-work-profile'
+import { setupAreas } from '@/beta-source/app/content-studio-prototype/school-setup/setup-content'
 import StudentWorkspaceV3 from '@/beta-source/app/content-studio-prototype/students/StudentWorkspaceV3'
 import SchoolSetup from '@/beta-source/app/content-studio-prototype/school-setup/SchoolSetup'
 import type { SetupRecord } from '@/beta-source/app/content-studio-prototype/school-setup/setup-content'
@@ -52,6 +55,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const [setup, setSetup] = useState(createDemoSetup)
   const [ready, setReady] = useState(false)
   const [staffId, setStaffId] = useState<string | null>(null)
+  const [workProfile, setWorkProfile] = useState<SetupRecord | null>(null)
   const [bookingEntry, setBookingEntry] = useState<BookingPrefill | null>(null)
   const tenant = params.get('tenant') || ''
   const [storageError, setStorageError] = useState('')
@@ -164,6 +168,13 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     router.push(`/odeon-demo?${next}`)
   }, [snapshot.data, params, router])
   const clearIntent = useCallback(() => setWorkflowIntent(null), [])
+  useEffect(() => {
+    if (!ready || params.get('screen') !== 'staff') return
+    const personId = params.get('person')
+    if (!personId) return
+    const record = staffRecordForPerson(setup.teachers, personId)
+    if (record) setWorkProfile(record)
+  }, [ready, params, setup.teachers])
   // Staff shares School Setup's teacher records so both views describe the same team.
   const sampleStaff = useMemo(() => setup.teachers.map(record => {
     const [first, ...rest] = (record.values.name || '').split(' ')
@@ -205,6 +216,9 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const enrollmentAvailability = useMemo(() => calendarEnrollmentAvailability({ data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }, queue.state.events), [snapshot.data, setup, queue.academy.groups, queue.state.events])
   if (!ready) return null
   const bookingContext = { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }
+  const closeWorkProfile = () => { setWorkProfile(null); if (params.has('person')) { const next = new URLSearchParams(params.toString()); next.delete('person'); router.replace(`/odeon-demo?${next}`) } }
+  const workToday = tenant ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) : betaPreviewToday
+  const assignAdmin = (id: string) => { setStaffId(null); setBookingEntry({ kind: 'admin', teacherId: id, source: 'teacher', date: workToday, time: '15:00', duration: 30 }) }
   const startCalendarEnrollment = (proposal: CalendarBooking, action: 'staff' | 'send') => {
     const expanded = expandPreviewCalendar(snapshot.data, proposal.date)
     const result = createCalendarEnrollment(queue, { ...bookingContext, data: expanded, occurrences: betaCalendarOccurrences(expanded, queue.academy.groups, queue.state.events, [proposal.date]) }, proposal, action === 'send')
@@ -244,6 +258,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     {statesPreview ? <CalendarStatesPreview /> : screen === 'teacher' ? <TeacherExperience data={snapshot.data} groups={queue.academy.groups} events={queue.state.events} setup={setup} today={betaPreviewToday} onSetup={setSetup} sample={!tenant} /> : calendar ? <AcademyCalendar
     data={snapshot.data}
     onSetup={onSetup}
+    onManageAvailability={id => { setWorkProfile(setup.teachers.find(item => item.id === id) || null); const next = new URLSearchParams(params.toString()); next.set('screen', 'staff'); router.push(`/odeon-demo?${next}`) }}
     onEnroll={startCalendarEnrollment}
     initialReschedule={params.get('reschedule') || undefined}
     siblingRequest={params.getAll('sibling').join(',')}
@@ -259,8 +274,9 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     onExit={() => { const next = new URLSearchParams(params.toString()); next.delete('screen'); router.push(`/odeon-demo?${next}`) }}
     onApply={change => setSnapshot(current => ({ ...current, data: change(current.data) }))}
   /> : workflow ? <EventExplorer key={`book:${params.get('draft') || ''}`} bookingContext={bookingContext} embedded bandReview={bandReview} samplePerformance={!tenant && snapshot.data.demoSchool === true} initialScreen={screen as BetaWorkflowScreen} configuredData={setup} onConfiguredChange={onSetup} intent={workflowIntent} onIntentHandled={clearIntent} onWorkflowCompleted={onWorkflowCompleted} onEnrollmentFocus={setEnrollmentFocused} teachingLoad={teachingLoad} /> : staff ? <>
-      <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} />
-      {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
+      {params.get('person') && !staffRecordForPerson(setup.teachers, params.get('person')!) && <Notice variant="error">This contact has no uniquely linked scheduling profile. Ask an administrator to link the staff identity before editing work assignments.</Notice>}
+      {workProfile ? <StaffWorkProfile key={workProfile.id} record={workProfile} context={bookingContext} today={workToday} onClose={closeWorkProfile} onAssign={assignAdmin} onSave={record => { onSetup({ ...setup, teachers: setup.teachers.some(item => item.id === record.id) ? setup.teachers.map(item => item.id === record.id ? record : item) : [...setup.teachers, record] }); closeWorkProfile() }} /> : <StaffView sampleStaff={sampleStaff} onOpenSample={setStaffId} onAddStaff={() => setWorkProfile({ id: crypto.randomUUID(), values: { ...setupAreas.find(item => item.id === 'teachers')!.defaults, assignments: '[]', canPerformAdmin: 'yes', location: setup.locations[0]?.id || '' } })} />}
+      {staffDetail && <StaffSlidePanel staffId={staffDetail.id} sampleStaff={staffDetail} onEditWorkProfile={() => { setWorkProfile(setup.teachers.find(item => item.id === staffDetail.id) || null); setStaffId(null) }} onAssignAdministrativeTime={setup.teachers.find(item => item.id === staffDetail.id)?.values.canPerformAdmin === 'yes' ? () => assignAdmin(staffDetail.id) : undefined} onClose={() => setStaffId(null)} onViewStudent={id => { const account = snapshot.data.accounts.find(item => item.studentIds.includes(id)); if (account) window.location.href = `/odeon-demo?view=quick&account=${encodeURIComponent(account.id)}&student=${encodeURIComponent(id)}` }} />}
     </> : <StudentWorkspaceV3 key={parent ? params.get('account') || 'parent' : 'staff'} initialData={snapshot.data} initialMakeups={snapshot.makeups} onDemoChange={onChange} renderContacts={({ data, onOpen }) => <SampleContacts data={data} onOpen={onOpen} onWorkflow={beginWorkflow} />} />}
     {bookingEntry && <BookingFlow initial={bookingEntry} context={bookingContext}
       onClose={() => setBookingEntry(null)}

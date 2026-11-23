@@ -8,6 +8,8 @@ import { FieldGrid } from '@/beta-source/components/ui/FieldGrid'
 import { Input } from '@/beta-source/components/ui/Input'
 import { Checkbox } from '@/beta-source/components/ui/Checkbox'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '@/beta-source/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
+import { editStaffAvailability, type AvailabilityScope } from '@/beta-source/lib/staff-availability-edit'
 import { spacing } from '@/beta-source/lib/tokens'
 import { shiftDate, weekStart, formatScheduleDate } from '@/beta-source/lib/academy-enrollment-schedule'
 import { CalendarTimeGrid } from '../enrollment/CalendarTimeGrid'
@@ -29,6 +31,7 @@ export default function TeacherSchedule({ values, onChange, readOnly = false }: 
   const dates = Array.from({ length: 7 }, (_, i) => shiftDate(week, i))
   const weeks = parse<TeacherWeekSchedule[]>(values.availabilityWeeks, [])
   const weeklyBase = teacherWeekAvailability(base, weeks, week)
+  const [scope, setScope] = useState<AvailabilityScope>('future')
   const [edit, setEdit] = useState<Edit | null>(null)
   const [off, setOff] = useState<TeacherTimeOff | null>(null)
   const offTitle = off && timeOff.some(item => item.id === off.id) ? 'Edit time off' : 'Add time off'
@@ -39,17 +42,19 @@ export default function TeacherSchedule({ values, onChange, readOnly = false }: 
   const open = (next: Edit) => { if (readOnly) { setMessage('Availability is managed by the school office.'); return } setError(''); setEdit(next) }
   const save = (current: Edit, remove = false) => {
     const block = current.block
-    const pool = weeklyBase
+    const editWeek = weekStart(current.date)
+    const pool = teacherWeekAvailability(base, weeks, editWeek)
     const next = [...pool.filter(item => item.id !== current.originalId), ...(remove ? [] : [block])]
     if (!remove && (!Number.isFinite(block.from) || !Number.isFinite(block.to) || block.from % 30 || block.to % 30 || block.from < 360 || block.to > 1320 || block.to <= block.from || next.some(item => item.id !== block.id && item.day === block.day && item.from < block.to && block.from < item.to))) { setError('Choose non-overlapping, half-hour hours between 6am and 10pm.'); return false }
-    onChange({ ...values, availabilityWeeks: JSON.stringify([...weeks.filter(item => item.week !== week), { week, blocks: next }]), availabilityOverrides: JSON.stringify(overrides.filter(item => item.date < week || item.date > dates[6])) })
+    onChange(editStaffAvailability(values, base, current.date, next, scope))
     setEdit(null); setError(''); return true
   }
   const newOff = (date: string) => { if (readOnly) { setMessage('Time off is managed by the school office.'); return } setError(''); setOff({ id: crypto.randomUUID(), sickLeave: false, start: date, end: date, allDay: true, from: 720, to: 780 }) }
   const restore = (date: string) => { if (readOnly) { setMessage('Availability is managed by the school office.'); return } onChange({ ...values, availabilityOverrides: JSON.stringify(overrides.filter(item => item.date !== date)) }); setMessage('Weekly availability restored.'); setEdit(null) }
   const position = (element: HTMLElement, y: number) => Math.max(360, Math.min(1320, 360 + Math.round((y - element.getBoundingClientRect().top) / element.getBoundingClientRect().height * 32) * 30))
-  return <DenseSectionPanel title="Schedule" headingLevel="h2" actions={readOnly ? undefined : <div className={styles.sectionHeader}><Button type="button" variant="secondary" onClick={() => newOff(week)}>Add Time Off</Button><Button type="button" variant="secondary" onClick={() => open({ date: week, block: { id: crypto.randomUUID(), day: 0, from: 720, to: 780 } })}>Add availability</Button></div>} contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
-    <p>{readOnly ? 'Published teaching hours. The school office sets availability and time off, so your calendar always matches what the school agreed with you.' : 'Changes apply to this week and carry forward until you edit a later week. Earlier weeks stay unchanged.'}</p>
+  return <DenseSectionPanel title="Availability" headingLevel="h2" actions={readOnly ? undefined : <div className={styles.sectionHeader}><Button type="button" variant="secondary" onClick={() => newOff(week)}>Add time off</Button><Button type="button" variant="secondary" onClick={() => open({ date: week, block: { id: crypto.randomUUID(), day: 0, from: 720, to: 780 } })}>Add availability</Button></div>} contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
+    <p>{readOnly ? 'Published teaching hours. The school office sets availability and time off, so your calendar always matches what the school agreed with you.' : 'Set when this staff member can work. Schedule teaching and administrative assignments in the Calendar. Earlier weeks stay unchanged.'}</p>
+    {!readOnly && <Select label="Apply availability changes to" value={scope} onChange={event => setScope(event.target.value as AvailabilityScope)}><option value="week">This week only</option><option value="future">This week and following weeks, until the next saved change</option></Select>}
     <CalendarWeekToolbar week={week} lastDate={dates[6]} onWeek={date => { setWeek(date); setDraft(null); drag.current = null }} />
     {message && <p role="status">{message}</p>}{error && !edit && !off && <p role="alert">{error}</p>}
     <CalendarTimeGrid dates={dates} times={Array.from({ length: 64 }, (_, i) => time(360 + i * 15))} label="Weekly availability" renderDayHeading={date => <><ControlButton type="button" kind="link" aria-label={`Block ${date} all day`} onClick={() => newOff(date)}>{formatScheduleDate(date, { weekday: 'short', day: 'numeric' })}</ControlButton>{overrides.some(item => item.date === date) && <ControlButton type="button" kind="link" aria-label={`Restore weekly availability ${date}`} onClick={() => restore(date)}>Restore weekly</ControlButton>}</>} renderDay={date => {
@@ -74,7 +79,7 @@ export default function TeacherSchedule({ values, onChange, readOnly = false }: 
         const to = current.mode === 'draw' ? Math.min(1320, Math.max(current.start, end, from + 30)) : current.mode === 'move' ? from + original.to - original.from : Math.max(from + 30, Math.min(1320, original.to + delta))
         setDraft({ ...current.edit, block: { ...original, from, to } })
       }} onPointerUp={() => { if (draft) save(draft); drag.current = null; setDraft(null) }} onPointerCancel={() => { drag.current = null; setDraft(null) }}>
-        {[...visible.filter(block => block.id !== drawn?.originalId), ...(drawn ? [drawn.block] : [])].map(block => <div key={block.id} data-block={block.id} className={styles.block} style={{ top: `${(block.from - 360) / 960 * 100}%`, height: `${(block.to - block.from) / 960 * 100}%` }}><ControlButton kind="link" type="button" aria-label={`Edit ${days[day]} availability ${time(block.from)}–${time(block.to)}`} onClick={() => { const source = weeklyBase.find(item => item.id === block.id) || weeklyBase.find(item => block.from >= item.from && block.to <= item.to); if (source) open({ date, block: source, originalId: source.id }) }}>{time(block.from)}–{time(block.to)}</ControlButton><span data-resize="true" className={styles.resize} /></div>)}
+        {[...visible.filter(block => block.id !== drawn?.originalId), ...(drawn ? [drawn.block] : [])].map(block => <div key={block.id} data-block={block.id} className={styles.block} style={{ top: `${(block.from - 360) / 960 * 100}%`, height: `${(block.to - block.from) / 960 * 100}%` }}><ControlButton kind="link" type="button" aria-label={`Edit ${days[day]} availability ${time(block.from)}–${time(block.to)}`} onClick={() => { const source = weeklyBase.find(item => item.id === block.id) || weeklyBase.find(item => item.day === day && block.from >= item.from && block.to <= item.to); if (source) open({ date, block: source, originalId: source.id }) }}>{time(block.from)}–{time(block.to)}</ControlButton><span data-resize="true" className={styles.resize} /></div>)}
         {timeOff.filter(item => item.start <= date && item.end >= date).map(item => <div key={item.id} className={styles.timeOff} style={{ top: `${((item.allDay ? 360 : item.from) - 360) / 960 * 100}%`, height: `${(item.allDay ? 960 : item.to - item.from) / 960 * 100}%` }}><ControlButton kind="link" type="button" aria-label={`Edit time off ${item.sickLeave ? 'Sick leave' : 'Time off'} ${date}`} onClick={() => { setError(''); setOff(item) }}>{item.sickLeave ? 'Sick leave' : 'Time off'}{item.allDay ? ' · All day' : ''}</ControlButton></div>)}
       </div>
     }} />

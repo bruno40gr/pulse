@@ -9,9 +9,15 @@ import { readSchedulingPolicy, teachingPolicyReason, timeMinutes } from './acade
 import { projectBetaEnrollment } from './beta-workflow-projection'
 import { lessonPrice, lessonStudent, type StaffEnrollment, type LessonChoice } from './academy-staff-enrollment'
 import { lessonOccursOn } from './academy-enrollment-schedule'
+import { teacherQualificationReason } from './academy-teacher-qualification'
 
 export type CalendarBookingKind = 'lesson' | 'studio' | 'rehearsal' | 'event' | 'block' | 'front-desk' | 'admin'
 export type CalendarBooking = {
+  level?: 1 | 2 | 3
+  responsibilityId?: string
+  responsibilityName?: string
+  excludedDates?: string[]
+  enrollmentId?: string
   id: string; kind: CalendarBookingKind; title: string; date: string; time: string; duration: number
   serviceId: string; teacherId: string; roomId: string; studentIds: string[]; participantIds?: string[]; groupId: string
   repeat: 'once' | 'weekly'; until: string; publicOnly: boolean; status: 'Scheduled' | 'Cancelled'
@@ -22,12 +28,13 @@ export type CalendarBooking = {
   requiredCapacity?: number
 }
 export const isStaffDuty = (kind: string) => kind === 'front-desk' || kind === 'admin'
-export const staffDutyLabel = (kind: string) => kind === 'front-desk' ? 'Front desk' : 'Admin'
-export function dutyEligible(values: Record<string, string>, kind: string) { return values[kind === 'front-desk' ? 'canCoverFrontDesk' : 'canPerformAdmin'] === 'yes' }
+export const staffDutyLabel = (kind: string) => kind === 'front-desk' ? 'Administrative time · Front desk' : 'Administrative time'
+export function dutyEligible(values: Record<string, string>, kind: string) { return values.canPerformAdmin === 'yes' || (kind === 'front-desk' && values.canCoverFrontDesk === 'yes') }
 export type BookingContext = { data: FamilyPreviewData; setup: Record<string, SetupRecord[]>; groups: readonly AcademyGroup[]; occurrences: readonly CalendarOccurrence[]; audience?: 'staff' | 'public' }
 export function parseSchedule<T>(value: string | undefined, fallback: T): T { try { return value ? JSON.parse(value) as T : fallback } catch { return fallback } }
 export function bookingOnDate(booking: CalendarBooking, date: string) {
   if (booking.status === 'Cancelled') return false
+  if (booking.excludedDates?.includes(date)) return false
   if (booking.repeat !== 'weekly') return booking.date === date
   return date >= booking.date && date <= booking.until && new Date(`${date}T12:00:00Z`).getUTCDay() === new Date(`${booking.date}T12:00:00Z`).getUTCDay()
 }
@@ -87,11 +94,12 @@ export function bookingReason(context: BookingContext, booking: CalendarBooking,
   if (duty) {
     if (audience === 'public') return 'Staff duties are internal and cannot be self-booked.'
     if (!teacher || !dutyEligible(teacher.values, booking.kind)) return 'Choose a staff member eligible for this duty in teacher setup.'
+    if (booking.kind === 'admin' && !setup.adminResponsibilities?.some(item => item.id === booking.responsibilityId && item.values.enabled !== 'No')) return 'Choose an active Admin responsibility in School Setup.'
     if (!setup.locations?.some(location => location.id === booking.locationId)) return 'Choose a location for this duty.'
     const locations = parseSchedule<string[]>(teacher.values.locationIds, teacher.values.location ? [teacher.values.location] : [])
     if (!locations.includes(booking.locationId!)) return 'The staff member is not assigned to this location.'
     if (room && room.locationId !== booking.locationId) return 'Choose a room at the duty location.'
-    if (booking.studentIds.length || booking.groupId || booking.serviceId || booking.publicOnly) return 'Staff duties cannot contain participants, services or public availability.'
+    if (booking.studentIds.length || booking.participantIds?.length || booking.groupId || booking.serviceId || booking.publicOnly) return 'Staff duties cannot contain participants, services or public availability.'
   } else if (booking.kind === 'block') {
     if (!teacher && !room) return 'Choose a teacher or room to block.'
     if (booking.studentIds.length || booking.groupId) return 'Blocks cannot contain participants or a band.'
@@ -105,8 +113,12 @@ export function bookingReason(context: BookingContext, booking: CalendarBooking,
   if (teacher && booking.kind !== 'block') {
     if (!teacherHours(setup, teacher.id, booking.date).some(block => from >= block.from && to <= block.to)) return 'The teacher is unavailable during this time.'
     if (booking.kind === 'lesson' && service) {
-      const assignments = parseSchedule<{ serviceId: string }[]>(teacher.values.assignments, [{ serviceId: teacher.values.service }])
-      if (!assignments.some(item => item.serviceId === service.id)) return 'This teacher does not teach the selected service.'
+      const enrollment = booking.enrollmentId
+        ? data.students.flatMap(student => student.enrollments).find(item => item.id === booking.enrollmentId && studentIds.includes(item.studentId))
+        : undefined
+      if (booking.enrollmentId && !enrollment) return 'Choose an existing enrollment for this student.'
+      const qualification = teacherQualificationReason(teacher.values, service.id, enrollment?.level ?? booking.level ?? 1)
+      if (qualification) return qualification
     }
     if (room && teacher.values.locationIds && !parseSchedule<string[]>(teacher.values.locationIds, []).includes(room.locationId)) return 'The teacher is not assigned to this location.'
     if (room && !teacher.values.locationIds && teacher.values.location && teacher.values.location !== room.locationId) return 'The teacher is not assigned to this location.'
@@ -130,14 +142,24 @@ export function bookingReason(context: BookingContext, booking: CalendarBooking,
     if (room && (item.rooms || [item.room]).includes(room.name)) return 'The room already has an exclusive booking.'
     if (studentIds.some(id => item.studentIds.includes(id))) return 'A participant already has a booking at this time.'
   }
-  if (teacher && booking.kind !== 'block' && !duty) {
+  if (teacher && booking.kind !== 'block') {
     const rules = readSchedulingPolicy(policy, teacher.values)
     if (audience === 'public' && (!rules.publicEnabled || from < timeMinutes(rules.publicFrom) || to > timeMinutes(rules.publicTo))) return 'This time is not offered for public self-booking.'
     const teaching = occurrences.filter(item => item.date === booking.date && item.status !== 'Cancelled' && item.kind !== 'block' && !isStaffDuty(item.kind) && ((item.teacherIds || [item.teacherId]).includes(teacher.id) || (item.teacherNames || [item.teacherName]).includes(teacher.values.name)))
     const shift = teacherHours(setup, teacher.id, booking.date).find(block => from >= block.from && to <= block.to)
     const sameShift = teaching.filter(item => !shift || (timeMinutes(item.start) >= shift.from && timeMinutes(item.end) <= shift.to))
-    const reason = teachingPolicyReason(sameShift.map(item => ({ time: item.start, duration: timeMinutes(item.end) - timeMinutes(item.start) })), booking.time, booking.duration, rules)
-    if (reason) return reason
+    const occupied = occurrences.filter(item => item.date === booking.date && item.status !== 'Cancelled' && (isStaffDuty(item.kind) || item.kind === 'block') && item.id !== booking.id && ((item.teacherIds || [item.teacherId]).includes(teacher.id) || (item.teacherNames || [item.teacherName]).includes(teacher.values.name))).map(item => ({ time: item.start, duration: timeMinutes(item.end) - timeMinutes(item.start) }))
+    if (duty) {
+      occupied.push({ time: booking.time, duration: booking.duration })
+      for (const session of sameShift) {
+        const other = sameShift.filter(item => item.id !== session.id)
+        const reason = teachingPolicyReason(other.map(item => ({ time: item.start, duration: timeMinutes(item.end) - timeMinutes(item.start) })), session.start, timeMinutes(session.end) - timeMinutes(session.start), rules, occupied)
+        if (reason) return reason
+      }
+    } else {
+      const reason = teachingPolicyReason(sameShift.map(item => ({ time: item.start, duration: timeMinutes(item.end) - timeMinutes(item.start) })), booking.time, booking.duration, rules, occupied)
+      if (reason) return reason
+    }
   }
   if (audience === 'public' && !teacher) {
     const rules = readSchedulingPolicy(policy)
@@ -150,7 +172,20 @@ export function bookingDates(booking: CalendarBooking) {
   if (booking.repeat !== 'weekly') return [booking.date]
   const dates: string[] = []
   for (let date = booking.date; date <= booking.until && dates.length < 53; date = shiftBookingDate(date, 7)) dates.push(date)
-  return dates
+  return dates.filter(date => !booking.excludedDates?.includes(date))
+}
+
+/** Replace exactly one occurrence or a future tail; preserve the source assignment. */
+export function replaceCalendarAssignment(context: BookingContext, sourceId: string, replacement: CalendarBooking, scope: 'occurrence' | 'future', effectiveDate: string): FamilyPreviewData {
+  const source = context.data.calendarBookings?.find(item => item.id === sourceId)
+  if (!source || !isStaffDuty(source.kind) || !isStaffDuty(replacement.kind) || !bookingOnDate(source, effectiveDate)) throw new Error('Choose an existing Admin occurrence to replace.')
+  if (replacement.id === source.id) throw new Error('A replacement needs its own assignment identity.')
+  const preserved = scope === 'occurrence'
+    ? { ...source, excludedDates: [...(source.excludedDates || []), effectiveDate] }
+    : effectiveDate === source.date ? { ...source, status: 'Cancelled' as const } : { ...source, until: shiftBookingDate(effectiveDate, -1) }
+  const next = { ...context.data, calendarBookings: context.data.calendarBookings!.map(item => item.id === source.id ? preserved : item) }
+  const proposal = { ...replacement, date: effectiveDate, repeat: scope === 'occurrence' ? 'once' as const : source.repeat, until: scope === 'occurrence' ? effectiveDate : source.until }
+  return saveCalendarBooking({ ...context, data: next, occurrences: context.occurrences.filter(item => item.bookingId !== source.id && item.id !== source.id) }, proposal)
 }
 export function saveCalendarBooking(context: BookingContext, booking: CalendarBooking): FamilyPreviewData {
   if (booking.kind === 'lesson') throw new Error('Continue to enrollment to review lesson pricing, payer and payment before booking.')
@@ -167,7 +202,8 @@ export function saveCalendarBooking(context: BookingContext, booking: CalendarBo
     const reason = bookingReason({ ...context, data: expanded, occurrences: [...occurrences, ...external] }, { ...booking, date })
     if (reason) throw new Error(`${date}: ${reason}`)
   }
-  return { ...expanded, calendarBookings: [...(expanded.calendarBookings || []), { ...booking, title: isStaffDuty(booking.kind) ? staffDutyLabel(booking.kind) : booking.title, roomName: roomRecords(context.setup).find(item => item.id === booking.roomId)?.name || '', teacherName: context.setup.teachers.find(item => item.id === booking.teacherId)?.values.name || '', studentIds: bookingParticipants(booking, context.groups) }] }
+  const responsibilityName = context.setup.adminResponsibilities?.find(item => item.id === booking.responsibilityId)?.values.name
+  return { ...expanded, calendarBookings: [...(expanded.calendarBookings || []), { ...booking, ...(responsibilityName ? { responsibilityName } : {}), title: isStaffDuty(booking.kind) ? `${staffDutyLabel(booking.kind)}${responsibilityName ? ` · ${responsibilityName}` : ''}` : booking.title, roomName: roomRecords(context.setup).find(item => item.id === booking.roomId)?.name || '', teacherName: context.setup.teachers.find(item => item.id === booking.teacherId)?.values.name || '', studentIds: bookingParticipants(booking, context.groups) }] }
 }
 
 /** A calendar selection is a proposal for the existing enrollment UI, not a booking. */
@@ -176,12 +212,12 @@ export function calendarEnrollmentLesson(context: BookingContext, booking: Calen
   if (reason) throw new Error(reason)
   const service = context.setup.services.find(item => item.id === booking.serviceId)!
   const teacher = context.setup.teachers.find(item => item.id === booking.teacherId)!
-  return { service: ['Tiny Keys', 'Little Rockers', 'Band'].includes(service.values.name) ? 'Group' : 'Private', instrument: service.values.name === 'Voice & Vocals' ? 'Voice' : service.values.name === 'Band' ? 'Band Program' : service.values.name, teacher: teacher.values.name, start: booking.date, time: booking.time, day: new Date(`${booking.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }), duration: String(booking.duration), studentId: booking.studentIds[0], frequency: booking.arrangement || 'À-la-carte', roomId: booking.roomId, serviceId: booking.serviceId }
+  return { level: booking.level ?? 1, service: ['Tiny Keys', 'Little Rockers', 'Band'].includes(service.values.name) ? 'Group' : 'Private', instrument: service.values.name === 'Voice & Vocals' ? 'Voice' : service.values.name === 'Band' ? 'Band Program' : service.values.name, teacher: teacher.values.name, start: booking.date, time: booking.time, day: new Date(`${booking.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }), duration: String(booking.duration), studentId: booking.studentIds[0], frequency: booking.arrangement || 'À-la-carte', roomId: booking.roomId, serviceId: booking.serviceId }
 }
 
 function enrollmentProbe(context: BookingContext, lesson: LessonChoice, date: string, time: string, teacherId: string): CalendarBooking {
   const service = context.setup.services.find(item => item.id === lesson.serviceId) || context.setup.services.find(item => item.values.name === (lesson.instrument === 'Voice' ? 'Voice & Vocals' : lesson.instrument === 'Band Program' ? 'Band' : lesson.instrument))
-  return { id: `enrollment-probe:${lesson.id}`, kind: 'lesson', title: lesson.instrument, date, time, duration: Number(lesson.duration), serviceId: service?.id || '', teacherId, roomId: lesson.roomId || '', studentIds: [lesson.studentId || ''], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }
+  return { id: `enrollment-probe:${lesson.id}`, kind: 'lesson', level: lesson.level ?? 1, title: lesson.instrument, date, time, duration: Number(lesson.duration), serviceId: service?.id || '', teacherId, roomId: lesson.roomId || '', studentIds: [lesson.studentId || ''], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }
 }
 
 function enrollmentRooms(context: BookingContext, probe: CalendarBooking) {
@@ -241,7 +277,7 @@ export function completeCalendarEnrollment(context: BookingContext, draft: Staff
     initial.roomId = room.id
     const payerId = draft.payer === 'manager' ? draft.manager?.id || draft.contact?.id || '' : draft.payer === 'other' ? draft.contact?.id || '' : draft.student?.id || draft.contact?.id || ''
     const price = lessonPrice(lesson, lessonStudent(draft, lesson)).total
-    working = projectBetaEnrollment(working, { enrollmentId: `${enrollmentId}:lesson:${index}`, studentId, payerId, otherPayer: draft.payer === 'other' ? draft.otherPayer || undefined : undefined, amountMinor: price, paid: draft.payment !== 'later', paymentMethod: draft.payment === 'later' ? 'Add payment later' : 'Demo Visa ···· 4242', lessons: [{ service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id, start: lesson.start, time: lesson.time, duration: Number(lesson.duration), frequency: lesson.frequency === 'À-la-carte' ? 'One-off' : 'Weekly', amountMinor: price, room: roomRecords(context.setup).find(room => room.id === initial.roomId)!.name }] })
+    working = projectBetaEnrollment(working, { enrollmentId: `${enrollmentId}:lesson:${index}`, studentId, payerId, otherPayer: draft.payer === 'other' ? draft.otherPayer || undefined : undefined, amountMinor: price, paid: draft.payment !== 'later', paymentMethod: draft.payment === 'later' ? 'Add payment later' : 'Demo Visa ···· 4242', lessons: [{ level: lesson.level ?? 1, service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id, start: lesson.start, time: lesson.time, duration: Number(lesson.duration), frequency: lesson.frequency === 'À-la-carte' ? 'One-off' : 'Weekly', amountMinor: price, room: roomRecords(context.setup).find(room => room.id === initial.roomId)!.name }] })
     working = { ...working, students: working.students.map(student => ({ ...student, enrollments: student.enrollments.map(enrollment => enrollment.id === `${enrollmentId}:lesson:${index}:0` ? { ...enrollment, serviceId: initial.serviceId } : enrollment) })) }
   }
   return working

@@ -130,6 +130,7 @@ const valenceConfig: Record<string, { dotColor: string; bg: string; titleColor: 
 }
 
 interface ContactSlidePanelProps {
+  onManageWorkProfile?: () => void
   contact: Contact
   tenantFields: TenantField[]
   onClose: () => void
@@ -154,7 +155,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated, onManageWorkProfile }: ContactSlidePanelProps) {
   const simulated = useContext(ContactPrototypeContext)
   const bandEnrollments = useContext(ContactBandEnrollmentContext)
   const request = useLeadWorkspaceRequest()
@@ -615,6 +616,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
         ) : undefined}
         actions={isInstructor ? (
           <>
+            {onManageWorkProfile && <Button variant="secondary" size="sm" onClick={onManageWorkProfile}>Qualifications & availability</Button>}
             <ControlButton kind="icon"
               type="button"
               onClick={() => onCompose?.([contact.id])}

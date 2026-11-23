@@ -225,6 +225,7 @@ export default function StaffPage() {
           key={selectedContact.id}
           contact={selectedContact}
           tenantFields={tenantFields}
+          onManageWorkProfile={tenantId ? () => window.location.assign(`/odeon-demo?screen=staff&tenant=${encodeURIComponent(tenantId)}&person=${encodeURIComponent(selectedContact.id)}`) : undefined}
           onClose={contactHistory.closePanel}
           onCompose={(ids) => {
             if (ids.length === 1 && selectedContact) {

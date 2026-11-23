@@ -11,21 +11,23 @@ import { Music, Users, CalendarDays, DoorOpen, Ban, Sparkles } from 'lucide-reac
 import entryStyles from '../content-studio-prototype/event-explorer/explorer.module.css'
 import { calendarBookingOptions, reconcileCalendarBooking } from '@/beta-source/lib/academy-calendar-options'
 import { FieldGrid } from '@/components/ui/FieldGrid'
+import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
+import { Textarea } from '@/components/ui/Textarea'
 import { Notice } from '@/components/ui/Notice'
 import { SearchSelect } from '@/components/ui/SearchSelect'
 import { bookingReason, type BookingContext, type CalendarBooking, roomRecords, roomSupportsBooking, isStaffDuty, staffDutyLabel, type CalendarBookingKind } from '@/beta-source/lib/academy-calendar-booking'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { matchingSubscriptions } from '@/beta-source/lib/academy-calendar-enrollment'
 
-export type BookingPrefill = { date: string; time: string; duration: number; teacherId?: string; roomId?: string; serviceId?: string; source?: 'teacher' | 'room' | 'service'; existing?: CalendarBooking }
+export type BookingPrefill = { date: string; time: string; duration: number; teacherId?: string; roomId?: string; serviceId?: string; source?: 'teacher' | 'room' | 'service'; existing?: CalendarBooking; replacementScope?: 'occurrence' | 'future'; kind?: 'admin' }
 
 /** Both Add booking and drawing mount this same stable-size dialog. */
 export default function CalendarBookingModal({ initial, context, onClose, onSave, onStartLesson, blockOnly = false }: { initial: BookingPrefill; context: BookingContext; onClose: () => void; onSave: (booking: CalendarBooking, action?: 'staff' | 'send') => string | null; onStartLesson?: (single: boolean) => void; blockOnly?: boolean }) {
   const spaceKind = context.setup.services?.find(service => service.id === initial.serviceId)?.values.bookingKind
-  const initialKind: CalendarBookingKind = blockOnly ? 'block' : spaceKind === 'room' ? 'studio' : spaceKind === 'rehearsal' || spaceKind === 'event' ? spaceKind : 'lesson'
+  const initialKind: CalendarBookingKind = blockOnly ? 'block' : initial.kind || (spaceKind === 'room' ? 'studio' : spaceKind === 'rehearsal' || spaceKind === 'event' ? spaceKind : 'lesson')
   const constraints = { teacherId: initial.source === 'teacher' ? initial.teacherId : undefined, roomId: initial.source === 'room' ? initial.roomId : undefined, serviceId: initial.source === 'service' && initialKind === 'lesson' ? initial.serviceId : undefined }
-  const [screen, setScreen] = useState<'cards' | 'details'>(initial.existing || blockOnly || initial.source === 'service' ? 'details' : 'cards')
-  const [booking, setBooking] = useState<CalendarBooking>(() => initial.existing || reconcileCalendarBooking(context, { id: `beta:booking:${crypto.randomUUID()}`, kind: initialKind, title: '', date: initial.date, time: initial.time, duration: initialKind === 'lesson' ? (initial.duration >= 15 && initial.duration % 15 === 0 ? initial.duration : 30) : initial.duration, teacherId: initial.teacherId || '', roomId: initial.roomId || '', serviceId: initial.serviceId || '', studentIds: [], groupId: '', repeat: 'once', until: initial.date, publicOnly: false, status: 'Scheduled', arrangement: 'Monthly subscription' }, constraints))
+  const [screen, setScreen] = useState<'cards' | 'details'>(initial.kind || initial.existing || blockOnly || initial.source === 'service' ? 'details' : 'cards')
+  const [booking, setBooking] = useState<CalendarBooking>(() => initial.existing ? initial.replacementScope ? { ...initial.existing, id: `beta:booking:${crypto.randomUUID()}`, kind: 'admin', date: initial.date, repeat: initial.replacementScope === 'occurrence' ? 'once' : initial.existing.repeat, until: initial.replacementScope === 'occurrence' ? initial.date : initial.existing.until, excludedDates: [] } : initial.existing : reconcileCalendarBooking(context, { id: `beta:booking:${crypto.randomUUID()}`, kind: initialKind, title: '', date: initial.date, time: initial.time, duration: initialKind === 'lesson' ? (initial.duration >= 15 && initial.duration % 15 === 0 ? initial.duration : 30) : initial.duration, teacherId: initial.teacherId || '', roomId: initial.roomId || '', serviceId: initial.serviceId || '', studentIds: [], groupId: '', repeat: 'once', until: initial.date, publicOnly: false, status: 'Scheduled', arrangement: 'Monthly subscription' }, constraints))
   const kind = booking.kind
   const pathDrafts = useRef<Partial<Record<CalendarBookingKind, CalendarBooking>>>({})
   const [error, setError] = useState('')
@@ -81,7 +83,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
   const title = lesson ? selectedTeacher ? `Lesson with ${selectedTeacher.values.name}` : constraints.serviceId ? `${serviceOptions.find(service => service.id === constraints.serviceId)?.values.name || 'Lesson'} booking` : 'Lesson details' : block ? 'Block / unavailable' : duty ? staffDutyLabel(kind) : kind === 'studio' ? 'Studio booking' : kind === 'rehearsal' ? 'Band rehearsal' : 'Event'
   const fieldError = (pattern: RegExp) => submitted && error && pattern.test(error) ? error : undefined
   const choose = (next: CalendarBookingKind | 'duty', single = false) => {
-    const kindNext: CalendarBookingKind = next === 'duty' ? 'front-desk' : next
+    const kindNext: CalendarBookingKind = next === 'duty' ? 'admin' : next
     if (kindNext === 'lesson' && onStartLesson) { onStartLesson(single); return }
     pathDrafts.current[kind] = booking
     const previous = pathDrafts.current[kindNext]
@@ -94,7 +96,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
     { id: 'studio', label: 'Studio booking', icon: DoorOpen },
     { id: 'rehearsal', label: 'Band rehearsal', icon: Users },
     { id: 'event', label: 'Event', icon: CalendarDays },
-    { id: 'duty', label: 'Staff duty', icon: Users },
+    { id: 'duty', label: 'Administrative time', icon: Users },
     { id: 'block', label: 'Block / unavailable', icon: Ban },
   ] as const
   const teachesBand = (teacherId: string) => {
@@ -107,7 +109,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
   // The calendar column already says what this person or space can host.
   const availablePaths = paths.filter(path => {
     if (blockOnly) return path.id === 'block'
-    const nextKind: CalendarBookingKind = path.id === 'single' ? 'lesson' : path.id === 'duty' ? 'front-desk' : path.id
+    const nextKind: CalendarBookingKind = path.id === 'single' ? 'lesson' : path.id === 'duty' ? 'admin' : path.id
     const probe = { ...booking, kind: nextKind, studentIds: [], groupId: '', requiredCapacity: undefined }
     if (initial.source === 'teacher') {
       // A teacher cannot hire themselves out as a room, and events are not their diary entry.
@@ -136,6 +138,7 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
         {availablePaths.map(path => <EntryPathCard key={path.id} title={path.label} action="Choose" onChoose={() => choose(path.id === 'single' ? 'lesson' : path.id, path.id === 'single')}><path.icon size={28} /></EntryPathCard>)}
       </div> : <>
         {selectedRoom && <strong>{selectedRoom.name} · capacity {selectedRoom.capacity}</strong>}
+        {initial.replacementScope && <Notice>Replacing {initial.replacementScope === 'occurrence' ? 'this occurrence only' : 'this and future occurrences'} from {initial.date}. Earlier assignments remain unchanged.</Notice>}
         {lesson && <div>
           {studentSearch
             ? <SearchSelect fieldLabel="Student" label="Search students" defaultOpen options={studentOptions.map(student => ({ value: student.id, label: `${student.firstName} ${student.lastName}` }))} onSelect={value => { patch({ studentIds: [value] }); setStudentSearch(false) }} onClose={() => setStudentSearch(false)} />
@@ -148,12 +151,28 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
         </div>}
         {lesson && <Select error={submitted && !booking.serviceId ? 'Choose a service.' : fieldError(/service/i)} label="Lesson service" disabled={Boolean(constraints.serviceId)} value={booking.serviceId} onChange={event => { const serviceId = event.target.value; const offered = durationsFor(serviceId); patch({ serviceId, ...(offered.length && !offered.includes(booking.duration) ? { duration: offered[0] } : {}) }) }}><option value="">Choose a service</option>{[...options.services, ...serviceOptions.filter(service => service.id === booking.serviceId && !options.services.some(option => option.id === service.id))].map(service => <option key={service.id} value={service.id}>{service.values.name}</option>)}</Select>}
         {!lesson && !duty && <Input label={block ? 'Block reason' : 'Booking name'} value={booking.title} onChange={event => patch({ title: event.target.value })} placeholder={block ? 'e.g. Maintenance or personal time' : 'Optional name'} />}
-        {duty && <>
-          <Select label="Duty" value={kind} onChange={event => patch({ kind: event.target.value as CalendarBookingKind })}><option value="front-desk">Front desk</option><option value="admin">Admin</option></Select>
-          <Select label="Duty location" value={booking.locationId || ''} onChange={event => patch({ locationId: event.target.value, roomId: '' })}><option value="">Choose a location</option>{context.setup.locations.map(location => <option key={location.id} value={location.id}>{location.values.name}</option>)}</Select>
-          <Input label="Duty notes" value={booking.notes || ''} onChange={event => patch({ notes: event.target.value })} />
-          {!options.teachers.length && <Notice>No eligible staff. Enable this duty under Additional duties in teacher setup.</Notice>}
-        </>}
+        {duty && <DenseSectionPanel title="Duty details" headingLevel="h3" contentStyle={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+          <FieldGrid>
+          {kind === 'front-desk' ? <p>Admin · Front desk (legacy assignment)</p> : <Select label="Duty" value={booking.responsibilityId || ''} onChange={event => patch({ responsibilityId: event.target.value })}><option value="">Choose a duty</option>{(context.setup.adminResponsibilities || []).filter(item => item.values.enabled !== 'No').map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</Select>}
+          <Select label="Location" value={booking.locationId || ''} onChange={event => patch({ locationId: event.target.value, roomId: '' })}><option value="">Choose a location</option>{context.setup.locations.map(location => <option key={location.id} value={location.id}>{location.values.name}</option>)}</Select>
+          </FieldGrid>
+          <Textarea label="Notes" rows={2} hint="Optional details about this scheduled work." value={booking.notes || ''} onChange={event => patch({ notes: event.target.value })} />
+          {!context.setup.adminResponsibilities?.some(item => item.values.enabled !== 'No') && <Notice>Configure duties under School Setup → Administrative time first.</Notice>}
+          {!options.teachers.length && <Notice>Enable “Can be scheduled for administrative time” in staff setup to assign non-teaching work.</Notice>}
+        </DenseSectionPanel>}
+        {duty && <DenseSectionPanel title="Schedule" headingLevel="h3">
+          <FieldGrid>
+            <Input label="Booking date" type="date" disabled={Boolean(initial.replacementScope)} value={booking.date} onChange={event => patch({ date: event.target.value, until: event.target.value })} />
+            <Select label="Start time" value={booking.time} onChange={event => patch({ time: event.target.value })}>{timeOptions.map(({ time }) => <option key={time} value={time}>{time}</option>)}</Select>
+            <Select label="Duration" value={booking.duration} onChange={event => patch({ duration: Number(event.target.value) })}>{durationOptions.map(value => <option key={value} value={value}>{value} minutes</option>)}</Select>
+            <Select label="Assigned staff" disabled={Boolean(constraints.teacherId)} value={booking.teacherId} onChange={event => patch({ teacherId: event.target.value })}><option value="">Choose eligible staff</option>{eligibleTeachers.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.values.name}</option>)}</Select>
+            <Select label="Room (optional)" disabled={Boolean(constraints.roomId)} value={booking.roomId} onChange={event => patch({ roomId: event.target.value })}><option value="">No room</option>{rooms.map(room => <option key={room.id} value={room.id}>{room.name} · capacity {room.capacity}</option>)}</Select>
+            <Select label="Repeat" disabled={Boolean(initial.replacementScope)} value={booking.repeat} onChange={event => patch({ repeat: event.target.value as 'once' | 'weekly' })}><option value="once">Does not repeat</option><option value="weekly">Every week</option></Select>
+            {booking.repeat === 'weekly' && <Input label="Repeat through" type="date" disabled={Boolean(initial.replacementScope)} min={booking.date} value={booking.until} onChange={event => patch({ until: event.target.value })} />}
+          </FieldGrid>
+          <p style={{ ...typography.helper, color: colors.textSecondary, marginTop: spacing.md }}>Scheduled work only—not attendance, approved hours or pay. Admin work cannot replace a protected teaching break.</p>
+        </DenseSectionPanel>}
+        {!duty && <>
         <FieldGrid><Input error={submitted && (!booking.date || reason?.includes("date") || reason?.includes("closed")) ? reason || "Choose a date." : undefined} label="Booking date" type="date" value={booking.date} onChange={event => patch({ date: event.target.value, until: event.target.value })} /><Select error={submitted && reason && /time|gap|rest|booking|unavailable|blocked/.test(reason) ? reason : undefined} label="Start time" value={booking.time} onChange={event => patch({ time: event.target.value })}>{timeOptions.map(({ time, available }) => <option key={time} value={time} disabled={!available}>{time}{available ? '' : ' · unavailable'}</option>)}</Select></FieldGrid>
         {lesson && booking.serviceId && preferenceReason && <p role="status">{preferenceReason}</p>}
         <Select error={submitted && reason?.includes("increments") ? reason : undefined} label="Duration" value={booking.duration} onChange={event => patch({ duration: Number(event.target.value) })}>{durationOptions.map(value => <option key={value} value={value}>{value} minutes</option>)}</Select>
@@ -173,9 +192,10 @@ export default function CalendarBookingModal({ initial, context, onClose, onSave
           {booking.repeat === 'weekly' && <Input error={submitted && reason?.includes("end date") ? reason : undefined} label="Repeat through" type="date" min={booking.date} value={booking.until} onChange={event => patch({ until: event.target.value })} />}
         </>}
         {!block && !duty && !rooms.length && <p role="status">No suitable rooms available for this activity and time.</p>}
+        </>}
         {submitted && error && <Notice variant="error">{error}</Notice>}
       </>}
     </ModalBody>
-    {screen === 'details' && <ModalFooter>{lesson && <Button variant="secondary" onClick={() => submit('send')}>Send enrollment request</Button>}<Button onClick={() => submit('staff')}>{duty ? 'Save duty' : block ? 'Save block' : lesson ? 'Continue enrollment' : 'Add booking'}</Button></ModalFooter>}
+    {screen === 'details' && <ModalFooter>{lesson && <Button variant="secondary" onClick={() => submit('send')}>Send enrollment request</Button>}<Button onClick={() => submit('staff')}>{duty ? 'Save administrative time' : block ? 'Save block' : lesson ? 'Continue enrollment' : 'Add booking'}</Button></ModalFooter>}
   </Modal>
 }

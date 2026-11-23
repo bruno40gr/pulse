@@ -1,0 +1,170 @@
+[
+  {
+    "path": "lib/academy-scheduling-validation.ts",
+    "sha256": "770cb551a30b23db60e18d5d1a928bc1a9c3b533662d29b13a513851bf86766a"
+  },
+  {
+    "path": "app/api/academy/workspace/route.ts",
+    "sha256": "7df4b54a6d90655977a5450c76704ed2c6569260eb07368f2812e6640757c4bf"
+  },
+  {
+    "path": "beta-source/lib/academy-scheduling-policy.ts",
+    "sha256": "fff480ae7f7250478b4801ae70fdf9122c53cfd96fbe5d74a7b115de2ee305b1"
+  },
+  {
+    "path": "beta-source/lib/academy-calendar-booking.ts",
+    "sha256": "a89c245776f68d3b2a880c8d08f6bd4d40727d0782e5c2a7c622a121d23e99d2"
+  },
+  {
+    "path": "beta-source/lib/beta-academy-calendar.ts",
+    "sha256": "0fe0d865b29dd7829af97b071c9676285ddf23c42a8086b1c7b84b87df0ed30c"
+  },
+  {
+    "path": "beta-source/app/content-studio-prototype/school-setup/setup-content.ts",
+    "sha256": "ce14a351920c935ff1a6db0369fdb83f42aa9be71406fa70aba5c3a2147ee2fd"
+  },
+  {
+    "path": "beta-source/app/content-studio-prototype/school-setup/SchoolSetup.tsx",
+    "sha256": "c9932b6a64f830d2af52cdba1312cce2ae43b3f4a5d2e3537c07ff7b629b829d"
+  },
+  {
+    "path": "beta-source/app/content-studio-prototype/school-setup/TeacherEditor.tsx",
+    "sha256": "1ee4b8e9e3bd5f41823791c4aa857a2167499936d67ac3cffc8e2b69369887c8"
+  },
+  {
+    "path": "beta-source/app/odeon-demo/AcademyCalendar.tsx",
+    "sha256": "0c9a2c26d8735ec72e59227484aefc011e5e4741df0293f5a386a2dbc6a3a453"
+  },
+  {
+    "path": "beta-source/app/odeon-demo/CalendarBookingModal.tsx",
+    "sha256": "0fb235119ca7369459e3c1c639ac738af5ab8c8118378f5c82ffbc8da8907ce6"
+  },
+  {
+    "path": "scripts/security/academy-scheduling-validation.test.cjs",
+    "sha256": "3f204ffafc59b1f9ee27fe5cf656bda810e210d9f25567827e333180f0116223"
+  },
+  {
+    "path": "scripts/security/academy-workspace-storage.test.cjs",
+    "sha256": "c4f77faf089f9baab14719102dcfd38468729d631ee0d28ddd8c13644e0dcec2"
+  },
+  {
+    "path": "scripts/security/admin-scheduling-browser.cjs",
+    "sha256": "cadd901cdaf9fd0ce18ba8fbb2a3b6593410f1ae8450e23b6ab5571510593759"
+  },
+  {
+    "path": "scripts/security/check-academy-workspace-postgres.cjs",
+    "sha256": "cb09cb5dad23481e4dfbe5f56f9141eee33783c6d229e69c72ec0539b573c8cf"
+  },
+  {
+    "path": "supabase/migrations/202611140001_academy_workspace.sql",
+    "sha256": "4ae348c5b720a5f8177018723c54190ac4d8f8e15d508b5b517a95b2cef8f1b2"
+  },
+  {
+    "path": "docs/server-scheduling-validation.md",
+    "sha256": "cf5d120f1b10dd784a9c69c71f8049bca11ce132ee7f27d1624664ef95e7a2c8"
+  },
+  {
+    "path": "lib/local-scheduling-review.ts",
+    "sha256": "3fb15e09b68756355d36d12ec328fec69554a9ce9565adf3651b5ba20c88493f"
+  },
+  {
+    "path": "middleware.ts",
+    "sha256": "b799184e3512a046ef9c1d08a687110aaa4908d7f95420644f5314aab0c29be3"
+  },
+  {
+    "path": "scripts/security/local-scheduling-review.test.cjs",
+    "sha256": "4ce8c6dca2d240f1cb6fbf5efc2550b0372ea3c80aa19191fff289e916952be4"
+  },
+  {
+    "path": "beta-source/lib/administrative-time-duties.ts",
+    "sha256": "4b4c4e878fb31d8609747befad594dec488435efc0198553217b77e98afe83d1"
+  },
+  {
+    "path": "scripts/security/administrative-time-duties.test.cjs",
+    "sha256": "900e4492d0d5d2992d44dad923c8f012ff5e696ded185fb763a7c4e38256ecbf"
+  },
+  {
+    "path": "beta-source/app/content-studio-prototype/school-setup/AdministrativeTimeSettings.tsx",
+    "sha256": "c0aad0f811ae84af5f365e61fb571ed4a98fba0b450fdae83439f6db6769279e"
+  },
+  {
+    "path": "beta-source/app/content-studio-prototype/school-setup/TeacherSchedule.tsx",
+    "sha256": "538c9805f277dd6c56de2f8ba751dcc0512703aa101836ae4baccdf5be8303c7"
+  },
+  {
+    "path": "beta-source/app/dashboard/staff/StaffWorkProfile.tsx",
+    "sha256": "5d3f894453c96d8d9130ff1d60b6868a585abbccc6b461ee2e0c1083eddf2a78"
+  },
+  {
+    "path": "beta-source/app/dashboard/staff/StaffView.tsx",
+    "sha256": "fd877b85a953b5becba28955c74c3bef94595e2cfe11918d6ed46c35af374fb8"
+  },
+  {
+    "path": "beta-source/components/contacts/StaffSlidePanel.tsx",
+    "sha256": "e096abfab9d1191c1c09995dc5895174d182a41fb20fb37a2aa9eae7daf248c4"
+  },
+  {
+    "path": "beta-source/lib/staff-work-profile.ts",
+    "sha256": "5ec031679df546fc75da912bb13a4d16965863042643d05764809937d95ca523"
+  },
+  {
+    "path": "beta-source/lib/staff-availability-edit.ts",
+    "sha256": "8eba298be22dce787661b452024d114bd3571c37e90bc6f694a6b7f7b58cebec"
+  },
+  {
+    "path": "app/dashboard/staff/page.tsx",
+    "sha256": "940b7c254ea31d8ed0e83f3bcac7bad053a2f7c276541ce93987f1538822316d"
+  },
+  {
+    "path": "components/contacts/ContactSlidePanel.tsx",
+    "sha256": "6922ce1881c5f20eebde7ffc3c09014dc050dde594f18523ca6368a5cd731a4e"
+  },
+  {
+    "path": "scripts/security/staff-work-profile.test.cjs",
+    "sha256": "8adfaa0c6b4f9b9c2f0dfa686d73345bfd52e00fe2d8a44cfcebf7a0fdf20c09"
+  },
+  {
+    "path": "docs/school-setup-and-staff.md",
+    "sha256": "bfad80b862bd62995649ea4649daff637dfc280dc9962275635d790a5f605016"
+  },
+  {
+    "path": "docs/scheduling-foundation-promotion.md",
+    "sha256": "574cdef73b3555b548bbcc406d08311eeeee4065715beda527356c060ecb8494"
+  },
+  {
+    "path": "docs/teacher-experience-preview.md",
+    "sha256": "0adb76e0f3040bcf58d669dcd83080cb0baf3529e06650d637913981a323f3c3"
+  },
+  {
+    "path": "docs/academy-model-foundation.md",
+    "sha256": "2eae9c4adb7b7ddd479fd017fba01bf9d5c76cab11f87a92b6980eb9ac6050a6"
+  },
+  {
+    "path": "beta-source/app/odeon-demo/DemoWorkspace.tsx",
+    "sha256": "da0d98c61ef4837bc3ecbe2d46d2782a17ef8d86c650b23058b9f9b54e50cf28"
+  },
+  {
+    "path": "beta-source/lib/academy-reschedule-availability.ts",
+    "sha256": "3f02d6ec0659b23ed4490431664f4d7a4efe862bf17666498aef1ae8d5644919"
+  },
+  {
+    "path": "beta-source/lib/academy-staff-enrollment.ts",
+    "sha256": "21393fc4a9aeec34eebcc9b21c1ee94c96193c50ef8231834bb816a8f48f0116"
+  },
+  {
+    "path": "beta-source/lib/beta-workflow-projection.ts",
+    "sha256": "d4929e9a3bf521f2c133b96cbc62aa035885aec609b646d36199dab5cf8b3fb3"
+  },
+  {
+    "path": "beta-source/lib/academy-teacher-qualification.ts",
+    "sha256": "ac49b4603b2875158d57be5e1495c95e8ec8b9cead68b21fb94ce4ce627b8c58"
+  },
+  {
+    "path": "scripts/security/school-scheduling-foundation.test.cjs",
+    "sha256": "b04785084cc7d383ff456abab222ca06be2801234df8132b41f7a2b5c1809d5a"
+  },
+  {
+    "path": "supabase/migrations/202611230002_academy_workspace_actor_validation.sql",
+    "sha256": "f352f500affadcbbdd58cc5fe4c60f27a142deadfa442bfe391c79cf4e550f52"
+  }
+]

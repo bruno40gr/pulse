@@ -36,13 +36,15 @@ export interface StaffMember {
 }
 
 interface StaffSlidePanelProps {
+  onEditWorkProfile?: () => void
+  onAssignAdministrativeTime?: () => void
   sampleStaff?: StaffMember
   staffId: string
   onClose: () => void
   onViewStudent?: (personId: string) => void
 }
 
-export default function StaffSlidePanel({ staffId, onClose, onViewStudent, sampleStaff }: StaffSlidePanelProps) {
+export default function StaffSlidePanel({ staffId, onClose, onViewStudent, sampleStaff, onEditWorkProfile, onAssignAdministrativeTime }: StaffSlidePanelProps) {
   const [staff, setStaff] = useState<StaffMember | null>(sampleStaff || null)
   const [loading, setLoading] = useState(!sampleStaff)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +154,10 @@ export default function StaffSlidePanel({ staffId, onClose, onViewStudent, sampl
         onClose={onClose}
       />
 
+      {(onEditWorkProfile || onAssignAdministrativeTime) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.lg }}>
+        {onEditWorkProfile && <Button variant="secondary" onClick={onEditWorkProfile}>Qualifications & availability</Button>}
+        {onAssignAdministrativeTime && <Button variant="secondary" onClick={onAssignAdministrativeTime}>Assign administrative time</Button>}
+      </div>}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 480px)', flex: 1, overflow: isMobile ? 'auto' : 'hidden', background: colors.surface }}>
         {/* LEFT COLUMN */}
         <div style={{ overflowY: 'auto', borderRight: `1px solid ${colors.borderLight}` }}>

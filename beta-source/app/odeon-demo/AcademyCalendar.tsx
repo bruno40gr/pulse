@@ -22,7 +22,7 @@ import { CalendarFilter } from './CalendarFilters'
 import CalendarBookingModal, { type BookingPrefill } from './CalendarBookingModal'
 import { useCalendarEnrollment } from './CalendarEnrollmentContext'
 import { BookableSlot } from './BookableSlot'
-import { bookingReason, saveCalendarBooking, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
+import { bookingReason, saveCalendarBooking, replaceCalendarAssignment, roomRecords, configuredBlocks, isStaffDuty, staffDutyLabel, type CalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
@@ -66,7 +66,8 @@ const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
 const dayName = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 
-export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll, initialReschedule, siblingRequest, rescheduleAccount, initialScope }: {
+export default function AcademyCalendar({ data, groups, events, setup, today, onApply, makeups, onDemoChange, onSetup, onEnroll, onManageAvailability, initialReschedule, siblingRequest, rescheduleAccount, initialScope }: {
+  onManageAvailability?: (id: string) => void
   onEnroll: (booking: CalendarBooking, action: 'staff' | 'send') => void
   /** Lesson to open for rescheduling on arrival, so other surfaces can deep-link here. */
   initialReschedule?: string
@@ -373,11 +374,12 @@ export default function AcademyCalendar({ data, groups, events, setup, today, on
       { label: group ? 'Cancel whole session' : 'Cancel lesson', onSelect: () => setCancelTarget(selected) },
     )
   }
+  if (selected?.teacherId && onManageAvailability) inspectorActions.push({ label: 'Manage availability', onSelect: () => onManageAvailability(selected.teacherId!) })
   if (selected?.bookingId) {
     const bookingId = selected.bookingId
-    if (isStaffDuty(selected.kind)) inspectorActions.push({ label: 'Edit duty series', onSelect: () => {
+    if (isStaffDuty(selected.kind)) for (const scope of ['occurrence', 'future'] as const) inspectorActions.push({ label: scope === 'occurrence' ? 'Replace this occurrence' : 'Replace this and future occurrences', onSelect: () => {
       const existing = data.calendarBookings?.find(item => item.id === bookingId)
-      if (existing) { setBooking({ date: existing.date, time: existing.time, duration: existing.duration, existing }); setSelected(null) }
+      if (existing) { setBooking({ date: selected.date, time: existing.time, duration: existing.duration, existing, replacementScope: scope }); setSelected(null) }
     } })
     inspectorActions.push({ label: isStaffDuty(selected.kind) ? 'Cancel duty series' : selected.kind === 'block' ? 'Remove block' : 'Cancel booking', onSelect: () => {
       if (configuredBlocks(setup).some(item => item.id === bookingId)) onSetup({ ...setup, resourceBlocks: setup.resourceBlocks.filter(item => item.id !== bookingId) })
@@ -748,8 +750,14 @@ return (
 
       {studentPanel && <StudentWorkspaceV3 initialData={data} initialMakeups={makeups} initialLocation={{ ...workspaceInitial, view: 'quick', section: 'profile', studentId: studentPanel, accountId: data.accounts.find(account => account.studentIds.includes(studentPanel))?.id || '' }} onClose={() => setStudentPanel(null)} renderContacts={() => null} onDemoChange={onDemoChange} />}
 
-      {booking && <CalendarBookingModal initial={booking} context={bookingContext} onClose={() => setBooking(null)} onSave={(draft, action = 'staff') => {
+      {booking && <CalendarBookingModal initial={booking} context={booking.existing ? { ...bookingContext, data: { ...bookingContext.data, calendarBookings: bookingContext.data.calendarBookings?.filter(item => item.id !== booking.existing!.id) }, occurrences: bookingContext.occurrences.filter(item => item.bookingId !== booking.existing!.id && item.id !== booking.existing!.id) } : bookingContext} onClose={() => setBooking(null)} onSave={(draft, action = 'staff') => {
         try {
+          if (booking.existing && booking.replacementScope) {
+            const scope = booking.replacementScope, sourceId = booking.existing.id, effectiveDate = booking.date
+            replaceCalendarAssignment(bookingContext, sourceId, draft, scope, effectiveDate)
+            onApply(current => replaceCalendarAssignment({ ...bookingContext, data: current }, sourceId, draft, scope, effectiveDate))
+            setBooking(null); setNotice('Admin assignment replaced; prior work preserved.'); return null
+          }
           if (draft.kind === 'lesson') { onEnroll(draft, action); setBooking(null); if (action === 'send') setNotice('Enrollment request sent · draft saved. Preview it in the family portal.'); return null }
           // Revalidate against the latest local snapshot inside the mutation as well.
           const withoutExisting = (current: FamilyPreviewData) => booking.existing ? { ...current, calendarBookings: current.calendarBookings?.filter(item => item.id !== booking.existing!.id) } : current

@@ -19,7 +19,7 @@ export function projectBetaEnrollmentDraft(data: FamilyPreviewData, draft: Staff
     const room = context.room || betaRoomFor(context.rooms, teacher, lesson.start, lesson.time, Number(lesson.duration), context.load)
     if (!room) throw new Error('No room is available for this lesson time.')
     return {
-      service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id,
+      level: lesson.level ?? 1, service: lesson.service, instrument: lesson.instrument, teacher: lesson.teacher, teacherId: teacher?.id,
       time: lesson.time, start: lesson.start, duration: Number(lesson.duration),
       frequency: lesson.frequency === 'À-la-carte' ? 'One-off' as const : 'Weekly' as const,
       amountMinor: lessonPrice(lesson, lessonStudent(draft, lesson)).total,
@@ -35,6 +35,7 @@ export function projectBetaEnrollmentDraft(data: FamilyPreviewData, draft: Staff
 
 /** A completed staff workflow adapted into the Beta family's own records. */
 export type BetaLessonProjection = {
+  level?: 1 | 2 | 3
   service: string
   instrument: string
   teacher: string
@@ -123,7 +124,7 @@ export function projectBetaEnrollment(data: FamilyPreviewData, completion: BetaE
     enrollments.push(initialSubscriptionHistory({
       id: enrollmentId, studentId: student.id, program: lesson.instrument, service: lesson.service, teacher: lesson.teacher,
       ...(lesson.teacherId ? { teacherId: lesson.teacherId } : {}),
-      level: 1, day: weekdayLabel(lesson.start), time: lesson.time, duration: lesson.duration, start: lesson.start,
+      level: lesson.level ?? 1, day: weekdayLabel(lesson.start), time: lesson.time, duration: lesson.duration, start: lesson.start,
       frequency: lesson.frequency, amountMinor: lesson.amountMinor ?? completion.amountMinor, currency: 'USD', priceUnit: 'per lesson',
       collection: 'Monthly · 1st of the month', payerId, payerDetails: completion.otherPayer, paymentMethod: completion.paymentMethod,
       status: 'active', initialPaymentStatus: completion.paid ? 'paid' : 'unpaid',

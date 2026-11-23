@@ -16,6 +16,7 @@ export function validLessonDuration(instrument: string, duration: number) {
     : [30, 45, 60].includes(duration)
 }
 export type LessonChoice = {
+  level?: 1 | 2 | 3
   roomId?: string
   serviceId?: string
   service: typeof enrollmentServices[number]

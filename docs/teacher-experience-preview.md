@@ -40,10 +40,10 @@ this is not a teacher login or a production teacher permission boundary.
   teacher are listed with the shared sticky-note appearance (`noteBackground`,
   `NOTE_INK`) rather than bespoke styling.
 - **Availability is published, not editable here.** The screen renders the School
-  Setup availability editor in read-only mode, bound to the teacher's record:
+  shared availability editor in read-only mode, bound to the teacher's record:
   weekly blocks, date overrides and time off are visible, but there is no **Add
   availability**, **Add Time Off** or drag-to-draw. **Only an owner/admin sets
-  teacher availability**, in School Setup → Teachers & staff, because hours are
+  teacher availability**, in Main app → Staff → Qualifications & availability, because hours are
   agreed with the school offline and should not change unsupervised. The earlier
   weekday/from/to proposal form is gone.
 - **Profile**: name, email, photo (`TeacherPhoto`) and teaching skills by level,

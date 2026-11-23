@@ -77,6 +77,16 @@ across five failed runs before it was reported.
 - A `tenant` workspace selection loads only a provisioned non-sample school snapshot; it will not seed live accounts from demo data. This is a server persistence foundation, not a completed live onboarding/provisioning flow. Other sample-only queues and screens are not converted into production workflows by this change.
 - Deployment prerequisite: apply `supabase/migrations/202611140001_academy_workspace.sql`, provision the real school workspace through the live onboarding integration, and validate authenticated multi-user saves against the deployed database. The migration has NOT been applied by this task; database behavior is covered by synthetic route and SQL contract tests, not a live integration test.
 
+# Staff ownership update — November 23, 2026
+
+Individual instruments/services and teaching levels, availability/time off and
+administrative-work eligibility now belong in Main app → Staff, reusing the
+existing teacher editor. The shared Administrative time duties catalogue remains
+in School Setup. Staff profile assignment and Calendar reuse one booking form.
+See `docs/school-setup-and-staff.md` for effective-week behavior, identity mapping,
+validation evidence and the remaining authenticated-release gates. Internal setup
+storage keys stay unchanged; no production migration or deployment is implied.
+
 # Simplified teacher booking settings — November 14, 2026
 
 - Booking settings show maximum gap between lessons, a disabled four-hour teaching limit, and an Available for self-booking links switch with Yes/No state. Remove override instructions, public-hour inputs, rest-break controls and resource-block explanations.

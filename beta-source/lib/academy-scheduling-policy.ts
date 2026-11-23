@@ -18,7 +18,7 @@ export function validateSchedulingPolicy(values: Record<string, string>): string
 }
 
 /** Check the proposed teaching run, deduplicating shared class participants. */
-export function teachingPolicyReason(existing: { time: string; duration: number }[], time: string, duration: number, policy: SchedulingPolicy) {
+export function teachingPolicyReason(existing: { time: string; duration: number }[], time: string, duration: number, policy: SchedulingPolicy, occupied: { time: string; duration: number }[] = []) {
   const proposed = { from: timeMinutes(time), to: timeMinutes(time) + duration, proposed: true }
   const unique = new Map(existing.map(item => [`${item.time}:${item.duration}`, { from: timeMinutes(item.time), to: timeMinutes(item.time) + item.duration, proposed: false }]))
   const sessions = [...unique.values(), proposed].sort((a, b) => a.from - b.from)
@@ -27,7 +27,18 @@ export function teachingPolicyReason(existing: { time: string; duration: number 
   if (adjacent.some(item => (item.to <= proposed.from ? proposed.from - item.to : item.from - proposed.to) > policy.maxGap)) return `This would leave a teacher gap longer than ${policy.maxGap} minutes.`
   let run = 0, containsProposal = false, previousEnd = -Infinity
   for (const session of sessions) {
-    if (session.from >= Math.ceil(previousEnd / 30) * 30 + policy.restMinutes) { run = 0; containsProposal = false }
+    const gapStart = Math.ceil(previousEnd / 30) * 30
+    const work = occupied.map(item => ({ from: timeMinutes(item.time), to: timeMinutes(item.time) + item.duration })).filter(item => item.from < session.from && item.to > gapStart).sort((a, b) => a.from - b.from)
+    let freeFrom = gapStart, rested = session.from - gapStart >= policy.restMinutes
+    if (work.length) {
+      rested = false
+      for (const item of work) {
+        if (item.from - freeFrom >= policy.restMinutes) rested = true
+        freeFrom = Math.max(freeFrom, item.to)
+      }
+      if (session.from - freeFrom >= policy.restMinutes) rested = true
+    }
+    if (rested) { run = 0; containsProposal = false }
     run += session.to - session.from
     containsProposal ||= session.proposed
     if (containsProposal && run > policy.teachingLimit) return `A ${policy.restMinutes}-minute slot must stay free after ${policy.teachingLimit} minutes of teaching.`

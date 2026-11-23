@@ -33,7 +33,7 @@ type ComposeContact = (ContactPanelContact & { bulk?: false }) | {
   recipientPreview: Array<{ id: string; first_name: string; last_name: string }>
 }
 
-export default function StaffPage({ sampleStaff, onOpenSample }: { sampleStaff?: StaffMember[]; onOpenSample?: (id: string) => void } = {}) {
+export default function StaffPage({ sampleStaff, onOpenSample, onAddStaff }: { sampleStaff?: StaffMember[]; onOpenSample?: (id: string) => void; onAddStaff?: () => void } = {}) {
   const tenantId = getActiveTenantId()
   const [staff, setStaff] = useState<StaffMember[]>(sampleStaff || [])
   const [loading, setLoading] = useState(!sampleStaff)
@@ -167,6 +167,7 @@ export default function StaffPage({ sampleStaff, onOpenSample }: { sampleStaff?:
     <div style={{ padding: spacing['3xl'], width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <PageHeader
         title="Staff"
+        right={onAddStaff ? <Button onClick={onAddStaff}>Add staff member</Button> : undefined}
         subtitle="Instructors and team members. Click a row to edit contact info, add a phone number, or sunset/offboard."
       />
 

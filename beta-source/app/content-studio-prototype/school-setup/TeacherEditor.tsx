@@ -49,8 +49,8 @@ export default function TeacherEditor({ values, services, locations, levels, onC
     })}
     </DenseSectionPanel>
     <DenseSectionPanel title="Additional duties" headingLevel="h2">
-      <Checkbox label="Can cover front desk" checked={values.canCoverFrontDesk === 'yes'} onChange={event => onChange({ ...values, canCoverFrontDesk: event.target.checked ? 'yes' : 'no' })} />
-      <Checkbox label="Can perform admin duties" description="Scheduled office work only. This does not grant application permissions." checked={values.canPerformAdmin === 'yes'} onChange={event => onChange({ ...values, canPerformAdmin: event.target.checked ? 'yes' : 'no' })} />
+      <Checkbox label="Can be scheduled for administrative time" description="Configure duties in School Setup → Administrative time. This does not grant application permissions or teaching eligibility." checked={values.canPerformAdmin === 'yes'} onChange={event => onChange({ ...values, canPerformAdmin: event.target.checked ? 'yes' : 'no' })} />
+      {values.canCoverFrontDesk === 'yes' && <p>Legacy Front desk eligibility is retained for existing assignments. Enable Admin work for new assignments.</p>}
       <Select label="Studio engineering" hint="Level 1 or above can be assigned to studio recordings." value={values.engineeringLevel || '0'} onChange={event => onChange({ ...values, engineeringLevel: event.target.value })}><option value="0">Not an engineer</option><option value="1">Level 1 · Assistant engineer</option><option value="2">Level 2 · Engineer</option><option value="3">Level 3 · Senior engineer</option></Select>
     </DenseSectionPanel>
     <TeacherSchedule values={values} onChange={onChange} />

@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireAccountAdministrator } from '@/lib/request-context'
 import { DEFAULT_TENANT } from '@/lib/tenant'
 import { findLoginMembership } from '@/lib/membership-logins'
+import { isLocalSchedulingReview } from '@/lib/local-scheduling-review'
 
 export async function middleware(request: NextRequest) {
   const startedAt = Date.now()
@@ -16,6 +17,12 @@ export async function middleware(request: NextRequest) {
     ?.split(':')[0]
     ?.toLowerCase()
   const pathname = request.nextUrl.pathname
+  if (isLocalSchedulingReview(request.url, request.headers.get('host'))) {
+    const response = NextResponse.next({ request })
+    response.headers.set('Cache-Control', 'private, no-store')
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    return response
+  }
   const isBetaPath = pathname === '/odeon-demo' || pathname.startsWith('/odeon-demo/') || pathname === '/beta' || pathname.startsWith('/beta/')
   // Read-only website delivery authenticates its own server token; public assets
   // independently verify that the image belongs to currently published content.

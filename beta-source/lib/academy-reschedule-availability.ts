@@ -37,7 +37,7 @@ export function academyRescheduleAvailability(context: Pick<BookingContext, 'set
     return Array.from({ length: 32 }, (_, index) => clock(360 + index * 30)).flatMap(time => {
       if (minute(time) + makeup.duration > 1320) return []
       return teachers.flatMap(teacher => {
-        const fits = (room: typeof rooms[number]) => !bookingReason({ data: expanded, setup, groups, occurrences }, { id: 'reschedule-probe', kind: 'lesson', title: program, date, time, duration: makeup.duration, serviceId: service.id, teacherId: teacher.id, roomId: room.id, studentIds: [makeup.studentId], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }, false)
+        const fits = (room: typeof rooms[number]) => !bookingReason({ data: expanded, setup, groups, occurrences }, { id: 'reschedule-probe', kind: 'lesson', enrollmentId: makeup.enrollmentId, title: program, date, time, duration: makeup.duration, serviceId: service.id, teacherId: teacher.id, roomId: room.id, studentIds: [makeup.studentId], groupId: '', repeat: 'once', until: date, publicOnly: false, status: 'Scheduled' }, false)
         const slot = { date, time, teacher: teacher.values.name, program }
         return includeRooms ? rooms.filter(fits).map(room => ({ ...slot, room: room.name })) : rooms.some(fits) ? [slot] : []
       })

@@ -142,7 +142,7 @@ export function betaCalendarOccurrences(data: FamilyPreviewData, groups: readonl
     ...betaLessonOccurrences(data).filter(item => window.has(item.date)).map(item => ({ ...item, groupId: item.enrollmentId ? groupBySeries.get(seriesByEnrollment.get(item.enrollmentId) || '') : undefined })),
     ...betaBandOccurrences(groups, data, dates),
     ...betaEventOccurrences(events, dates),
-    ...(data.calendarBookings || []).flatMap(booking => dates.filter(date => booking.status !== 'Cancelled' && (booking.repeat === 'weekly' ? date >= booking.date && date <= booking.until && new Date(`${date}T12:00:00Z`).getUTCDay() === new Date(`${booking.date}T12:00:00Z`).getUTCDay() : date === booking.date)).map(date => ({
+    ...(data.calendarBookings || []).flatMap(booking => dates.filter(date => booking.status !== 'Cancelled' && !booking.excludedDates?.includes(date) && (booking.repeat === 'weekly' ? date >= booking.date && date <= booking.until && new Date(`${date}T12:00:00Z`).getUTCDay() === new Date(`${booking.date}T12:00:00Z`).getUTCDay() : date === booking.date)).map(date => ({
       id: booking.id, bookingId: booking.id, kind: booking.kind === 'lesson' ? 'event' as const : booking.kind,
       date, start: booking.time, end: clock(minutes(booking.time) + booking.duration), title: booking.title,
       program: booking.title, serviceType: booking.kind, serviceId: booking.serviceId, locationId: booking.locationId, notes: booking.notes,

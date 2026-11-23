@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const { createHarness, HEAD, DEMO } = require('./synthetic-harness.cjs')
 const h = createHarness()
 const { academyWorkspaceKey: key, loadLocalAcademyWorkspace, saveLocalAcademyWorkspace } = h.load('beta-source/lib/academy-workspace-storage.ts')
-const state = () => ({ snapshot: { data: {students: [], accounts: [], lessons: []}, makeups: {} }, setup: {teachers: [], locations: [], services: [], policies: []} })
+const state = () => ({ snapshot: { data: {students: [], accounts: [], lessons: []}, makeups: {items: [], absences: []} }, setup: {teachers: [], locations: [], services: [], policies: []} })
 const storage = () => { const map = new Map(); return { getItem: key => map.get(key) || null, setItem: (key,value) => map.set(key,value), removeItem: key => map.delete(key) } }
 test('session workspace migrates once; durable data survives fresh sessions without stale overwrite', () => {
  const local=storage(), session=storage(); session.setItem(key,JSON.stringify(state()))
@@ -31,10 +31,11 @@ test('workspace uses tenant-scoped load and revision-checked RPC; rejects sample
  const base=scenario(); harness.setScenario({...base,fixtures:{...base.fixtures,academy_workspaces:[{tenant_id:HEAD,revision:4,state:state()}]}})
  assert.equal((await (await route.GET(request())).json()).revision,4)
  assert.ok(harness.getQueries().find(q=>q.table==='academy_workspaces').filters.some(f=>f[0]==='eq'&&f[1]==='tenant_id'&&f[2]===HEAD))
- harness.setScenario({...base,rpcResults:{save_academy_workspace:{revision:5}}})
+  const stored={...base.fixtures,academy_workspaces:[{tenant_id:HEAD,revision:4,state:state()}]}
+  harness.setScenario({...base,fixtures:stored,rpcResults:{save_academy_workspace:{revision:5}}})
  assert.equal((await route.PUT(request({revision:4,state:state()}))).status,200)
  const rpc=harness.getQueries().find(q=>q.table==='save_academy_workspace'); assert.equal(rpc.payload.p_tenant,HEAD); assert.equal(rpc.payload.p_revision,4)
- harness.setScenario({...base,rpcResults:{save_academy_workspace:{conflict:true,revision:5}}}); assert.equal((await route.PUT(request({revision:4,state:state()}))).status,409)
+  harness.setScenario({...base,fixtures:stored,rpcResults:{save_academy_workspace:{conflict:true,revision:5}}}); assert.equal((await route.PUT(request({revision:4,state:state()}))).status,409)
  const sample=state(); sample.snapshot.data.demoSchool=true; harness.setScenario(base)
  assert.equal((await route.PUT(request({revision:0,state:sample}))).status,400); assert.equal(harness.getWrites().length,0)
  harness.setScenario(scenario(['staff.read'])); assert.equal((await route.PUT(request({revision:0,state:state()}))).status,403)
