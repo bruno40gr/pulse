@@ -51,6 +51,8 @@ function createHarness() {
               if (method === 'in') data = data.filter(row => value.includes(row[key]))
               if (method === 'neq') data = data.filter(row => row[key] !== value)
               if (method === 'is') data = data.filter(row => (row[key] ?? null) === value)
+              if (method === 'gt') data = data.filter(row => row[key] != null && row[key] > value)
+              if (method === 'lte') data = data.filter(row => row[key] != null && row[key] <= value)
               if (method === 'not' && value === 'in') {
                 const excluded = String(operand || '').replace(/^\(|\)$/g, '').split(',')
                 data = data.filter(row => !excluded.includes(row[key]))
@@ -158,6 +160,7 @@ function createHarness() {
       console: { log() {}, info() {}, warn() {}, error() {} }, fetch: blockedFetch,
       Request, Response, URL, TextEncoder, TextDecoder, Buffer, FormData, Blob, AbortSignal, crypto: webcrypto,
       btoa, atob, setTimeout, clearTimeout,
+      ...(scenario.now === undefined ? {} : { Date: class extends Date { static now() { return scenario.now ?? Date.now() } } }),
     })
     new vm.Script(code, { filename: file }).runInContext(context)
     return loadedModule.exports

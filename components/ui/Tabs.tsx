@@ -3,7 +3,7 @@ import { ButtonBase } from '@/components/ui/ButtonBase'
 
 
 import type { CSSProperties } from 'react'
-import { interaction, colors, radius, spacing, typography } from '@/lib/tokens'
+import { interaction, semanticColors, colors, radius, spacing, typography } from '@/lib/tokens'
 
 export interface TabItem<T extends string = string> {
   key: T
@@ -74,7 +74,7 @@ export function Tabs<T extends string>({ items, activeKey, onChange, style, comp
             {typeof tab.notificationCount === 'number' && tab.notificationCount > 0 && <span
               aria-label={`${tab.notificationCount} new ${tab.label.toLowerCase()}`}
               style={{ display: 'inline-block', minWidth: 19, height: 19, padding: '0 5px', boxSizing: 'border-box',
-                borderRadius: radius.full, background: colors.crimson, color: '#fff', fontSize: typography.sizeXs,
+                borderRadius: radius.full, background: semanticColors.newLead.border, color: colors.surface, fontSize: typography.sizeXs,
                 fontWeight: typography.weightBold, lineHeight: '19px', textAlign: 'center' }}>
               {tab.notificationCount}
             </span>}

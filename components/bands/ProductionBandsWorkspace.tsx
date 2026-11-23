@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { RichDataTable } from '@/components/ui/RichDataTable'
+import { useTablePreferences } from '@/components/ui/TableDisplayControls'
+import { TableSearchControl, TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import LeadsView from '@/components/leads/LeadsView'
 import { CreateBandWizard } from '@/components/bands/CreateBandWizard'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -30,14 +33,18 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { spacing } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
+import type { BandCreationDraft } from '@/lib/band-creation-draft'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 
 type Member = { person_id: string; name: string; instruments: string[]; membership: string; source: 'enrollment' | 'membership' }
-type Band = { name: string; coach: string | null; members: Member[]; status?: string; schedule?: string | null; image_url?: string | null }
+type Band = { name: string; coach: string | null; members: Member[]; status?: string; description?: string | null; schedule?: string | null; image_url?: string | null }
 type TentativeGroup = { id: string; name: string; member_count?: number; members?: { person_id: string; name: string }[] }
 type Candidate = { id: string; name: string; detail?: string }
 type LoadState = 'loading' | 'ready' | 'error'
 type Row = { key: string; name: string; status: 'Active' | 'Forming'; members: number; coach: string | null; band?: Band }
 type Status = 'draft' | 'active' | 'forming' | 'external' | 'archived'
+
+const BAND_TABLE_SCHEMA = { columnIds: ['name', 'status', 'members', 'coach'], defaultColumns: ['name', 'status', 'members', 'coach'], requiredColumns: ['name'], storagePrefix: 'pulse-band-table' } as const
 
 const tenantQuery = () => `tenant=${encodeURIComponent(getActiveTenantId())}`
 const COMING_SOON = ['scheduling', 'curriculum'] as const
@@ -53,7 +60,13 @@ async function readList<T>(url: string, key: string, signal: AbortSignal): Promi
 }
 
 export default function ProductionBandsWorkspace() {
+  const tablePreferences = useTablePreferences(BAND_TABLE_SCHEMA)
+  const [bandSearch, setBandSearch] = useState('')
+  const [bandQuery, setBandQuery] = useState('')
   const [view, setView] = useState<'bands' | 'matching'>('bands')
+  const [creationDrafts, setCreationDrafts] = useState<{ id: string; revision: number; state: BandCreationDraft }[]>([])
+  const [draftState, setDraftState] = useState<LoadState>('loading')
+  const [resumeDraft, setResumeDraft] = useState<{ revision: number; state: BandCreationDraft } | undefined>()
   const [bands, setBands] = useState<Band[]>([])
   const [tentative, setTentative] = useState<TentativeGroup[]>([])
   const [bandsState, setBandsState] = useState<LoadState>('loading')
@@ -77,6 +90,10 @@ export default function ProductionBandsWorkspace() {
   const mobile = useIsMobile()
 
   const load = useCallback((signal: AbortSignal) => {
+    setDraftState('loading')
+    void readList<{ id: string; revision: number; state: BandCreationDraft }>(`/api/bands/drafts?${tenantQuery()}`, 'drafts', signal)
+      .then(rows => { if (!signal.aborted) { setCreationDrafts(rows); setDraftState('ready') } })
+      .catch(() => { if (!signal.aborted) setDraftState('error') })
     setBandsState('loading')
     setTentativeState('loading')
     void readList<Band>(`/api/bands?${tenantQuery()}`, 'bands', signal)
@@ -111,7 +128,7 @@ export default function ProductionBandsWorkspace() {
   const band = opened ? allBands.find(row => row.name === opened) : undefined
   // Every band opens its panel: a forming band is still a band.
   const rows: Row[] = [
-    ...bands.map(row => ({ key: row.name, name: row.name, status: 'Active' as const, members: row.members.length, coach: row.coach, band: row })),
+    ...bands.map(row => ({ key: row.name, name: row.name, status: row.status === 'forming' || row.status === 'draft' ? 'Forming' as const : 'Active' as const, members: row.members.length, coach: row.coach, band: row })),
     ...tentative.map(group => ({ key: `forming:${group.id}`, name: group.name, status: 'Forming' as const, members: group.member_count ?? 0, coach: null, band: formingBand(group) })),
   ]
 
@@ -155,24 +172,37 @@ export default function ProductionBandsWorkspace() {
     } catch (cause) { setCandidateState('error'); setCandidateError(cause instanceof Error ? cause.message : 'Could not load contacts.') }
   }
 
-  if (creating) return <CreateBandWizard onClose={() => setCreating(false)} onCreated={name => { setCreating(false); setOpened(name); reload() }} />
+  if (creating) return <CreateBandWizard initialDraft={resumeDraft} onClose={() => { setCreating(false); setResumeDraft(undefined); reload() }} onCreated={name => { setCreating(false); setResumeDraft(undefined); setOpened(name); reload() }} />
 
   return <PageContainer>
-    <PageHeader title="BandOS" right={<Button onClick={() => setCreating(true)} disabled={saving}>Create new band</Button>} />
-    <Tabs ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
+    <PageHeader title="BandOS" right={<Button onClick={() => setCreating(true)} disabled={saving || draftState !== 'ready'}>Create new band</Button>} />
+    <Tabs style={{ marginBottom: spacing.lg }} ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
     {view === 'matching' ? <LeadsView matching /> : <>
+      {draftState === 'loading' || tentativeState === 'loading' || bandsState === 'loading' ? <LoadingSkeleton label="Loading bands and drafts" rows={5} /> : <>
+      {draftState === 'error' && <Notice variant="error">Band drafts could not be loaded. Check the band drafts migration before creating a band.</Notice>}
+      {draftState === 'ready' && creationDrafts.length > 0 && <DenseSectionPanel title="Band drafts" headingLevel="h2">
+        <ResponsiveDataTable rows={creationDrafts} getRowKey={row => row.id} ariaLabel="Band drafts" minDesktopWidth={500} emptyContent="No band drafts." columns={[
+          { id: 'name', header: 'Name', width: '2fr', render: row => <PersonName as="button" onClick={() => { setResumeDraft(row); setCreating(true) }}>{row.state.data.name || 'Unnamed group'}</PersonName> },
+          { id: 'progress', header: 'Progress', width: '1fr', render: row => `${row.state.reviewedSteps.length} / 2 complete` },
+          { id: 'actions', header: 'Actions', width: '1fr', render: row => <Button variant="secondary" onClick={() => { setResumeDraft(row); setCreating(true) }}>Continue</Button> },
+        ]} />
+      </DenseSectionPanel>}
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>
         : <>
           {tentativeState === 'error' && <Notice variant="warning">Forming bands could not be loaded. Active bands are unaffected.</Notice>}
-          <ResponsiveDataTable loading={bandsState === 'loading'} rows={rows} getRowKey={row => row.key} ariaLabel="Bands" minDesktopWidth={520} emptyContent="No bands yet." columns={[
-            { id: 'name', header: 'Group', width: '1.5fr', render: row => row.band
+          <RichDataTable preferenceSchema={BAND_TABLE_SCHEMA} preferenceState={tablePreferences}
+            search={<TableSearchControl label="Search bands" placeholder="Search bands or teachers" value={bandSearch} onChange={setBandSearch} onSearch={() => setBandQuery(bandSearch)} onClear={() => { setBandSearch(''); setBandQuery('') }} />}
+            beforeTable={<TableResultCount>{rows.filter(row => `${row.name} ${row.coach || ''} ${row.status}`.toLowerCase().includes(bandQuery.trim().toLowerCase())).length} bands</TableResultCount>}
+            rows={rows.filter(row => `${row.name} ${row.coach || ''} ${row.status}`.toLowerCase().includes(bandQuery.trim().toLowerCase()))} getRowKey={row => row.key} ariaLabel="Bands" emptyContent="No bands yet." columns={[
+            { id: 'name', header: 'Group', width: 'minmax(220px, 1.5fr)', render: row => row.band
               ? <PersonName as="button" onClick={() => { setPanelTab('details'); setOpened(row.name) }}>{row.name}</PersonName>
               : <PersonName>{row.name}</PersonName> },
-            { id: 'status', header: 'Status', width: '.8fr', render: row => row.status },
-            { id: 'members', header: 'Members', width: '.7fr', render: row => `${row.members}` },
-            { id: 'coach', header: 'Teacher / staff', width: '1fr', render: row => row.coach || 'Unassigned' },
+            { id: 'status', header: 'Status', width: 'minmax(120px, .8fr)', render: row => row.status },
+            { id: 'members', header: 'Members', width: 'minmax(300px, 1.3fr)', render: row => row.band ? `${row.band.members.filter(member => member.membership === 'confirmed').length} confirmed · ${row.band.members.filter(member => member.membership === 'pending').length} pending · ${row.band.members.filter(member => member.membership === 'prospect').length} prospects` : `${row.members}` },
+            { id: 'coach', header: 'Teacher / staff', width: 'minmax(180px, 1fr)', render: row => row.coach || 'Unassigned' },
           ]} />
         </>}
+    </>}
     </>}
     {band && <SlidePanel isOpen onClose={() => setOpened(null)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH}>
       <SlidePanelHeader title={band.name}
@@ -200,6 +230,7 @@ export default function ProductionBandsWorkspace() {
         {panelTab === 'details' ? <DenseSectionPanel title="Band details" actions={<Button variant="secondary" size="sm" onClick={openEdit}>Edit details</Button>}>
             <FieldGrid columns={2}>
               <DetailField label="Status" value={STATUS_LABEL[band.status || 'active'] || band.status} />
+              <DetailField label="Description" value={band.description || 'Not added'} />
               <DetailField label="Instructor" value={band.coach || 'Unassigned'} />
               <DetailField label="Rehearsal" value={band.schedule || 'Not scheduled'} />
               <DetailField label="Members" value={String(band.members.length)} />

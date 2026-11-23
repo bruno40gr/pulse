@@ -43,7 +43,9 @@ test('loading and failure never masquerade as an empty contact list; region rema
   const region = nodes(loading).find(node => node.props?.role === 'region')
   assert.equal(region.props['aria-busy'], true)
   assert.equal(region.props.style.overflow, 'auto')
-  assert.match(region.props.style.height, /clamp/)
+  assert.match(region.props.style.maxHeight, /clamp/)
+  assert.equal(region.props.style.height, undefined, 'short results must not reserve a fixed blank area')
+  assert.equal(find(render(base), 'ResponsiveDataTable').props.stickyHeaderOffset, 0)
   const failed = render({ ...base, state: 'error', error: 'Network unavailable' })
   assert.equal(find(failed, 'Notice').props.children, 'Network unavailable')
   assert.equal(find(failed, 'ResponsiveDataTable'), undefined)
@@ -59,6 +61,35 @@ test('single-selection events use radios and cannot select an already registered
   radio.props.onChange()
   assert.deepEqual(Array.from(selected), ['a'])
   assert.equal(table.props.columns[0].render(people[1]).props.disabled, true)
+})
+
+test('existing-only relationship selection keeps searchable results without offering creation', () => {
+  const render = component('components/contacts/ParticipantPicker.tsx')
+  let selected
+  const props = { ...base, existingOnly: true, mode: 'new', onSelectionChange: ids => { selected = ids } }
+  let tree = render(props)
+  assert.equal(find(tree, 'RadioOptionGroup'), undefined)
+  assert.equal(find(tree, 'ContactDetailsFields'), undefined)
+  find(tree, 'Input').props.onChange({ target: { value: 'ADA@' } })
+  tree = render(props)
+  const table = find(tree, 'ResponsiveDataTable')
+  assert.deepEqual(Array.from(table.props.rows, person => person.id), ['a'])
+  table.props.columns[0].render(people[0]).props.onChange()
+  assert.deepEqual(Array.from(selected), ['a'])
+})
+
+test('family selection reuses the event picker, shows account context and allows cross-account links', () => {
+  const source = fs.readFileSync(path.join(root, 'components/contacts/LiveFamilyManagement.tsx'), 'utf8')
+  assert.doesNotMatch(source, /<Select|<option|Existing primary routing, billing/)
+  assert.equal((source.match(/<ParticipantPicker/g) || []).length, 2)
+  assert.match(source, /label="Students to add"/)
+  assert.doesNotMatch(source, /selectedStudent|Choose dependent|label="Dependents"/)
+  assert.match(source, /kind: managerMode === 'new' \? 'manager-create' : 'manager-link'/)
+  assert.match(source, /label="Account holders"/)
+  assert.match(source, /linkedIds\.map/)
+  assert.match(source, /disabled: members\.some\(member => member\.id === person\.id\)/)
+  assert.match(source, /kind: 'link-child', accountId: currentAccountId, personId: existingStudent/)
+  assert.match(source, /birthday: ''/)
 })
 
 test('multi-selection respects disabled contacts and select-all only affects filtered matches', () => {

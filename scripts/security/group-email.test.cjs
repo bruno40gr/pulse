@@ -39,6 +39,7 @@ test('foreign, opted-out, stale, duplicate, malformed and empty selections fail 
 })
 function harness(options = {}) {
   const deliveries = [], audits = []
+  const operations = new Map()
   const api = load('app/api/communications/email-group/route.ts', {
     'next/server': { NextResponse: { json: (body, init = {}) => ({ body, status: init.status || 200 }) } },
     '@/lib/tenant-request': { authorizeTenantRequest: async () => options.denied ? { ok: false, status: 403, error: 'Denied' } : {
@@ -60,13 +61,30 @@ function harness(options = {}) {
     '@/lib/gmail/conversations': { gmailMime: value => JSON.stringify(value) },
     '@/lib/headliner-email-templates': { unresolvedEmailPlaceholders: value => value.includes('{{missing}}') ? ['missing'] : [] },
     '@/lib/account-audit': { writeAccountAuditEvent: async value => { audits.push(value); return true } },
+    '@/lib/group-email-operation': {
+      groupEmailFingerprint: value => JSON.stringify(value),
+      reserveGroupEmail: async operation => {
+        if (options.ledgerMissing) throw new Error('Delivery protection unavailable')
+        const previous = operations.get(operation.operationId)
+        if (previous) {
+          if (previous.fingerprint !== operation.fingerprint) throw new Error('Operation changed')
+          return previous.status
+        }
+        operations.set(operation.operationId, { fingerprint: operation.fingerprint, status: 'uncertain' })
+        return 'reserved'
+      },
+      confirmGroupEmail: async operation => {
+        if (options.confirmationFailure) throw new Error('Confirmation unavailable')
+        operations.get(operation.operationId).status = 'sent'
+      },
+    },
   }, { fetch: async (url, init) => {
     assert.match(url, /messages\/send$/); assert.equal(init.method, 'POST')
     deliveries.push(JSON.parse(Buffer.from(JSON.parse(init.body).raw, 'base64url').toString()))
     if (options.timeout) throw new Error('Timeout')
     return { ok: !options.providerFailure, json: async () => ({ id: 'message' }) }
   } })
-  const input = { contactIds: ['child-one', 'adult'], senderEmail: 'office@example.com', version: 'version', subject: 'Rehearsal', body: 'Hello families', html: '<p>Hello families</p>',
+  const input = { operationId: '11111111-1111-4111-8111-111111111111', contactIds: ['child-one', 'adult'], senderEmail: 'office@example.com', version: 'version', subject: 'Rehearsal', body: 'Hello families', html: '<p>Hello families</p>',
     recipients: { to: [], cc: [], bcc: ['parent@example.com', 'adult@example.com'] } }
   return { deliveries, audits, send: patch => api.POST(new Request('https://synthetic.invalid/api/communications/email-group?tenant=tenant', { method: 'POST', body: JSON.stringify({ ...input, ...patch }) })) }
 }
@@ -108,5 +126,38 @@ test('provider errors and timeouts are never automatically retried', async () =>
     const result = await h.send()
     assert.equal(result.status, 502); assert.equal(result.body.uncertain, true)
     assert.equal(h.deliveries.length, 1); assert.equal(h.audits.length, 0)
+    assert.equal((await h.send()).status, 409)
+    assert.equal(h.deliveries.length, 1)
+  }
+})
+test('same operation replays success, rejects altered content, and concurrent requests send once', async () => {
+  const h = harness()
+  const results = await Promise.all([h.send(), h.send()])
+  assert.equal(h.deliveries.length, 1)
+  assert.ok(results.every(result => result.status === 200 || result.status === 409))
+  const replay = await h.send()
+  assert.equal(replay.status, 200); assert.equal(replay.body.replayed, true)
+  assert.equal((await h.send({ subject: 'Different email' })).status, 409)
+  assert.equal(h.deliveries.length, 1)
+})
+test('missing ledger sends nothing and lost confirmation remains reserved', async () => {
+  const missing = harness({ ledgerMissing: true })
+  assert.equal((await missing.send()).status, 409); assert.equal(missing.deliveries.length, 0)
+  const lost = harness({ confirmationFailure: true })
+  assert.equal((await lost.send()).status, 502)
+  assert.equal((await lost.send()).status, 409); assert.equal(lost.deliveries.length, 1)
+})
+test('concurrent attempts of one operation produce only one provider delivery', async () => {
+  const h = harness()
+  const responses = await Promise.all([h.send(), h.send(), h.send()])
+  assert.equal(h.deliveries.length, 1)
+  assert.equal(responses.filter(response => response.status === 200).length, 1)
+  assert.ok(responses.filter(response => response.status !== 200).every(response => response.status === 409 && response.body.uncertain))
+})
+test('operation IDs are mandatory and validated before sending', async () => {
+  for (const operationId of [undefined, '', 'invalid']) {
+    const h = harness()
+    assert.equal((await h.send({ operationId })).status, 400)
+    assert.equal(h.deliveries.length, 0)
   }
 })

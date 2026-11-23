@@ -16,15 +16,10 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress {
   accent-color: var(--interaction-selected);
 }
 
-:is(button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid var(--interaction-focus) !important;
-  outline-offset: 3px;
-}
-
-@media (forced-colors: active) {
-  :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-    outline-color: Highlight !important;
-  }
+/* Product convention: no focus rings; preserve native keyboard interaction. */
+*:focus, *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 @theme inline {
@@ -57,10 +52,6 @@ a:hover {
   text-decoration: none;
 }
 
-a:focus-visible {
-  outline: 2px solid var(--interaction-focus);
-  outline-offset: 3px;
-}
 
 /*
  * Safety net for mobile browsers using a desktop-sized layout viewport.

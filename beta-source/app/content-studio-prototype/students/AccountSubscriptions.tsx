@@ -4,6 +4,7 @@ import { CreditCard } from 'lucide-react'
 import { useState } from 'react'
 import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, SlidePanel, SlidePanelHeader } from '@/beta-source/components/ui'
 import { SubscriptionCard } from './SubscriptionCard'
+import { LessonSummary } from '@/components/ui/LessonSummary'
 import { formatScheduleTime } from '@/beta-source/lib/academy-enrollment-schedule'
 import { previewStudentName } from '@/beta-source/lib/academy-student-preview'
 import { accountPayers } from '@/beta-source/lib/academy-family-preview'
@@ -29,10 +30,10 @@ export function AccountSubscriptions({ students, location, onManage, data, accou
         const last4 = enrollment.paymentMethod.match(/(\d{4})\s*$/)?.[1]
         return <SubscriptionCard key={enrollment.id}
           style={selectable && location.enrollmentId === enrollment.id ? { borderColor: colors.tealDark } : undefined}
-          title={selectable ? <ControlButton kind="toggle" selected={location.enrollmentId === enrollment.id} aria-pressed={location.enrollmentId === enrollment.id} aria-label={`Show ${student.firstName} ${enrollment.program} lessons`} onClick={() => onNavigate({ enrollmentId: location.enrollmentId === enrollment.id ? '' : enrollment.id })}>{enrollment.program} • {enrollment.duration} min</ControlButton> : `${enrollment.program} • ${enrollment.duration} min`}
+          title={selectable ? <ControlButton kind="toggle" selected={location.enrollmentId === enrollment.id} aria-pressed={location.enrollmentId === enrollment.id} aria-label={`Show ${student.firstName} ${enrollment.program} lessons`} onClick={() => onNavigate({ enrollmentId: location.enrollmentId === enrollment.id ? '' : enrollment.id })}><LessonSummary part="identity" instrument={enrollment.program} level={enrollment.level} /></ControlButton> : <LessonSummary part="identity" instrument={enrollment.program} level={enrollment.level} />}
           status={{ key: enrollment.lifecycle || enrollment.status, label: enrollment.lifecycle === 'frozen' ? 'Frozen' : enrollment.lifecycle === 'cancelled' ? 'Cancelled' : enrollment.status === 'active' ? 'Active' : 'Pending' }}
           actions={location.view !== 'parent' ? { label: `${student.firstName} ${enrollment.program} subscription actions`, onManage: () => onManage({ kind: 'subscription', enrollmentId: enrollment.id }) } : undefined}
-          detail={`Level ${enrollment.level}`} schedule={`${enrollment.day}s at ${formatScheduleTime(enrollment.time).replace(':00', '').replace(' ', '')}`}
+          detail={<LessonSummary part="details" format={enrollment.service} duration={enrollment.duration} />} schedule={`${enrollment.day}s at ${formatScheduleTime(enrollment.time).replace(':00', '').replace(' ', '')}`}
           instructor={          <a href={`#instructor-${encodeURIComponent(enrollment.teacher)}`} aria-label={`View ${enrollment.teacher} profile`} onClick={event => { event.preventDefault(); setInstructor(enrollment.teacher) }} style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.sm, color: colors.link, minWidth: 0, overflowWrap: 'anywhere' }}>
             <Avatar firstName={enrollment.teacher.split(' ')[0]} lastName={enrollment.teacher.split(' ').slice(1).join(' ')} size={28} src={getStaffAvatarUrl(tenantId, enrollment.teacher)} />
             <span>{enrollment.teacher}</span>

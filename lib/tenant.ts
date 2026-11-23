@@ -1,3 +1,5 @@
+import { clearLegacyContactInsights } from '@/lib/contact-insights-cache'
+
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 const STORAGE_KEY = 'pulse_active_tenant'
 
@@ -29,6 +31,7 @@ export function getActiveTenantId(): string {
 }
 
 export function setActiveTenantId(id: string): void {
+  clearLegacyContactInsights()
   try {
     window.localStorage.setItem(STORAGE_KEY, id)
   } catch {

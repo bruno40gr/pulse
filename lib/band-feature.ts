@@ -18,4 +18,6 @@ export function bandWorkspaceEnabled(): boolean {
 export function bandWritesEnabled(): boolean {
   return process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
     && process.env.ENABLE_CONTACT_BAND_OPPORTUNITIES !== 'false'
+    && (process.env.NEXT_PUBLIC_ENABLE_CONTACT_BAND_OPPORTUNITIES === 'true'
+      || process.env.ENABLE_CONTACT_BAND_OPPORTUNITIES === 'true')
 }

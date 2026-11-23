@@ -247,18 +247,21 @@ export default function ComposePanel({
 
   useEffect(() => {
     if (!recipientIds.length) return
-    request('/api/contacts/check-sensitive', {
+    let cancelled = false
+    setSensitiveCheck({ flagged: [], opted_out: [] })
+    request(`/api/contacts/check-sensitive?tenant=${encodeURIComponent(tenantId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_ids: recipientIds })
     })
       .then(r => r.json())
-      .then(data => setSensitiveCheck({
+      .then(data => { if (!cancelled) setSensitiveCheck({
         flagged: Array.isArray(data?.flagged) ? data.flagged : [],
         opted_out: Array.isArray(data?.opted_out) ? data.opted_out : [],
-      }))
+      }) })
       .catch(() => {})
-  }, [recipientIds.join(','), request])
+    return () => { cancelled = true }
+  }, [recipientIds.join(','), tenantId, request])
 
   const fallbackDraftFromIntent = () => {
     const firstNameToken = mode === 'single' ? '{first_name}' : ''

@@ -642,6 +642,14 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
   const [newLeadCounts, setNewLeadCounts] = useState({ lesson_inquiry: 0, service_inquiry: 0 })
   const [closedSinceOct1, setClosedSinceOct1] = useState(0)
   const [summaryRevision, setSummaryRevision] = useState(0)
+  // Expire notification badges on an idle open page too, not only after an edit.
+  useEffect(() => {
+    if (newLeadCounts.lesson_inquiry + newLeadCounts.service_inquiry === 0) return
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState !== 'hidden') setSummaryRevision(current => current + 1)
+    }, 60000)
+    return () => window.clearTimeout(timer)
+  }, [newLeadCounts])
   useEffect(() => {
     const refresh = () => setSummaryRevision(current => current + 1)
     window.addEventListener(LEAD_COUNT_EVENT, refresh)
@@ -689,7 +697,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
     const controller = new AbortController()
     let cancelled = false
     let timeout: number | undefined
-    // Coalesce bulk edits; no polling and no summary refetch on tab changes.
+    // Coalesce bulk edits; no summary refetch on tab changes.
     const timer = window.setTimeout(() => {
       setSummaryError('')
       timeout = window.setTimeout(() => controller.abort(), 10000)
@@ -2069,7 +2077,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
           </div>
         </div>}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: matching ? 'flex-end' : undefined, gap: spacing.sm, marginBottom: spacing.lg, flexWrap: 'wrap' }}>
           {!matching && <div style={{ flex: '1 1 320px', minWidth: 0, overflowX: 'auto' }}>
             <Tabs items={leadTabItems} activeKey={activeTab} onChange={tab => { setStatusFilter('all'); setActiveTab(tab) }} style={isMobileLayout ? { width: 'max-content', minWidth: '100%' } : undefined} />
           </div>}

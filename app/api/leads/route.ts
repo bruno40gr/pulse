@@ -7,6 +7,7 @@ import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { requireOwner, requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getLeadOpportunityValue, OPEN_LEAD_STATUSES, WON_STATUS } from '@/lib/lead-value'
+import { NEW_LEAD_WINDOW_MS } from '@/lib/lead-table-order'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
@@ -195,15 +196,19 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
   }
 }
 
-/** Net-new means unlinked people, not only the first workflow status. */
+/** Notifications expire after the original 24-hour new-lead window or a status change. */
 async function getNewLeadCounts(tenantId: string) {
+  const now = Date.now()
+  const cutoff = new Date(now - NEW_LEAD_WINDOW_MS).toISOString()
+  const currentTime = new Date(now).toISOString()
   const count = async (types: readonly string[]) => {
     const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes')
       .select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
       .in('intake_type', types).is('person_id', null)
       .neq('source_form', WINBACK_SOURCE_FORM)
       // Legacy band opportunities predate person_id and are still existing students.
-      .neq('source_form', 'contact-band-opportunity').in('status', ['new', 'contacted', 'booked', 'processing']),
+      .neq('source_form', 'contact-band-opportunity').eq('status', 'new')
+      .gt('created_at', cutoff).lte('created_at', currentTime),
     LEADS_QUERY_TIMEOUT_MS, 'net-new lead count query')
     if (result.error) throw result.error
     return result.count ?? 0

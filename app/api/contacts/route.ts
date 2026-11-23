@@ -11,6 +11,8 @@ import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { getImportProfile, saveImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 import { isCurrentEnrollment } from '@/lib/current-enrollment'
+import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
+import { readSubscriptionSource } from '@/lib/subscription-source'
 
 type DedupPerson = {
   id: string
@@ -154,7 +156,7 @@ export async function GET(request: Request) {
             id, client_status, last_attended, message_routing, is_minor, account_id,
             accounts ( id, name, phone, email, created_at ),
             enrollments (
-              id, instrument, service_type, lesson_day, lesson_time,
+              id, status, instrument, service_type, lesson_day, lesson_time,
               plan_name, session_name, custom_fields, instructor_person_id
             )
           )
@@ -190,6 +192,31 @@ export async function GET(request: Request) {
     const visiblePeople = (data || []).filter(person =>
       person.custom_fields?.verification_fixture !== 'account-claim'
     )
+    const linkedAccounts = new Map<string, Array<{ account_id: string; relationship: string | null; is_primary: boolean; accounts: { id: string; name: string; phone: string | null; email: string | null } }>>()
+    const studentIds = visiblePeople.flatMap((person: any) => (person.students || []).map((student: any) => student.id))
+    const familyRevisions = new Map<string, number>()
+    for (let offset = 0; offset < studentIds.length; offset += 100) {
+      const result = await supabaseAdmin.from('students').select('id,family_revision').eq('tenant_id', tenantId).in('id', studentIds.slice(offset, offset + 100))
+      if (result.error) {
+        if (['42703', 'PGRST204'].includes(result.error.code)) break
+        throw result.error
+      }
+      for (const row of result.data || []) familyRevisions.set(row.id, row.family_revision)
+    }
+    for (let offset = 0; offset < studentIds.length; offset += 100) {
+      const result = await supabaseAdmin.from('student_accounts')
+        .select('student_id,account_id,relationship,is_primary,accounts!inner(id,tenant_id,name,phone,email)')
+        .in('student_id', studentIds.slice(offset, offset + 100)).eq('accounts.tenant_id', tenantId)
+      if (result.error) {
+        if (['42P01', 'PGRST200', 'PGRST205'].includes(result.error.code)) break
+        throw result.error
+      }
+      for (const row of (result.data || []) as any[]) {
+        if (row.accounts?.tenant_id !== tenantId) continue
+        const links = linkedAccounts.get(row.student_id) || []
+        links.push(row); linkedAccounts.set(row.student_id, links)
+      }
+    }
 
     // Every visible person, so resolved account holders can be attached to their account.
     const contactPersonById = new Map(visiblePeople.map((person: { id: string }) => [person.id, person]))
@@ -197,12 +224,13 @@ export async function GET(request: Request) {
     // Optional explicit holder/person relationships. Never reconcile identities by
     // name, email or phone. Older installations may not expose this relation.
     const holderPeopleByAccount = new Map<string, Set<string>>()
+    const primaryHolderIds = new Set<string>()
     const accountIds = [...new Set(visiblePeople.flatMap((person: any) =>
       (person.students || []).flatMap((student: any) => student.account_id ? [student.account_id as string] : [])
     ))]
     for (let offset = 0; offset < accountIds.length; offset += 100) {
       const { data: holders, error: holderError } = await supabaseAdmin.from('account_holders')
-        .select('tenant_id, account_id, person_id')
+        .select('tenant_id, account_id, person_id, is_primary')
         .eq('tenant_id', tenantId).in('account_id', accountIds.slice(offset, offset + 100))
       if (holderError) {
         holderPeopleByAccount.clear()
@@ -211,6 +239,7 @@ export async function GET(request: Request) {
       }
       for (const holder of holders || []) {
         if (holder.tenant_id !== tenantId || !holder.person_id) continue
+        if (holder.is_primary) primaryHolderIds.add(`${holder.account_id}:${holder.person_id}`)
         const ids = holderPeopleByAccount.get(holder.account_id) || new Set<string>()
         ids.add(holder.person_id)
         holderPeopleByAccount.set(holder.account_id, ids)
@@ -233,7 +262,7 @@ export async function GET(request: Request) {
     if (personIdList.length > 0) {
       const { data: peopleData } = await supabaseAdmin
         .from('people')
-        .select('id, first_name, last_name, phone, email')
+        .select('id, first_name, last_name, phone, email, custom_fields')
         .eq('tenant_id', tenantId)
         .in('id', personIdList)
       instructorPeople = peopleData || []
@@ -250,7 +279,7 @@ export async function GET(request: Request) {
     const flattened = visiblePeople.map((person: any) => {
       const student = person.students?.[0] ?? {}
       const account = student.accounts ?? {}
-      const enrollment = student.enrollments?.[0] ?? {}
+      const enrollment = (student.enrollments ?? []).find((entry: any) => !isNonStudentBooking(entry) && isCurrentEnrollment(entry)) ?? {}
       const enrollmentFields = enrollment.custom_fields ?? {}
       const nonStudentBooking = isNonStudentBooking(enrollment)
       const staffId = instructorIdByAllPersonIds.get(person.id) ?? null
@@ -263,24 +292,32 @@ export async function GET(request: Request) {
       const holderPeople = [...(holderPeopleByAccount.get(student.account_id) || [])]
         .map(holderId => contactPersonById.get(holderId))
         .filter(Boolean) as Array<{ id: string; first_name: string; last_name: string; phone: string | null; email: string | null }>
-      const accountHolders = holderPeople.length
-        ? holderPeople.map((holder, index) => ({ person_id: holder.id, name: `${holder.first_name} ${holder.last_name}`.trim(), phone: holder.phone, email: holder.email, relationship: null, is_primary: index === 0 }))
+      const accountHolders: Array<{ person_id?: string; account_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }> = holderPeople.length
+        ? holderPeople.map(holder => ({ person_id: holder.id, name: `${holder.first_name} ${holder.last_name}`.trim(), phone: holder.phone, email: holder.email, relationship: null, is_primary: primaryHolderIds.has(`${student.account_id}:${holder.id}`) }))
         : account.name
           ? [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
           : []
+      accountHolders.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+      if (account.name && !accountHolders.some(holder => holder.is_primary)) {
+        accountHolders.unshift({ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true })
+      }
+      for (const link of linkedAccounts.get(student.id) || []) {
+        if (link.account_id === student.account_id) continue
+        accountHolders.push({ account_id: link.account_id, name: link.accounts.name, phone: link.accounts.phone, email: link.accounts.email,
+          relationship: link.relationship, is_primary: link.is_primary })
+      }
 
       // Resolve instructor from instructor_person_id (actual schema)
       const instructorPersonId = enrollment.instructor_person_id ?? null
       const instructorPerson = instructorPersonId ? personById.get(instructorPersonId) : null
       const instructorRecordId = instructorPersonId ? instructorIdByPersonId.get(instructorPersonId) : null
 
-      const instructorInfo = instructorPersonId
+      const currentTeacherName = currentSubscriptionTeacher(instructorPerson)
+      const instructorInfo = instructorPersonId && currentTeacherName
         ? {
             staff_id: instructorRecordId ?? instructorPersonId,
             person_id: instructorPersonId,
-            name: instructorPerson
-              ? `${instructorPerson.first_name} ${instructorPerson.last_name}`
-              : (enrollmentFields.instructor || null),
+            name: currentTeacherName,
             phone: instructorPerson?.phone ?? null,
             email: instructorPerson?.email ?? null,
           }
@@ -295,7 +332,9 @@ export async function GET(request: Request) {
             id: entry.id, instrument: entry.instrument, service_type: entry.service_type, plan_name: entry.plan_name, session_name: entry.session_name,
             instructor_person_id: entry.instructor_person_id, appointment_class_name: entry.custom_fields?.appointment_class_name ?? null,
             lesson_day: entry.lesson_day, lesson_time: entry.lesson_time,
-            instructor: teacher ? `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() : entry.custom_fields?.instructor ?? null,
+            level: entry.custom_fields?.level ?? null,
+            instructor: currentSubscriptionTeacher(teacher),
+            teacher_assignment_needs_review: !currentSubscriptionTeacher(teacher),
           }
         }),
         is_student: !nonStudentBooking && Boolean(student.id),
@@ -314,6 +353,9 @@ export async function GET(request: Request) {
         message_routing: nonStudentBooking ? 'student' : (student.message_routing || 'student'),
         is_minor: nonStudentBooking ? false : (student.is_minor ?? false),
         account_id: student.account_id,
+        linked_account_ids: (linkedAccounts.get(student.id) || []).map(link => link.account_id),
+        family_revision: familyRevisions.get(student.id) ?? 0,
+        family_links: (linkedAccounts.get(student.id) || []).map(link => ({ account_id: link.account_id, relationship: link.relationship, is_primary: link.is_primary })),
         staff_id: staffId,
         is_active: isActive,
         funded: fundedPersonIds.has(person.id),
@@ -336,7 +378,7 @@ export async function GET(request: Request) {
           lesson_time: enrollment.lesson_time || person.custom_fields?.lesson_time,
           plan_name: enrollment.plan_name || person.custom_fields?.plan_name,
           session_name: enrollment.session_name || person.custom_fields?.session_name,
-          instructor: enrollmentFields.instructor || person.custom_fields?.instructor,
+          instructor: currentTeacherName,
           band_name: enrollmentFields.band_name || person.custom_fields?.band_name,
         },
         tags: person.custom_fields?.tags || [],
@@ -364,6 +406,13 @@ export async function POST(request: Request) {
     const tenantId = access.tenantId
     const { csv, mappings, profile: profileUpdate, snapshot_month } = body
     if (!csv) return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 })
+    // Never feed subscriptions through the person-grouped attendance importer.
+    // Its one-enrollment lookup cannot represent separate source subscriptions.
+    try {
+      if (readSubscriptionSource(csv) !== null) return NextResponse.json({ error: 'Subscription exports require reviewed source-ID reconciliation. The attendance importer cannot update subscriptions.' }, { status: 409 })
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 })
+    }
 
     // Load the tenant's import profile (active/cancelled vocabulary); save if the client provided an update.
     const profile = await getImportProfile(tenantId)
@@ -592,6 +641,7 @@ export async function POST(request: Request) {
             .from('enrollments')
             .select('id, custom_fields')
             .eq('student_id', existingStudent.id)
+            .is('custom_fields->>subscription_id', null)
             .single()
 
           if (existingEnrollment) {

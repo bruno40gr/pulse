@@ -80,22 +80,20 @@ export async function GET(request: Request) {
 
     const campaignId = getCampaignId(request)
     if (countOnly) {
-      let countQuery = supabaseAdmin
-        .from('messages')
-        .select('from_phone, status')
-        .eq('tenant_id', tenantId)
-        .eq('direction', 'inbound')
-
-      if (campaignId) countQuery = countQuery.eq('campaign_id', campaignId)
-
-      const { data: inboundMessages, error: countError } = await countQuery
-      if (countError) throw countError
-
       let unreadCount = 0
-      for (const message of inboundMessages || []) {
-        if (message.status === 'read') continue
-        const otherPhone = normalizePhoneNumber(message.from_phone)
-        if (otherPhone) unreadCount += 1
+      // Filter before transfer, retain legacy null statuses, and never stop at
+      // PostgREST's first-page cap. Phone normalization remains shared with lists.
+      for (let offset = 0; ; offset += 500) {
+        let countQuery = supabaseAdmin.from('messages').select('id, from_phone')
+          .eq('tenant_id', tenantId).eq('direction', 'inbound')
+          .or('status.is.null,status.neq.read').order('id').range(offset, offset + 499)
+        if (campaignId) countQuery = countQuery.eq('campaign_id', campaignId)
+        const { data: inboundMessages, error: countError } = await countQuery
+        if (countError) throw countError
+        for (const message of inboundMessages || []) {
+          if (normalizePhoneNumber(message.from_phone)) unreadCount += 1
+        }
+        if ((inboundMessages || []).length < 500) break
       }
       return NextResponse.json({ count: unreadCount })
     }

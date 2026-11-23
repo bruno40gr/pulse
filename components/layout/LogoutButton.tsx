@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useIdentity } from './IdentityProvider'
+import { clearLegacyContactInsights } from '@/lib/contact-insights-cache'
 
 export default function LogoutButton({ onLogout }: { onLogout?: () => void }) {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function LogoutButton({ onLogout }: { onLogout?: () => void }) {
   const handleLogout = async () => {
     if (loading) return
     setLoading(true)
+    clearLegacyContactInsights()
     clearIdentity()
     try {
       await fetch('/api/access/logout', { method: 'POST' })

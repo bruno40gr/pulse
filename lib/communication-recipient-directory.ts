@@ -11,7 +11,7 @@ export async function communicationRecipients(tenantId: string, ids: string[], c
   const contacts: RecipientContact[] = []
   for (let offset = 0; offset < ids.length; offset += 100) {
     const { data, error } = await supabaseAdmin.from('people')
-      .select('id,first_name,last_name,email,phone,opted_out,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(accounts(name,email,phone)))')
+      .select('id,first_name,last_name,email,phone,opted_out,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(communication_enabled,accounts(name,email,phone)))')
       .eq('tenant_id', tenantId).in('id', ids.slice(offset, offset + 100))
     if (error) {
       if (['PGRST200', 'PGRST205', '42P01'].includes(error.code)) throw new Error('Account-holder routing is not set up in the contacts database. Ask the account owner to apply Student Accounts Migration 001 before sending. No messages were sent.')
@@ -42,7 +42,7 @@ export async function communicationRecipients(tenantId: string, ids: string[], c
   const suppressed: RecipientContact[] = []
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabaseAdmin.from('people')
-      .select('id,email,phone,opted_out,students(accounts(email,phone),student_accounts(accounts(email,phone)))')
+      .select('id,email,phone,opted_out,students(accounts(email,phone),student_accounts(communication_enabled,accounts(email,phone)))')
       .eq('tenant_id', tenantId).eq('opted_out', true).order('id').range(offset, offset + 499)
     if (error) throw new Error('Messaging opt-outs could not be verified.')
     suppressed.push(...(data || []) as RecipientContact[])

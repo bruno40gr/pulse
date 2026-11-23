@@ -33,6 +33,7 @@ export default function ContactGroupEmailComposer({ tenantId, contactIds, onClos
   const [locked, setLocked] = useState(false)
   const [sent, setSent] = useState(false)
   const inFlight = useRef(false)
+  const operationId = useRef('')
   const selection = [...contactIds].sort().join(',')
   const query = `?tenant=${encodeURIComponent(tenantId)}`
   useEffect(() => {
@@ -60,8 +61,10 @@ export default function ContactGroupEmailComposer({ tenantId, contactIds, onClos
     if (!audience || !sender || inFlight.current || locked) return
     inFlight.current = true; setSending(true); setError('')
     try {
+      // Retain one ID for every attempt made by this composer, including a lost response.
+      if (!operationId.current) operationId.current = crypto.randomUUID()
       await json(`/api/communications/email-group${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactIds, version: audience.version, senderEmail, recipients, subject: draft.subject, body, html }) })
+        body: JSON.stringify({ operationId: operationId.current, contactIds, version: audience.version, senderEmail, recipients, subject: draft.subject, body, html }) })
       setSent(true); setLocked(true)
     } catch (error) {
       // A transport failure can happen after Gmail accepted the email. Never offer a blind retry.

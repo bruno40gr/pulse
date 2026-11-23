@@ -236,6 +236,9 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
 
   // ── Load insights with note context ──
   useEffect(() => {
+    let cancelled = false
+    setInsights([])
+    setInsightsLoading(true)
     if (isPreview || mockFundingCase) {
       setInsights([])
       setInsightsLoading(false)
@@ -246,25 +249,6 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
       setInsights([])
       setInsightsLoading(false)
       return
-    }
-
-    const cacheKey = `pulse_contact_insights_${contact.id}`
-    const cacheTimeKey = `pulse_contact_insights_time_${contact.id}`
-    const cached = localStorage.getItem(cacheKey)
-    const cachedTime = localStorage.getItem(cacheTimeKey)
-
-    if (cached && cachedTime) {
-      try {
-        const age = Date.now() - new Date(cachedTime).getTime()
-        if (age < 10 * 60 * 1000) {
-          const parsed = JSON.parse(cached)
-          if (Array.isArray(parsed)) {
-            setInsights(normalizeInsights(parsed))
-            setInsightsLoading(false)
-            return
-          }
-        }
-      } catch {}
     }
 
     const contactSummary = {
@@ -288,15 +272,15 @@ export default function ContactSlidePanel({ contact, tenantFields, onClose, onUp
     })
       .then(r => r.json())
       .then(data => {
+        if (cancelled) return
         if (data.insights) {
           const normalized = normalizeInsights(data.insights)
           setInsights(normalized)
-          localStorage.setItem(cacheKey, JSON.stringify(normalized))
-          localStorage.setItem(cacheTimeKey, new Date().toISOString())
         }
         setInsightsLoading(false)
       })
-      .catch(() => setInsightsLoading(false))
+      .catch(() => { if (!cancelled) setInsightsLoading(false) })
+    return () => { cancelled = true }
   }, [contact.id, contact.client_status, contact.custom_fields, contact.first_name, contact.last_attended, contact.last_name, internalNotesHistory, isInstructor, mockFundingCase, studentNotesHistory, isPreview])
 
   // Normalize both new (headline/valence) and legacy (text/type) shapes

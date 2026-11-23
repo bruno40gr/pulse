@@ -22,7 +22,7 @@ export async function conversationDirectory(tenantId: string, includeContacts: b
   const people: ConversationPerson[] = []
   if (includeContacts) {
     for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(accounts(name,email,phone)))')
+      const { data, error } = await supabaseAdmin.from('people').select('id,first_name,last_name,email,phone,students(is_minor,message_routing,accounts(name,email,phone),student_accounts(communication_enabled,accounts(name,email,phone)))')
         .eq('tenant_id', tenantId).order('id').range(offset, offset + 999)
       if (error) throw new Error('Contacts could not be loaded.')
       for (const row of data || []) people.push(conversationContact(row))

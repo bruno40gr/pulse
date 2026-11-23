@@ -1,7 +1,7 @@
 'use client'
 
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
 import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, Input, NotesSection, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea, StatusBadge } from '@/components/ui'
@@ -22,6 +22,9 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { usesAccountHolder } from '@/lib/contact-presentation'
 import { colors, spacing, typography } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { LiveFamilyManagement } from './LiveFamilyManagement'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
+import { LessonSummary } from '@/components/ui/LessonSummary'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
 type Subject =
@@ -62,7 +65,8 @@ function under18(dateOfBirth?: string | null) {
   return birthday > cutoff && birthday <= now
 }
 
-export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink }: {
+export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink, onFamilyChanged }: {
+  onFamilyChanged?: () => void
   subject: Subject; tenantId: string; capabilities: ContactCapabilities
   initialNotesTab: NoteKind; startOnNotes?: boolean; onClose: () => void
   onUpdated: (person: Contact) => void; onNotesUpdated: (id: string, field: 'notes_history' | 'student_notes_history', notes: LiveContactNote[]) => void
@@ -81,6 +85,10 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const [section, setSection] = useState<Section>(startOnNotes ? 'notes' : 'account')
   const [notesTab, setNotesTab] = useState(initialNotesTab)
   const [editing, setEditing] = useState(false)
+  const [editorDirty, setEditorDirty] = useState(false)
+  const [discardTarget, setDiscardTarget] = useState<'editor' | 'panel' | null>(null)
+  const editorFormId = useId()
+  const [addingStudent, setAddingStudent] = useState(false)
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [noteError, setNoteError] = useState('')
@@ -108,7 +116,14 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const canMessageAccountEmail = Boolean(account) && accountRecipients.length > 0 && Boolean(email)
   const notesField = notesTab === 'internal' ? 'notes_history' : 'student_notes_history'
   const notes = person?.[notesField] ?? []
-  const canLeave = () => !saving && !noteSaving && (!editing || window.confirm('Discard unsaved contact changes?'))
+  const canLeave = () => !saving && !noteSaving && (!editing || !editorDirty)
+  const leaveEditor = (target: 'editor' | 'panel') => {
+    if (saving || noteSaving) return
+    if (editing && editorDirty) { setDiscardTarget(target); return }
+    setEditing(false)
+    setEditorDirty(false)
+    if (target === 'panel') onClose()
+  }
   const editorPeople = [...new Map([...(person ? [person] : []), ...(showsAccount ? students : [])].map(item => [item.id, item])).values()]
   const editorContacts: AccountEditorContact[] = [...(account ? [{ id: `account:${account.id}`, accountRecord: true, firstName: account.name, lastName: '', email: account.email || '', phone: account.phone || '', birthday: '' }] : []),
     ...editorPeople.map(item => ({ id: item.id, firstName: item.first_name || '', lastName: item.last_name || '', email: item.email || '', phone: item.phone || '', birthday: item.date_of_birth || '' }))]
@@ -189,13 +204,14 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
     finally { setCalling(false) }
   }
 
-  const close = () => { if (canLeave()) onClose() }
+  const close = () => leaveEditor('panel')
   const stack = { display: 'grid', gap: spacing.lg, minWidth: 0 }
   const comingSoon = section === 'schedule' ? { icon: <CalendarDays />, title: 'Schedule & lessons' }
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
-  return <SlidePanel isOpen onClose={close} fullScreen={mobile} width="min(calc(75vw + 200px), 1160px)">
-      <SlidePanelHeader title={name.replace(/\s*\(account\)\s*$/i, '')} subtitle={subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
+  return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="min(calc(75vw + 200px), 1160px)">
+      <SlidePanelHeader title={editing ? 'Edit Contact' : name.replace(/\s*\(account\)\s*$/i, '')} subtitle={editing ? name : subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
+        actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={subject.kind === 'student' && person ? <StatusBadge status={person.opted_out ? 'spam' : person.client_status} label={person.opted_out ? 'Opted out' : person.client_status} /> : undefined}
         toast={status || undefined} onClose={close} onBack={compose ? () => setCompose(null) : undefined} backLabel="Back to contact" />
@@ -203,7 +219,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         <LiveContactCommunication key={compose} tenantId={tenantId} channel={compose} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
           destination={(compose === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
       </div> : <>
-      <AccountProfileToolbar mobile={mobile} communication={<>
+      {!editing && <><AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
           <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
           <Button aria-label="Send email" variant="secondary" disabled={saving || (person ? !displayedEmail || (holderRouting && !canComposeToHolder) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('email') } }}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>
@@ -221,15 +237,19 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
           { key: 'account', label: 'Account' }, { key: 'notes', label: 'Notes' }, { key: 'schedule', label: 'Schedule & lessons' },
           { key: 'billing', label: 'Billing' }, { key: 'makeups', label: 'Makeups' }, ...(fundingAvailable ? [{ key: 'funding' as const, label: 'Funding Program' }] : []),
         ]} />
-      </div>
+      </div></>}
       <div className={layoutStyles.panelContent} style={{ background: colors.surfaceMuted }}>
         {editing && section === 'account' ? <InlineWorkspaceContext.Provider value={true}>
-          <AccountEditorCanvas contacts={editorContacts} holderId={showsAccount ? editorContacts[0]?.id : undefined} accountName={name} studentOnly={!showsAccount} onSave={save} onBack={() => setEditing(false)}
-            family={showsAccount && <DenseSectionPanel title="Manage Family Group" actions={<Button disabled>Add Dependent</Button>}><div style={muted}>Coming soon</div>{students.map(student => <div key={student.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingBlock: spacing.md, borderTop: `1px solid ${colors.borderLight}` }}><strong>{personName(student)}</strong><Button variant="secondary" disabled>Remove from Family Group</Button></div>)}</DenseSectionPanel>} />
+          <AccountEditorCanvas embedded formId={editorFormId} contacts={editorContacts} holderId={showsAccount ? editorContacts[0]?.id : undefined} accountName={name} studentOnly={!showsAccount} onSave={save} onDirtyChange={setEditorDirty} onBack={() => { setEditorDirty(false); setEditing(false) }}
+            family={capabilities.edit && <LiveFamilyManagement tenantId={tenantId} accountId={account?.id || students[0]?.account_id || person?.account_id}
+              personId={subject.kind === 'student' ? person?.id : undefined} onChanged={onFamilyChanged} />} />
         </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
               <DenseSectionPanel title="Contact details">
                 <MetadataRow label="Contact details metadata">
-                  {showsAccount ? <DetailField label="Dependents" value={String(students.length)} /> : <DetailField label="Account holder" value="Not added">
+                  {showsAccount ? <DetailField label="Dependents"><div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}>
+                    <span>{students.length}</span>
+                    {capabilities.edit && !addingStudent && <Button size="sm" variant="secondary" disabled={!account?.id && !person?.account_id && !students[0]?.account_id} onClick={() => setAddingStudent(true)}>Add student</Button>}
+                  </div></DetailField> : <DetailField label="Account holder" value="Not added">
                     {accountHolderLink && <a href={accountHolderLink.href} style={{ color: colors.link }} onClick={event => {
                       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                       event.preventDefault()
@@ -240,8 +260,11 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                   <DetailField label="Birthday" value={formatMemberSince(person?.date_of_birth ?? null) || 'Not added'} />
                 </MetadataRow>
               </DenseSectionPanel>
+              {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
+                accountId={account?.id || person?.account_id || students[0]?.account_id} addStudentOnly
+                onCancel={() => setAddingStudent(false)} onChanged={() => { setAddingStudent(false); onFamilyChanged?.() }} />}
               {(showsAccount ? students : person ? [person] : []).map(student => <DenseSectionPanel key={student.id}
-                title={showsAccount ? <SectionTitle as="h3" variant="card"><ControlButton kind="name" onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
+                title={showsAccount ? <SectionTitle as="h2"><ControlButton kind="name" style={{ fontSize: 'inherit', fontWeight: 'inherit' }} onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
                 actions={<Button onClick={() => setComingSoonFeature('Add subscription')}>Add subscription</Button>}
                 contentStyle={stack}>
                 {showsAccount && ageLabel(student.date_of_birth) && <div>{ageLabel(student.date_of_birth)}</div>}
@@ -252,10 +275,10 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                   const teacher = enrollment.instructor?.trim()
                   const label = enrollment.instrument || 'Subscription'
                   return <SubscriptionCard key={enrollment.id}
-                    title={[label, duration ? `${duration} min` : null].filter(Boolean).join(' • ')}
+                    title={<LessonSummary part="identity" instrument={label} level={enrollment.level} plan={plan} />}
                     actions={{ label: `${personName(student)} ${label} subscription actions`, onManage: () => setComingSoonFeature('Manage subscription') }}
-                    detail={plan} schedule={schedule}
-                    instructor={teacher && <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={teacher.split(' ')[0]} lastName={teacher.split(' ').slice(1).join(' ')} size={28} />{teacher}</div>}
+                    detail={<LessonSummary part="details" format={enrollment.service_type} duration={duration} plan={plan} />} schedule={schedule}
+                    instructor={teacher ? <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}><Avatar firstName={teacher.split(' ')[0]} lastName={teacher.split(' ').slice(1).join(' ')} size={28} />{teacher}</div> : <div style={{ color: colors.textSecondary }}>Current teacher needs verification</div>}
                     payment={<DetailField label="Payment method" value="Coming soon" />} />
                 })}
                 {!student.profile_enrollments?.length && <div style={muted}>No current subscriptions</div>}
@@ -288,6 +311,17 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
       </>}
+    <Modal isOpen={discardTarget !== null} onClose={() => setDiscardTarget(null)} size="sm" layout="content" ariaLabel="Discard contact changes">
+      <ModalHeader title="Discard unsaved changes?" onClose={() => setDiscardTarget(null)} />
+      <ModalBody>Your unsaved contact edits will be lost. Family changes already saved are not affected.</ModalBody>
+      <ModalFooter><Button variant="secondary" onClick={() => setDiscardTarget(null)}>Keep editing</Button><Button variant="destructive" onClick={() => {
+        const target = discardTarget
+        setDiscardTarget(null)
+        setEditorDirty(false)
+        setEditing(false)
+        if (target === 'panel') onClose()
+      }}>Discard changes</Button></ModalFooter>
+    </Modal>
     {comingSoonFeature && <SlidePanel isOpen onClose={() => setComingSoonFeature(null)} width="min(100vw, 420px)" fullScreen={mobile}>
       <SlidePanelHeader title={comingSoonFeature} onClose={() => setComingSoonFeature(null)} />
       <div style={{ padding: spacing.xl }}>Coming soon</div>

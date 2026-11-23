@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { reserveGroupEmail, confirmGroupEmail, groupEmailFingerprint } from '@/lib/group-email-operation'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { communicationRecipients, recipientVersion, validContactSelection } from '@/lib/communication-recipient-directory'
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Staff contact access is required.' }, { status: 403, headers })
   }
   const input = await request.json().catch(() => null)
-  if (!validContactSelection(input?.contactIds) || typeof input.version !== 'string' || typeof input.senderEmail !== 'string'
+  if (!validContactSelection(input?.contactIds) || typeof input.operationId !== 'string'
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId)
+    || typeof input.version !== 'string' || typeof input.senderEmail !== 'string'
     || typeof input.subject !== 'string' || !input.subject.trim() || input.subject.length > 500 || /[\r\n]/.test(input.subject)
     || typeof input.body !== 'string' || !input.body.trim() || input.body.length > 100000
     || typeof input.html !== 'string' || input.html.length > 200000
@@ -37,6 +40,12 @@ export async function POST(request: Request) {
     const raw = gmailMime({ from: mailbox.sender.email, fromName: mailbox.sender.name,
       to: recipients.to.length ? recipients.to : [mailbox.sender.email], cc: recipients.cc, bcc: recipients.bcc,
       subject: input.subject, body: input.body, html: input.html })
+    const operation = { tenantId: access.tenantId, membershipId: access.context.membershipId, operationId: input.operationId,
+      fingerprint: groupEmailFingerprint({ mailbox: mailbox.id, sender: mailbox.sender.email, recipients,
+        subject: input.subject, body: input.body, html: input.html }) }
+    const reservation = await reserveGroupEmail(operation)
+    if (reservation === 'sent') return NextResponse.json({ sent: true, replayed: true }, { headers })
+    if (reservation === 'uncertain') return NextResponse.json({ error: 'This email was already attempted. Check Sent before creating another email.', uncertain: true }, { status: 409, headers })
     deliveryStarted = true
     // The Gmail read helper retries; sends must never retry after an ambiguous response.
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -45,6 +54,8 @@ export async function POST(request: Request) {
     })
     if (!response.ok) throw new Error('Gmail did not confirm delivery.')
     const sent = await response.json()
+    if (typeof sent.id !== 'string' || !sent.id) throw new Error('Gmail did not return a delivery identifier.')
+    await confirmGroupEmail(operation, sent.id)
     await writeAccountAuditEvent({ tenantId: access.tenantId, actorMembershipId: access.context.membershipId,
       eventType: 'communications.email_sent', metadata: { mailbox_id: mailbox.id, provider_message_id: sent.id,
         recipient_count: recipients.to.length + recipients.cc.length + recipients.bcc.length } }).catch(() => false)

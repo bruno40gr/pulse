@@ -8,6 +8,7 @@ Use this convention for event participants, band members and future person-to-en
 - Keep drafts and selections while changing mode. Destination-specific validation remains in the adapter/workflow; do not silently drop phone or birthday. Persist canonical identity before associating a new operational contact.
 - Use `ParticipantPicker` for event/band selection, `BandStudentPicker` for the operational contact API adapter, and `ContactDetailsFields` for enrollment's existing person editor. The surrounding workflow owns its Continue/Add action and any required consent or relationship fields. New contact creation must not bypass destination-specific review.
 - These are shared fields/compositions, not a claim that all enrollment lookup and participant-table behaviors are identical.
+- Family student and account-manager linking use the same `ParticipantPicker`, never native person/account dropdowns. Account managers are people linked through `account_holders` to the viewed account; never require a dependent or create another account to add a manager. Show current account names in student search results; disable students already linked to the destination, but do not block a student solely because another account is linked. One account per student is the normal structure; multiple-account exceptions remain possible without automatically moving primary/billing relationships.
 
 ## Menus within tables
 

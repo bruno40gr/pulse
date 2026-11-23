@@ -34,7 +34,7 @@ test('skeleton announces loading once, hides placeholder geometry and supports r
 
 test('bands keep table geometry while campaigns keep card geometry during loading', () => {
   const bands = source('components/bands/ProductionBandsWorkspace.tsx')
-  assert.match(bands, /<ResponsiveDataTable loading=\{bandsState === 'loading'\}/)
+  assert.match(bands, /draftState === 'loading' \|\| tentativeState === 'loading' \|\| bandsState === 'loading' \? <LoadingSkeleton label="Loading bands and drafts"/)
   assert.doesNotMatch(bands, /<p role="status">Loading bands/)
   for (const file of ['components/campaigns/EmailCampaignHistory.tsx', 'app/dashboard/history/page.tsx']) {
     const code = source(file)

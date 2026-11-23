@@ -35,7 +35,9 @@ import styles from './explorer.module.css'
 import { eventQuestions, eventHasMultipleSessions, eventRegistrationActivity, eventAlreadyRegistered, activitySpace, eventPaymentTiming } from '@/beta-source/lib/event-explorer'
 import type { StaffEnrollment as EnrollmentData } from '@/beta-source/lib/academy-staff-enrollment'
 
-export default function WorkflowEditor({ initial, context, staff, onSave, onUpdate, onComplete, onCreate, programActions, locations = [], availablePeople, academyTeachers, availability }: {
+export default function WorkflowEditor({ initial, context, staff, onSave, onUpdate, onComplete, onCreate, programActions, locations = [], availablePeople, academyTeachers, availability, persistenceBusy = false, bandCandidatePicker }: {
+  persistenceBusy?: boolean;
+  bandCandidatePicker?: (ids: string[], onChange: (ids: string[]) => void) => import('react').ReactNode;
   availablePeople?: readonly import('@/beta-source/lib/academy-staff-enrollment').EnrollmentPerson[];
   academyTeachers?: readonly { name: string; instruments: string[] }[];
   availability?: (date: string, time: string, lesson: import('@/beta-source/lib/academy-staff-enrollment').LessonChoice, siblings?: readonly import('@/beta-source/lib/academy-staff-enrollment').LessonChoice[]) => readonly { name: string }[];
@@ -65,6 +67,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
   const lastStep = steps.length - 1
   const offering = record.kind === 'event' || record.kind === 'group'
   const move = (next: number) => {
+    if (persistenceBusy) return
     for (let index = 0; index < next; index++) {
       const problem = workflowStepError(record, index, context)
       if (problem) { setRecord({ ...record, step: index }); setError(problem); return }
@@ -94,7 +97,8 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
   ]} />
   const group = record.kind === 'membership' ? context.academy.groups.find(group => group.id === record.data.groupId) : undefined
   const event = record.kind === 'registration' ? context.events.find(event => event.id === record.data.eventId) : undefined
-  return <EnrollmentLayout title={formingBand ? 'Create band' : record.kind === 'program' ? context.academy.kind === 'music' ? 'Band / ensemble' : context.academy.kind === 'martial' ? 'Practice team' : 'Study group' : workflowLabels[record.kind]} actions={<Button variant="secondary" onClick={() => save(record)}>Save & close</Button>} steps={steps} currentStep={record.step} onStepChange={move} completedSteps={record.reviewedSteps.filter(index => !workflowStepError(record, index, context))}>
+  return <EnrollmentLayout title={formingBand ? 'Create band' : record.kind === 'program' ? context.academy.kind === 'music' ? 'Band / ensemble' : context.academy.kind === 'martial' ? 'Practice team' : 'Study group' : workflowLabels[record.kind]} actions={<Button variant="secondary" disabled={persistenceBusy} onClick={() => save(record)}>Save & close</Button>} steps={steps} currentStep={record.step} onStepChange={move} completedSteps={record.reviewedSteps.filter(index => !workflowStepError(record, index, context))}>
+    <fieldset disabled={persistenceBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <div className={offering ? styles.workflowSingle : styles.workflowLayout}>
     <SurfacePanel appearance="flat" padding={spacing.xl}>
     {error && <Notice variant="error" style={{ marginBottom: 24 }}>{error}</Notice>}
@@ -105,7 +109,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
       {record.kind === 'registration' && <><p>{event?.name} · {event?.activities.find(activity => activity.id === record.data.activityId)?.name}</p>{event && <p>{eventPaymentTiming(event)}</p>}</>}
     </div></DenseSectionPanel> : <>
       {record.kind === 'event' && <EventFields embedded event={record.data} academy={context.academy} staff={staff} locations={locations} section={['details', 'activities', 'registration', 'policies'][record.step]} updateEvent={change => patch({ ...record, data: { ...record.data, ...change } })} />}
-      {record.kind === 'group' && <DenseSectionPanel title={steps[record.step]} actions={formingBand && record.step === 0 ? <Button variant="secondary" onClick={() => setAddingStudent(true)}>Add external student</Button> : undefined} style={{ border: 0, padding: 0 }}><div className={styles.stack}>
+      {record.kind === 'group' && <DenseSectionPanel title={steps[record.step]} actions={formingBand && record.step === 0 && !bandCandidatePicker ? <Button variant="secondary" onClick={() => setAddingStudent(true)}>Add external student</Button> : undefined} style={{ border: 0, padding: 0 }}><div className={styles.stack}>
         {record.step === 0 && <>
           <RadioOptionGroup label="Group type" value={record.data.typeId} options={context.academy.groupTypes.filter(type => type.enabled).map(type => ({ id: type.id, label: type.name, description: type.description }))} onChange={typeId => patch({ ...record, data: { ...record.data, typeId } })} />
           <Input label={formingBand ? "Band name" : "Group name"} value={record.data.name} onChange={event => patch({ ...record, data: { ...record.data, name: event.target.value } })} />
@@ -128,8 +132,8 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
           {record.data.trialMax > 0 && <div style={{ maxWidth: 220 }}><Input label="Trial limit per session" type="number" min={1} max={record.data.capacity} step={1} value={record.data.trialMax} onChange={event => patch({ ...record, data: { ...record.data, trialMax: Number(event.target.value) } })} /></div>}
         </>}
         {(formingBand ? record.step === 0 : record.step === 3) && <>
-          {formingBand && <Input label="Find candidates (optional)" value={memberSearch} onChange={event => setMemberSearch(event.target.value)} />}
-          {members}
+          {formingBand && !bandCandidatePicker && <Input label="Find candidates (optional)" value={memberSearch} onChange={event => setMemberSearch(event.target.value)} />}
+          {formingBand && bandCandidatePicker ? bandCandidatePicker(selectedIds, updateMembers) : members}
         </>}
       </div></DenseSectionPanel>}
       {record.kind === 'membership' && <DenseSectionPanel title={steps[record.step]} style={{ border: 0, padding: 0 }}><div className={styles.stack}>
@@ -182,5 +186,6 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
       </div>
     </aside>}
     </div>
+    </fieldset>
   </EnrollmentLayout>
 }

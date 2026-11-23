@@ -28,7 +28,7 @@ import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import LiveContactPanel, { type ContactCapabilities, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
 import { contactProfileFamilies } from '@/lib/contact-profile-family'
 import { DEFAULT_CONTACT_FILTERS, matchesContactFilters } from '@/lib/contact-filters'
-import { accountStudentCount, contactViewGroups, mapContactViewSelection, contactViewSelectionCount, type ContactListView } from '@/lib/contact-list-views'
+import { contactViewGroups, mapContactViewSelection, contactViewSelectionCount, type ContactListView } from '@/lib/contact-list-views'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
@@ -47,11 +47,12 @@ export interface Contact {
   student_id?: string | null
   is_student?: boolean
   account_holder_person_id?: string | null
-  account_holders?: { person_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
+  account_holders?: { person_id?: string; account_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
   message_routing?: string
   account_id?: string | null
+  linked_account_ids?: string[]
   account_member_since?: string | null
-  profile_enrollments?: { id: string; instrument: string | null; service_type?: string | null; instructor_person_id?: string | null; appointment_class_name?: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
+  profile_enrollments?: { id: string; instrument: string | null; level?: number | string | null; service_type?: string | null; instructor_person_id?: string | null; appointment_class_name?: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
   first_name: string
   last_name: string
   phone: string | null
@@ -113,13 +114,6 @@ const PLACEHOLDER_MESSAGES = [
   'Show band students without a band name...',
 ]
 
-const AI_LOADING_MESSAGES = [
-  'Analyzing your request...',
-  'Searching through contacts...',
-  'Finding the best matches...',
-  'Almost there...',
-]
-
 function formatFilterSummary(explanation: string, resultCount: number | null) {
   const compactCount = resultCount !== null
     ? `${resultCount} ${resultCount === 1 ? 'contact' : 'contacts'}`
@@ -173,7 +167,6 @@ export default function ContactsPage() {
   const [showStaleBanner, setShowStaleBanner] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
-  const [aiMessageIndex, setAiMessageIndex] = useState(0)
   const [contactPage, setContactPage] = useState(1)
   const [pageSize, setPageSize] = useState(() => tablePreferences.preferences.pageSize || 50)
   const [contactSort, setContactSort] = useState<DataTableSort<ContactSortKey>>(() => (tablePreferences.preferences.sort as DataTableSort<ContactSortKey>) || { key: 'name', direction: 'asc' })
@@ -222,7 +215,7 @@ export default function ContactsPage() {
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
-    setSelectedAccount({ id, name: members[0]?.account_holder_name || 'Account holder', members })
+    setSelectedAccount({ id, name: members[0]?.account_holders?.find(holder => holder.account_id === id)?.name || members[0]?.account_holder_name || 'Account holder', members })
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -371,17 +364,6 @@ export default function ContactsPage() {
     }, 4000)
     return () => clearInterval(interval)
   }, [])
-
-  // Cycle AI loading messages
-  useEffect(() => {
-    if (!aiLoading) return
-    let i = 0
-    const interval = setInterval(() => {
-      i = (i + 1) % AI_LOADING_MESSAGES.length
-      setAiMessageIndex(i)
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [aiLoading])
 
   const handleSearch = async () => {
     if (sampleContacts) {
@@ -694,20 +676,6 @@ export default function ContactsPage() {
       )}
 
 
-      {/* AI loading state */}
-      {aiLoading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', gap: spacing.lg, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radius.lg }}>
-          <div style={{
-            width: '28px', height: '28px', border: `2px solid ${colors.borderLight}`,
-            borderTop: `2px solid ${colors.crimson}`, borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite'
-          }} />
-          <p style={{ fontSize: typography.sizeMd, color: colors.textSecondary, margin: 0, fontFamily: typography.fontSans, transition: 'opacity 0.3s' }}>
-            {AI_LOADING_MESSAGES[aiMessageIndex]}
-          </p>
-        </div>
-      )}
-
       {/* Contact table */}
       {(
         <FamilyListTable
@@ -724,7 +692,7 @@ export default function ContactsPage() {
             { id: 'sms', label: 'Text', onClick: () => openComposePanel('sms') },
             { id: 'email', label: 'Email', onClick: () => openComposePanel('email') },
           ]} /> : undefined}
-          beforeTable={<TableResultCount>{loading || aiLoading ? 'Loading contacts…' : `${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</TableResultCount>}
+          beforeTable={loading || aiLoading ? undefined : <TableResultCount>{`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`}</TableResultCount>}
           preferenceState={tablePreferences}
           preferenceSchema={CONTACT_TABLE_SCHEMA}
           displayToolbar={<TablePersonViewToggle variant="segmented" ariaLabel="Contact view" value={contactView} onChange={view => {
@@ -744,9 +712,9 @@ export default function ContactsPage() {
               name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
               subtitle: group.holder ? 'Account holder' : '',
               summaryCells: contactView === 'none' || (!group.holder && !group.members[0].account_id) ? undefined : {
-                students: accountStudentCount(group.members, contacts),
-                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holder_phone) || 'No phone'}</span>,
-                email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holder_email) || ''}</span>,
+                students: group.members.filter(member => member.is_student === true || Boolean(member.student_id)).length,
+                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.phone ?? group.members[0].account_holder_phone) || 'No phone'}</span>,
+                email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.email ?? group.members[0].account_holder_email) || ''}</span>,
               },
               members: contactView === 'family' && (group.holder || group.members.some(member => member.id !== holderPerson?.id)) ? group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
                 id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim(),
@@ -769,7 +737,8 @@ export default function ContactsPage() {
             if (members.some(member => member.account_id)) {
               setSelectedContact(null)
               const source = members.find(member => member.account_id)
-              if (source?.account_id) setSelectedAccount({ id: source.account_id, name: group.name, members: contacts.filter(member => member.account_id === source.account_id && member.tenant_id === source.tenant_id) })
+              const id = group.id.includes('account:') ? group.id.split('account:').pop() : source?.account_id
+              if (id) setSelectedAccount({ id, name: group.name, members: contacts.filter(member => (member.account_id === id || member.linked_account_ids?.includes(id)) && member.tenant_id === source?.tenant_id) })
             } else if (group.parent) {
               setAccountPanelTab('profile')
               setSelectedContact(group.parent)
@@ -821,12 +790,20 @@ export default function ContactsPage() {
         } : { kind: 'student', person: selectedPerson }) : {
           kind: 'account-holder',
           account: { id: selectedAccount!.id, name: selectedAccount!.name,
-            phone: selectedAccount!.members[0]?.account_holder_phone ?? null,
-            email: selectedAccount!.members[0]?.account_holder_email ?? null,
+            phone: selectedAccount!.members[0]?.account_holders?.find(holder => holder.account_id === selectedAccount!.id)?.phone ?? selectedAccount!.members[0]?.account_holder_phone ?? null,
+            email: selectedAccount!.members[0]?.account_holders?.find(holder => holder.account_id === selectedAccount!.id)?.email ?? selectedAccount!.members[0]?.account_holder_email ?? null,
             memberSince: selectedAccount!.members[0]?.account_member_since ?? null },
           students: selectedAccount!.members.filter(member => member.is_student === true || (member.is_student !== false && Boolean(member.student_id))),
         }}
         tenantId={tenantId} capabilities={capabilities}
+        onFamilyChanged={() => { void fetch(`/api/contacts?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store' }).then(async response => {
+          if (!response.ok) return
+          const rows = await response.json()
+          if (!Array.isArray(rows)) return
+          setContacts(rows)
+          setSelectedContact(current => current ? rows.find((row: Contact) => row.id === current.id) || current : current)
+          setSelectedAccount(current => current ? { ...current, members: rows.filter((row: Contact & { linked_account_ids?: string[] }) => row.account_id === current.id || row.linked_account_ids?.includes(current.id)) } : current)
+        }).catch(() => { /* Family panel reports persisted changes; next refresh reloads the roster. */ }) }}
         onOpenStudent={openFamilyPerson}
         accountHolderLink={studentAccount ? studentHolder ? {
           name: `${studentHolder.first_name ?? ''} ${studentHolder.last_name ?? ''}`.trim() || 'Account holder',

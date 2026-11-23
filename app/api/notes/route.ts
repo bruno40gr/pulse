@@ -3,7 +3,6 @@ import { persistMentions, validateMentionMembershipIds } from '@/lib/mentions'
 import { addPrivateNoteParticipants, getPrivateNoteParticipantIds } from '@/lib/note-privacy'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-access'
-import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { validateNoteTask, NoteTaskError } from '@/lib/note-task-access'
 import { bandExistsForNotes, canAccessBandNotes, validateBandNoteRecipients } from '@/lib/band-note-access'
@@ -16,9 +15,7 @@ function isDateValue(value: string | null): value is string {
 
 export async function GET(request: Request) {
   try {
-    const permission = await authorizeTenantRequest(request, { permission: PERMISSIONS.notesRead, allowDemo: true })
-    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID, { permission: PERMISSIONS.notesRead, allowDemo: true })
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const url = new URL(request.url)
@@ -83,9 +80,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const permission = await authorizeTenantRequest(request, { permission: PERMISSIONS.notesManage, allowDemo: true })
-    if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: permission.status })
-    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID)
+    const tenantAccess = await resolveRequestTenant(request, DEFAULT_TENANT_ID, { permission: PERMISSIONS.notesManage, allowDemo: true })
     if (!tenantAccess.ok) return NextResponse.json({ error: tenantAccess.error }, { status: tenantAccess.status })
     const tenantId = tenantAccess.tenantId
     const body = await request.json()

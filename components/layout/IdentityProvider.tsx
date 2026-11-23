@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { getActiveTenantId } from '@/lib/tenant'
+import { clearLegacyContactInsights } from '@/lib/contact-insights-cache'
 
 type Identity = { fullName: string; firstName: string; avatarUrl: string | null; isDemo: boolean }
 type IdentityState = { identity: Identity | null; error: boolean; clearIdentity: () => void }
@@ -15,6 +16,7 @@ export default function IdentityProvider({ children }: { children: React.ReactNo
   const cleared = useRef(false)
 
   useEffect(() => {
+    clearLegacyContactInsights()
     const controller = new AbortController()
     let cancelled = false
     const timeout = window.setTimeout(() => controller.abort(), 10000)

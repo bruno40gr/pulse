@@ -120,6 +120,7 @@ function routeHarness({ denied = false, sendScope = true, failSend = false, mail
     '@/lib/conversations-live': live,
     '@/lib/account-audit': { writeAccountAuditEvent: async () => { calls.push(['audit']); return true } },
     '@/lib/conversations-preview': { isConversationEmailPreview: () => false },
+    '@/lib/communication-recipient-directory': { communicationRecipients: async () => { throw new Error('Unexpected contact routing lookup in legacy mailbox fixtures') } },
   }, { process: { env: {} }, fetch: async (url, options) => { calls.push(['send', url, JSON.parse(options.body)]); return { ok: !failSend, json: async () => ({ id: 'sent-one', threadId: 'thread-one' }) } } })
   const body = { mailboxId: 'mailbox-one', to: [person.id], cc: [], bcc: [], subject: 'Lessons', body: 'Hello', html: '<p>Hello</p>' }
   const request = (patch = {}) => new Request('https://app.example.com/api/conversations/email?tenant=tenant-one', { method: 'POST', body: JSON.stringify({ ...body, ...patch }) })
@@ -361,8 +362,8 @@ test('each person sees their own messages rather than unrelated authors copied o
   assert.ok(result.body.threads.every(thread => thread.messages.length === 1))
 })
 
-test('email reads exclude non-leads and old messages even inside matching threads', async () => {
-  const h = routeHarness({ additionalPeople: [{ id: 'contact', profileType: 'contact', email: 'current@example.com' }], threads: [
+test('email summaries stay lead-scoped while direct contact reads remain authorized and date-bounded', async () => {
+  const h = routeHarness({ additionalPeople: [{ id: 'contact', name: 'Current Contact', profileType: 'contact', email: 'current@example.com' }], threads: [
     { id: 'mixed', messages: [emailMessage('old', { From: 'parent@example.com', To: 'office@example.com' }), emailMessage('current', { From: 'parent@example.com', To: 'office@example.com' })].map((message, index) => ({ ...message, internalDate: String(Date.parse(index ? '2026-10-20T12:00:00Z' : '2026-09-20T12:00:00Z')) })) },
     { id: 'unrelated', messages: [emailMessage('non-lead', { From: 'current@example.com', To: 'office@example.com' })] },
   ] })
@@ -372,7 +373,10 @@ test('email reads exclude non-leads and old messages even inside matching thread
     assert.equal(response.body.threads.length, 1)
     assert.deepEqual(Array.from(response.body.threads[0].messages, message => message.id), ['current'])
   }
-  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=contact'))).status, 404)
+  const direct = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=contact'))
+  assert.equal(direct.status, 200)
+  assert.deepEqual(Array.from(direct.body.threads[0].messages, message => message.id), ['non-lead'])
+  assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=foreign'))).status, 404)
   const older = await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&person=person:one&from=2026-09-01&to=2026-09-30'))
   assert.deepEqual(Array.from(older.body.threads[0].messages, message => message.id), ['old'])
   assert.equal((await h.api.GET(new Request('https://example.com/api/conversations/email?mailbox=mailbox-one&summary=1&from=invalid'))).status, 400)
