@@ -2,7 +2,7 @@
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { colors, radius, shadows, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
 import type { TaskPerson } from '@/lib/note-tasks'
@@ -30,11 +30,12 @@ interface MentionTextareaProps {
   style?: React.CSSProperties
   taskMentions?: boolean
   highlightMentions?: boolean
+  autoGrow?: boolean
   onRelatedPersonMention?: (person: TaskPerson) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
-export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown, taskMentions = false, highlightMentions = false, onRelatedPersonMention }: MentionTextareaProps) {
+export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown, taskMentions = false, highlightMentions = false, autoGrow = false, onRelatedPersonMention }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
   const selectedMentionTokensRef = useRef(new Map<string, string>())
@@ -46,6 +47,26 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
   const [relatedSuggestions, setRelatedSuggestions] = useState<TaskPerson[]>([])
   const [scrollTop, setScrollTop] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!autoGrow || !textarea) return
+    const resize = () => {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight + textarea.offsetHeight - textarea.clientHeight}px`
+    }
+    resize()
+    let width = textarea.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      const nextWidth = textarea.getBoundingClientRect().width
+      if (nextWidth !== width) {
+        width = nextWidth
+        resize()
+      }
+    })
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [autoGrow, value])
 
   const close = () => {
     setOpen(false)
@@ -194,7 +215,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
         onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
-        style={{ ...textStyle, position: 'relative', caretColor: colors.text }}
+        style={{ ...textStyle, position: 'relative', caretColor: colors.text, ...(autoGrow ? { overflowY: 'hidden', resize: 'none' } : {}) }}
       />
       {open && suggestions.length + relatedSuggestions.length > 0 && (
         <div
