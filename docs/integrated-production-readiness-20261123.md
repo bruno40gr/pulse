@@ -49,6 +49,43 @@ November 23, 2026 (Pacific). Local changes only; not production acceptance.
 
 ## Workspace provisioning decision
 
+### Read-only inventory and default-off boundary (continuation)
+
+- Production catalog inspection found no academy workspace relation or either
+  save-RPC signature. Its 31 recorded migrations include none of the three exact
+  workspace versions and no academy/workspace-named entry. The ledger is not a
+  complete schema authority: actual relation/function inspection is required.
+- Among 324 enrollments not ended by either status, zero have a populated lesson
+  day, seven have a time and 221 have duration. Checking native fields and legacy
+  JSON fallbacks still yields zero rows with day/time/duration together. The
+  current enrollment JSON keys contain no start/end/room/location fields.
+- Eight band profiles have neither schedule text nor coach IDs. `roster_snapshots`
+  records active-roster observations, not lesson occurrences. The inspected public
+  relation inventory has no standalone lesson/booking/room/location tables.
+  This does not prove the school has no commitments; an external authoritative
+  schedule may be necessary. Do not construct availability validation from these
+  incomplete fields or parse plan labels into invented assignments.
+- Operational work-profile editing now defaults **off** in both UI and API.
+  `NEXT_PUBLIC_ENABLE_STAFF_WORK_PROFILE=true` is an explicit build-time opt-in;
+  `ENABLE_STAFF_WORK_PROFILE=false` is a server-side veto. Leave the public flag
+  absent/false for the proposed bounded release. Server-only opt-in does not
+  enable the client. Client flags cannot override API denial. No hosting
+  configuration has been changed. Enablement requires separate approval after
+  authoritative scheduling reconciliation, not merely installation of storage.
+- Disabled deep links do not open the editor; disabled GET/PUT return 503 before
+  database access. Existing Staff contact/roster functions remain available.
+- Synthetic browser checks at 1440px and 390px confirm the operational Staff
+  roster and contact panel remain usable with the work-profile action absent;
+  legacy deep links trigger no work-profile fetch. All API requests are intercepted
+  and all network writes denied. No production browser session is claimed.
+
+**Recommended bounded release scope:** retain the reconciled contact readers and
+other reviewed integrated changes, but defer operational work-profile enablement,
+workspace schema/provisioning and subscription imports. Leaving the new workspace
+DDL unapplied is safe only while no approved live path requires its RPC; review
+Beta tenant-save exposure and deployment configuration before promotion. This is
+a recommendation, not approval or a claim that the full integrated diff is reviewed.
+
 Do not provision by copying `createDemoWorkspace`, importing customer identities
 into staging, matching names, or assigning default qualifications/hours. Do not
 silently create a workspace when Staff opens. Production currently lacks the
@@ -94,13 +131,19 @@ calendar merely because a workspace table exists.
 
 ## Validation
 
-- 1,150 security tests pass; TypeScript passes; targeted ESLint has zero errors
-  and two unused-variable warnings in the Contacts page.
+- 1,152 security tests pass; TypeScript passes; targeted release-gate ESLint has
+  zero errors and one existing Staff-page hook dependency warning. Earlier
+  Contacts lint reported two unused-variable warnings.
 - PostgreSQL rehearsal passes in a network-isolated disposable container, which
   is removed afterward. No production credentials or data enter that container.
 - Evidence: `/private/tmp/pulse-workspace-policy-{suite,tests,types,lint,postgres}.log`.
 - Reader evidence: `/private/tmp/pulse-subscription-reader-{suite,types,lint,browser}.log`
   and `/private/tmp/pulse-subscription-parity-tests.log`.
+- Gate evidence: `/private/tmp/pulse-staff-release-gate-{suite,tests,types,lint,browser}.log`.
+- `/private/tmp/pulse-workspace-rollback-postgres.log` additionally proves synthetic
+  rollback to the prior active-only four-argument RPC and re-upgrade preserve rows,
+  revisions, ACLs and intervening writes. This does not rehearse actual production
+  backup restoration, deployment aliases, or legacy-user availability on rollback.
 
 No production migration, provisioning, promotion, configuration change or write
 test has been performed. `main` has not been touched. Persistent staging and

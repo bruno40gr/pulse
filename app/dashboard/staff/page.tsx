@@ -11,6 +11,7 @@ import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { STAFF_TABLE_SCHEMA } from '@/lib/staff-table-preferences'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import StaffWorkProfileDialog from '@/components/contacts/StaffWorkProfileDialog'
+import { staffWorkProfileEnabled } from '@/lib/staff-work-profile-feature'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
 import { colors, typography, spacing, radius } from '@/lib/tokens'
@@ -45,7 +46,7 @@ export default function StaffPage() {
   const [workProfilePersonId, setWorkProfilePersonId] = useState<string | null>(null)
   useEffect(() => {
     const person = new URLSearchParams(window.location.search).get('person')
-    if (person) setWorkProfilePersonId(person)
+    if (person && staffWorkProfileEnabled()) setWorkProfilePersonId(person)
   }, [])
   const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
@@ -231,7 +232,7 @@ export default function StaffPage() {
           key={selectedContact.id}
           contact={selectedContact}
           tenantFields={tenantFields}
-          onManageWorkProfile={tenantId ? () => setWorkProfilePersonId(selectedContact.id) : undefined}
+          onManageWorkProfile={tenantId && staffWorkProfileEnabled() ? () => setWorkProfilePersonId(selectedContact.id) : undefined}
           onClose={contactHistory.closePanel}
           onCompose={(ids) => {
             if (ids.length === 1 && selectedContact) {
@@ -247,7 +248,7 @@ export default function StaffPage() {
         />
       )}
 
-      {workProfilePersonId && tenantId && <StaffWorkProfileDialog key={`${tenantId}:${workProfilePersonId}`} tenantId={tenantId} personId={workProfilePersonId} onClose={() => setWorkProfilePersonId(null)} />}
+      {staffWorkProfileEnabled() && workProfilePersonId && tenantId && <StaffWorkProfileDialog key={`${tenantId}:${workProfilePersonId}`} tenantId={tenantId} personId={workProfilePersonId} onClose={() => setWorkProfilePersonId(null)} />}
       {composeContact && (
         <SlidePanel isOpen={true} onClose={() => setComposeContact(null)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
           <SlidePanelHeader

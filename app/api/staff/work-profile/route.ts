@@ -5,8 +5,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { validAcademyWorkspace, type AcademyWorkspaceState } from '@/beta-source/lib/academy-workspace-storage'
 import { workProfileForStaff, workProfileValuesError } from '@/lib/staff-work-profile-record'
 import { PUT as saveWorkspace } from '@/app/api/academy/workspace/route'
+import { staffWorkProfileEnabled } from '@/lib/staff-work-profile-feature'
 
 async function load(request: Request, manage: boolean) {
+  if (!staffWorkProfileEnabled()) return { response: NextResponse.json({ error: 'Staff qualifications and availability editing is not enabled for this release.' }, { status: 503 }) }
   const access = await authorizeTenantRequest(request, { permission: manage ? PERMISSIONS.staffManage : PERMISSIONS.staffRead, allowDemo: false })
   if (!access.ok) return { response: NextResponse.json({ error: access.error }, { status: access.status }) }
   const personId = new URL(request.url).searchParams.get('person') || ''

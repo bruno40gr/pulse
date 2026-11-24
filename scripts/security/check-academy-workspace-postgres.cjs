@@ -73,6 +73,21 @@ function concurrent(text) {
     sql(`UPDATE public.tenant_memberships SET legacy_access_enabled=false WHERE id='${id(5)}';`)
     assert.throws(() => sql(call(5,'legacy')),/Command failed/)
     assert.equal(Number(sql('SELECT revision FROM public.academy_workspaces;')),revision)
+    // Application rollback needs its matching RPC. Rehearse without dropping data:
+    // restore the active-only four-argument function, then re-upgrade in place.
+    const beforeRollback = sql('SELECT row_to_json(w) FROM public.academy_workspaces w;')
+    const priorFunction = readFileSync(resolve(__dirname, '../../supabase/migrations/202611230002_academy_workspace_actor_validation.sql'), 'utf8')
+    sql(`BEGIN; DROP FUNCTION public.save_academy_workspace(uuid,uuid,bigint,jsonb,text);\n${priorFunction.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '')}\nCOMMIT;`)
+    assert.equal(sql('SELECT row_to_json(w) FROM public.academy_workspaces w;'),beforeRollback)
+    assert.equal(sql("SELECT to_regprocedure('public.save_academy_workspace(uuid,uuid,bigint,jsonb,text)') IS NULL;"),'t')
+    assert.equal(sql("SELECT has_function_privilege('authenticated','public.save_academy_workspace(uuid,uuid,bigint,jsonb)','EXECUTE');"),'f')
+    assert.equal(JSON.parse(sql(`SET ROLE service_role; SELECT public.save_academy_workspace('${id(1)}','${id(3)}',${revision},'{"rollbackWriter":true}');`).split('\n').at(-1)).revision,++revision)
+    const afterRollbackWrite = sql('SELECT row_to_json(w) FROM public.academy_workspaces w;')
+    sql(readFileSync(resolve(__dirname, '../../supabase/migrations/202611230003_academy_workspace_auth_source.sql'), 'utf8'))
+    assert.equal(sql('SELECT row_to_json(w) FROM public.academy_workspaces w;'),afterRollbackWrite)
+    assert.equal(JSON.parse(sql(call(3,'supabase',revision-1))).conflict,true)
+    assert.equal(sql("SELECT state->>'rollbackWriter' FROM public.academy_workspaces;"),'true')
+    console.log('PASS: matching-RPC rollback and re-upgrade preserve rows, revisions, ACL and intervening writes')
     console.log('PASS: historical upgrade, auth-source policy, retired-legacy/suspended/deactivated/foreign denial, service-only ACL, concurrent CAS and persisted revisions')
   } finally { if (created) run(['rm', '--force', name]) }
 })().catch(error => { console.error(error); process.exitCode = 1 })

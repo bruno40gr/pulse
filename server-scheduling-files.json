@@ -53,7 +53,7 @@
   },
   {
     "path": "scripts/security/check-academy-workspace-postgres.cjs",
-    "sha256": "1a2045400ce15f1cc278ba138c3414af2e76cbd7c35bf2f297b2ebc22aafe703"
+    "sha256": "e92180442bf0de2b27ce15c184fd213163c636c4c8e0b2257dbebfc05fa27a65"
   },
   {
     "path": "supabase/migrations/202611140001_academy_workspace.sql",
@@ -113,7 +113,7 @@
   },
   {
     "path": "app/dashboard/staff/page.tsx",
-    "sha256": "5903f89fbea5fa6a50558075031b053a6a2252ae899ca6cbb91be9d0c0fd9760"
+    "sha256": "e6921aa32de617ad3d1130e71c94b2c14e0067388af3e0fa4908e02e6ede67a9"
   },
   {
     "path": "components/contacts/ContactSlidePanel.tsx",
@@ -125,7 +125,7 @@
   },
   {
     "path": "docs/school-setup-and-staff.md",
-    "sha256": "1d25a1f304ffaf017c5eaa1886bbde0ffe5dafeb2dbcb421957fcad531b0dd26"
+    "sha256": "66a79012ba974ca4d04415958a015f94629720226c610fa6b6553c3c58363d8d"
   },
   {
     "path": "docs/scheduling-foundation-promotion.md",
@@ -169,7 +169,7 @@
   },
   {
     "path": "app/api/staff/work-profile/route.ts",
-    "sha256": "19847973a59262cf1850ba45c39e6662fcec67cfeb2b7d3dc409a3008d77f1c3"
+    "sha256": "14bd9c77822c7bb444057bc995cbf6b74d7d5f96b61b91b78af6432e9d7f0b52"
   },
   {
     "path": "components/contacts/StaffWorkProfileDialog.tsx",
@@ -181,7 +181,7 @@
   },
   {
     "path": "scripts/security/operational-staff-work-profile.test.cjs",
-    "sha256": "224f2846225bc6af6becaeb383354d6c7f04627aafc3d31decfa1a23bf29ff16"
+    "sha256": "246f133838d598b9902131d2638c3f054eb32d2d08f31e5508abb028fd675de4"
   },
   {
     "path": "beta-source/lib/useDialogLayer.ts",
@@ -202,5 +202,17 @@
   {
     "path": "scripts/security/subscription-cards-browser.cjs",
     "sha256": "f2bee98a0a3f20513870b2f2b7acffd7c5f6a0d2eae620ff39058cd02d0276de"
+  },
+  {
+    "path": "lib/staff-work-profile-feature.ts",
+    "sha256": "042361c1aab15367f94b369a9999f660a12bfc31a3e3e2faa49a83e0aae84ffc"
+  },
+  {
+    "path": "scripts/security/staff-work-profile-feature.test.cjs",
+    "sha256": "d67439f87775dbba206b5506ae36142532d4b802e2ed257ceaa9b25dcbb60d77"
+  },
+  {
+    "path": "scripts/security/staff-release-gate-browser.cjs",
+    "sha256": "50203b6023489472e70fb6a4ef5201d5b2fdf7f3823533f150c93e6a8c737c5b"
   }
 ]

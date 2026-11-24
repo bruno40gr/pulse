@@ -56,6 +56,11 @@ API. Legacy live prototype links redirect to operational Staff. The older
 Missing workspace storage still fails closed. See
 `integrated-production-readiness-20261123.md` for provisioning constraints.
 
+Operational editing is default-off pending authoritative real-school scheduling
+reconciliation. The public build flag `NEXT_PUBLIC_ENABLE_STAFF_WORK_PROFILE`
+requires explicit `true`; the server flag `ENABLE_STAFF_WORK_PROFILE=false` vetoes
+API access. Do not enable these under an approval to continue development.
+
 The operational `/dashboard/staff` contact panel links into the existing
 tenant-workspace Staff work-profile experience. It requires a unique, explicit
 `teacher.values.personId` match. Never match live people by name, assume a contact

@@ -2,8 +2,11 @@
 
 Continuation: `docs/integrated-production-readiness-20261123.md` records the
 local auth-source migration, duration reader fix, isolated PostgreSQL rehearsal,
-1,150 passing tests, list/detail/PATCH subscription parity, synthetic desktop/mobile
-card rendering and remaining provisioning/production-rendering/recovery blockers.
+1,152 passing tests, list/detail/PATCH subscription parity, synthetic desktop/mobile
+card rendering, default-off operational work-profile gate and isolated RPC rollback.
+Production scheduling lacks enough assignment data to provision safely. Operational
+editing and workspace DDL/provisioning are recommended for deferral; authenticated
+production rendering and complete integrated deployment/recovery review remain open.
 It is not authorization to migrate or promote production.
 
 ## Current decision and repair status — November 23 Pacific / November 24 UTC

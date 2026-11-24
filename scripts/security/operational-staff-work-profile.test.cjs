@@ -8,7 +8,7 @@ const person = '10000000-0000-0000-0000-000000000001'
 const other = '10000000-0000-0000-0000-000000000002'
 const state = () => ({ snapshot: { data: { students: [], accounts: [], lessons: [] }, makeups: { items: [], absences: [] } }, setup: { teachers: [], locations: [], services: [], policies: [] } })
 function scenario(permissions = ['staff.read', 'staff.manage']) {
-  return { authUser: { id: 'auth' }, fixtures: {
+  return { env: { NEXT_PUBLIC_ENABLE_STAFF_WORK_PROFILE: 'true' }, authUser: { id: 'auth' }, fixtures: {
     tenant_memberships: [{ id: 'member', tenant_id: HEAD, person_id: person, auth_user_id: 'auth', role_id: 'role', status: 'active' }],
     roles: [{ id: 'role', tenant_id: HEAD, key: 'admin' }],
     role_permissions: permissions.map((_, i) => ({ role_id: 'role', permission_id: String(i) })), permissions: permissions.map((key, i) => ({ id: String(i), key })), tenants: [{ id: HEAD }],
@@ -67,8 +67,8 @@ test('availability saves atomically without replacing Staff, contact identities 
   assert.ok(!h.getWrites().some(q => ['people', 'instructors'].includes(q.table)))
 })
 test('missing staff, ambiguous and legacy links, stale revisions and unauthorized writes fail closed', async () => {
-  const h = createHarness(), route = h.load('app/api/staff/work-profile/route.ts')
-  h.setScenario({}); assert.equal((await route.GET(request())).status, 401)
+  const h = createHarness(); h.setScenario(scenario()); const route = h.load('app/api/staff/work-profile/route.ts')
+  h.setScenario({ env: { NEXT_PUBLIC_ENABLE_STAFF_WORK_PROFILE: 'true' } }); assert.equal((await route.GET(request())).status, 401)
   h.setScenario(scenario()); assert.equal((await route.GET(request(undefined, other))).status, 404)
   let base = scenario(); base.fixtures.academy_workspaces[0].state.setup.teachers = [{ id: 'legacy', values: { name: 'Existing Staff' } }]
   h.setScenario(base); assert.equal((await route.GET(request())).status, 409)
