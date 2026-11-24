@@ -96,7 +96,7 @@ function NoteCard(props: NoteCardProps) {
   return <div className={styles.sticky} ref={root} onBlur={event => {
     if (editing && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) props.onSaveEdit()
   }} onClick={() => { if (!editing && !props.readOnly) props.onStartEdit() }}
-    style={{ width: '100%', maxWidth: 390, minHeight: 300, maxHeight: editing ? undefined : 460, boxSizing: 'border-box', overflowY: editing ? 'visible' : 'hidden', background: bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
+    style={{ width: '100%', maxWidth: 390, minHeight: 300, boxSizing: 'border-box', background: bg, transition: 'background 140ms ease', border: `1px solid ${colors.borderLight}`, borderRadius: radius.xl, boxShadow: shadows.sm, padding: spacing.lg, display: 'flex', flexDirection: 'column', cursor: 'text' }}>
     <div onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
       {!props.readOnly && <ControlButton kind="icon" type="button" selected={note.pinned} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={props.onPin}><Pin size={16} fill={note.pinned ? 'currentColor' : 'none'} /></ControlButton>}
       <div style={{ flex: 1 }} />
@@ -109,7 +109,7 @@ function NoteCard(props: NoteCardProps) {
         <MentionTextarea autoGrow taskMentions highlightMentions onRelatedPersonMention={props.onRelatedPersonMention} value={props.editBody} onChange={props.onEditBody} mentionMembershipIds={props.editMentionIds} onMentionMembershipIdsChange={props.onEditMentionIds} placeholder="Take a note…" style={{ ...plainInput, fontSize: 14, lineHeight: 1.5, minHeight: 130, resize: 'vertical' }} />
       </> : <div tabIndex={props.readOnly ? undefined : 0} role={props.readOnly ? undefined : 'button'} aria-label={props.readOnly ? undefined : `Edit ${note.title || 'note'}`} onKeyDown={event => { if (!props.readOnly && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); props.onStartEdit() } }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, whiteSpace: 'pre-wrap' }}>{note.title}</div>
-        <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 10, overflow: 'hidden' }}><NoteBody body={note.body} /></div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}><NoteBody body={note.body} /></div>
       </div>}
     </div>
     {note.follow_up && <div onClick={event => event.stopPropagation()} style={{ marginTop: spacing.lg }}>
