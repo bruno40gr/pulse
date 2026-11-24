@@ -17,16 +17,17 @@ import SchedulingRules from './SchedulingRules'
 type Assignment = { serviceId: string; maxLevel: number }
 function parse<T>(value: string, fallback: T): T { try { return JSON.parse(value) as T } catch { return fallback } }
 
-export default function TeacherEditor({ values, services, locations, levels, onChange, bookingDefaults }: {
+export default function TeacherEditor({ values, services, locations, levels, onChange, bookingDefaults, workOnly = false }: {
   values: Record<string, string>; services: SetupRecord[]; locations: SetupRecord[]; levels: Record<string, string>
   onChange: (values: Record<string, string>) => void
   bookingDefaults?: Record<string, string>
+  workOnly?: boolean
 }) {
   const assignments = parse<Assignment[]>(values.assignments, [{ serviceId: values.service, maxLevel: Math.max(1, selection(values.levelIds).length) }])
   const setAssignments = (next: Assignment[]) => onChange({ ...values, assignments: JSON.stringify(next), service: next[0]?.serviceId || '', levelIds: JSON.stringify(Object.keys(levels).slice(0, Math.max(0, ...next.map(item => item.maxLevel)))) })
   const theme = { '--teacher-border': colors.border, '--teacher-muted': colors.textSecondary, '--teacher-accent': colors.link, '--teacher-surface': colors.surfaceMuted, '--teacher-radius': radius.sm, '--teacher-gap': spacing.lg, '--teacher-small': typography.sizeSm } as CSSProperties
   return <div style={theme} className={styles.editor}>
-    <DenseSectionPanel title="Contact details" headingLevel="h2" contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
+    {!workOnly && <DenseSectionPanel title="Contact details" headingLevel="h2" contentStyle={{ display: 'grid', gap: spacing['2xl'] }}>
     <TeacherPhoto value={values.photo || ''} onChange={photo => onChange({ ...values, photo })} />
     <FieldGrid>
       <Input label="Teacher name" required value={values.name} onChange={event => onChange({ ...values, name: event.target.value })} />
@@ -36,8 +37,8 @@ export default function TeacherEditor({ values, services, locations, levels, onC
       <Input label="Teacher email" type="email" required value={values.email || ''} onChange={event => onChange({ ...values, email: event.target.value })} />
       <Input label="Teacher phone" type="tel" required value={values.phone || ''} onChange={event => onChange({ ...values, phone: event.target.value })} />
     </FieldGrid>
+    </DenseSectionPanel>}
     <FieldGrid columns={1}><StudentMultiSelect label="Locations" ariaLabel="Teacher locations" value={values.locationIds ? selection(values.locationIds).join(', ') : values.location || ''} options={locations.map(location => ({ value: location.id, label: location.values.name }))} onChange={value => { const ids = value.split(',').map(id => id.trim()).filter(Boolean); onChange({ ...values, locationIds: JSON.stringify(ids), location: ids[0] || '' }) }} /></FieldGrid>
-    </DenseSectionPanel>
     <DenseSectionPanel title="Teaching assignments" headingLevel="h2">
     <div className={styles.assignmentHeader}><span /><strong>Level</strong></div>
     {services.map(service => {

@@ -1,5 +1,91 @@
 # Integrated release checkpoint — November 23, 2026
 
+## Current decision and repair status — November 23 Pacific / November 24 UTC
+
+The agreed workflow is now `docs/staging-and-release-workflow.md`. It supersedes
+blanket hosted-staging/Preview acceptance requirements below, not the production
+compatibility, authorization, migration, backup or rollback gates. Stop rebuilding
+staging or asking Bruno to debug a fictional school. No production promotion is
+authorized by this decision.
+
+### Staff repair on the existing release line
+
+- Operational Staff now opens a work-profile dialog in place, not a separate
+  prototype directory. Profiles use the existing instructor/person identity;
+  reads do not create data. Unlinked legacy/duplicate profiles fail explicitly.
+- Narrow work-profile saves reuse tenant permissions, scheduling validation and
+  revision-checked workspace persistence; contact identity fields cannot change.
+- Sample Staff follows updated input data. Beta/operational dialogs share the
+  canonical dialog stack, avoiding nested focus/inertness conflicts.
+- Earlier staging-connected local browser evidence: save returned HTTP 200,
+  revision 4; fresh desktop (1440px) and mobile (390px) pages reopened saved Monday
+  10:00–11:00 availability, retained all five operational Staff entries, supported
+  nested dialogs, and had no page overflow. This is limited staging persistence
+  evidence, **not production acceptance**. It preceded the workflow decision.
+- The first save browser script stopped on an ambiguous Close selector after
+  saving; a separate scoped-selector desktop/mobile reopen check passed.
+- Evidence: `/private/tmp/pulse-staff-persisted-check.log`,
+  `/private/tmp/pulse-staff-reopen-check.log`,
+  `/private/tmp/pulse-staff-reopen-{1440,390}.png`.
+- Last complete local suite: 1,144 passing tests. New route coverage includes
+  identity protection, permissions, stale revision/CAS and preserving colleagues.
+  These tests do not establish production schema availability.
+- Final follow-up: TypeScript and targeted lint passed; refreshed manifest hashes
+  verify 47 files. Read-only browser reruns at 1440px and 390px passed after the
+  header save action change. All API writes were intercepted/denied; the unrelated
+  account-claim reminder GET was locally suppressed so it did not cover the Staff
+  dialog. No claim/account state changed. Evidence:
+  `/private/tmp/pulse-staff-final-readonly-browser.log` and
+  `/private/tmp/pulse-staff-repair-{suite,types,lint}.log`.
+
+### Enforced read-only production compatibility findings
+
+Inspected the explicitly targeted production project `jbrntsxmibfldocsuslt` using
+the Supabase read-only query endpoint (no service-key substitution). School tenant
+`00000000-0000-0000-0000-000000000001`:
+
+- `public.academy_workspaces` and
+  `public.save_academy_workspace(uuid,uuid,bigint,jsonb)` are absent.
+  The Staff work-profile repair cannot be enabled as working production editing
+  without a reviewed schema/provisioning plan. Do not deploy an exposed dead end.
+- Production has 523 enrollment rows, 331 with active/pending status; 221 rows
+  have source subscription IDs across 186 students. Source-linked rows have zero
+  unresolved teacher identities and zero references to former staff. These are
+  aggregate identity checks, not browser/rendering or complete source reconciliation.
+- All 22 instructor rows have person links, with 22 distinct people.
+- Memberships include 9 active (legacy disabled), 2 invited (legacy enabled),
+  and 7 unclaimed (legacy enabled). The existing API allows eligible legacy
+  invited/unclaimed sessions, while the proposed forward SQL requires active
+  membership. Resolve this policy mismatch before release; do not reset accounts
+  or silently mark memberships active to make a test pass.
+- Production enrollments expose both `instructor_id` and
+  `instructor_person_id`. Schema/data compatibility must use explicit identities,
+  not assume these references are interchangeable.
+
+No production writes, deployments, migrations, imports, authentication changes or
+configuration changes were performed. Staging's zero subscriptions are not a
+production data repair requirement. The next release work is exact schema/actor
+policy/provisioning review, real subscription-reader verification and bounded
+promotion/rollback preparation—not staging reconstruction.
+
+### Remaining bounded release work (not promotion approval)
+
+1. Review the complete integrated diff; do not mistake this repair checkpoint for
+   approval of all accumulated UI/subscription/communications changes.
+2. Specify provisioning for a school with no workspace: real existing instructor
+   identities, no sample records or guessed qualifications/hours, exact additive
+   schema order and preservation of existing normalized subscriptions. Until this
+   is implemented and verified, do not expose work-profile editing in production.
+3. Reconcile database actor checks with the approved API's personal/legacy policy.
+   Preserve tenant and legacy-enabled restrictions; rehearse rejection of disabled,
+   suspended, deactivated and foreign actors in an isolated database. Do not loosen
+   authentication or change users merely to pass acceptance.
+4. Verify the production subscription reader against current row contracts and
+   review real rendering through approved read-only access. Aggregate counts alone
+   do not verify contact cards or promise that every legacy active row is current.
+5. Present exact deployment/migration scope and recovery plan for explicit approval.
+   No main merge, production push, migration or hosting change is authorized yet.
+
 ## Scope and release boundary
 
 Review branch: `release/integrated-staff-subscriptions-20261123`.

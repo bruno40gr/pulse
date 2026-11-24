@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useEffect, useId, useRef, useState } from 'react'
-import { isTopDialog, registerDialog } from '@/beta-source/lib/dialog-stack'
+import { isTopDialog, registerDialog } from '@/lib/dialog-stack'
 
 export const DialogTitleContext = createContext<string | undefined>(undefined)
 

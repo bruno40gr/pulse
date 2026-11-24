@@ -46,6 +46,7 @@ import { saveCalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 import { loadLocalAcademyWorkspace, saveLocalAcademyWorkspace, validAcademyWorkspace, readAcademyWorkspaceResponse, type AcademyWorkspaceState } from '@/beta-source/lib/academy-workspace-storage'
 import { Notice } from '@/components/ui/Notice'
 import { Button } from '@/components/ui/Button'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 export default function DemoWorkspace({ onboarding = false, bandReview }: { onboarding?: boolean; bandReview?: import('@/lib/band-review-data').BandReviewData }) {
   const params = useSearchParams()
   const router = useRouter()
@@ -58,6 +59,12 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const [workProfile, setWorkProfile] = useState<SetupRecord | null>(null)
   const [bookingEntry, setBookingEntry] = useState<BookingPrefill | null>(null)
   const tenant = params.get('tenant') || ''
+  const liveStaff = Boolean(tenant && params.get('screen') === 'staff')
+  useEffect(() => {
+    if (!liveStaff) return
+    const person = params.get('person')
+    router.replace(`/dashboard/staff${person ? `?person=${encodeURIComponent(person)}` : ''}`)
+  }, [liveStaff, params, router])
   const [storageError, setStorageError] = useState('')
   const blockedSave = useRef(false)
   const revision = useRef(0)
@@ -67,6 +74,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const [saveStatus, setSaveStatus] = useState('')
   useEffect(() => {
     let cancelled = false
+    if (liveStaff) return
     blockedSave.current = false
     setReady(false)
     setStorageError('')
@@ -102,9 +110,9 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     }
     void load()
     return () => { cancelled = true }
-  }, [tenant])
+  }, [tenant, liveStaff])
   useEffect(() => {
-    if (!ready || blockedSave.current) return
+    if (!ready || liveStaff || blockedSave.current) return
     const state = { snapshot, setup }
     if (!tenant) {
       try { saveLocalAcademyWorkspace(localStorage, state); setSaveStatus('') }
@@ -133,7 +141,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
       finally { saving.current = false }
     }
     void flush()
-  }, [snapshot, setup, ready, tenant])
+  }, [snapshot, setup, ready, tenant, liveStaff])
   const onChange = useCallback((data: FamilyPreviewData, makeups: MakeupPreviewState) => setSnapshot({ data, makeups }), [])
   const onSetup = useCallback((data: Record<string, SetupRecord[]>) => setSetup(data), [])
   const parent = params.get('view') === 'parent', staff = params.get('screen') === 'staff'
@@ -214,7 +222,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   }, [teacherIdForName, queue.academy.groups, queue.state.events, snapshot.data, setup])
   const [enrollmentFocused, setEnrollmentFocused] = useState(false)
   const enrollmentAvailability = useMemo(() => calendarEnrollmentAvailability({ data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }, queue.state.events), [snapshot.data, setup, queue.academy.groups, queue.state.events])
-  if (!ready) return null
+  if (!ready || liveStaff) return <LoadingSkeleton label="Loading school workspace" />
   const bookingContext = { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }
   const closeWorkProfile = () => { setWorkProfile(null); if (params.has('person')) { const next = new URLSearchParams(params.toString()); next.delete('person'); router.replace(`/odeon-demo?${next}`) } }
   const workToday = tenant ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) : betaPreviewToday

@@ -51,7 +51,11 @@ export default function StaffPage({ sampleStaff, onOpenSample, onAddStaff }: { s
   })
 
   useEffect(() => {
-    if (sampleStaff) return
+    if (sampleStaff) {
+      setStaff(sampleStaff)
+      setLoading(false)
+      return
+    }
     fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json())
       .then(data => {
         const list = (Array.isArray(data) ? data : []).filter((s: StaffMember) => s.is_active !== false)

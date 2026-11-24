@@ -10,6 +10,7 @@ import { RichDataTable } from '@/components/ui/RichDataTable'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { STAFF_TABLE_SCHEMA } from '@/lib/staff-table-preferences'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import StaffWorkProfileDialog from '@/components/contacts/StaffWorkProfileDialog'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
 import { colors, typography, spacing, radius } from '@/lib/tokens'
@@ -41,6 +42,11 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedContact, setSelectedContact] = useState<ContactPanelContact | null>(null)
+  const [workProfilePersonId, setWorkProfilePersonId] = useState<string | null>(null)
+  useEffect(() => {
+    const person = new URLSearchParams(window.location.search).get('person')
+    if (person) setWorkProfilePersonId(person)
+  }, [])
   const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
   const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
@@ -225,7 +231,7 @@ export default function StaffPage() {
           key={selectedContact.id}
           contact={selectedContact}
           tenantFields={tenantFields}
-          onManageWorkProfile={tenantId ? () => window.location.assign(`/odeon-demo?screen=staff&tenant=${encodeURIComponent(tenantId)}&person=${encodeURIComponent(selectedContact.id)}`) : undefined}
+          onManageWorkProfile={tenantId ? () => setWorkProfilePersonId(selectedContact.id) : undefined}
           onClose={contactHistory.closePanel}
           onCompose={(ids) => {
             if (ids.length === 1 && selectedContact) {
@@ -241,6 +247,7 @@ export default function StaffPage() {
         />
       )}
 
+      {workProfilePersonId && tenantId && <StaffWorkProfileDialog key={`${tenantId}:${workProfilePersonId}`} tenantId={tenantId} personId={workProfilePersonId} onClose={() => setWorkProfilePersonId(null)} />}
       {composeContact && (
         <SlidePanel isOpen={true} onClose={() => setComposeContact(null)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
           <SlidePanelHeader

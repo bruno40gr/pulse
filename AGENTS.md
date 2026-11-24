@@ -6,6 +6,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Branch and worktree rules
 
+- Follow `docs/staging-and-release-workflow.md`: persistent staging and manual
+  Preview acceptance are not blanket release gates. Use enforced read-only
+  production compatibility checks and targeted isolated rehearsals where needed;
+  production promotion and write tests still require explicit approval.
+
 - Follow `docs/branch-and-worktree-rules.md`. One worktree per active line, no
   micro branches, merge and delete together, and `main` stays pushed.
 - Never delete a branch or worktree before the backup + recovery drill in that

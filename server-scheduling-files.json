@@ -29,7 +29,7 @@
   },
   {
     "path": "beta-source/app/content-studio-prototype/school-setup/TeacherEditor.tsx",
-    "sha256": "1ee4b8e9e3bd5f41823791c4aa857a2167499936d67ac3cffc8e2b69369887c8"
+    "sha256": "3ec7d2230244e0169bba1fcefda097e3eda30193035fec823a3040132d15bdca"
   },
   {
     "path": "beta-source/app/odeon-demo/AcademyCalendar.tsx",
@@ -97,7 +97,7 @@
   },
   {
     "path": "beta-source/app/dashboard/staff/StaffView.tsx",
-    "sha256": "fd877b85a953b5becba28955c74c3bef94595e2cfe11918d6ed46c35af374fb8"
+    "sha256": "adccc51f90de9c817aca6b4ef13e5a06abdad45b9b1651a74cf9e975bebf27dd"
   },
   {
     "path": "beta-source/components/contacts/StaffSlidePanel.tsx",
@@ -113,7 +113,7 @@
   },
   {
     "path": "app/dashboard/staff/page.tsx",
-    "sha256": "940b7c254ea31d8ed0e83f3bcac7bad053a2f7c276541ce93987f1538822316d"
+    "sha256": "5903f89fbea5fa6a50558075031b053a6a2252ae899ca6cbb91be9d0c0fd9760"
   },
   {
     "path": "components/contacts/ContactSlidePanel.tsx",
@@ -141,7 +141,7 @@
   },
   {
     "path": "beta-source/app/odeon-demo/DemoWorkspace.tsx",
-    "sha256": "da0d98c61ef4837bc3ecbe2d46d2782a17ef8d86c650b23058b9f9b54e50cf28"
+    "sha256": "2cd017ee4dde0e782545097ef8c52e526c0fabd6d167116fb5ff79b8b555dc35"
   },
   {
     "path": "beta-source/lib/academy-reschedule-availability.ts",
@@ -166,5 +166,25 @@
   {
     "path": "supabase/migrations/202611230002_academy_workspace_actor_validation.sql",
     "sha256": "f352f500affadcbbdd58cc5fe4c60f27a142deadfa442bfe391c79cf4e550f52"
+  },
+  {
+    "path": "app/api/staff/work-profile/route.ts",
+    "sha256": "19847973a59262cf1850ba45c39e6662fcec67cfeb2b7d3dc409a3008d77f1c3"
+  },
+  {
+    "path": "components/contacts/StaffWorkProfileDialog.tsx",
+    "sha256": "35e66a55ad9eb9ccb3627dc26d728ef530eec4656f986c4bfc3f86bfbc009744"
+  },
+  {
+    "path": "lib/staff-work-profile-record.ts",
+    "sha256": "ddde6c61d303cf751fe8314ad51d2ae3e6b621c5b7690ef957076e83eea34092"
+  },
+  {
+    "path": "scripts/security/operational-staff-work-profile.test.cjs",
+    "sha256": "224f2846225bc6af6becaeb383354d6c7f04627aafc3d31decfa1a23bf29ff16"
+  },
+  {
+    "path": "beta-source/lib/useDialogLayer.ts",
+    "sha256": "05c9d92d3764ffd4cbb78fa288b87f73f6c958915580f2cd87c334f46bcd7be8"
   }
 ]
