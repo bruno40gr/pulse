@@ -26,11 +26,11 @@ function concurrent(text) {
     for (let n = 0; n < 50; n++) {
       try { run(['exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres']); break } catch { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100) }
     }
-    sql(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+    sql(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
       CREATE TABLE public.tenants(id uuid PRIMARY KEY);
-      CREATE TABLE public.tenant_memberships(id uuid PRIMARY KEY,tenant_id uuid,status text);
+      CREATE TABLE public.tenant_memberships(id uuid PRIMARY KEY,tenant_id uuid,status text,legacy_access_enabled boolean DEFAULT false);
       INSERT INTO public.tenants VALUES('${id(1)}'),('${id(2)}');
-      INSERT INTO public.tenant_memberships VALUES('${id(3)}','${id(1)}','active'),('${id(4)}','${id(2)}','active');`)
+      INSERT INTO public.tenant_memberships(id,tenant_id,status) VALUES('${id(3)}','${id(1)}','active'),('${id(4)}','${id(2)}','active');`)
     sql(readFileSync(resolve(__dirname, '../../supabase/migrations/202611140001_academy_workspace.sql'), 'utf8'))
     sql(readFileSync(resolve(__dirname, '../../supabase/migrations/202611230002_academy_workspace_actor_validation.sql'), 'utf8'))
     assert.throws(() => sql(`SELECT public.save_academy_workspace('${id(1)}','${id(3)}',-1,'{}');`), /Command failed/)
@@ -47,6 +47,32 @@ function concurrent(text) {
     assert.equal(sql(`SELECT count(*) FROM public.academy_workspaces WHERE tenant_id='${id(2)}';`), '0')
     assert.equal(JSON.parse(sql(`SELECT public.save_academy_workspace('${id(1)}','${id(3)}',1,'{"reloaded":true}');`)).revision, 2)
     assert.equal(sql("SELECT state->>'reloaded' FROM public.academy_workspaces;"), 'true')
-    console.log('PASS: concurrent first saves allow exactly one winner, stale revisions reject, tenant actor isolation, browser-role denial and persistence/reload')
+    // Upgrade from the previously installed functions; no old overload remains.
+    sql(readFileSync(resolve(__dirname, '../../supabase/migrations/202611230003_academy_workspace_auth_source.sql'), 'utf8'))
+    assert.equal(sql("SELECT to_regprocedure('public.save_academy_workspace(uuid,uuid,bigint,jsonb)') IS NULL;"), 't')
+    sql(`INSERT INTO public.tenant_memberships VALUES
+      ('${id(5)}','${id(1)}','unclaimed',true),('${id(6)}','${id(1)}','invited',true),
+      ('${id(7)}','${id(1)}','active',true),('${id(8)}','${id(1)}','unclaimed',false),
+      ('${id(9)}','${id(1)}','suspended',true),('${id(10)}','${id(1)}','deactivated',true);`)
+    sql('GRANT SELECT, UPDATE ON public.tenant_memberships TO service_role;')
+    let revision = 2
+    const call = (actor, source, expected = revision, state = '{}') => `SELECT public.save_academy_workspace('${id(1)}','${id(actor)}',${expected},'${state}'::jsonb,${source === null ? 'NULL' : `'${source}'`});`
+    for (const [actor, source] of [[3,'supabase'],[5,'legacy'],[6,'legacy'],[7,'legacy']]) {
+      assert.equal(JSON.parse(sql(`SET ROLE service_role; ${call(actor, source)}`).split('\n').at(-1)).revision, ++revision)
+    }
+    for (const [actor, source] of [[3,'legacy'],[4,'supabase'],[5,'supabase'],[6,'supabase'],[8,'legacy'],[9,'legacy'],[10,'legacy'],[9,'supabase'],[10,'supabase'],[3,'unknown'],[3,null]]) {
+      assert.throws(() => sql(call(actor, source)), /Command failed/)
+      assert.equal(Number(sql('SELECT revision FROM public.academy_workspaces;')), revision)
+    }
+    assert.throws(() => sql(call(3, 'supabase', -1)), /Command failed/)
+    for (const role of ['anon','authenticated']) assert.throws(() => sql(`SET ROLE ${role}; ${call(3,'supabase')}`), /Command failed/)
+    assert.equal(JSON.parse(sql(call(3,'supabase',revision-1))).conflict,true)
+    const contenders = await Promise.all([concurrent(call(3,'supabase')),concurrent(call(5,'legacy'))])
+    assert.equal(contenders.map(JSON.parse).filter(result => !result.conflict).length,1)
+    assert.equal(Number(sql('SELECT revision FROM public.academy_workspaces;')),++revision)
+    sql(`UPDATE public.tenant_memberships SET legacy_access_enabled=false WHERE id='${id(5)}';`)
+    assert.throws(() => sql(call(5,'legacy')),/Command failed/)
+    assert.equal(Number(sql('SELECT revision FROM public.academy_workspaces;')),revision)
+    console.log('PASS: historical upgrade, auth-source policy, retired-legacy/suspended/deactivated/foreign denial, service-only ACL, concurrent CAS and persisted revisions')
   } finally { if (created) run(['rm', '--force', name]) }
 })().catch(error => { console.error(error); process.exitCode = 1 })

@@ -52,7 +52,7 @@ export interface Contact {
   account_id?: string | null
   linked_account_ids?: string[]
   account_member_since?: string | null
-  profile_enrollments?: { id: string; instrument: string | null; level?: number | string | null; service_type?: string | null; instructor_person_id?: string | null; appointment_class_name?: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
+  profile_enrollments?: { id: string; instrument: string | null; level?: number | string | null; duration?: number | string | null; service_type?: string | null; instructor_person_id?: string | null; appointment_class_name?: string | null; plan_name: string | null; session_name: string | null; lesson_day: string | null; lesson_time: string | null; instructor: string | null }[]
   first_name: string
   last_name: string
   phone: string | null

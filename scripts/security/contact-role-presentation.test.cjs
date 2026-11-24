@@ -97,6 +97,7 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     return chain
   } }
   const route = load('app/api/contacts/route.ts', {
+    '@/lib/contact-subscriptions': require('./synthetic-harness.cjs').createHarness().load('lib/contact-subscriptions.ts'),
     '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
     '@/lib/current-subscription-teacher': load('lib/current-subscription-teacher.ts'),
     '@/lib/subscription-source': { readSubscriptionSource: () => null },

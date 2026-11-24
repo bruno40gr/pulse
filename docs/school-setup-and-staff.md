@@ -49,6 +49,13 @@ not a substitute for server validation.
 
 ## Live identity boundary
 
+**November 23 continuation supersedes the transitional shortcut below:**
+operational Staff now uses an in-place work-profile dialog and tenant-scoped
+API. Legacy live prototype links redirect to operational Staff. The older
+`/odeon-demo` description is historical, not the current release contract.
+Missing workspace storage still fails closed. See
+`integrated-production-readiness-20261123.md` for provisioning constraints.
+
 The operational `/dashboard/staff` contact panel links into the existing
 tenant-workspace Staff work-profile experience. It requires a unique, explicit
 `teacher.values.personId` match. Never match live people by name, assume a contact

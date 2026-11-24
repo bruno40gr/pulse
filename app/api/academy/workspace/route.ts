@@ -33,8 +33,9 @@ export async function PUT(request: Request) {
   try { today = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) } catch { return NextResponse.json({ error: 'Choose a valid school timezone.' }, { status: 400 }) }
   const schedulingError = academySchedulingError(body.state, current?.state || null, today)
   if (schedulingError) return NextResponse.json({ error: schedulingError }, { status: 422 })
-  const { data, error } = await supabaseAdmin.rpc('save_academy_workspace', { p_tenant: access.tenantId, p_actor: access.context!.membershipId, p_revision: body.revision, p_state: body.state })
+  const { data, error } = await supabaseAdmin.rpc('save_academy_workspace', { p_tenant: access.tenantId, p_actor: access.context!.membershipId, p_revision: body.revision, p_state: body.state, p_auth_source: access.context!.authSource })
   if (error) return NextResponse.json({ error: 'School changes could not be saved. Check the academy workspace migration.' }, { status: 503 })
   if (data?.conflict) return NextResponse.json({ error: 'Another staff member changed this school. Reload before making further changes.' }, { status: 409 })
+  if (!Number.isSafeInteger(data?.revision) || data.revision !== body.revision + 1) return NextResponse.json({ error: 'School storage did not confirm the saved revision. Reload before making further changes.' }, { status: 503 })
   return NextResponse.json(data)
 }

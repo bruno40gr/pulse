@@ -270,7 +270,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                 {showsAccount && ageLabel(student.date_of_birth) && <div>{ageLabel(student.date_of_birth)}</div>}
                 {student.profile_enrollments?.map(enrollment => {
                   const plan = enrollment.plan_name || enrollment.session_name
-                  const duration = plan?.match(/\b(\d+)\s*min(?:ute)?s?\b/i)?.[1]
+                  const duration = enrollment.duration ?? plan?.match(/\b(\d+)\s*min(?:ute)?s?\b/i)?.[1]
                   const schedule = [enrollment.lesson_day, enrollment.lesson_time].filter(Boolean).join(' at ')
                   const teacher = enrollment.instructor?.trim()
                   const label = enrollment.instrument || 'Subscription'

@@ -1,5 +1,11 @@
 # Integrated release checkpoint — November 23, 2026
 
+Continuation: `docs/integrated-production-readiness-20261123.md` records the
+local auth-source migration, duration reader fix, isolated PostgreSQL rehearsal,
+1,150 passing tests, list/detail/PATCH subscription parity, synthetic desktop/mobile
+card rendering and remaining provisioning/production-rendering/recovery blockers.
+It is not authorization to migrate or promote production.
+
 ## Current decision and repair status — November 23 Pacific / November 24 UTC
 
 The agreed workflow is now `docs/staging-and-release-workflow.md`. It supersedes

@@ -10,7 +10,7 @@ import { resolveInstructor, type ResolvedInstructor } from '@/lib/instructors'
 import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { getImportProfile, saveImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
-import { isCurrentEnrollment } from '@/lib/current-enrollment'
+import { contactSubscriptions, currentStudentEnrollments } from '@/lib/contact-subscriptions'
 import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 import { readSubscriptionSource } from '@/lib/subscription-source'
 
@@ -279,9 +279,9 @@ export async function GET(request: Request) {
     const flattened = visiblePeople.map((person: any) => {
       const student = person.students?.[0] ?? {}
       const account = student.accounts ?? {}
-      const enrollment = (student.enrollments ?? []).find((entry: any) => !isNonStudentBooking(entry) && isCurrentEnrollment(entry)) ?? {}
+      const enrollment = currentStudentEnrollments(student.enrollments ?? [])[0] ?? {}
       const enrollmentFields = enrollment.custom_fields ?? {}
-      const nonStudentBooking = isNonStudentBooking(enrollment)
+      const nonStudentBooking = !currentStudentEnrollments(student.enrollments).length && isNonStudentBooking(student.enrollments?.[0])
       const staffId = instructorIdByAllPersonIds.get(person.id) ?? null
       const isInstructor = !!staffId
       const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
@@ -326,17 +326,7 @@ export async function GET(request: Request) {
       return enrichDemoContact({
         id: person.id,
         student_id: nonStudentBooking ? null : (student.id ?? null),
-        profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry) && isCurrentEnrollment(entry)).map((entry: any) => {
-          const teacher = personById.get(entry.instructor_person_id)
-          return {
-            id: entry.id, instrument: entry.instrument, service_type: entry.service_type, plan_name: entry.plan_name, session_name: entry.session_name,
-            instructor_person_id: entry.instructor_person_id, appointment_class_name: entry.custom_fields?.appointment_class_name ?? null,
-            lesson_day: entry.lesson_day, lesson_time: entry.lesson_time,
-            level: entry.custom_fields?.level ?? null,
-            instructor: currentSubscriptionTeacher(teacher),
-            teacher_assignment_needs_review: !currentSubscriptionTeacher(teacher),
-          }
-        }),
+        profile_enrollments: contactSubscriptions(student.enrollments ?? [], personById),
         is_student: !nonStudentBooking && Boolean(student.id),
         account_holder_person_id: holderPeopleByAccount.get(student.account_id)?.size === 1
           ? [...holderPeopleByAccount.get(student.account_id)!][0] : null,

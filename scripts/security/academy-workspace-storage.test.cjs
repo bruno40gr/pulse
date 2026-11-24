@@ -50,6 +50,35 @@ test('migration restricts direct access and locks revisions before updating', ()
  assert.match(sql,/current_revision <> p_revision/)
  assert.match(sql,/REVOKE ALL ON FUNCTION.*FROM PUBLIC, anon, authenticated/)
 })
+
+test('workspace derives authentication source from verified context, never the submitted body', async () => {
+ const harness=createHarness(), route=harness.load('app/api/academy/workspace/route.ts')
+ const base=scenario()
+ const stored={...base.fixtures,academy_workspaces:[{tenant_id:HEAD,revision:4,state:state()}]}
+ harness.setScenario({...base,fixtures:stored,rpcResults:{save_academy_workspace:{revision:5}}})
+ assert.equal((await route.PUT(request({revision:4,state:state(),p_auth_source:'legacy'}))).status,200)
+ assert.equal(harness.getQueries().find(q=>q.table==='save_academy_workspace').payload.p_auth_source,'supabase')
+ for(const status of ['unclaimed','invited','active']) {
+  const fixtures=structuredClone(stored)
+  Object.assign(fixtures.tenant_memberships[0],{status,legacy_access_enabled:true})
+  harness.setScenario({actor:{personId:'person',access:{kind:'headliner'}},fixtures,rpcResults:{save_academy_workspace:{revision:5}}})
+  assert.equal((await route.PUT(request({revision:4,state:state(),p_auth_source:'supabase'}))).status,200)
+  assert.equal(harness.getQueries().find(q=>q.table==='save_academy_workspace').payload.p_auth_source,'legacy')
+ }
+ const fixtures=structuredClone(stored)
+ Object.assign(fixtures.tenant_memberships[0],{status:'unclaimed',legacy_access_enabled:false})
+ harness.setScenario({actor:{personId:'person',access:{kind:'headliner'}},fixtures})
+ assert.equal((await route.PUT(request({revision:4,state:state()}))).status,403)
+ assert.equal(harness.getWrites().length,0)
+})
+
+test('workspace never reports success without an incremented database revision', async () => {
+ const harness=createHarness(),route=harness.load('app/api/academy/workspace/route.ts'),base=scenario()
+ for(const result of [null,{}, {revision:4},{revision:6},{revision:'5'}]) {
+  harness.setScenario({...base,fixtures:{...base.fixtures,academy_workspaces:[{tenant_id:HEAD,revision:4,state:state()}]},rpcResults:{save_academy_workspace:result}})
+  assert.equal((await route.PUT(request({revision:4,state:state()}))).status,503)
+ }
+})
 test('family makeup slots exclude persisted duties and release cancelled coverage', () => {
  const harness=createHarness()
  const {createDemoWorkspace}=harness.load('beta-source/lib/odeon-demo-workspace.ts')

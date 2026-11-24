@@ -30,3 +30,24 @@ test('Contacts preserves every current enrollment teacher and rejects sunset fal
   assert.equal(student.profile_enrollments[2].teacher_assignment_needs_review, true)
   assert.equal(h.getWrites().length, 0)
 })
+
+test('Contacts carries explicit subscription duration and level without requiring plan wording', async () => {
+  const h = createHarness()
+  const { lessonSummary } = h.load('lib/lesson-summary.ts')
+  h.setScenario({ actor: { access: { kind: 'demo', tenantId: HEAD } }, fixtures: {
+    people: [{id:'student',tenant_id:HEAD,students:[{id:'student-role',enrollments:[
+      {id:'known',instrument:'Voice',service_type:'private',plan_name:'Monthly',custom_fields:{status:'active',duration:45,level:2}},
+      {id:'unknown',instrument:'Piano',custom_fields:{status:'pending',duration:30}},
+      {id:'ended',custom_fields:{status:'ended',duration:60}},
+    ]}]}],
+  } })
+  const response=await h.load('app/api/contacts/route.ts').GET(new Request(`https://synthetic.invalid/api/contacts?tenant=${HEAD}`))
+  const [student]=await response.json()
+  assert.deepEqual(student.profile_enrollments.map(row=>row.id),['known','unknown'])
+  const [known,unknown]=student.profile_enrollments
+  assert.equal(lessonSummary({part:'identity',instrument:known.instrument,level:known.level}),'Voice • Level 2')
+  assert.equal(lessonSummary({part:'details',format:known.service_type,duration:known.duration,plan:known.plan_name}),'Private • 45 min')
+  assert.equal(unknown.level,null)
+  assert.equal(lessonSummary({part:'identity',instrument:unknown.instrument,level:unknown.level}),'Piano')
+  assert.equal(h.getWrites().length,0)
+})

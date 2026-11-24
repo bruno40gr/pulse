@@ -5,7 +5,7 @@
   },
   {
     "path": "app/api/academy/workspace/route.ts",
-    "sha256": "7df4b54a6d90655977a5450c76704ed2c6569260eb07368f2812e6640757c4bf"
+    "sha256": "93d267d99a56c24f689416b6de4be6f75432bab177e827540aca8802773c49c6"
   },
   {
     "path": "beta-source/lib/academy-scheduling-policy.ts",
@@ -45,7 +45,7 @@
   },
   {
     "path": "scripts/security/academy-workspace-storage.test.cjs",
-    "sha256": "c4f77faf089f9baab14719102dcfd38468729d631ee0d28ddd8c13644e0dcec2"
+    "sha256": "ed3f73b84617b49a974f16141dd158dc6a016357c03022dead7c91ee91a88a1a"
   },
   {
     "path": "scripts/security/admin-scheduling-browser.cjs",
@@ -53,7 +53,7 @@
   },
   {
     "path": "scripts/security/check-academy-workspace-postgres.cjs",
-    "sha256": "cb09cb5dad23481e4dfbe5f56f9141eee33783c6d229e69c72ec0539b573c8cf"
+    "sha256": "1a2045400ce15f1cc278ba138c3414af2e76cbd7c35bf2f297b2ebc22aafe703"
   },
   {
     "path": "supabase/migrations/202611140001_academy_workspace.sql",
@@ -125,7 +125,7 @@
   },
   {
     "path": "docs/school-setup-and-staff.md",
-    "sha256": "bfad80b862bd62995649ea4649daff637dfc280dc9962275635d790a5f605016"
+    "sha256": "1d25a1f304ffaf017c5eaa1886bbde0ffe5dafeb2dbcb421957fcad531b0dd26"
   },
   {
     "path": "docs/scheduling-foundation-promotion.md",
@@ -186,5 +186,21 @@
   {
     "path": "beta-source/lib/useDialogLayer.ts",
     "sha256": "05c9d92d3764ffd4cbb78fa288b87f73f6c958915580f2cd87c334f46bcd7be8"
+  },
+  {
+    "path": "supabase/migrations/202611230003_academy_workspace_auth_source.sql",
+    "sha256": "289d735d636de72efba09c1b1e55e0cf10d41a9bb5977534053817f9666ceda3"
+  },
+  {
+    "path": "lib/contact-subscriptions.ts",
+    "sha256": "7352799ab9cf635d17d58ae659a491f3fe08a833d073a9ecd2b613a74f40787b"
+  },
+  {
+    "path": "scripts/security/contact-subscriptions.test.cjs",
+    "sha256": "4a7998c395f197fa00085af4f3ce8847bde3a92234fd582885d44a2cc2ce484e"
+  },
+  {
+    "path": "scripts/security/subscription-cards-browser.cjs",
+    "sha256": "f2bee98a0a3f20513870b2f2b7acffd7c5f6a0d2eae620ff39058cd02d0276de"
   }
 ]
