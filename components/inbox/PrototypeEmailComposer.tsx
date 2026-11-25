@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { ProfileComposerCancelContext, ProfileComposerToolbar } from './ProfileComposerToolbar'
 import { Bold, Italic, Underline, List, ListOrdered, Send } from 'lucide-react'
 import { Button, Notice, Modal, ModalHeader, ModalBody, ModalFooter, PageHeader } from '@/components/ui'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -34,6 +35,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   allowBccOnly?: boolean
   onCollapse: () => void; onDiscard: () => void; replying: boolean; people: MockRecipient[]; templates: MockTemplate[]; onCreateTemplate: (template: MockTemplate) => void
 }) {
+  const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const [managingRecipients, setManagingRecipients] = useState(false)
   const [mode, setMode] = useState<'write' | 'preview'>('write')
   const [undo, setUndo] = useState<PrototypeEmailDraft | null>(null)
@@ -74,11 +76,11 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   }
 
   const sendAction = !hideSendAction && <div aria-label="Email actions" style={{ ...line, justifyContent: 'flex-end', flexWrap: 'nowrap', flexShrink: 0 }}>
-      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people, allowBccOnly) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = messageHtml(); onSend(prototypeHtmlText(content, trustedImages), content) }}><Send size={14} />{sendLabel}</Button>
+      <Button style={{ whiteSpace: 'nowrap' }} disabled={disabled || placeholders.length > 0 || !!draft.recipients && !validMockEmailRecipients(draft.recipients, people, allowBccOnly) || !draft.subject.trim() || !prototypeHtmlText(draft.html).trim()} onClick={() => { if (placeholders.length) return; const content = messageHtml(); onSend(prototypeHtmlText(content, trustedImages), content) }}><Send size={14} />{cancelProfileCompose ? 'Send' : sendLabel}</Button>
     </div>
 
   return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-    {title ? <PageHeader title={title} onBack={onBack} backLabel="Back to Communications" right={sendAction} singleLine /> : !hideSendAction && <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>{sendAction}</div>}
+    {cancelProfileCompose ? <ProfileComposerToolbar channel="email" onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar> : title ? <PageHeader title={title} onBack={onBack} backLabel="Back to Communications" right={sendAction} singleLine /> : !hideSendAction && <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>{sendAction}</div>}
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${spacing.xl} ${spacing.xl}` }}>
       <EmailComposerFields from={fromControl || <>{senderName} &lt;{senderEmail}&gt;</>} recipients={recipientSummary ? [{ label: 'To', content: recipientSummary }] : draft.recipients && !draft.contactOnly
         ? (['to', 'cc', 'bcc'] as const).filter(field => field === 'to' || draft.recipients![field].length).map(field => ({

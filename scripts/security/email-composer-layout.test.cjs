@@ -61,7 +61,7 @@ test('email actions are top-right, preview is beside templates, and obsolete con
   assert.ok(!email.includes('ComposerFooter'))
   const actions = email.slice(email.indexOf('<div aria-label="Email actions"'), email.indexOf('<EmailComposerFields'))
   assert.ok(actions.includes("justifyContent: 'flex-end'"))
-  assert.ok(actions.includes('<Send size={14} />{sendLabel}'))
+  assert.ok(actions.includes("<Send size={14} />{cancelProfileCompose ? 'Send' : sendLabel}"))
   assert.match(email, /<PageHeader title=\{title\}[^>]*right=\{sendAction\} singleLine/)
   assert.match(email, /whiteSpace: 'nowrap'/)
   for (const file of ['components/inbox/Conversations.tsx', 'components/inbox/ConversationsPrototype.tsx']) {
@@ -100,7 +100,7 @@ test('profile email switches preserve mounted profile/draft and delegate recipie
   assert.match(workspace, /<ProfileComposerLayout open=\{open\}/)
   assert.match(workspace, /visited\[value\]/)
   assert.match(workspace, /key=\{`\$\{identity\}:\$\{recipient\}`\}/)
-  assert.match(workspace, /onBack=\{mobile \? back : undefined\}/)
+  assert.match(workspace, /onCancel=\{back\}/)
   assert.doesNotMatch(workspace, /<SlidePanel\s/)
   for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
     assert.match(read(file), /<ProfileEmailWorkspace/)
@@ -136,4 +136,18 @@ test('new contact email never fetches or polls history and split layout expands 
   assert.match(layout, /aria-label="Message composer" hidden=\{!open\}/)
   assert.doesNotMatch(layout, /<SlidePanel\s/)
   assert.match(read('components/contacts/LiveContactPanel.tsx'), /visitedChannels\[channel\]/)
+})
+
+
+test('profile workspace has one shared header and composers own H2 Cancel/Send actions', () => {
+  const layout = read('components/inbox/ProfileComposerLayout.tsx')
+  assert.ok(layout.indexOf('{header}') < layout.indexOf('data-profile-composer-workspace'))
+  assert.doesNotMatch(read('components/inbox/ProfileEmailWorkspace.tsx'), /SlidePanelHeader/)
+  const toolbar = read('components/inbox/ProfileComposerToolbar.tsx')
+  assert.match(toolbar, /<SectionTitle/)
+  assert.match(toolbar, /Write email/)
+  assert.match(toolbar, /Write text message/)
+  assert.match(toolbar, />Cancel<\/Button>/)
+  assert.match(read('components/campaigns/ComposePanel.tsx'), /!cancelProfileCompose && <ComposerFooter/)
+  assert.match(read('components/inbox/Conversations.tsx'), /!embedded && <header/)
 })

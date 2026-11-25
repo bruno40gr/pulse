@@ -443,8 +443,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
       }}
     >
       <ProfileEmailWorkspace key={lead.id} identity={lead.id} backDestination="lead" onClose={onClose} onViewChange={onSmsViewChange}
-        renderSms={back => <CardSmsComposer embedded backDestination="lead" recipientId={lead.contact?.id || ''} name={contactName} leadId={lead.intake_type === 'job_application' ? undefined : lead.id} onBack={back} onClose={onClose} />}>
-      {renderHeader(onClose)}
+        renderSms={back => <CardSmsComposer embedded backDestination="lead" recipientId={lead.contact?.id || ''} name={contactName} leadId={lead.intake_type === 'job_application' ? undefined : lead.id} onBack={back} onClose={onClose} />} header={renderHeader(onClose)}>
       {followUpModal}
 
       {isMobile && <div role="group" aria-label="Lead panel section" style={{ display: 'flex', gap: spacing.sm, padding: spacing.sm, flexShrink: 0 }}>

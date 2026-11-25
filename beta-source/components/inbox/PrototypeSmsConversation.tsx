@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { ProfileComposerCancelContext, ProfileComposerToolbar } from '@/components/inbox/ProfileComposerToolbar'
 import { Sparkles } from 'lucide-react'
 import { Button, Textarea, Notice } from '@/beta-source/components/ui'
 import { colors, spacing, typography } from '@/beta-source/lib/tokens'
@@ -17,6 +18,7 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
   thread: PrototypeThread; mobile: boolean; draft: string; onChange: (value: string) => void; onSend: () => void; recipients?: MockRecipient[]
   disabled?: boolean; sendDisabled?: boolean; panelLayout?: boolean; live?: boolean; onDraft?: () => Promise<string>; compact?: boolean
 }) {
+  const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const wide = useMediaQuery('(min-width: 1000px)')
   const desktop = wide && !compact
   const [drafting, setDrafting] = useState(false)
@@ -38,7 +40,9 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
   const showHistory = !recipients || recipients.length === 1
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }) }, [thread.id, thread.messages.length])
-  return <div aria-label="SMS workspace" className={panelLayout ? styles.panelLayout : undefined} style={{ display: 'grid', gridTemplateColumns: panelLayout ? undefined : desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+  return <>
+    {cancelProfileCompose && <ProfileComposerToolbar channel="sms" onCancel={cancelProfileCompose}><Button disabled={disabled || sendDisabled || !draft.trim()} onClick={onSend}>Send</Button></ProfileComposerToolbar>}
+    <div aria-label="SMS workspace" className={panelLayout ? styles.panelLayout : undefined} style={{ display: 'grid', gridTemplateColumns: panelLayout ? undefined : desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
     {missingPhone.length > 0 && <Notice variant="warning" title="Excluded from sending" style={{ margin: spacing.md }}>{missingPhone.map(person => `${person.name} — No phone number`).join(', ')}</Notice>}
     {showHistory && <div role="region" aria-label="SMS history" style={{ flex: 1, minHeight: 180, maxHeight: recipients ? 320 : undefined, overflowY: 'auto', padding: mobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
@@ -59,11 +63,12 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
         {!live && <Button variant="secondary" size={panelLayout ? 'md' : 'sm'} onClick={() => onChange(draft.trim() ? `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! ${draft.trim()}` : `Hi ${recipients ? '{{firstName}}' : thread.name.split(' ')[0]}! Thanks for reaching out. What days and times work best for you?`)}><Sparkles size={12} />{draft.trim() ? 'Polish with AI' : 'Draft with AI'} (sample)</Button>}
         {live && onDraft && <Button variant="secondary" size="sm" disabled={disabled || drafting} onClick={() => void draftWithAI()}><Sparkles size={12} />{drafting ? 'Drafting…' : draft.trim() ? 'Polish with AI' : 'Draft with AI'}</Button>}
         {!onDraft && live && <span />}
-        <Button onClick={onSend} disabled={disabled || sendDisabled || !draft.trim() || (recipients && (!recipients.some(person => person.phone)))}>Send</Button>
+        {!cancelProfileCompose && <Button onClick={onSend} disabled={disabled || sendDisabled || !draft.trim() || (recipients && (!recipients.some(person => person.phone)))}>Send</Button>}
       </div>
       {draft.trim() && <span style={{ fontSize: typography.sizeSm, color: panelLayout ? colors.textSecondary : colors.textMuted }}>SMS · {Math.ceil(draft.length / 160)} {live ? 'estimated' : 'sample'} segment{draft.length > 160 ? 's' : ''}</span>}
     </div>
     </div>
     {(desktop || panelLayout) && <aside className={panelLayout ? styles.preview : undefined} aria-label="SMS preview pane" style={{ minWidth: 0, minHeight: 0, overflowY: 'auto', borderLeft: `1px solid ${colors.border}`, background: colors.backgroundSecondary, padding: spacing.xl, display: 'flex', flexDirection: 'column', justifyContent: 'safe center' }}><PrototypeSmsPreview name={previewName} body={previewBody} highContrast={panelLayout} /></aside>}
   </div>
+  </>
 }

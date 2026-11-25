@@ -219,12 +219,13 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
   return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="50dvw">
-      <ProfileComposerLayout open={!!compose} profile={<>
+      <ProfileComposerLayout open={!!compose} onCancel={() => setCompose(null)} header={
       <SlidePanelHeader title={editing ? 'Edit Contact' : name.replace(/\s*\(account\)\s*$/i, '')} subtitle={editing ? name : subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
-        toast={status || undefined} onClose={close} onBack={undefined} backLabel="Back to contact" />
+        toast={status || undefined} onClose={close} onBack={undefined} backLabel="Back to contact" />} profile={<>
+
       {!editing && <><AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
           <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
@@ -332,7 +333,6 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
       </>} composer={<>
-        <SlidePanelHeader title={compose === 'sms' ? 'Send a Text Message' : 'Send Email'} onClose={() => setCompose(null)} closeLabel="Close composer" onBack={mobile ? () => setCompose(null) : undefined} backLabel="Back to contact" />
         {(['email', 'sms'] as const).map(channel => visitedChannels[channel] && <div key={channel} hidden={compose !== channel} className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ display: compose === channel ? 'flex' : 'none', background: colors.surfaceMuted }}>
           <LiveContactCommunication tenantId={tenantId} channel={channel} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
             destination={(channel === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />

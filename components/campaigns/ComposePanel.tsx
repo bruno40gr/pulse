@@ -2,10 +2,11 @@
 import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import ExcludedRecipientsNotice from '@/components/inbox/ExcludedRecipientsNotice'
 
+import { ProfileComposerCancelContext, ProfileComposerToolbar } from '@/components/inbox/ProfileComposerToolbar'
 import { ComposerFooter } from '@/components/ui/ComposerFooter'
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
 import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs, Notice } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
@@ -502,8 +503,15 @@ export default function ComposePanel({
     }
   }
 
+  const cancelProfileCompose = useContext(ProfileComposerCancelContext)
+  const sendAction = <LoadingButton loading={isSending} fill={2} progress={sendProgress} onClick={handleSend}
+    disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled || smsReviewBlocked} style={{ maxWidth: '100%' }}>
+    {isSending ? 'Sending…' : cancelProfileCompose ? 'Send' : sendLabel || 'Send message'}
+  </LoadingButton>
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
+      {cancelProfileCompose && <ProfileComposerToolbar channel="sms" onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar>}
       <div style={{
         display: isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
@@ -551,7 +559,7 @@ export default function ComposePanel({
           <>
 
         {/* Context header */}
-        {mode === 'single' && contactContext ? (
+        {!cancelProfileCompose && (mode === 'single' && contactContext ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, padding: '0 0 4px' }}>
             <Avatar firstName={contactContext.first_name} lastName={contactContext.last_name} size={36} />
             <div>
@@ -594,7 +602,7 @@ export default function ComposePanel({
             </div>
             {filterExplanation && !messageLabel && <div style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>{filterExplanation}</div>}
           </div>
-        )}
+        ))}
 
         {needsReview && !currentReview?.audience && <Notice variant={currentReview?.error ? 'error' : 'info'}>{currentReview?.error || 'Checking SMS recipients…'}</Notice>}
         {resolvedAudience && <div role="region" aria-label="Verified SMS recipients" style={{ marginBottom: spacing.lg, overflowWrap: 'anywhere' }}>
@@ -876,18 +884,7 @@ export default function ComposePanel({
         </div>
       )}
       </div>
-      <ComposerFooter leading={footerLeadingAction}>
-        <LoadingButton
-          loading={isSending}
-          fill={2}
-          progress={sendProgress}
-          onClick={handleSend}
-          disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled}
-          style={{ maxWidth: '100%' }}
-        >
-          {isSending ? 'Sending…' : sendLabel || 'Send message'}
-        </LoadingButton>
-      </ComposerFooter>
+      {!cancelProfileCompose && <ComposerFooter leading={footerLeadingAction}>{sendAction}</ComposerFooter>}
     </div>
   )
 }

@@ -647,7 +647,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       <PrototypeEmailComposer title="New message" onBack={goBackToConversations} fromControl={fromControl} disabled={sending || !canComposeEmail} senderEmail={senderEmail} key={active.id} name="" email="" student="" draft={draft} onChange={updateDraft} onSend={sendEmail} onCollapse={returnToConversation} onDiscard={() => setDiscardOpen(true)} replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} companyLogoUrl={signature?.companyLogoUrl} senderName={senderName} people={contacts} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])} />
     </section> : <div ref={workspace} style={embedded ? { ...pane, flex: 1 } : undefined}><SurfacePanel padding="0" style={{ ...pane, height: embedded ? undefined : workspaceHeight ?? 'calc(100dvh - 160px)', overflow: 'hidden', ...(embedded ? { flex: 1, border: 0, borderRadius: 0, boxShadow: 'none' } : {}) }}>
       <section aria-label={`Conversation with ${contact.name}`} style={{ ...pane, flex: 1 }}>
-        <header style={{ ...row, flexWrap: 'nowrap', justifyContent: 'space-between', padding: mobile ? spacing.md : spacing.xl, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
+        {!embedded && <header style={{ ...row, flexWrap: 'nowrap', justifyContent: 'space-between', padding: mobile ? spacing.md : spacing.xl, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
             <Avatar firstName={contact.name.split(' ')[0]} lastName={contact.name.split(' ').slice(1).join(' ')} size={40} />
             <div style={{ minWidth: 0 }}><strong>{contact.name}</strong><div style={{ ...meta, marginTop: spacing.xs, overflowWrap: 'anywhere' }}>{[contact.student ? `Student: ${contact.student}` : '', location.channel === 'sms' ? contact.phone || 'No phone number' : contact.email || 'No email address'].filter(Boolean).join(' · ')}</div></div>
@@ -655,7 +655,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
           {!embedded && <div role="group" aria-label="Conversation channel" style={{ display: 'flex', gap: spacing.sm, flexShrink: 0 }}>
             {(['sms', 'email'] as const).map(channel => <ControlButton key={channel} kind="toggle" selected={location.channel === channel} aria-pressed={location.channel === channel} onClick={() => switchChannel(channel)}>{channel === 'sms' ? 'SMS' : 'Email'}</ControlButton>)}
           </div>}
-        </header>
+        </header>}
         {sendError && <Notice variant="error" style={{ margin: spacing.md, flexShrink: 0 }}>{sendError}</Notice>}
         {location.channel === 'email' && location.view === 'contact' && conversationEmailStatus(emailSyncState) && <p role="status" style={{ ...meta, margin: spacing.md }}>{conversationEmailStatus(emailSyncState)}</p>}
         {location.channel === 'email' && location.view !== 'compose' && emailError && <Notice variant="warning" style={{ margin: spacing.md, flexShrink: 0 }}><div style={row}><span>{emailError}</span><Button variant="secondary" size="sm" disabled={emailLoading} onClick={() => void loadEmails(contact.id)}>Retry history</Button></div></Notice>}

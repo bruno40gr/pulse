@@ -1,5 +1,23 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: single header and composer content actions
+
+- Profile header now spans both panes, with one close icon at the workspace's
+  top-right on desktop and mobile. The profile identity stays visible while writing.
+- Email and SMS use content-level H2 headings (Write email / Write text message)
+  with Cancel and the shared primary Send CTA at the top right. Existing send
+  validation, transport and error handling remain in their original composers.
+- Cancel hides the composer and retains its draft. The header close closes the
+  whole profile. Redundant Messaging name/phone and nested conversation headers
+  are suppressed only in the embedded profile workspace, not in standalone Inbox.
+- Browser acceptance passes at 1440px, 1076px and 390px, including H2 headings,
+  one close icon at the far right, one SMS Send button, Cancel/draft retention,
+  settings errors, simulated send failures/success and no history requests.
+- TypeScript passes; focused tests 53/53; full suite 1134/1151 with the same 17
+  baseline failures. Targeted lint: zero errors, 17 warnings in existing
+  campaign/contact/lead code. Contacts/family browser regression also passes.
+- Logs: /tmp/composer-header-{browser,family,focused,types,lint,full}.log.
+
 ## Update: side-by-side composition
 
 The initial view-switching implementation below is superseded by a desktop

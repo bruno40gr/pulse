@@ -602,7 +602,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
   return (
     <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
       <ProfileEmailWorkspace key={contact.id} identity={contact.id} backDestination="contact" onClose={onClose}
-        renderSms={back => <CardSmsComposer embedded backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()} onBack={back} onClose={onClose} />}>
+        renderSms={back => <CardSmsComposer embedded backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()} onBack={back} onClose={onClose} />} header={
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -708,7 +708,8 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
             </div>
           </>
         ) : undefined}
-      />
+      />}>
+
 
       {!isInstructor && <SlidePanelActionBar isMobile={isMobile}>
         <Button

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useContext, useState, type ReactNode } from 'react'
 import { Button, EmptyState, FieldValue, SlidePanel, SlidePanelHeader, SurfacePanel } from '@/beta-source/components/ui'
 import { ControlButton } from '@/beta-source/components/ui/ControlButton'
 import { Disclosure } from '@/beta-source/components/ui/Disclosure'
@@ -14,6 +14,7 @@ import { formatMessageTimestamp } from '@/beta-source/lib/message-timestamp'
 import { formatScheduleDate } from '@/beta-source/lib/academy-enrollment-schedule'
 import type { WorkspaceSectionProps } from './WorkspaceSections'
 import styles from './StudentWorkspace.module.css'
+import { ProfileComposerCancelContext } from '@/components/inbox/ProfileComposerToolbar'
 
 export function StudentCommunication({ account, students, location, channel, drafts, onDraft }: WorkspaceSectionProps) {
   const [templates, setTemplates] = useState(initialMockTemplates)
@@ -46,6 +47,7 @@ export function CommunicationCanvas({ person, channel, smsThread, threads, draft
   renderDraftPanel?: (options: { name: string; close: () => void; children: ReactNode }) => ReactNode
   composeInPlace?: boolean
 }) {
+  const profileCompose = useContext(ProfileComposerCancelContext)
   const [composing, setComposing] = useState(false)
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
@@ -113,7 +115,7 @@ export function CommunicationCanvas({ person, channel, smsThread, threads, draft
       {recipientDetails}
       <Button variant="secondary" size="md" onClick={() => openComposer(false)}>{emailDraft.subject || emailDraft.html ? 'Continue draft' : 'New email'}</Button>
     </header>}
-    {channel !== 'email' && recipientDetails}
+    {channel !== 'email' && !profileCompose && recipientDetails}
     {notice}
     {conversation}
     {composing && (() => {
