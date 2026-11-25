@@ -48,6 +48,8 @@ function createHarness() {
           } else {
             for (const [method, key, value, operand] of filters) {
               if (method === 'eq') data = data.filter(row => row[key] === value)
+              if (scenario.enforceRangeFilters && method === 'gt') data = data.filter(row => row[key] != null && row[key] > value)
+              if (scenario.enforceRangeFilters && method === 'lte') data = data.filter(row => row[key] != null && row[key] <= value)
               if (method === 'in') data = data.filter(row => value.includes(row[key]))
               if (method === 'neq') data = data.filter(row => row[key] !== value)
               if (method === 'is') data = data.filter(row => (row[key] ?? null) === value)

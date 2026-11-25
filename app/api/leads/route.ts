@@ -195,15 +195,18 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
   }
 }
 
-/** Net-new means unlinked people, not only the first workflow status. */
+/** A net-new notification expires after 24 hours or when status leaves New, whichever comes first. */
 async function getNewLeadCounts(tenantId: string) {
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
   const count = async (types: readonly string[]) => {
     const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes')
       .select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
       .in('intake_type', types).is('person_id', null)
       .neq('source_form', WINBACK_SOURCE_FORM)
       // Legacy band opportunities predate person_id and are still existing students.
-      .neq('source_form', 'contact-band-opportunity').in('status', ['new', 'contacted', 'booked', 'processing']),
+      .neq('source_form', 'contact-band-opportunity').eq('status', 'new')
+      .gt('created_at', cutoff).lte('created_at', now.toISOString()),
     LEADS_QUERY_TIMEOUT_MS, 'net-new lead count query')
     if (result.error) throw result.error
     return result.count ?? 0
