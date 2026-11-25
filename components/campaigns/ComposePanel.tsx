@@ -8,13 +8,15 @@ import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { CheckSquare, Image as ImageIcon, Paperclip, Sparkles, Square, X } from 'lucide-react'
-import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs, Notice } from '@/components/ui'
+import { LoadingButton, Avatar, Textarea, Input, Badge, SurfacePanel, Tabs, Notice, Select } from '@/components/ui'
 import { colors, typography, radius, spacing, shadows } from '@/lib/tokens'
 import { DEFAULT_TENANT, getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getStaffDemoAvatarUrl, getTenantBrand } from '@/lib/tenant'
 import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/media-catalog'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import type { RecipientResolution } from '@/lib/communication-recipients'
 import { formatPhoneNumber } from '@/lib/phone'
+import PrototypeSmsPreview from '@/beta-source/components/inbox/PrototypeSmsPreview'
+import smsStyles from '@/beta-source/components/inbox/PrototypeSmsConversation.module.css'
 
 const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
 const KUMON = '00000000-0000-0000-0000-000000000003'
@@ -87,9 +89,15 @@ export default function ComposePanel({
   const [brandVoice, setBrandVoice] = useState('')
   const [brandVoiceLoaded, setBrandVoiceLoaded] = useState(false)
   const [localMessage, setLocalMessage] = useState('')
-  const message = conversation?.body ?? draft?.body ?? localMessage
+  const [selectedDestination, setSelectedDestination] = useState('')
+  const [recipientDrafts, setRecipientDrafts] = useState<Record<string, string>>({})
+  const message = selectedDestination && cancelProfileCompose ? recipientDrafts[selectedDestination] ?? '' : conversation?.body ?? draft?.body ?? localMessage
   const onConversationChange = conversation?.onChange ?? draft?.onChange
-  const setMessage = useCallback((body: string) => onConversationChange ? onConversationChange(body) : setLocalMessage(body), [onConversationChange])
+  const setMessage = useCallback((body: string) => {
+    if (selectedDestination && cancelProfileCompose) setRecipientDrafts(current => ({ ...current, [selectedDestination]: body }))
+    else if (onConversationChange) onConversationChange(body)
+    else setLocalMessage(body)
+  }, [onConversationChange, selectedDestination, cancelProfileCompose])
   const [mediaUrl, setMediaUrl] = useState('')
   const [showMediaInput, setShowMediaInput] = useState(false)
   const [activeMediaTab, setActiveMediaTab] = useState<'approved' | 'gifs'>('approved')
@@ -118,7 +126,9 @@ export default function ComposePanel({
   const needsReview = !conversation && channel === 'sms' && !providedAudience
   const currentReview = audienceReview?.key === reviewKey ? audienceReview : null
   const resolvedAudience = providedAudience || (currentReview?.audience ? { count: currentReview.audience.recipients.length, version: currentReview.audience.version, recipients: currentReview.audience.recipients } : undefined)
-  const smsReviewBlocked = needsReview && !currentReview?.audience
+  const selectedRecipient = cancelProfileCompose ? selectedDestination ? resolvedAudience?.recipients.find(item => item.destination === selectedDestination) : resolvedAudience?.recipients[0] : undefined
+  const messagingName = selectedRecipient?.name || (contactContext ? `${contactContext.first_name} ${contactContext.last_name}`.trim() : 'recipient')
+  const smsReviewBlocked = needsReview && !currentReview?.audience || !!cancelProfileCompose && !!selectedDestination && !selectedRecipient
 
   useEffect(() => {
     if (!needsReview || !selectionKey) return
@@ -138,7 +148,7 @@ export default function ComposePanel({
   const firstNamePreview = resolvedAudience ? resolvedAudience.recipients.length === 1 ? resolvedAudience.recipients[0].name.split(/\s+/)[0] : 'there' : contactContext?.first_name || recipientPreview[0]?.first_name || 'Alex'
   const previewMessage = message.replace(/\{first_name\}/gi, firstNamePreview) || 'Your message will appear here...'
   const effectiveRecipientIds = recipientIds.filter(id => !removedIds.has(id))
-  const effectiveCount = smsReviewBlocked ? 0 : resolvedAudience?.count ?? effectiveRecipientIds.length
+  const effectiveCount = smsReviewBlocked ? 0 : selectedRecipient ? 1 : resolvedAudience?.count ?? effectiveRecipientIds.length
   const effectiveSendCount = effectiveCount
   const tenantBrand = getTenantBrand(tenantId)
   const recipientSummary = resolvedAudience ? [] : resolvedRecipientPreview.slice(0, 3)
@@ -477,7 +487,7 @@ export default function ComposePanel({
       const sendRes = await request(`/api/campaigns/${campaign.id}/send?tenant=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId, recipientVersion: resolvedAudience?.version })
+        body: JSON.stringify({ recipientIds: effectiveRecipientIds, leadId, recipientVersion: resolvedAudience?.version, ...(selectedRecipient ? { recipientDestination: selectedRecipient.destination } : {}) })
       })
       const result = await sendRes.json()
 
@@ -513,14 +523,17 @@ export default function ComposePanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
-      {cancelProfileCompose && <ProfileComposerToolbar channel="sms" onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar>}
-      <div style={{
-        display: isMobile || cancelProfileCompose ? 'flex' : 'grid',
-        flexDirection: isMobile || cancelProfileCompose ? 'column' : undefined,
+      {cancelProfileCompose && <ProfileComposerToolbar channel="sms" recipientName={messagingName} recipientControl={resolvedAudience && resolvedAudience.recipients.length > 1 ? <Select aria-label="SMS account holder" controlSize="compact" fullWidth={false} disabled={isSending} value={selectedRecipient?.destination || ''} onChange={event => {
+        if (!selectedDestination && selectedRecipient) setRecipientDrafts(current => ({ ...current, [selectedRecipient.destination]: message }))
+        setSelectedDestination(event.target.value); setSendError(null)
+      }}>{resolvedAudience.recipients.map(item => <option key={item.destination} value={item.destination}>{item.name} — {formatPhoneNumber(item.destination)}</option>)}</Select> : undefined} onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar>}
+      <div className={cancelProfileCompose ? smsStyles.profileLayout : undefined} style={{
+        display: cancelProfileCompose ? 'grid' : isMobile ? 'flex' : 'grid',
+        flexDirection: isMobile ? 'column' : undefined,
         gridTemplateColumns: isMobile || cancelProfileCompose ? undefined : 'minmax(0, 1fr) minmax(280px, 1fr)',
         flex: 1,
         minHeight: 0,
-        overflow: 'hidden',
+        overflow: cancelProfileCompose ? 'auto' : 'hidden',
         background: colors.background,
       }}>
       {/* Left column / main form */}
@@ -610,7 +623,7 @@ export default function ComposePanel({
         {resolvedAudience && <div role="region" aria-label="Verified SMS recipients" style={{ marginBottom: spacing.lg, overflowWrap: 'anywhere' }}>
           <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Actual SMS recipients</div>
           <ul style={{ margin: `${spacing.xs} 0 0`, padding: 0, listStyle: 'none', display: 'grid', gap: spacing.xs }}>
-            {resolvedAudience.recipients.map(recipient => <li key={recipient.destination} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: spacing.sm }}>
+            {(selectedRecipient ? [selectedRecipient] : resolvedAudience.recipients).map(recipient => <li key={recipient.destination} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: spacing.sm }}>
               <strong style={{ fontWeight: typography.weightBold }}>{recipient.name}</strong>
               <span style={{ color: colors.textSecondary, whiteSpace: 'nowrap' }}>{formatPhoneNumber(recipient.destination)}</span>
             </li>)}
@@ -812,6 +825,7 @@ export default function ComposePanel({
       </div>
 
       {/* Right column — phone preview (hidden on mobile) */}
+      {cancelProfileCompose && <aside aria-label="SMS preview pane" className={smsStyles.preview} style={{ background: colors.backgroundSecondary, padding: spacing.lg, minWidth: 0, overflowY: 'auto', alignItems: 'center', justifyContent: 'safe center' }}><PrototypeSmsPreview name={messagingName} body={message.replace(/\{first_name\}/gi, messagingName.split(/\s+/)[0])} /></aside>}
       {!isMobile && !cancelProfileCompose && (
         <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
           {showComposeBootSkeleton ? (

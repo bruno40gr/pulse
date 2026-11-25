@@ -1,5 +1,30 @@
 # Profile/email workspace — November 25, 2026
 
+## Correction: retain smartphone preview and select the messaging account holder
+
+- The SMS smartphone preview is intentionally restored, superseding the preview
+  removal below. The toolbar stays at the top; the preview sits beside the editor
+  when the pane fits and stacks below it with scrolling in narrow panes.
+- SMS heading is now `Messaging [recipient name]`. Email retains `Write email`.
+  Multiple server-verified destinations expose an `SMS account holder` dropdown
+  with holder names and phone numbers. Display-only family summaries are not used
+  as delivery authority.
+- Contact and lead SMS update the heading, preview and actual send destination
+  together. Each destination retains its own draft across switching and Cancel.
+  Existing recipient verification, send locks and post-success draft clearing stay.
+- Campaign sends optionally include one selected destination. The server resolves
+  the complete audience and checks its version first, then requires the selected
+  destination to exist in that verified audience before narrowing delivery. Bulk
+  callers without a destination keep their existing behavior.
+- Browser coverage at 1440/1076/390px includes one/two holders on contact and lead
+  components, preview text, heading, separate drafts, Cancel/reopen and selected
+  send payloads, alongside existing email regressions. All traffic is synthetic.
+  Logs: /tmp/sms-preview-{browser,focused,types,lint,full}.log. Screenshots:
+  /tmp/sms-holder-{contact,lead}-{1440,1076,390}.png.
+- TypeScript passes; focused coverage 63/63; full suite 1137/1154 with the same
+  17 baseline failures and no new failure names. Targeted lint: zero errors,
+  12 existing warnings. Production deployment is not verified.
+
 ## Update: SMS layout repair and scoped plumbing/performance pass
 
 - Fixed the SMS toolbar/workspace sibling layout with an explicit vertical root.

@@ -218,9 +218,10 @@ test('owner-managed signatures are escaped and remain specific to the chosen ali
   assert.equal(result[1].signatureHtml, '<p>Academy<br>Public phone</p>')
 })
 
-function smsHarness({ changed = false, directoryError = false, providerStatus = 'queued' } = {}) {
+function smsHarness({ changed = false, directoryError = false, providerStatus = 'queued', twoHolders = false } = {}) {
   const deliveries = [], writes = []
   const resolved = { selectedCount: 2, recipients: [{ destination: '+12025550101', name: 'Account manager', contactIds: ['one', 'two'] }], excluded: [] }
+  if (twoHolders) resolved.recipients.push({ destination: '+12025550103', name: 'Second holder', contactIds: ['one', 'two'] })
   const database = { from(table) {
     const query = {
       select() { return query }, eq() { return query }, in() { return query },
@@ -250,6 +251,21 @@ function smsHarness({ changed = false, directoryError = false, providerStatus = 
     method: 'POST', body: JSON.stringify({ recipientIds: ['one', 'two'], recipientVersion: 'reviewed', ...patch }),
   }), { params: Promise.resolve({ id: 'campaign' }) }) }
 }
+
+test('explicit holder selection only sends to that server-verified destination', async () => {
+  const h = smsHarness({ twoHolders: true })
+  const result = await h.send({ recipientDestination: '+12025550103' })
+  assert.equal(result.status, 200)
+  assert.equal(h.deliveries.length, 1)
+  assert.equal(h.deliveries[0].to, '+12025550103')
+})
+
+test('unverified holder destination is rejected before transport or writes', async () => {
+  const h = smsHarness({ twoHolders: true })
+  assert.equal((await h.send({ recipientDestination: '+12025550999' })).status, 409)
+  assert.equal(h.deliveries.length, 0)
+  assert.equal(h.writes.length, 0)
+})
 
 test('SMS changed preview rejects before transport or persistence', async () => {
   const h = smsHarness({ changed: true })

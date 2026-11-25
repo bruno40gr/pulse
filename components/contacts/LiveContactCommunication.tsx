@@ -33,6 +33,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const tenant = `tenant=${encodeURIComponent(tenantId)}`
   const ids = contactIds.join(',')
   const [target, setTarget] = useState<Target | null>(null)
+  const [smsTargets, setSmsTargets] = useState<Target[]>([])
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([])
   const [senders, setSenders] = useState<OrganisationSender[]>([])
   const [senderId, setSenderId] = useState('')
@@ -51,7 +52,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const normalize = channel === 'sms' ? smsDestination : normalizeEmail
   const mailbox = mailboxes.find(item => item.canSend)
   const sender = senders.find(item => item.email === senderId) ?? senders[0]
-  const prefix = `${tenantId}:${channel}:${ids}:${destination}`
+  const prefix = `${tenantId}:${channel}:${ids}:${channel === 'sms' ? target?.address || destination : destination}`
 
   useEffect(() => {
     if (channel !== 'email') return
@@ -75,7 +76,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   useEffect(() => {
     const controller = new AbortController()
     const { signal } = controller
-    setLoading(true); setError(''); setTarget(null)
+    setLoading(true); setError(''); setTarget(null); setSmsTargets([]); setSendError('')
     void (async () => {
       const [audience, directory] = await Promise.all([
         json<RecipientResolution>(`/api/communications/recipients?${tenant}`, { ...post({ contactIds: ids.split(','), channel }), signal }).catch(error => {
@@ -86,12 +87,22 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
         json<{ people: ConversationPerson[] }>(`/api/conversations?${tenant}`, { signal }),
       ])
       const address = normalize(destination)
+      if (channel === 'sms') {
+        const targets = (audience?.recipients || []).flatMap(recipient => {
+          const person = directory.people.find(item => recipient.contactIds.some(id => item.id === `person:${id}`))
+          return person ? [{ id: person.id, address: recipient.destination, name: recipient.name, canSend: true }] : []
+        })
+        if (!targets.length) throw new Error('The recipient could not be verified. Check the contact’s saved routing.')
+        if (signal.aborted) return
+        setSmsTargets(targets)
+        setTarget(targets.find(item => item.address === address) || targets[0])
+      }
       const verified = audience?.recipients.find(item => item.destination === address)
       const allowedIds = verified?.contactIds ?? ids.split(',')
       const candidate = directory.people.find(item => allowedIds.some(id => item.id === `person:${id}`) && normalize(channel === 'sms' ? item.phone : item.email) === address)
-      if (!candidate || !address || channel === 'sms' && !verified) throw new Error('The recipient could not be verified. Check the contact’s saved routing.')
+      if (channel === 'email' && (!candidate || !address)) throw new Error('The recipient could not be verified. Check the contact’s saved routing.')
       if (signal.aborted) return
-      setTarget({ id: candidate.id, address, name: verified?.name || candidate.name, canSend: !!verified })
+      if (channel === 'email' && candidate) setTarget({ id: candidate.id, address, name: verified?.name || candidate.name, canSend: !!verified })
       if (channel === 'sms' && !profileCompose) {
         const inbox = await json<InboxThread[]>(`/api/inbox?${tenant}`, { signal })
         const messages = inbox.filter(thread => smsDestination(thread.other_phone) === address).flatMap(thread => thread.messages)
@@ -109,11 +120,14 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
     finally { locked.current = false; setSending(false) }
   }
 
-  const contact = { name: target?.name || name, phone: channel === 'sms' ? formatPhoneNumber(destination) : '', email: channel === 'email' ? destination : '' }
+  const contact = { name: target?.name || name, phone: channel === 'sms' ? formatPhoneNumber(target?.address || destination) : '', email: channel === 'email' ? destination : '' }
   const smsThread = { ...personThread({ ...contact, id: prefix, student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: sms }
   if (loading || setupLoading) return <LoadingSkeleton label="Loading composer" />
   if (error || setupError) return <Notice variant="error">{error || setupError}</Notice>
   return <CommunicationCanvas composeInPlace person={contact} channel={channel} smsThread={smsThread} threads={[]} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
+    smsRecipientControl={smsTargets.length > 1 ? <Select aria-label="SMS account holder" controlSize="compact" fullWidth={false} value={target?.address || ''} disabled={sending} onChange={event => { const next = smsTargets.find(item => item.address === event.target.value); if (next) { setTarget(next); setSendError('') } }}>
+      {smsTargets.map(item => <option key={item.address} value={item.address}>{item.name} — {formatPhoneNumber(item.address)}</option>)}
+    </Select> : undefined}
     notice={sendError ? <Notice variant="error">{sendError}</Notice> : undefined}
     liveSms={{ disabled: !target || loading || sending || !!error, onSend: body => {
       if (target) void send(`/api/inbox/reply?${tenant}`, { contact_id: target.id.slice('person:'.length), to_phone: target.address, body }, () => onDraft(`${prefix}:sms`, ''))

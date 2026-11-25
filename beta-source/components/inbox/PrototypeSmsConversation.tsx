@@ -14,9 +14,9 @@ import { useMediaQuery } from '@/beta-source/lib/useMediaQuery'
 import styles from './PrototypeSmsConversation.module.css'
 
 /** Mirrors the live SMS inbox's bubble/reply-bar presentation; never calls its handlers. */
-export default function PrototypeSmsConversation({ thread, mobile, draft, onChange, onSend, recipients, disabled = false, sendDisabled = false, panelLayout = false, live = false, onDraft, compact = false }: {
+export default function PrototypeSmsConversation({ thread, mobile, draft, onChange, onSend, recipients, disabled = false, sendDisabled = false, panelLayout = false, live = false, onDraft, compact = false, recipientControl }: {
   thread: PrototypeThread; mobile: boolean; draft: string; onChange: (value: string) => void; onSend: () => void; recipients?: MockRecipient[]
-  disabled?: boolean; sendDisabled?: boolean; panelLayout?: boolean; live?: boolean; onDraft?: () => Promise<string>; compact?: boolean
+  disabled?: boolean; sendDisabled?: boolean; panelLayout?: boolean; live?: boolean; onDraft?: () => Promise<string>; compact?: boolean; recipientControl?: import('react').ReactNode
 }) {
   const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const wide = useMediaQuery('(min-width: 1000px)')
@@ -42,8 +42,8 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }) }, [thread.id, thread.messages.length])
   return <section aria-label="Text message composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
-    {cancelProfileCompose && <ProfileComposerToolbar channel="sms" onCancel={cancelProfileCompose}><Button disabled={disabled || sendDisabled || !draft.trim()} onClick={onSend}>Send</Button></ProfileComposerToolbar>}
-    <div aria-label="SMS workspace" className={panelLayout && !profileCompose ? styles.panelLayout : undefined} style={{ display: 'grid', gridTemplateColumns: profileCompose ? 'minmax(0, 1fr)' : panelLayout ? undefined : desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+    {cancelProfileCompose && <ProfileComposerToolbar channel="sms" recipientName={previewName} recipientControl={recipientControl} onCancel={cancelProfileCompose}><Button disabled={disabled || sendDisabled || !draft.trim()} onClick={onSend}>Send</Button></ProfileComposerToolbar>}
+    <div aria-label="SMS workspace" className={profileCompose ? styles.profileLayout : panelLayout ? styles.panelLayout : undefined} style={{ display: 'grid', gridTemplateColumns: profileCompose ? undefined : panelLayout ? undefined : desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: profileCompose ? 'auto' : 'hidden' }}>
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
     {missingPhone.length > 0 && <Notice variant="warning" title="Excluded from sending" style={{ margin: spacing.md }}>{missingPhone.map(person => `${person.name} — No phone number`).join(', ')}</Notice>}
     {showHistory && <div role="region" aria-label="SMS history" style={{ flex: 1, minHeight: 180, maxHeight: recipients ? 320 : undefined, overflowY: 'auto', padding: mobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
@@ -71,7 +71,7 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
       {draft.trim() && <span style={{ fontSize: typography.sizeSm, color: panelLayout ? colors.textSecondary : colors.textMuted }}>SMS · {Math.ceil(draft.length / 160)} {live ? 'estimated' : 'sample'} segment{draft.length > 160 ? 's' : ''}</span>}
     </div>
     </div>
-    {!profileCompose && (desktop || panelLayout) && <aside className={panelLayout ? styles.preview : undefined} aria-label="SMS preview pane" style={{ minWidth: 0, minHeight: 0, overflowY: 'auto', borderLeft: `1px solid ${colors.border}`, background: colors.backgroundSecondary, padding: spacing.xl, display: 'flex', flexDirection: 'column', justifyContent: 'safe center' }}><PrototypeSmsPreview name={previewName} body={previewBody} highContrast={panelLayout} /></aside>}
+    {(profileCompose || desktop || panelLayout) && <aside className={panelLayout ? styles.preview : undefined} aria-label="SMS preview pane" style={{ minWidth: 0, minHeight: 0, overflowY: 'auto', borderLeft: `1px solid ${colors.border}`, background: colors.backgroundSecondary, padding: spacing.xl, display: 'flex', flexDirection: 'column', justifyContent: 'safe center' }}><PrototypeSmsPreview name={previewName} body={previewBody} highContrast={panelLayout} /></aside>}
   </div>
   </section>
 }

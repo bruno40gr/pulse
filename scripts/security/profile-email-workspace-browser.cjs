@@ -10,6 +10,8 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
       const errors = [], sent = [], unexpected = [], historyReads = [], smsSent = []
       let inboxReads = 0
+      let multiHolder = false
+      const campaignSends = []
       let senderReads = 0
       let failSend = true, failSettings = false, releaseSender
       const senderGate = new Promise(resolve => { releaseSender = resolve })
@@ -28,7 +30,12 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
         if (path === '/api/staff') return respond([])
         if (path === '/api/brand-settings') return respond({})
         if (path === '/api/contacts/check-sensitive') return respond({ flagged: [], opted_out: [] })
-        if (path === '/api/communications/recipients') return respond({ version: 'synthetic-v1', recipients: [{ destination: request.postDataJSON().channel === 'sms' ? '+15555550123' : 'alex@example.invalid', name: 'Alex Example', contactIds: ['alex'] }], excluded: [], selectedCount: 1 })
+        if (path === '/api/communications/recipients') return respond({ version: 'synthetic-v1', recipients: multiHolder && request.postDataJSON().channel === 'sms' ? [
+          { destination: '+15555550123', name: 'Sam Holder', contactIds: ['alex'] },
+          { destination: '+15555550124', name: 'Taylor Holder', contactIds: ['alex'] },
+        ] : [{ destination: request.postDataJSON().channel === 'sms' ? '+15555550123' : 'alex@example.invalid', name: 'Alex Example', contactIds: ['alex'] }], excluded: [], selectedCount: 1 })
+        if (path === '/api/campaigns' && request.method() === 'POST') return respond({ id: 'synthetic-campaign' })
+        if (path === '/api/campaigns/synthetic-campaign/send') { campaignSends.push(request.postDataJSON()); return respond({ ok: true, sent: 1, failed: 0 }) }
         if (path === '/api/conversations') return respond({ people: [{ id: 'person:alex', aliases: ['lead:alex'], name: 'Alex Example', email: 'alex@example.invalid', phone: '+15555550123', student: '', stage: '', profileType: 'contact', profileId: 'alex', smsContactId: 'alex' }] })
         if (path === '/api/communications/senders') {
           senderReads++
@@ -103,16 +110,17 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
       const sms = panel.getByRole('textbox', { name: 'SMS message' })
       await sms.fill('Keep this SMS draft')
-      assert.equal(await panel.getByRole('heading', { name: 'Write text message', level: 2 }).count(), 1)
-      assert.equal(await panel.getByText('Messaging Alex Example', { exact: true }).count(), 0)
+      assert.equal(await panel.getByRole('heading', { name: 'Messaging Alex Example', level: 2 }).count(), 1)
+      assert.equal(await panel.getByRole('combobox', { name: 'SMS account holder' }).count(), 0)
       assert.equal(await panel.getByRole('button', { name: 'Send', exact: true }).count(), 1)
       const smsComposer = panel.getByRole('region', { name: 'Message composer', exact: true })
-      const headingBox = await smsComposer.getByRole('heading', { name: 'Write text message' }).boundingBox()
+      const headingBox = await smsComposer.getByRole('heading', { name: 'Messaging Alex Example' }).boundingBox()
       const composerBox = await smsComposer.boundingBox(), editorBox = await sms.boundingBox()
       assert.ok(headingBox.y - composerBox.y < 60, 'SMS toolbar is at the top, not centered beside history')
-      assert.ok(editorBox.y > headingBox.y && editorBox.width > composerBox.width - 100, 'SMS editor fills the writing pane below the toolbar')
+      assert.ok(editorBox.y > headingBox.y && editorBox.width > 200 && editorBox.x >= composerBox.x, 'SMS editor stays below the toolbar without overflow')
       assert.ok(editorBox.height > 200, 'SMS editor uses available height')
-      assert.equal(await panel.getByRole('complementary', { name: 'SMS preview pane' }).count(), 0)
+      assert.equal(await smsComposer.getByRole('complementary', { name: 'SMS preview pane' }).isVisible(), true)
+      await smsComposer.getByRole('region', { name: 'SMS phone preview for Alex Example' }).getByText('Keep this SMS draft', { exact: true }).waitFor()
       assert.equal(await panel.getByRole('region', { name: 'SMS history' }).count(), 0)
       await sms.press('Enter')
       assert.equal(smsSent.length, 0, 'Enter inserts a newline rather than sending a profile draft')
@@ -167,13 +175,13 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
       await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
       await sms.fill('Lead SMS draft')
-      assert.equal(await panel.getByRole('heading', { name: 'Write text message', level: 2 }).count(), 1)
+      assert.equal(await panel.getByRole('heading', { name: 'Messaging Alex Example', level: 2 }).count(), 1)
       assert.equal(await panel.getByRole('button', { name: 'Send', exact: true }).count(), 1)
       const leadPane = await panel.getByRole('region', { name: 'Message composer', exact: true }).boundingBox()
-      const leadTitle = await panel.getByRole('heading', { name: 'Write text message' }).boundingBox()
+      const leadTitle = await panel.getByRole('heading', { name: 'Messaging Alex Example' }).boundingBox()
       assert.ok(leadTitle.y - leadPane.y < 60, 'Lead SMS toolbar is top aligned')
-      assert.ok((await sms.boundingBox()).width > leadPane.width - 120, 'Lead SMS editor does not split around a phone preview')
-      assert.equal(await panel.getByRole('region', { name: 'Message composer', exact: true }).getByText('Preview', { exact: true }).isVisible(), false)
+      assert.ok((await sms.boundingBox()).width > 180, 'Lead SMS editor remains usable beside or above preview')
+      assert.equal(await panel.getByRole('region', { name: 'Message composer', exact: true }).getByRole('complementary', { name: 'SMS preview pane' }).isVisible(), true)
       await page.screenshot({ path: `/tmp/profile-sms-lead-${width}.png` })
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
       await panel.getByRole('button', { name: 'Send email', exact: true }).click()
@@ -198,9 +206,47 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await panel.getByText('Synthetic settings failure', { exact: true }).waitFor()
       assert.equal(await panel.getByRole('status', { name: 'Loading composer' }).count(), 0, 'Settings failure settles the loader')
       assert.equal(await body.count(), 0, 'Settings failure cannot expose an unauthorised send form')
+      multiHolder = true
+      for (const lead of [false, true]) {
+        await page.goto(`${base}/profile-email-review?lead=${lead ? '1' : ''}&mobile=${width === 390 ? '1' : '0'}`)
+        await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
+        const picker = panel.getByRole('combobox', { name: 'SMS account holder' })
+        await picker.waitFor()
+        await panel.getByRole('heading', { name: 'Messaging Sam Holder', exact: true }).waitFor()
+        await sms.fill('Draft for Sam')
+        await picker.selectOption('+15555550124')
+        await panel.getByRole('heading', { name: 'Messaging Taylor Holder', exact: true }).waitFor()
+        if (lead) {
+          const review = panel.getByRole('region', { name: 'Verified SMS recipients' })
+          assert.equal(await review.getByRole('listitem').count(), 1, 'Recipient review matches only the selected holder')
+          await review.getByText('Taylor Holder', { exact: true }).waitFor()
+        }
+        assert.equal(await sms.inputValue(), '', 'New holder starts with its own draft')
+        await sms.fill('Draft for Taylor')
+        await panel.getByRole('region', { name: 'SMS phone preview for Taylor Holder' }).getByText('Draft for Taylor', { exact: true }).waitFor()
+        await picker.selectOption('+15555550123')
+        assert.equal(await sms.inputValue(), 'Draft for Sam')
+        await picker.selectOption('+15555550124')
+        assert.equal(await sms.inputValue(), 'Draft for Taylor')
+        await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
+        assert.equal(await picker.inputValue(), '+15555550124')
+        assert.equal(await sms.inputValue(), 'Draft for Taylor')
+        await page.screenshot({ path: `/tmp/sms-holder-${lead ? 'lead' : 'contact'}-${width}.png` })
+        await panel.getByRole('region', { name: 'Message composer', exact: true }).getByRole('button', { name: 'Send', exact: true }).click()
+        if (lead) {
+          await panel.getByRole('region', { name: 'Message composer', exact: true }).waitFor({ state: 'hidden' })
+          assert.equal(campaignSends.at(-1).recipientDestination, '+15555550124')
+          assert.equal(campaignSends.at(-1).recipientVersion, 'synthetic-v1')
+        } else {
+          await page.waitForFunction(() => document.querySelector('[aria-label="SMS message"]')?.value === '')
+          assert.equal(smsSent.at(-1).to_phone, '+15555550124')
+          assert.equal(smsSent.at(-1).body, 'Draft for Taylor')
+        }
+      }
       assert.deepEqual(historyReads, [], 'New-email composition never requests mailbox history or summary')
       assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
-      console.log(`PASS ${width}px: contact + lead SMS geometry, no phone mockup/history/polling, newline safety, Cancel/failure draft retention, verified SMS send and success clear; email regression passed; synthetic APIs only`)
+      console.log(`PASS ${width}px: contact + lead SMS smartphone preview, Messaging heading, two-holder selection and separate drafts, verified selected-destination send, Cancel/reopen, newline safety; email regression passed; synthetic APIs only`)
       await page.close()
     }
   } finally { await browser.close() }

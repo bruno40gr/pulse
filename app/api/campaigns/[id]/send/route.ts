@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!authorization.ok) return NextResponse.json({ error: authorization.error }, { status: authorization.status })
     const { tenantId } = authorization
 
-    const { recipientIds, leadId, recipientVersion } = await request.json()
+    const { recipientIds, leadId, recipientVersion, recipientDestination } = await request.json()
     if (!recipientIds?.length) return NextResponse.json({ error: 'No recipients' }, { status: 400 })
     if (!authorization.demo && (typeof recipientVersion !== 'string' || !recipientVersion || !validContactSelection(recipientIds))) return NextResponse.json({ error: 'Review verified SMS recipients before sending.' }, { status: 409 })
     if (recipientVersion !== undefined && !authorization.demo && authorization.context.roleKey !== 'owner' && !authorization.context.permissions.has('contacts.read')) return NextResponse.json({ error: 'Contact access is required.' }, { status: 403 })
@@ -50,6 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const audience = recipientVersion !== undefined ? validContactSelection(recipientIds)
       ? await communicationRecipients(tenantId, recipientIds, 'sms') : null : undefined
     if (recipientVersion !== undefined && (!audience || audienceVersion(audience) !== recipientVersion)) return NextResponse.json({ error: 'Recipient details changed. Reopen the composer to review the updated count.' }, { status: 409 })
+    if (recipientDestination !== undefined && (typeof recipientDestination !== 'string' || !audience?.recipients.some(recipient => recipient.destination === recipientDestination))) return NextResponse.json({ error: 'Choose a verified SMS destination.' }, { status: 409 })
 
     // Demo mode — simulate delivery without hitting Twilio
     if (authorization.demo) {
@@ -125,7 +126,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Only the server-verified preview may reach transport, including lead and
     // account-manager destinations resolved through that same preview path.
     if (!audience) return NextResponse.json({ error: 'Review verified SMS recipients before sending.' }, { status: 409 })
-    const resolved = audience
+    const resolved = recipientDestination === undefined ? audience : { ...audience, recipients: audience.recipients.filter(recipient => recipient.destination === recipientDestination) }
     const missingPhone = resolved.excluded
     const sendable: SendContact[] = resolved.recipients.map(recipient => ({ id: recipient.contactIds[0], first_name: recipient.name.split(/\s+/)[0], last_name: '', phone: recipient.destination }))
     // Student-specific fields cannot safely be filled when several selected

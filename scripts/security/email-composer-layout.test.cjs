@@ -146,7 +146,7 @@ test('profile workspace has one shared header and composers own H2 Cancel/Send a
   const toolbar = read('components/inbox/ProfileComposerToolbar.tsx')
   assert.match(toolbar, /<SectionTitle/)
   assert.match(toolbar, /Write email/)
-  assert.match(toolbar, /Write text message/)
+  assert.match(toolbar, /Messaging/)
   assert.match(toolbar, />Cancel<\/Button>/)
   assert.match(read('components/campaigns/ComposePanel.tsx'), /!cancelProfileCompose && <ComposerFooter/)
   assert.match(read('components/inbox/Conversations.tsx'), /!embedded && <header/)
