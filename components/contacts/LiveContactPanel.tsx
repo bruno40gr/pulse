@@ -5,7 +5,8 @@ import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { useId, useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
+import { Avatar, Badge, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
+import { ContactRelationshipBadges } from './ContactRelationshipBadges'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
 import { MetadataRow } from '@/beta-source/app/content-studio-prototype/students/MetadataRow'
@@ -219,7 +220,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
       <SlidePanelHeader title={editing ? 'Edit Contact' : name.replace(/\s*\(account\)\s*$/i, '')} subtitle={editing ? name : subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
-        badge={subject.kind === 'student' && person ? <StatusBadge status={person.opted_out ? 'spam' : person.client_status} label={person.opted_out ? 'Opted out' : person.client_status} /> : undefined}
+        badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
         toast={status || undefined} onClose={close} onBack={compose ? () => setCompose(null) : undefined} backLabel="Back to contact" />
       {compose ? <div className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ background: colors.surfaceMuted }}>
         <LiveContactCommunication key={compose} tenantId={tenantId} channel={compose} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
@@ -267,12 +268,18 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                 </MetadataRow>
               </DenseSectionPanel>
               {visibleHolders.length > 0 && <DenseSectionPanel title="Account holders">
-                <div style={stack}>{visibleHolders.map(holder => <DenseSectionPanel key={holder.id} title={holder.name} headingLevel="h4">
+                <div style={stack}>{visibleHolders.map(holder => {
+                  const holderPerson = [person, ...students].find(item => item && item.id === (holder.person_id || holder.display_person_id))
+                  return <DenseSectionPanel key={holder.id} title={<div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+                    <SectionTitle as="h4" variant="card">{holder.name}</SectionTitle>
+                    {holderPerson && <ContactRelationshipBadges contact={holderPerson} />}
+                    {holderPerson?.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
+                  </div>}>
                   <FieldGrid>
                     <DetailField label="Phone" value={formatPhoneNumber(holder.phone ?? null) || 'Not added'} />
                     <DetailField label="Email" value={holder.email || 'Not added'} />
                   </FieldGrid>
-                </DenseSectionPanel>)}</div>
+                </DenseSectionPanel>})}</div>
               </DenseSectionPanel>}
               {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
                 accountId={familyId} addStudentOnly

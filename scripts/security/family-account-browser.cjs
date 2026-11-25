@@ -24,11 +24,12 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
         relationship_badges: ['Enrolled'], account_holders: [{ person_id: adultId, account_id: account, name: 'Adult Example', is_primary: true },
           { account_id: other, name: 'Alexandra Laustsen', phone: '2025550101', email: 'alex@example.invalid', is_primary: false }],
         phone: '', email: '', custom_fields: {}, profile_enrollments: [] }
+      let roster = [adult]
       page.on('pageerror', error => errors.push(error.message))
       await page.route('**/api/**', async route => {
         const request = route.request(), url = new URL(request.url()), path = url.pathname
         const fulfill = (data, status = 200, headers = {}) => route.fulfill({ status, contentType: 'application/json', headers, body: JSON.stringify(data) })
-        if (path === '/api/contacts') return fulfill([adult], 200, { 'X-Contacts-Can-Edit': 'true', 'X-Contacts-Can-Read-Notes': 'true', 'X-Contacts-Can-Edit-Notes': 'true' })
+        if (path === '/api/contacts') return fulfill(roster, 200, { 'X-Contacts-Can-Edit': 'true', 'X-Contacts-Can-Read-Notes': 'true', 'X-Contacts-Can-Edit-Notes': 'true' })
         if (path === '/api/tenant-fields') return fulfill([])
         if (path === '/api/account/me') return fulfill({ user: { displayName: 'Fixture' } })
         if (path === '/api/tenant/sync-status') return fulfill({ last_synced_at: null })
@@ -112,6 +113,32 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       await familySection.getByRole('button', { name: 'Add follow-up', exact: true }).click()
       await page.getByRole('dialog').last().getByLabel('Date', { exact: true }).waitFor()
       await page.getByRole('dialog').last().getByRole('button', { name: 'Cancel', exact: true }).click()
+      failFollowUps = false
+      const shell = uuid(30), manager = uuid(31)
+      roster = ['Jonathan', 'Arya'].map((first_name, index) => ({ ...adult, id: uuid(32 + index), first_name, last_name: 'Berns',
+        account_id: index ? manager : shell, family_account_id: shell, account_holder_person_id: null,
+        account_holder_name: index ? 'Sam Berns' : 'Jonathan Berns', family_name: 'Sam Berns',
+        account_holders: [{ account_id: manager, name: 'Sam Berns', phone: '5303209046', email: 'sam@example.invalid', is_primary: true }],
+        follow_up_at: index ? '2026-12-04T12:00:00Z' : null, follow_up_note: index ? 'Call about lessons' : null,
+      }))
+      await page.goto(`${base}/dashboard/contacts`)
+      await table.getByText('Sam Berns', { exact: true }).waitFor()
+      assert.equal(await table.getByText('Sam Berns', { exact: true }).count(), 1, 'A legacy billing anchor must not duplicate its actual holder')
+      await table.getByText('(530) 320-9046', { exact: true }).waitFor()
+      await table.getByRole('columnheader', { name: /Follow-up date/ }).waitFor()
+      await table.getByRole('columnheader', { name: /Follow-up note/ }).waitFor()
+      await table.getByText('Call about lessons', { exact: true }).first().waitFor()
+      await table.getByText('Dec 4', { exact: true }).first().waitFor()
+      const mae = { ...adult, first_name: 'Mae', last_name: 'Strider', staff_id: uuid(40),
+        account_holder_person_id: null, family_name: 'Mae Strider',
+        account_holders: [{ account_id: account, display_person_id: adultId, name: 'Mae Strider', is_primary: true }] }
+      roster = [mae]
+      await page.goto(`${base}/dashboard/contacts`)
+      await table.getByRole('button', { name: 'Mae Strider', exact: true }).waitFor()
+      assert.equal(await table.getByText('Mae Strider', { exact: true }).count(), 1)
+      await table.getByRole('rowgroup').getByText('Instructor', { exact: true }).waitFor()
+      await table.getByRole('button', { name: 'Mae Strider', exact: true }).click()
+      await panel.getByText('Instructor', { exact: true }).first().waitFor()
       assert.deepEqual(errors, [])
       assert.deepEqual(unexpected, [])
       console.log(`PASS ${width}px: adult holder appears once with Enrolled badge and zero dependents; account-owned reminder save/complete; legacy account searchable/linkable with explicit account operation; synthetic IO only`)

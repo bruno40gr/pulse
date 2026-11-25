@@ -16,6 +16,7 @@ export type TablePreferenceSchema = {
   defaultPageSize?: number
   version?: number
   columnMigrations?: Readonly<Record<string, string>>
+  addedDefaultColumns?: readonly string[]
 }
 
 export function normalizeTablePreferences(value: unknown, schema: TablePreferenceSchema): TablePreferences {
@@ -23,6 +24,7 @@ export function normalizeTablePreferences(value: unknown, schema: TablePreferenc
   const stored = input.columns
   const migratedColumns = Array.isArray(stored) ? [...stored] : null
   if (migratedColumns && schema.version && input.version !== schema.version) {
+    for (const added of schema.addedDefaultColumns || []) if (!migratedColumns.includes(added)) migratedColumns.push(added)
     for (const [existing, added] of Object.entries(schema.columnMigrations || {})) {
       if (migratedColumns.includes(existing) && !migratedColumns.includes(added)) migratedColumns.push(added)
     }

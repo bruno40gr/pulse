@@ -16,6 +16,7 @@ import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 import { readSubscriptionSource } from '@/lib/subscription-source'
 import { familyAccountId } from '@/lib/family-account'
 import { isLegacyStudentBillingAccount } from '@/lib/legacy-billing-account'
+import { holderDisplayPersonId } from '@/lib/holder-display-identity'
 import { readFamilyAccountLinks, readDisplayFamilyAccountLinks, readFamilyAccountNames } from '@/lib/family-account-server'
 import { contactRelationshipBadges, mergeRelationshipBadges } from '@/lib/contact-relationship'
 
@@ -379,7 +380,9 @@ export async function GET(request: Request) {
           ? accountHolders.find(holder => holder.is_primary)?.name || accountHolders[0]?.name || 'Family'
           : familyNames.get(familyAccountId(student.account_id || '', familyAccounts.links)) || account.name,
         account_member_since: nonStudentBooking ? null : account.created_at ?? null,
-        account_holders: nonStudentBooking ? [] : accountHolders,
+        account_holders: nonStudentBooking ? [] : accountHolders.map(holder => ({ ...holder,
+          display_person_id: holderDisplayPersonId(tenantId, holder.account_id || student.account_id, visiblePeople),
+        })),
         instructor: instructorInfo,
         notes_history: canReadNotes ? person.notes_history || [] : [],
         student_notes_history: canReadNotes ? person.student_notes_history || [] : [],

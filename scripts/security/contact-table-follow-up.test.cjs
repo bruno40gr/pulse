@@ -26,7 +26,8 @@ test('preferences retire status, preserve density/page size, and migrate date vi
   assert.deepEqual([...prefs.columns], ['name', 'followUp', 'followUpNote'])
   assert.equal(prefs.sort.key, 'name'); assert.equal(prefs.density, 'compact'); assert.equal(prefs.pageSize, 100)
   assert.equal(normalizeTablePreferences({ sort: { key: 'followUpNote', direction: 'desc' } }, CONTACT_TABLE_SCHEMA).sort.key, 'followUpNote')
-  assert.equal(normalizeTablePreferences({ columns: ['name', 'phone'] }, CONTACT_TABLE_SCHEMA).columns.includes('followUpNote'), false)
+  assert.equal(normalizeTablePreferences({ columns: ['name', 'phone'], version: 2 }, CONTACT_TABLE_SCHEMA).columns.includes('followUpNote'), true)
+  assert.equal(normalizeTablePreferences({ columns: ['name', 'phone'], version: 3 }, CONTACT_TABLE_SCHEMA).columns.includes('followUpNote'), false, 'Users can still hide newly introduced columns after migration')
 })
 test('Contacts badges are name relationships, not a status column; date/note columns are independently sortable', () => {
   const source = readFileSync(resolve(__dirname, '../../app/dashboard/contacts/page.tsx'), 'utf8')

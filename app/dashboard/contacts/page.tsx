@@ -24,7 +24,7 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
-import { familyDependents, displayAccountHolders } from '@/lib/family-account'
+import { familyDependents, displayAccountHolders, familyHeaderHolder } from '@/lib/family-account'
 import { compareContactFollowUps, compareContactFollowUpNotes } from '@/lib/contact-follow-up-summary'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
@@ -47,6 +47,7 @@ import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 export interface Contact {
   family_account_id?: string | null
+  reminder_account_id?: string | null
   family_linked_account_ids?: string[]
   follow_up_at?: string | null
   follow_up_note?: string | null
@@ -58,7 +59,7 @@ export interface Contact {
   student_id?: string | null
   is_student?: boolean
   account_holder_person_id?: string | null
-  account_holders?: { person_id?: string; account_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
+  account_holders?: { person_id?: string; display_person_id?: string; account_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }[]
   message_routing?: string
   account_id?: string | null
   linked_account_ids?: string[]
@@ -502,9 +503,9 @@ export default function ContactsPage() {
 
 
   const openContactFollowUps = (contact: Contact) => {
-    if (contact.family_follow_up_at && (contact.family_account_id || contact.account_id)) {
-      const id = contact.family_account_id || contact.account_id!
-      openFamilyAccount(id, contacts.filter(row => row.tenant_id === contact.tenant_id && (row.family_account_id || row.account_id) === id))
+    if (contact.family_follow_up_at && (contact.reminder_account_id || contact.account_id)) {
+      const id = contact.reminder_account_id || contact.account_id!
+      openFamilyAccount(id, contacts.filter(row => row.tenant_id === contact.tenant_id && (row.reminder_account_id || row.account_id) === id))
     } else openFamilyPerson(contact)
   }
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
@@ -730,21 +731,22 @@ export default function ContactsPage() {
           filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} onClear={() => { setFilterDraft({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation('') }} />}
           groups={visibleFamilies.map(group => {
             const holderPerson = group.parent
-            const summaryHolders = displayAccountHolders(group.members).filter(holder => !holder.person_id
-              && holder.account_id && !group.id.endsWith(`account:${holder.account_id}`))
-            const followUpContact = sortedDisplayed.find(contact => group.members.some(member => member.id === contact.id)) || group.members[0]
+            const holders = displayAccountHolders(group.members)
+            const headerHolder = holderPerson ? holders.find(holder => holder.person_id === holderPerson.id || holder.display_person_id === holderPerson.id) : familyHeaderHolder(group.id, holders)
+            const summaryHolders = holders.filter(holder => !holder.person_id && !holder.display_person_id && holder.id !== headerHolder?.id)
+            const followUpContact = [...group.members].sort((a, b) => compareContactFollowUps(a.follow_up_at, b.follow_up_at))[0]
             return {
               id: group.id,
               parent: holderPerson,
               selectionRows: group.selectionRows,
-              name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
+              name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : headerHolder?.name || group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
               subtitle: group.holder ? 'Account holder' : '',
               summaryCells: contactView === 'none' || (!group.holder && !group.members[0].account_id) ? undefined : {
                 students: familyDependents(group.members).length,
                 ...(followUpsEnabled ? Object.fromEntries(contactColumns.filter(column => ['followUp', 'followUpNote'].includes(column.id))
                   .map(column => [column.id, column.render(followUpContact, 0)])) : {}),
-                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.phone ?? group.members[0].account_holder_phone) || 'No phone'}</span>,
-                email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.email ?? group.members[0].account_holder_email) || ''}</span>,
+                phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson?.phone || headerHolder?.phone) || 'No phone'}</span>,
+                email: <span style={{ color: colors.tableSecondary }}>{holderPerson?.email || headerHolder?.email || ''}</span>,
               },
               members: contactView === 'family' && (group.holder || group.members.some(member => member.id !== holderPerson?.id)) ? [...summaryHolders.map(holder => ({
                 id: holder.id, name: holder.name || 'Account holder', isAccountHolder: true,
@@ -752,7 +754,7 @@ export default function ContactsPage() {
               })), ...group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
                 id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim(),
                 isAccountHolder: group.members.some(member => member.tenant_id === contact.tenant_id
-                  && (member.account_holder_person_id === contact.id || member.account_holders?.some(holder => holder.person_id === contact.id))),
+                  && (member.account_holder_person_id === contact.id || member.account_holders?.some(holder => holder.person_id === contact.id || holder.display_person_id === contact.id))),
               }))].sort((left, right) => Number(right.isAccountHolder) - Number(left.isAccountHolder)) : [],
             }
           })}

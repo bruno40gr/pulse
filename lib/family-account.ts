@@ -39,7 +39,7 @@ export function familyAccountId(accountId: string, links: FamilyAccountLink[]) {
   return links.find(link => link.member_account_id === accountId)?.family_account_id || accountId
 }
 
-type Holder = { person_id?: string; account_id?: string; name: string | null }
+type Holder = { person_id?: string; display_person_id?: string; account_id?: string; name: string | null }
 export type DisplayAccountHolder = Holder & { phone?: string | null; email?: string | null; is_primary?: boolean }
 /** Saved account summaries are visible even without a corresponding person row.
  * Display only: never feed these summaries into recipient selection. */
@@ -60,11 +60,17 @@ export function displayAccountHolders(members: { account_id?: string | null; acc
   }
   return [...holders.entries()].map(([id, holder]) => ({ ...holder, id }))
 }
+/** A family anchor can be a billing shell. Its saved holder, not that shell,
+ * supplies the single header name/destination; only remaining holders get rows. */
+export function familyHeaderHolder(groupId: string, holders: ReturnType<typeof displayAccountHolders>) {
+  return holders.find(holder => holder.account_id && groupId.endsWith(`account:${holder.account_id}`))
+    || holders.find(holder => holder.is_primary) || holders[0]
+}
 type Member = { id: string; is_student?: boolean; student_id?: string | null; account_holder_person_id?: string | null; account_holders?: Holder[] }
 /** A holder's own student role is not a dependent. Do not infer identity from names. */
 export function familyDependents<T extends Member>(members: T[]) {
   const holders = new Set(members.flatMap(member => [member.account_holder_person_id,
-    ...(member.account_holders || []).map(holder => holder.person_id)].filter(Boolean)))
+    ...(member.account_holders || []).flatMap(holder => [holder.person_id, holder.display_person_id])].filter(Boolean)))
   return [...new Map(members.filter(member => !holders.has(member.id) && (member.is_student === true || (member.is_student !== false && Boolean(member.student_id))))
     .map(member => [member.id, member])).values()]
 }

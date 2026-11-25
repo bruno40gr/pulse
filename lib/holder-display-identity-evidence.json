@@ -1,0 +1,13 @@
+{
+  "tenant_id": "00000000-0000-0000-0000-000000000001",
+  "accounts": [
+    {
+      "account_id": "2874b90c-7db1-467d-a282-91f4288c3da5",
+      "source_person_id": "d38b7e13-1cf1-4bb3-8535-323d7df81568"
+    },
+    {
+      "account_id": "fadc58ed-0ffe-414f-b18b-c9914f232da4",
+      "source_person_id": "c1c4f245-9c4c-4598-b4e4-fd8d8ee443d4"
+    }
+  ]
+}

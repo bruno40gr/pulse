@@ -1,5 +1,40 @@
 # Holder roles, cards and follow-up repair — November 25, 2026
 
+## Duplicate-header and multi-role follow-up
+
+Read-only production inspection confirmed Sam Berns, Cynthia Abutin, Janeen
+Llamas and Rita Thiara are saved account identities, not additional live person
+rows. Legacy student billing shells can anchor a display family: the header now
+uses its actual saved holder once, including that holder's phone/email, and only
+remaining holders appear below.
+
+Binh Quach's live person `507be90b-a42b-47a2-ab1c-bc55b7051ab3` has source ID
+`d38b7e13-1cf1-4bb3-8535-323d7df81568` and account
+`2874b90c-7db1-467d-a282-91f4288c3da5`. The September CSV records that exact source
+ID as Aidan/Bryson's manager. His former-student role remains valid. Mae Strider's
+person `bbcd4340-15f5-49b8-bb69-d84c44aef353` has source ID
+`c1c4f245-9c4c-4598-b4e4-fd8d8ee443d4`, account
+`fadc58ed-0ffe-414f-b18b-c9914f232da4`, and saved instructor
+`0c1a4bff-ff82-4ef6-992a-144edc4362a0`. Her student/instructor badges must survive
+family presentation. Reviewed source mappings are display-only:
+`display_person_id` never replaces `person_id` or grants recipient access.
+
+Contacts preference version 3 introduces date/note columns for older saved
+layouts; current-version users may still hide them. Family headers use the earliest
+available reminder, not an arbitrary first member. Opening an account reminder
+retains its saved owner rather than its display-family anchor.
+
+Existing-family merging remains unsupported. Disabled account results explain
+that restriction; reviewed student billing shells are excluded as holder-account
+candidates. No production relationships, permissions or schema were mutated.
+
+Validation: 42/42 focused contracts; TypeScript clean; lint 0 errors with the same
+2 existing warnings. Expanded synthetic browser acceptance at 1440/390px covers
+Sam's duplicate header, phone, date/note cells and Mae's badge. Full suite:
+1129/1146, exactly the same 17 baseline failures. No schema changes; the prior
+PostgreSQL rehearsal remains applicable. Authenticated production roster
+interaction has not been performed.
+
 ## Identity review
 
 Reviewed the production student/account relationships and September 25 clients

@@ -24,6 +24,40 @@ function setup(options = {}) {
 const route = 'app/api/contacts/accounts/[id]/follow-ups/route.ts'
 const command = { action: 'save', lead_intake_id: null, expected_version: 0, due_at: '2026-12-01T20:00:00Z', message: 'Family reminder' }
 
+test('legacy family anchors use the actual holder once, including saved contact details', () => {
+  const { displayAccountHolders, familyHeaderHolder } = createHarness().load('lib/family-account.ts')
+  for (const name of ['Sam Berns', 'Cynthia Abutin', 'Janeen Llamas', 'Rita Thiara']) {
+    const holders = displayAccountHolders([{ account_id: account, account_holder_name: 'Legacy billing shell',
+      account_holders: [{ account_id: other, name, phone: '2025550100', email: 'holder@example.invalid', is_primary: true }] }])
+    const header = familyHeaderHolder(`account:${account}`, holders)
+    assert.equal(header.name, name)
+    assert.equal(header.phone, '2025550100')
+    assert.equal(holders.filter(holder => holder.id !== header.id).length, 0)
+  }
+})
+
+test('source-verified Binh/Mae display roles coalesce without creating a messaging holder identity', () => {
+  const h = createHarness(), { holderDisplayPersonId } = h.load('lib/holder-display-identity.ts')
+  const evidence = require('../../lib/holder-display-identity-evidence.json')
+  for (const item of evidence.accounts) {
+    const person = { id: 'adult', tenant_id: HEAD, first_name: 'Verified', last_name: 'Person', custom_fields: { external_id: item.source_person_id },
+      is_student: true, student_id: 'role', account_id: item.account_id, staff_id: item.source_person_id.startsWith('c1c4') ? 'instructor' : null }
+    assert.equal(holderDisplayPersonId(HEAD, item.account_id, [person]), person.id)
+    assert.equal(holderDisplayPersonId(DEMO, item.account_id, [person]), undefined)
+    assert.equal(holderDisplayPersonId(HEAD, item.account_id, [person, { ...person, id: 'duplicate' }]), undefined)
+    assert.equal(holderDisplayPersonId(HEAD, item.account_id, [{ ...person, custom_fields: {} }]), undefined)
+    const student = { id: 'child', tenant_id: HEAD, is_student: true, student_id: 'child-role', account_id: item.account_id,
+      account_holder_name: 'Verified Person', account_holders: [{ name: 'Verified Person', account_id: item.account_id, display_person_id: person.id }] }
+    const groups = h.load('lib/contact-list-views.ts').contactViewGroups([person, student], [person, student], 'family')
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].parent.id, person.id)
+    assert.equal(groups[0].parent.staff_id, person.staff_id)
+    assert.equal(h.load('lib/family-account.ts').familyDependents([person, student]).length, 1)
+    assert.equal(student.account_holders[0].person_id, undefined, 'No recipient grant is inferred')
+    assert.equal(student.account_holder_person_id, undefined)
+  }
+})
+
 test('reviewed source IDs suppress all 13 student billing shells without name or age matching', () => {
   const h = createHarness()
   const { isLegacyStudentBillingAccount } = h.load('lib/legacy-billing-account.ts')

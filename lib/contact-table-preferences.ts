@@ -4,7 +4,8 @@ export type ContactSortKey = typeof CONTACT_SORT_KEYS[number]
 export const CONTACT_TABLE_SCHEMA = {
   columnIds: ['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote', 'students'],
   defaultColumns: ['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote'],
-  version: 2,
+  version: 3,
+  addedDefaultColumns: ['followUp', 'followUpNote'],
   columnMigrations: { followUp: 'followUpNote' },
   requiredColumns: ['name'],
   storagePrefix: 'pulse_contacts_table_v1',

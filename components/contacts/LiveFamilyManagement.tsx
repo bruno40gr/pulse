@@ -10,8 +10,9 @@ import type { FamilyAction, PreviewAccount } from '@/beta-source/lib/academy-fam
 import type { PreviewStudent } from '@/beta-source/lib/academy-student-preview'
 import { spacing } from '@/lib/tokens'
 import { familyAccountId, type FamilyAccountLink } from '@/lib/family-account'
+import { isLegacyStudentBillingAccount } from '@/lib/legacy-billing-account'
 
-type Person = { id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; date_of_birth?: string | null; account_id?: string | null; is_student?: boolean; family_revision?: number; family_links?: { account_id: string; relationship: string | null; is_primary: boolean }[] }
+type Person = { id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; date_of_birth?: string | null; account_id?: string | null; custom_fields?: { external_id?: string }; is_student?: boolean; family_revision?: number; family_links?: { account_id: string; relationship: string | null; is_primary: boolean }[] }
 type Account = { id: string; name: string; email: string | null; phone: string | null }
 type AccountManager = { id: string; account_id: string; person_id: string; relationship: string | null; is_primary: boolean }
 const emptyContact: NewParticipant = { firstName: '', lastName: '', email: '', phone: '', birthday: '' }
@@ -136,9 +137,12 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
         </div>
         <ParticipantPicker label="Account holders" options={[
           ...people.map(person => ({ ...personOption(person), disabled: accountManagers.some(link => link.person_id === person.id) })),
-          ...accounts.filter(row => row.id !== currentAccountId).map(row => ({ id: `account:${row.id}`, name: row.name,
+          ...accounts.filter(row => row.id !== currentAccountId && !people.some(person => person.account_id === row.id
+            && isLegacyStudentBillingAccount(tenantId, row.id, person.custom_fields?.external_id))).map(row => ({ id: `account:${row.id}`, name: row.name,
             detail: [row.email, row.phone, familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)
-              ? 'Already linked co-holder' : !accountLinkingSupported ? 'Account linking is temporarily unavailable' : null].filter(Boolean).join(' · '),
+              ? 'Already linked co-holder' : !accountLinkingSupported ? 'Account linking is temporarily unavailable'
+                : accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id)
+                  ? 'Belongs to another family · family merging is not supported' : null].filter(Boolean).join(' · '),
             disabled: !accountLinkingSupported || accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id) })),
         ]}
           selectedIds={selectedAccount ? [selectedAccount] : []} onSelectionChange={ids => setSelectedAccount(ids[0] || '')}

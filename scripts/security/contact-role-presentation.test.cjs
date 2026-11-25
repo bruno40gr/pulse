@@ -104,6 +104,7 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     '@/lib/subscription-source': load('lib/subscription-source.ts', { papaparse: require('papaparse') }),
     '@/lib/family-account': load('lib/family-account.ts'),
     '@/lib/legacy-billing-account': load('lib/legacy-billing-account.ts', { './legacy-billing-account-evidence.json': { default: require('../../lib/legacy-billing-account-evidence.json') } }),
+    '@/lib/holder-display-identity': load('lib/holder-display-identity.ts', { './holder-display-identity-evidence.json': { default: require('../../lib/holder-display-identity-evidence.json') } }),
     '@/lib/family-account-server': {
       readFamilyAccountLinks: async () => ({ supported: true, links: [] }),
       readDisplayFamilyAccountLinks: async () => ({ supported: true, links: [] }),

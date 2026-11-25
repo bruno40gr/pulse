@@ -5,7 +5,7 @@ export function groupContactFamilies<T extends {
   family_account_id?: string | null
   family_name?: string | null
   family_linked_account_ids?: string[]
-  linked_account_ids?: string[]; account_holders?: { person_id?: string; account_id?: string; name: string | null }[]
+  linked_account_ids?: string[]; account_holders?: { person_id?: string; display_person_id?: string; account_id?: string; name: string | null }[]
 }>(contacts: T[]): { id: string; holder: string | null; members: T[] }[] {
   const groups = new Map<string, { id: string; holder: string | null; members: T[] }>()
   for (const contact of contacts) {

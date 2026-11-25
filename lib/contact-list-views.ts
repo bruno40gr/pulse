@@ -9,7 +9,7 @@ export type ContactListView = TablePersonView
 
 type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
   account_holder_person_id?: string | null
-  account_holders?: { person_id?: string; account_id?: string; name: string | null }[]
+  account_holders?: { person_id?: string; display_person_id?: string; account_id?: string; name: string | null }[]
   is_minor?: boolean | null
   message_routing?: string | null
 }
@@ -19,7 +19,7 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
   if (view === 'none') return matches.map(contact => ({ id: `contact:${contact.id}`, holder: null, members: [contact], parent: contact, selectionRows: [contact] }))
   const matchIds = new Set(matches.map(contact => `${contact.tenant_id || ''}:${contact.id}`))
   const holderIds = (members: T[]) => new Set(members.flatMap(member => [member.account_holder_person_id,
-    ...(member.account_holders || []).map(holder => holder.person_id)].filter((id): id is string => Boolean(id))))
+    ...(member.account_holders || []).flatMap(holder => [holder.person_id, holder.display_person_id])].filter((id): id is string => Boolean(id))))
   const groups = groupContactFamilies(contacts)
   const linkedHolderKeys = new Set(groups.filter(group => group.holder).flatMap(group =>
     [...holderIds(group.members)].map(id => `${group.members[0].tenant_id || ''}:${id}`)))
@@ -38,7 +38,9 @@ export function contactViewGroups<T extends ViewContact>(matches: T[], contacts:
     if (!matched.length) return []
     // Header selection uses explicit holders, or matching records as transport IDs
     // for an account summary. Delivery resolves those IDs; they do not expose child checkboxes.
-    const selectionRows = parents.length ? parents : matched
+    const explicitIds = new Set(group.members.flatMap(member => [member.account_holder_person_id, ...(member.account_holders || []).map(holder => holder.person_id)]).filter(Boolean))
+    const authorizedParents = parents.filter(parent => explicitIds.has(parent.id))
+    const selectionRows = authorizedParents.length ? authorizedParents : matched
     const primaryIds = new Set(group.members.map(member => member.account_holder_person_id).filter(Boolean))
     const primary = primaryIds.size === 1 ? parents.find(parent => primaryIds.has(parent.id)) : undefined
     return [{ rank: Math.min(...matched.map(contact => matchRanks.get(key(contact)) ?? Infinity)),

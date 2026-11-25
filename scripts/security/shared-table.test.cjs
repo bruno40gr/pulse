@@ -99,8 +99,8 @@ test('each table uses the same preference rules with its own metadata schema', (
   for (const schema of [LEAD_TABLE_SCHEMA, CONTACT_TABLE_SCHEMA]) {
     assert.deepEqual(plain(normalizeTablePreferences(null, schema).columns), plain(schema.defaultColumns))
     const defaults = plain(normalizeTablePreferences(null, schema))
-    assert.deepEqual(plain(normalizeTablePreferences({ columns: ['email', 'email', 'unknown'], density: 'compact' }, schema)), { ...defaults, columns: ['name', 'email'], density: 'compact' })
-    assert.deepEqual(plain(normalizeTablePreferences({ columns: [] }, schema)), { ...defaults, columns: ['name'], density: 'comfortable' })
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: ['email', 'email', 'unknown'], density: 'compact', version: schema.version }, schema)), { ...defaults, columns: ['name', 'email'], density: 'compact' })
+    assert.deepEqual(plain(normalizeTablePreferences({ columns: [], version: schema.version }, schema)), { ...defaults, columns: ['name'], density: 'comfortable' })
   }
 })
 test('storage remains membership/tenant/table scoped and preserves released Leads key', () => {
