@@ -1,6 +1,6 @@
 'use client'
 
-import { useContext, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 import { ContactPrototypeContext } from '@/components/contacts/ContactPrototypeContext'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { SlidePanelHeader } from '@/components/ui'
@@ -12,13 +12,15 @@ export default function CardSmsComposer({ recipientId, name, leadId, backDestina
 }) {
   const simulated = useContext(ContactPrototypeContext)
   const [body, setBody] = useState('')
-  const recipient = { id: recipientId, first_name: name.trim().split(/\s+/)[0] || '', last_name: name.trim().split(/\s+/).slice(1).join(' ') }
+  const recipient = useMemo(() => ({ id: recipientId, first_name: name.trim().split(/\s+/)[0] || '', last_name: name.trim().split(/\s+/).slice(1).join(' ') }), [recipientId, name])
+  const recipientIds = useMemo(() => [recipientId], [recipientId])
+  const recipientPreview = useMemo(() => [recipient], [recipient])
   return <>
     {!embedded && <SlidePanelHeader title="Send a Text Message" onBack={onBack} backLabel={`Back to ${backDestination}`} onClose={onClose} />}
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <ComposePanel recipientCount={1} filterExplanation={`Message to ${name}`} recipientIds={[recipientId]} channel="sms" mode="single"
+      <ComposePanel recipientCount={1} filterExplanation={`Message to ${name}`} recipientIds={recipientIds} channel="sms" mode="single"
         conversation={simulated ? { body, onChange: setBody, onSend: async () => onBack() } : undefined}
-        contactContext={recipient} recipientPreview={[recipient]} composeSource="scratch" composeIntent="neutral" leadId={leadId}
+        contactContext={recipient} recipientPreview={recipientPreview} composeSource="scratch" composeIntent="neutral" leadId={leadId}
         onClose={onBack} onSent={onBack} />
     </div>
   </>

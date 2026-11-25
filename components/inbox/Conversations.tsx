@@ -217,6 +217,15 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [tenantId, campaignId])
   useEffect(() => {
     if (!tenantId) return
+    // A profile composer needs identity once, not a background SMS inbox poller.
+    if (embedded) {
+      const controller = new AbortController()
+      void requestJson(`/api/conversations?tenant=${tenantId}`, { signal: controller.signal })
+        .then(directory => { if (!controller.signal.aborted) { setPeople(directory.people); setLoadError('') } })
+        .catch(error => { if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : 'Could not load recipient.') })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      return () => controller.abort()
+    }
     let stopped = false
     const poller = startVisiblePolling(async signal => {
       try { await loadSms(signal) }
@@ -225,7 +234,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     })
     smsPoller.current = poller
     return () => { stopped = true; poller.stop(); smsPoller.current = null }
-  }, [loadSms, tenantId])
+  }, [loadSms, tenantId, !!embedded]) // eslint-disable-line react-hooks/exhaustive-deps -- embedded identity is fixed for this mounted composer
   useEffect(() => {
     if (embedded) return
     const reset = () => {

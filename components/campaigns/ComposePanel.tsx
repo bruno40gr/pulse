@@ -80,6 +80,7 @@ export default function ComposePanel({
   recipientCount, recipientDestination, recipientNameControl, recipientContent, sendLabel, messageLabel, filterExplanation, recipientIds, initialMessage = '', channel = 'sms', onClose, onSent,
   mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience: providedAudience, excludedRecipients = []
 }: ComposePanelProps) {
+  const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
   const request = useLeadWorkspaceRequest()
@@ -169,6 +170,8 @@ export default function ComposePanel({
   }, [recipientPreview])
 
   useEffect(() => {
+    // The profile already supplies the recipient; do not hydrate an unused preview.
+    if (cancelProfileCompose) return
     const seededPreview = recipientPreview.slice(0, 3)
     const previewNeedsHydration = seededPreview.length === 0 || seededPreview.some(recipient => !recipient.avatar_src)
     if (!previewNeedsHydration || recipientIds.length === 0) return
@@ -233,7 +236,7 @@ export default function ComposePanel({
     return () => {
       cancelled = true
     }
-  }, [recipientIds, recipientPreview, tenantId, request])
+  }, [recipientIds, recipientPreview, tenantId, request, cancelProfileCompose])
 
   useEffect(() => {
     request(`/api/brand-settings?tenant=${tenantId}`)
@@ -503,7 +506,6 @@ export default function ComposePanel({
     }
   }
 
-  const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const sendAction = <LoadingButton loading={isSending} fill={2} progress={sendProgress} onClick={handleSend}
     disabled={!message.trim() || effectiveCount === 0 || conversation?.disabled || smsReviewBlocked} style={{ maxWidth: '100%' }}>
     {isSending ? 'Sending…' : cancelProfileCompose ? 'Send' : sendLabel || 'Send message'}
@@ -513,9 +515,9 @@ export default function ComposePanel({
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
       {cancelProfileCompose && <ProfileComposerToolbar channel="sms" onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar>}
       <div style={{
-        display: isMobile ? 'flex' : 'grid',
-        flexDirection: isMobile ? 'column' : undefined,
-        gridTemplateColumns: isMobile ? undefined : 'minmax(0, 1fr) minmax(280px, 1fr)',
+        display: isMobile || cancelProfileCompose ? 'flex' : 'grid',
+        flexDirection: isMobile || cancelProfileCompose ? 'column' : undefined,
+        gridTemplateColumns: isMobile || cancelProfileCompose ? undefined : 'minmax(0, 1fr) minmax(280px, 1fr)',
         flex: 1,
         minHeight: 0,
         overflow: 'hidden',
@@ -810,7 +812,7 @@ export default function ComposePanel({
       </div>
 
       {/* Right column — phone preview (hidden on mobile) */}
-      {!isMobile && (
+      {!isMobile && !cancelProfileCompose && (
         <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
           {showComposeBootSkeleton ? (
             <div style={{ width: '240px', height: '520px', borderRadius: '52px', background: '#E5E7EB', animation: 'skeletonPulse 1.4s ease-in-out infinite' }} />

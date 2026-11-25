@@ -1,7 +1,8 @@
 'use client'
 
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { ProfileComposerCancelContext } from '@/components/inbox/ProfileComposerToolbar'
 import { CommunicationCanvas } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
 import PrototypeEmailComposer from '@/components/inbox/PrototypeEmailComposer'
 import { Notice, Select } from '@/components/ui'
@@ -28,6 +29,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   tenantId: string; channel: 'sms' | 'email'; contactIds: string[]; destination: string; name: string
   drafts: Record<string, string>; onDraft: (key: string, value: string) => void
 }) {
+  const profileCompose = !!useContext(ProfileComposerCancelContext)
   const tenant = `tenant=${encodeURIComponent(tenantId)}`
   const ids = contactIds.join(',')
   const [target, setTarget] = useState<Target | null>(null)
@@ -44,6 +46,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const [sendError, setSendError] = useState('')
   const [sending, setSending] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const historyRefresh = profileCompose ? 0 : refresh
   const locked = useRef(false)
   const normalize = channel === 'sms' ? smsDestination : normalizeEmail
   const mailbox = mailboxes.find(item => item.canSend)
@@ -89,14 +92,14 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
       if (!candidate || !address || channel === 'sms' && !verified) throw new Error('The recipient could not be verified. Check the contact’s saved routing.')
       if (signal.aborted) return
       setTarget({ id: candidate.id, address, name: verified?.name || candidate.name, canSend: !!verified })
-      if (channel === 'sms') {
+      if (channel === 'sms' && !profileCompose) {
         const inbox = await json<InboxThread[]>(`/api/inbox?${tenant}`, { signal })
         const messages = inbox.filter(thread => smsDestination(thread.other_phone) === address).flatMap(thread => thread.messages)
         if (!signal.aborted) setSms([...new Map(messages.map(item => [item.id, item])).values()].sort((a, b) => a.created_at.localeCompare(b.created_at)).map(item => ({ id: item.id, channel: 'sms', direction: item.direction, body: item.body || '', timestamp: item.created_at, time: '' })))
       }
     })().catch(error => { if (!signal.aborted) setError(error.message) }).finally(() => { if (!signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [channel, destination, ids, normalize, refresh, tenant])
+  }, [channel, destination, ids, normalize, historyRefresh, tenant, profileCompose])
 
   async function send(url: string, payload: object, done: () => void) {
     if (locked.current) return

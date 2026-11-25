@@ -1,5 +1,32 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: SMS layout repair and scoped plumbing/performance pass
+
+- Fixed the SMS toolbar/workspace sibling layout with an explicit vertical root.
+  Profile SMS now has a top H2/Cancel/Send toolbar and a full-width writing area;
+  conversation history and the decorative phone preview remain in Inbox, not the
+  profile compose surface. Lead campaign composition also drops its preview in
+  this context. Email layout is unchanged.
+- Profile SMS Enter inserts a newline; sending uses the explicit Send control.
+  Cancel/reopen and failed sends preserve drafts; successful contact sends clear
+  them. Existing transports, recipient verification and send locks are retained.
+- Embedded Conversations resolves its directory once instead of starting an SMS
+  inbox poller. Abort cleanup prevents stale identity updates. Standalone Inbox
+  retains visible-tab, single-flight polling and its explicit refresh behavior.
+- Live contact profile SMS skips unseen SMS history, including post-send history
+  reloads. Lead profile composition skips unused contacts/staff avatar hydration;
+  memoized recipient inputs avoid rerunning effects on every SMS keystroke.
+- Validation: browser geometry and transport acceptance at 1440/1076/390px for
+  real contact and lead components with synthetic APIs; no real messages sent.
+  Checks cover top-aligned toolbar, full-width editor, no phone/history,
+  newline safety, failed send retention, Cancel/reopen, explicit SMS payload,
+  success clear and existing email regressions. TypeScript passes; focused SMS,
+  recipient, layout and polling tests 55/55. Full suite 1135/1152, with exactly
+  the same 17 baseline failures (failure names compared). Targeted lint: zero
+  errors, 12 warnings. Logs: /tmp/composer-sms-{browser,focused,types,lint,full}.log;
+  screenshots: /tmp/profile-sms-{1440,1076,390}.png and lead equivalents.
+- Production deployment is not verified by this loopback-only acceptance run.
+
 ## Update: single header and composer content actions
 
 - Profile header now spans both panes, with one close icon at the workspace's

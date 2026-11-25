@@ -45,3 +45,24 @@ test('every SMS refresh entry point uses the shared visible single-flight poller
   assert.doesNotMatch(source, /setInterval\([^\n]*refreshSms|refreshSms\(\)\.catch/)
   assert.equal((source.match(/await loadSms\(/g) || []).length, 1)
 })
+
+test('embedded profile composition resolves identity once without starting SMS polling; cleanup aborts requests', async () => {
+  const effect = source.slice(source.indexOf('  useEffect(() => {\n    if (!tenantId) return', source.indexOf('  const loadSms =')), source.indexOf('  useEffect(() => {\n    if (embedded) return'))
+  const requests = [], writes = []
+  let cleanup, resolve
+  const context = {
+    tenantId: 'synthetic', embedded: {}, AbortController, loadSms() {},
+    useEffect(fn) { cleanup = fn() },
+    requestJson(url, options) { requests.push({ url, options }); return new Promise(done => { resolve = done }) },
+    setPeople(value) { writes.push(value) }, setLoadError() {}, setLoading() {},
+    startVisiblePolling() { throw new Error('Profile must not start polling') },
+  }
+  vm.runInNewContext(ts.transpileModule(effect, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context)
+  assert.equal(requests.length, 1)
+  assert.match(requests[0].url, /^\/api\/conversations\?/)
+  cleanup()
+  assert.equal(requests[0].options.signal.aborted, true)
+  resolve({ people: [{ id: 'stale' }] })
+  await new Promise(done => setImmediate(done))
+  assert.deepEqual(writes, [])
+})
