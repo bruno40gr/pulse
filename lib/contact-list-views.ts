@@ -9,7 +9,7 @@ export type ContactListView = TablePersonView
 
 type ViewContact = Parameters<typeof groupContactFamilies>[0][number] & {
   account_holder_person_id?: string | null
-  account_holders?: { person_id?: string; name: string | null }[]
+  account_holders?: { person_id?: string; account_id?: string; name: string | null }[]
   is_minor?: boolean | null
   message_routing?: string | null
 }

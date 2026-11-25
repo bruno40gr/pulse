@@ -3,6 +3,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { UUID_PATTERN } from '@/lib/band-creation-draft'
 import { validateContactProfile } from '@/lib/contact-profile'
+import { readFamilyAccountLinks } from '@/lib/family-account-server'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const roles = /^(family|student|parent|customer|guardian)$/
@@ -27,7 +28,12 @@ export async function GET(request: Request) {
     managers.push(...(result.data || []))
     if ((result.data || []).length < 500) break
   }
-  return Response.json({ accounts, managers }, { headers })
+  try {
+    const family = await readFamilyAccountLinks(access.tenantId)
+    return Response.json({ accounts, managers, family_account_links: family.links, account_linking_supported: family.supported }, { headers })
+  } catch {
+    return Response.json({ error: 'Family account links could not be loaded.' }, { status: 503, headers })
+  }
 }
 
 export async function POST(request: Request) {
@@ -38,6 +44,16 @@ export async function POST(request: Request) {
   if (raw.length > 12000) return Response.json({ error: 'Family request is too large.' }, { status: 413, headers })
   let body
   try { body = JSON.parse(raw) } catch { return Response.json({ error: 'Invalid family change.' }, { status: 400, headers }) }
+  if (body?.kind === 'family-account-link') {
+    if (!UUID_PATTERN.test(body.operationId || '') || !UUID_PATTERN.test(body.accountId || '')
+      || !UUID_PATTERN.test(body.memberAccountId || '') || body.accountId === body.memberAccountId) {
+      return Response.json({ error: 'Choose two different valid accounts.' }, { status: 400, headers })
+    }
+    const result = await supabaseAdmin.rpc('link_family_account', { p_tenant: access.tenantId, p_actor: access.context.membershipId,
+      p_operation: body.operationId, p_change: { account_id: body.accountId, member_account_id: body.memberAccountId } })
+    if (result.error) return Response.json({ error: 'Family account was not linked. Verify family-account storage is installed, then refresh and review existing links. Billing and messaging accounts have not been reassigned.' }, { status: 409, headers })
+    return Response.json(result.data, { headers })
+  }
   if (body && ['manager-link', 'manager-create', 'manager-unlink'].includes(body.kind)) {
     if (!UUID_PATTERN.test(body.operationId || '') || !UUID_PATTERN.test(body.accountId || '')
       || (body.kind !== 'manager-create' && !UUID_PATTERN.test(body.personId || ''))) {

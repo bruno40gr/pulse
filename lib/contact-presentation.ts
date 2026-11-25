@@ -5,6 +5,8 @@ export type ContactPresentation = {
   student_id?: string | null
   is_student?: boolean
   account_id?: string | null
+  family_account_id?: string | null
+  family_linked_account_ids?: string[]
   linked_account_ids?: string[]
   account_holder_person_id?: string | null
   is_minor?: boolean

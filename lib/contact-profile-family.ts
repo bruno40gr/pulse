@@ -8,7 +8,7 @@ export function contactProfileFamilies<T extends FamilyPerson>(roster: T[], tena
   const accounts = new Map<string, T[]>()
   for (const row of local) {
     if (row.is_student === false) continue
-    for (const account of new Set([row.account_id, ...(row.linked_account_ids || [])].filter((id): id is string => !!id))) {
+    for (const account of new Set([row.family_account_id || row.account_id, ...(row.family_linked_account_ids || row.linked_account_ids || [])].filter((id): id is string => !!id))) {
       const members = accounts.get(account) ?? []
       members.push(row)
       accounts.set(account, members)

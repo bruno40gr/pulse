@@ -8,7 +8,8 @@ import { sharedFollowUpsEnabled, type SharedFollowUp } from '@/lib/shared-follow
 import { spacing, typography, colors } from '@/lib/tokens'
 import { contactFollowUpSummary, type ContactFollowUpSummary } from '@/lib/contact-follow-up-summary'
 
-type Props = { personId: string; tenantId: string; name: string; canEdit: boolean; onChanged?: (summary: ContactFollowUpSummary) => void }
+type Props = { tenantId: string; name: string; canEdit: boolean; onChanged?: (summary: ContactFollowUpSummary) => void }
+  & ({ personId: string; accountId?: never } | { accountId: string; personId?: never })
 
 const dateInput = (value: string | null) => {
   if (!value) return ''
@@ -19,10 +20,10 @@ const dateInput = (value: string | null) => {
 /** Panels read the date AND message; only the shared modal edits them. */
 export function ContactFollowUps(props: Props) {
   if (!sharedFollowUpsEnabled()) return null
-  return <ContactFollowUpsContent key={`${props.tenantId}:${props.personId}`} {...props} />
+  return <ContactFollowUpsContent key={`${props.tenantId}:${props.accountId || props.personId}`} {...props} />
 }
 
-function ContactFollowUpsContent({ personId, tenantId, name, canEdit, onChanged }: Props) {
+function ContactFollowUpsContent({ personId, accountId, tenantId, name, canEdit, onChanged }: Props) {
   const [rows, setRows] = useState<SharedFollowUp[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -31,7 +32,7 @@ function ContactFollowUpsContent({ personId, tenantId, name, canEdit, onChanged 
   const [editor, setEditor] = useState<{ record: SharedFollowUp | null; draft: FollowUpEditorDraft } | null>(null)
   const [busy, setBusy] = useState(false)
   const savingRef = useRef(false)
-  const endpoint = `/api/contacts/${encodeURIComponent(personId)}/follow-ups?tenant=${encodeURIComponent(tenantId)}`
+  const endpoint = `/api/contacts/${accountId ? `accounts/${encodeURIComponent(accountId)}` : encodeURIComponent(personId!)}/follow-ups?tenant=${encodeURIComponent(tenantId)}`
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true); setError('')
@@ -72,12 +73,12 @@ function ContactFollowUpsContent({ personId, tenantId, name, canEdit, onChanged 
   const general = rows.find(row => !row.lead_intake_id)
   const open = rows.filter(row => row.status === 'open')
   return <>
-    <DenseSectionPanel title="Follow-up" actions={!loading && !error && canEdit && general?.status !== 'open'
+    <DenseSectionPanel title={accountId ? 'Family follow-up' : 'Follow-up'} actions={!loading && !error && canEdit && general?.status !== 'open'
       ? <Button size="sm" variant="secondary" onClick={() => launch(general ?? null)}>Add follow-up</Button> : undefined}>
       {loading ? <LoadingSkeleton label="Loading follow-ups" rows={2} /> : <div style={{ display: 'grid', gap: spacing.lg }}>
         {error && <Notice variant="error">{error} <Button size="sm" variant="ghost" disabled={busy || Boolean(editor)} onClick={() => setReload(value => value + 1)}>Reload follow-ups</Button></Notice>}
         {!error && open.length === 0 && <p style={{ ...typography.bodySmall, margin: 0, color: colors.textSecondary }}>No follow-up scheduled.</p>}
-        {open.map(row => <DenseSectionPanel key={row.id} title={row.lead_intake_id ? 'Inquiry follow-up' : 'Contact follow-up'} actions={canEdit && (!row.lead_intake_id || canEditInquiries) ? <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+        {open.map(row => <DenseSectionPanel key={row.id} title={accountId ? 'Shared family reminder' : row.lead_intake_id ? 'Inquiry follow-up' : 'Contact follow-up'} actions={canEdit && (!row.lead_intake_id || canEditInquiries) ? <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => launch(row)}>Edit follow-up</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => void mutate(row, 'complete')}>Complete</Button>
         </div> : undefined}>

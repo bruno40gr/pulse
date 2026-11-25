@@ -24,7 +24,8 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
-import { compareContactFollowUps } from '@/lib/contact-follow-up-summary'
+import { familyDependents } from '@/lib/family-account'
+import { compareContactFollowUps, compareContactFollowUpNotes } from '@/lib/contact-follow-up-summary'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import LiveContactPanel, { type ContactCapabilities, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
@@ -45,9 +46,12 @@ import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 export interface Contact {
+  family_account_id?: string | null
+  family_linked_account_ids?: string[]
   follow_up_at?: string | null
   follow_up_note?: string | null
   follow_up_count?: number
+  family_follow_up_at?: string | null
   relationship_badges?: import('@/lib/contact-relationship').RelationshipBadge[]
   id: string
   tenant_id?: string
@@ -189,7 +193,7 @@ export default function ContactsPage() {
   const profileFamilies = liveHeadliner && (selectedPerson || selectedAccount)
     ? contactProfileFamilies(contacts, tenantId, selectedPerson?.id, selectedAccount?.id) : []
   const selectedIsHolder = !!selectedPerson && profileFamilies.some(family => family.holders.some(holder => holder.id === selectedPerson.id))
-  const studentAccount = selectedPerson && !selectedIsHolder ? profileFamilies.find(family => family.id === selectedPerson.account_id) : undefined
+  const studentAccount = selectedPerson && !selectedIsHolder ? profileFamilies.find(family => family.id === (selectedPerson.family_account_id || selectedPerson.account_id)) : undefined
   const studentHolder = studentAccount?.holders.find(holder => holder.id === selectedPerson?.account_holder_person_id)
     ?? (studentAccount?.holders.length === 1 ? studentAccount.holders[0] : undefined)
   const useLivePanel = liveHeadliner && (selectedPerson
@@ -223,7 +227,7 @@ export default function ContactsPage() {
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
-    setSelectedAccount({ id, name: members[0]?.account_holders?.find(holder => holder.account_id === id)?.name || members[0]?.account_holder_name || 'Account holder', members })
+    setSelectedAccount({ id, name: members[0]?.family_name || members[0]?.account_holders?.find(holder => holder.account_id === id)?.name || members[0]?.account_holder_name || 'Account holder', members })
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -232,6 +236,7 @@ export default function ContactsPage() {
   const displayed = filteredContacts
   const sortedDisplayed = [...displayed].sort((left, right) => {
     if (contactSort.key === 'followUp') return compareContactFollowUps(left.follow_up_at, right.follow_up_at, contactSort.direction)
+    if (contactSort.key === 'followUpNote') return compareContactFollowUpNotes(left.follow_up_note, right.follow_up_note, contactSort.direction)
     const direction = contactSort.direction === 'asc' ? 1 : -1
     const text = (value: string | null | undefined) => value || ''
     const leftDestination = contactDestination(left)
@@ -240,11 +245,11 @@ export default function ContactsPage() {
     const rightContact = rightDestination.phone || rightDestination.email
     const values: Record<ContactSortKey, [string, string]> = {
       name: [`${text(left.last_name)} ${text(left.first_name)}`, `${text(right.last_name)} ${text(right.first_name)}`],
-      status: [text(left.client_status), text(right.client_status)],
       accountManager: [text(left.account_holder_name), text(right.account_holder_name)],
       contact: [text(leftContact), text(rightContact)],
       instructor: [text(left.instructor?.name), text(right.instructor?.name)],
       followUp: ['', ''],
+      followUpNote: ['', ''],
     }
     const [leftValue, rightValue] = values[contactSort.key]
     const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' })
@@ -496,18 +501,28 @@ export default function ContactsPage() {
   })
 
 
+  const openContactFollowUps = (contact: Contact) => {
+    if (contact.family_follow_up_at && (contact.family_account_id || contact.account_id)) {
+      const id = contact.family_account_id || contact.account_id!
+      openFamilyAccount(id, contacts.filter(row => row.tenant_id === contact.tenant_id && (row.family_account_id || row.account_id) === id))
+    } else openFamilyPerson(contact)
+  }
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
-    ...(followUpsEnabled ? [{ id: 'followUp', header: 'Follow-up', width: '180px', sortable: true, sortKey: 'followUp' as const,
-      render: (contact: Contact) => <ControlButton kind="name" title={contact.follow_up_note || undefined} onClick={() => openFamilyPerson(contact)}>
+    ...(followUpsEnabled ? [{ id: 'followUp', header: 'Follow-up date', width: '180px', sortable: true, sortKey: 'followUp' as const,
+      render: (contact: Contact) => <ControlButton kind="name" title={contact.follow_up_note || undefined} onClick={() => openContactFollowUps(contact)}>
         {contact.follow_up_at ? `${new Date(contact.follow_up_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${(contact.follow_up_count ?? 0) > 1 ? ` (+${contact.follow_up_count! - 1})` : ''}` : 'View follow-ups'}
       </ControlButton>,
+    }, { id: 'followUpNote', header: 'Follow-up note', width: 'minmax(220px, 1.2fr)', sortable: true, sortKey: 'followUpNote' as const,
+      render: (contact: Contact) => contact.follow_up_note
+        ? <ControlButton kind="name" title={contact.follow_up_note} onClick={() => openContactFollowUps(contact)}><span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{contact.follow_up_note}</span></ControlButton>
+        : null,
     }] : []),
     {
       id: 'account', header: 'Family / account', width: 'minmax(160px, 1fr)',
       render: contact => contact.family_name || contact.account_holder_name || '—',
     },
     {
-      id: 'students', header: 'Students', width: '110px',
+      id: 'students', header: 'Dependents', width: '110px',
       render: () => null,
     },
     {
@@ -526,18 +541,11 @@ export default function ContactsPage() {
           >
             {contact.first_name} {contact.last_name}
           </PersonName>
+          <ContactRelationshipBadges contact={contact} />
           {contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
           {contact.staff_id && contact.is_active === false && <Badge size="sm" variant="inactive">Sunset</Badge>}
         </span>
       ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      width: '150px',
-      sortable: true,
-      sortKey: 'status',
-      render: (contact) => <span style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}><ContactRelationshipBadges contact={contact} /></span>,
     },
     {
       id: 'funded',
@@ -697,7 +705,7 @@ export default function ContactsPage() {
       {(
         <FamilyListTable
           key={contactView}
-          renderPersonRole={contact => contact.staff_id ? <Badge size="sm" variant="info">Instructor</Badge> : null}
+          renderPersonRole={contact => <><ContactRelationshipBadges contact={contact} />{contact.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}</>}
           preferencesLabel="Table preferences"
           contextualToolbarPlacement="below"
           contextualToolbar={selectedIds.size > 0 && (!sampleContacts || onEnroll || onCreateOpportunity || onCreateBand) ? <TableContextActionBar selectedCount={selectedCount} resultLabel={`${displayed.length} ${displayed.length === 1 ? 'contact' : 'contacts'}`} onClear={clearSelection} actions={sampleContacts ? [
@@ -722,6 +730,7 @@ export default function ContactsPage() {
           filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} onClear={() => { setFilterDraft({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation('') }} />}
           groups={visibleFamilies.map(group => {
             const holderPerson = group.parent
+            const followUpContact = sortedDisplayed.find(contact => group.members.some(member => member.id === contact.id)) || group.members[0]
             return {
               id: group.id,
               parent: holderPerson,
@@ -729,7 +738,9 @@ export default function ContactsPage() {
               name: holderPerson ? `${holderPerson.first_name} ${holderPerson.last_name}`.trim() : group.holder || `${group.members[0].first_name} ${group.members[0].last_name}`.trim(),
               subtitle: group.holder ? 'Account holder' : '',
               summaryCells: contactView === 'none' || (!group.holder && !group.members[0].account_id) ? undefined : {
-                students: group.members.filter(member => member.is_student === true || Boolean(member.student_id)).length,
+                students: familyDependents(group.members).length,
+                ...(followUpsEnabled ? Object.fromEntries(contactColumns.filter(column => ['followUp', 'followUpNote'].includes(column.id))
+                  .map(column => [column.id, column.render(followUpContact, 0)])) : {}),
                 phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.phone ?? group.members[0].account_holder_phone) || 'No phone'}</span>,
                 email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.email ?? group.members[0].account_holder_email) || ''}</span>,
               },
@@ -755,13 +766,13 @@ export default function ContactsPage() {
               setSelectedContact(null)
               const source = members.find(member => member.account_id)
               const id = group.id.includes('account:') ? group.id.split('account:').pop() : source?.account_id
-              if (id) setSelectedAccount({ id, name: group.name, members: contacts.filter(member => (member.account_id === id || member.linked_account_ids?.includes(id)) && member.tenant_id === source?.tenant_id) })
+              if (id) setSelectedAccount({ id, name: group.name, members: contacts.filter(member => (member.family_account_id === id || member.account_id === id || member.linked_account_ids?.includes(id)) && member.tenant_id === source?.tenant_id) })
             } else if (group.parent) {
               setAccountPanelTab('profile')
               setSelectedContact(group.parent)
             }
           }}
-          columns={['status', 'name', 'phone', 'email', 'funded', 'instructor', 'followUp'].flatMap(id => contactColumns.filter(column => column.id === id))}
+          columns={['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote', 'students'].flatMap(id => contactColumns.filter(column => column.id === id))}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={nextSort => { setContactSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
@@ -819,7 +830,7 @@ export default function ContactsPage() {
           if (!Array.isArray(rows)) return
           setContacts(rows)
           setSelectedContact(current => current ? rows.find((row: Contact) => row.id === current.id) || current : current)
-          setSelectedAccount(current => current ? { ...current, members: rows.filter((row: Contact & { linked_account_ids?: string[] }) => row.account_id === current.id || row.linked_account_ids?.includes(current.id)) } : current)
+          setSelectedAccount(current => current ? { ...current, members: rows.filter((row: Contact & { linked_account_ids?: string[] }) => row.family_account_id === current.id || row.account_id === current.id || row.linked_account_ids?.includes(current.id)) } : current)
         }).catch(() => { /* Family panel reports persisted changes; next refresh reloads the roster. */ }) }}
         onOpenStudent={openFamilyPerson}
         accountHolderLink={studentAccount ? studentHolder ? {

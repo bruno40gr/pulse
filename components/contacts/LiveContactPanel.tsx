@@ -26,6 +26,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { LiveFamilyManagement } from './LiveFamilyManagement'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
 import { LessonSummary } from '@/components/ui/LessonSummary'
+import { familyDependents } from '@/lib/family-account'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
 type Subject =
@@ -78,6 +79,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const person = subject.kind === 'account-holder' ? null : subject.person
   const account = subject.kind === 'account-holder' ? subject.account : null
   const students = subject.kind === 'student' ? [] : subject.students
+  const familyId = account?.id || students[0]?.family_account_id || students[0]?.account_id || person?.family_account_id || person?.account_id
   const memberSince = subject.kind === 'student' ? subject.person.account_member_since ?? null : subject.kind === 'holder' ? subject.memberSince : subject.account.memberSince
   const showsAccount = subject.kind !== 'student'
   const name = account ? account.name : person ? personName(person) : ''
@@ -112,7 +114,8 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const displayedEmail = holderRouting ? routedEmail : email
   const displayedPhone = formatPhoneNumber(callPhone)
   // An account has no person row; message it through the students whose saved routing targets the account holder.
-  const accountRecipients = account ? students.filter(student => student.is_minor === true || student.message_routing === 'account_holder') : []
+  const accountRecipients = account ? students.filter(student => student.account_id === account.id
+    && (student.is_minor === true || student.message_routing === 'account_holder')) : []
   const canMessageAccountSms = Boolean(account) && accountRecipients.length > 0 && Boolean(phone)
   const canMessageAccountEmail = Boolean(account) && accountRecipients.length > 0 && Boolean(email)
   const notesField = notesTab === 'internal' ? 'notes_history' : 'student_notes_history'
@@ -242,13 +245,13 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
       <div className={layoutStyles.panelContent} style={{ background: colors.surfaceMuted }}>
         {editing && section === 'account' ? <InlineWorkspaceContext.Provider value={true}>
           <AccountEditorCanvas embedded formId={editorFormId} contacts={editorContacts} holderId={showsAccount ? editorContacts[0]?.id : undefined} accountName={name} studentOnly={!showsAccount} onSave={save} onDirtyChange={setEditorDirty} onBack={() => { setEditorDirty(false); setEditing(false) }}
-            family={capabilities.edit && <LiveFamilyManagement tenantId={tenantId} accountId={account?.id || students[0]?.account_id || person?.account_id}
+            family={capabilities.edit && <LiveFamilyManagement tenantId={tenantId} accountId={familyId}
               personId={subject.kind === 'student' ? person?.id : undefined} onChanged={onFamilyChanged} />} />
         </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
               <DenseSectionPanel title="Contact details">
                 <MetadataRow label="Contact details metadata">
                   {showsAccount ? <DetailField label="Dependents"><div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}>
-                    <span>{students.length}</span>
+                    <span>{familyDependents(person ? [...students, person] : students).length}</span>
                     {capabilities.edit && !addingStudent && <Button size="sm" variant="secondary" disabled={!account?.id && !person?.account_id && !students[0]?.account_id} onClick={() => setAddingStudent(true)}>Add student</Button>}
                   </div></DetailField> : <DetailField label="Account holder" value="Not added">
                     {accountHolderLink && <a href={accountHolderLink.href} style={{ color: colors.link }} onClick={event => {
@@ -262,7 +265,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                 </MetadataRow>
               </DenseSectionPanel>
               {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
-                accountId={account?.id || person?.account_id || students[0]?.account_id} addStudentOnly
+                accountId={familyId} addStudentOnly
                 onCancel={() => setAddingStudent(false)} onChanged={() => { setAddingStudent(false); onFamilyChanged?.() }} />}
               {(showsAccount ? students : person ? [person] : []).map(student => <DenseSectionPanel key={student.id}
                 title={showsAccount ? <SectionTitle as="h2"><ControlButton kind="name" style={{ fontSize: 'inherit', fontWeight: 'inherit' }} onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
@@ -287,7 +290,11 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
               <DenseSectionPanel title="Account Balance" actions={<Button size="sm" variant="secondary" onClick={() => setSection('billing')}>View billing</Button>}>
                 <div style={{ ...stack, gap: spacing.sm }}><strong>Coming soon</strong><DetailField label="Unpaid invoices" value="Coming soon" /><DetailField label="Next payment" value="Coming soon" /></div>
               </DenseSectionPanel>
-              {person && <ContactFollowUps personId={person.id} tenantId={tenantId} name={name} canEdit={capabilities.edit} onChanged={summary => onUpdated({ ...person, ...summary })} />}
+              {showsAccount && familyId
+                ? <ContactFollowUps accountId={familyId} tenantId={tenantId} name={name} canEdit={capabilities.edit} onChanged={() => onFamilyChanged?.()} />
+                : person && <ContactFollowUps personId={person.id} tenantId={tenantId} name={name} canEdit={capabilities.edit} onChanged={summary => onUpdated({ ...person, ...summary })} />}
+              {showsAccount && familyId && person && <ContactFollowUps personId={person.id} tenantId={tenantId}
+                name={`${name} (individual)`} canEdit={capabilities.edit} onChanged={() => onFamilyChanged?.()} />}
           </>} /> : section === 'notes' ? <DenseSectionPanel title={person ? `Notes for ${name}` : 'Notes'} contentStyle={stack}>
           {!person ? <div style={muted}>Coming soon</div> : !capabilities.readNotes ? <p>You don’t have permission to view notes.</p> : <>
             <Tabs<NoteKind> ariaLabel="Note types" activeKey={notesTab} onChange={next => { setNoteError(''); setNotesTab(next) }} items={[{ key: 'notes', label: 'Notes' }, { key: 'internal', label: 'Internal notes' }]} />

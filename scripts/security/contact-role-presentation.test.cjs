@@ -102,6 +102,11 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
     '@/lib/current-subscription-teacher': load('lib/current-subscription-teacher.ts'),
     '@/lib/subscription-source': load('lib/subscription-source.ts', { papaparse: require('papaparse') }),
+    '@/lib/family-account': load('lib/family-account.ts'),
+    '@/lib/family-account-server': {
+      readFamilyAccountLinks: async () => ({ supported: true, links: [] }),
+      readFamilyAccountNames: async () => new Map(),
+    },
     '@/lib/contact-subscriptions': load('lib/contact-subscriptions.ts', {
       '@/lib/contact-kind': load('lib/contact-kind.ts'),
       '@/lib/current-enrollment': load('lib/current-enrollment.ts'),

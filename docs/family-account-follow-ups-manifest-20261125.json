@@ -1,0 +1,160 @@
+{
+  "date": "2026-11-25",
+  "base_commit": "b33f990aaaab5fae9c3564adcedd6ac2276a5b84",
+  "state": "validated_for_user_authorized_commit_and_push",
+  "production_writes": false,
+  "migrations_executed": "disposable local PostgreSQL only",
+  "validation": {
+    "focused": {
+      "passed": 57,
+      "failed": 0
+    },
+    "typescript": "passed",
+    "family_browser_widths": [
+      1440,
+      390
+    ],
+    "individual_follow_up_browser_widths": [
+      1440,
+      390
+    ],
+    "postgres": "passed",
+    "full_suite": {
+      "passed": 1120,
+      "total": 1137,
+      "failed": 17,
+      "same_known_baseline": true
+    },
+    "changed_lint": {
+      "errors": 0,
+      "warnings": 2
+    },
+    "app_source_lint": {
+      "errors": 31,
+      "warnings": 80,
+      "error_files_untouched": true
+    },
+    "individual_browser": "passed",
+    "contact_table_browser": {
+      "widths": [
+        1440,
+        390
+      ],
+      "passed": true,
+      "checks": [
+        "date and note ascending/descending",
+        "blanks last",
+        "sort persistence",
+        "relationship badges beside names",
+        "no Status column"
+      ]
+    }
+  },
+  "files": [
+    {
+      "path": "app/api/contacts/accounts/[id]/follow-ups/route.ts",
+      "sha256": "942fa5a9e03d7e8fc32bb26cdde343758bbcfbc4622670cba545544b1ee194c2"
+    },
+    {
+      "path": "docs/family-account-follow-ups-20261125.md",
+      "sha256": "f2edfb0917a44f45cd20129feece69272ec4495aa18ef6a3b888e248bad27ff1"
+    },
+    {
+      "path": "lib/family-account-server.ts",
+      "sha256": "2a90b1f8dd1339133649e4f8af295097e97879599748b03fd4bf0faf64087b90"
+    },
+    {
+      "path": "lib/family-account.ts",
+      "sha256": "c6fdd2cf1a074f0a9c91fad2090cc4aafcd9bda82b326de1edaa57211d90f562"
+    },
+    {
+      "path": "scripts/security/check-family-account-postgres.cjs",
+      "sha256": "f1ca429adb0748653bfa3001df88000258edfe15744373add83f4e98d4c09a7b"
+    },
+    {
+      "path": "scripts/security/contact-table-follow-up-browser.cjs",
+      "sha256": "fbb7a1b5dba5964d1e88b3085de1a49baee426d6c98b4eaf7ae2afe647b396c2"
+    },
+    {
+      "path": "scripts/security/contact-table-follow-up.test.cjs",
+      "sha256": "d05761b332a48eee0b37edfe2a6a59f5bbe018bb55cdee1e815903e623e81ee2"
+    },
+    {
+      "path": "scripts/security/family-account-browser.cjs",
+      "sha256": "4646aa75f8707d5e2132fabaecc03e7b1d85113db12421552a4620bc6974ad86"
+    },
+    {
+      "path": "scripts/security/family-account.test.cjs",
+      "sha256": "bb013428a9c3f5bc1d3e213d244fe1f47874b772dceef3203c6b473275074ece"
+    },
+    {
+      "path": "supabase/migrations/202611250001_family_account_links.sql",
+      "sha256": "d992b8e96f3f458c8eb5ba54a74f5ff8043eeb2e63c2e43ae591a00ef2a88e09"
+    },
+    {
+      "path": "supabase/migrations/202611250002_account_follow_ups.sql",
+      "sha256": "7e56e67a94d5ac16ca6de22dc0f5f488d766163f9a4164dbed75eabe9cc9ffa5"
+    },
+    {
+      "path": "app/api/contacts/family/route.ts",
+      "sha256": "fbf4f9988db03bfe1482bb2f38c73c425680aa8ab19c70cd4dafbc06d32e084a"
+    },
+    {
+      "path": "app/api/contacts/route.ts",
+      "sha256": "501f8bc91dbbdc0c33d7b669ee6c39308514d7c207eeaf9311186a9d2f4b8252"
+    },
+    {
+      "path": "app/dashboard/contacts/page.tsx",
+      "sha256": "d3697b0e9a0e28279b1161be704888cc30f2abb3c33926c7a8fdb96a1d1b599f"
+    },
+    {
+      "path": "components/contacts/LiveContactPanel.tsx",
+      "sha256": "6c3f59e21c2980eb39b9c2311e350a22b8a906cc2bad221e17962d18a1eee4da"
+    },
+    {
+      "path": "components/contacts/LiveFamilyManagement.tsx",
+      "sha256": "0c98c295bf2716b6c66c5e4a84c4574d41817be6999d954a0af53c551108acff"
+    },
+    {
+      "path": "components/follow-ups/ContactFollowUps.tsx",
+      "sha256": "5b1cd6847fe5859dd830853046c359734c7bc8794896e60b40e4aa866951f923"
+    },
+    {
+      "path": "lib/contact-follow-up-summary.ts",
+      "sha256": "a1a367f3bb156577a496daa27d0aab7d95d7f3236fed25333c35f13c2567db8f"
+    },
+    {
+      "path": "lib/contact-follow-ups-server.ts",
+      "sha256": "c2fdf84e8f5496488fca63f4c18c59ba43a600a9270cfb9aa7e491c5671ad89b"
+    },
+    {
+      "path": "lib/contact-list-views.ts",
+      "sha256": "40c280c84561f543f0527074bd095e987e5d12996a7b52a21f6077250dab2bf9"
+    },
+    {
+      "path": "lib/contact-presentation.ts",
+      "sha256": "2643b56f344ec8f10c9a06493005dbd6f4ede127b44cd43430cab27c2a88f9c5"
+    },
+    {
+      "path": "lib/contact-profile-family.ts",
+      "sha256": "ddf530ec0348c02aaa799db486e03b6d19cb892c8d0460823d834a1f0d31b131"
+    },
+    {
+      "path": "lib/contact-table-preferences.ts",
+      "sha256": "54c353e31dd628ef5e04c10ae0cb457d9afbacaf0e9ab1692368d6682749d7d1"
+    },
+    {
+      "path": "lib/family-list.ts",
+      "sha256": "322be7af01c8f9b3071229fbd28e26445caba9d0d40d109f8fef0a5d9b33cab6"
+    },
+    {
+      "path": "scripts/security/contact-role-presentation.test.cjs",
+      "sha256": "edb9108f39fec4e9f225500bb581c25024946be3fb9a1542cee6b80965c995bb"
+    },
+    {
+      "path": "scripts/security/table-preference-persistence.test.cjs",
+      "sha256": "a4c90f75a97ca2fe7ddcc5b03e3e72af3db93c446d49929eb19a9558f44622de"
+    }
+  ],
+  "final_backup": "/Users/brunowong/pulse-backups/contacts-follow-up-sort-20261125"
+}

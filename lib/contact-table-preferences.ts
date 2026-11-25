@@ -1,9 +1,11 @@
-export const CONTACT_SORT_KEYS = ['name', 'status', 'accountManager', 'contact', 'instructor', 'followUp'] as const
+export const CONTACT_SORT_KEYS = ['name', 'accountManager', 'contact', 'instructor', 'followUp', 'followUpNote'] as const
 export type ContactSortKey = typeof CONTACT_SORT_KEYS[number]
 
 export const CONTACT_TABLE_SCHEMA = {
-  columnIds: ['status', 'name', 'phone', 'email', 'funded', 'instructor', 'followUp'],
-  defaultColumns: ['status', 'name', 'phone', 'email', 'funded', 'instructor'],
+  columnIds: ['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote', 'students'],
+  defaultColumns: ['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote'],
+  version: 2,
+  columnMigrations: { followUp: 'followUpNote' },
   requiredColumns: ['name'],
   storagePrefix: 'pulse_contacts_table_v1',
   sortKeys: CONTACT_SORT_KEYS,

@@ -10,8 +10,8 @@ const { normalizeTablePreferences } = createHarness().load('lib/table-preference
 
 test('contacts schema stores the sort it accepts', () => {
   assert.ok(CONTACT_TABLE_SCHEMA.sortKeys.includes('name'))
-  const restored = normalizeTablePreferences({ columns: [...CONTACT_TABLE_SCHEMA.columnIds], density: 'compact', sort: { key: 'status', direction: 'desc' }, pageSize: 100 }, CONTACT_TABLE_SCHEMA)
-  assert.deepEqual({ ...restored.sort }, { key: 'status', direction: 'desc' })
+  const restored = normalizeTablePreferences({ columns: [...CONTACT_TABLE_SCHEMA.columnIds], density: 'compact', sort: { key: 'followUpNote', direction: 'desc' }, pageSize: 100 }, CONTACT_TABLE_SCHEMA)
+  assert.deepEqual({ ...restored.sort }, { key: 'followUpNote', direction: 'desc' })
   assert.equal(restored.pageSize, 100)
   assert.equal(normalizeTablePreferences({ sort: { key: 'not-a-column', direction: 'desc' } }, CONTACT_TABLE_SCHEMA).sort.key, 'name')
 })

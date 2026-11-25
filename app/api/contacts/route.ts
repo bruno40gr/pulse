@@ -14,6 +14,8 @@ import { isNonStudentBooking } from '@/lib/contact-kind'
 import { contactSubscriptions, currentStudentEnrollments } from '@/lib/contact-subscriptions'
 import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 import { readSubscriptionSource } from '@/lib/subscription-source'
+import { familyAccountId } from '@/lib/family-account'
+import { readFamilyAccountLinks, readFamilyAccountNames } from '@/lib/family-account-server'
 import { contactRelationshipBadges, mergeRelationshipBadges } from '@/lib/contact-relationship'
 
 type DedupPerson = {
@@ -278,6 +280,8 @@ export async function GET(request: Request) {
     const instructorIdByAllPersonIds = new Map((allInstructorRows || []).map((i: any) => [i.person_id, i.id]))
 
     // Flatten the joined data to match the contacts shape
+    const familyAccounts = await readFamilyAccountLinks(tenantId)
+    const familyNames = await readFamilyAccountNames(tenantId, familyAccounts.links)
     const flattened = visiblePeople.map((person: any) => {
       const student = person.students?.[0] ?? {}
       const account = student.accounts ?? {}
@@ -327,6 +331,8 @@ export async function GET(request: Request) {
 
       return enrichDemoContact({
         id: person.id,
+        family_account_id: student.account_id ? familyAccountId(student.account_id, familyAccounts.links) : null,
+        family_linked_account_ids: (linkedAccounts.get(student.id) || []).map(link => familyAccountId(link.account_id, familyAccounts.links)),
         relationship_badges: mergeRelationshipBadges((person.students ?? []).flatMap((record: any) => {
           const enrollments = record.enrollments ?? []
           const hasLessons = enrollments.some((entry: any) => !isNonStudentBooking(entry))
@@ -365,7 +371,7 @@ export async function GET(request: Request) {
         account_holder_name: nonStudentBooking ? null : account.name,
         account_holder_phone: nonStudentBooking ? null : account.phone,
         account_holder_email: nonStudentBooking ? null : account.email,
-        family_name: nonStudentBooking ? null : account.name,
+        family_name: nonStudentBooking ? null : familyNames.get(familyAccountId(student.account_id || '', familyAccounts.links)) || account.name,
         account_member_since: nonStudentBooking ? null : account.created_at ?? null,
         account_holders: nonStudentBooking ? [] : accountHolders,
         instructor: instructorInfo,

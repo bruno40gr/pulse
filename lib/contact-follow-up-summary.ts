@@ -31,3 +31,12 @@ export function compareContactFollowUps(left?: string | null, right?: string | n
   if (!Number.isFinite(b)) return -1
   return (a - b) * (direction === 'asc' ? 1 : -1)
 }
+
+/** Relationship reminder text is sortable independently; blanks stay last. */
+export function compareContactFollowUpNotes(left?: string | null, right?: string | null, direction: 'asc' | 'desc' = 'asc') {
+  const a = left?.trim() || '', b = right?.trim() || ''
+  if (!a) return b ? 1 : 0
+  if (!b) return -1
+  const comparison = a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
+  return comparison === 0 ? 0 : comparison * (direction === 'asc' ? 1 : -1)
+}
