@@ -14,6 +14,7 @@ interface SlidePanelHeaderProps {
   subtitle?: string
   avatar?: { firstName: string; lastName: string; size?: number; src?: string }
   onClose: () => void
+  closeLabel?: string
   onBack?: () => void
   backLabel?: string
   actions?: React.ReactNode
@@ -30,6 +31,7 @@ export function SlidePanelHeader({
   subtitle,
   avatar,
   onClose,
+  closeLabel = 'Close',
   onBack,
   backLabel = 'Back',
   actions,
@@ -124,7 +126,7 @@ export function SlidePanelHeader({
             event.stopPropagation()
             onClose()
           }}
-          aria-label="Close"
+          aria-label={closeLabel}
         />
       </div>
     </div>

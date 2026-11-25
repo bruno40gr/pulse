@@ -91,7 +91,7 @@ function EmailDirection({ direction }: { direction: 'inbound' | 'outbound' }) {
   return <span role="img" aria-label={direction === 'outbound' ? 'Outbound email' : 'Inbound email'} title={direction === 'outbound' ? 'Outbound email' : 'Inbound email'} style={{ color: direction === 'outbound' ? colors.tealDark : colors.textSecondary, fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{direction === 'outbound' ? '↗' : '↙'}</span>
 }
 
-export default function Conversations({ emailPreview: previewEnabled = false, embedded }: { emailPreview?: boolean; embedded?: { recipient: string; channel: ConversationChannel; onClose: () => void } }) {
+export default function Conversations({ emailPreview: previewEnabled = false, embedded }: { emailPreview?: boolean; embedded?: { recipient: string; channel: ConversationChannel; onClose: () => void; onSent?: () => void } }) {
   const [emailPreview, setEmailPreview] = useState(previewEnabled)
   const { identity } = useIdentity()
   const memberName = identity?.fullName?.trim() || 'Organisation'
@@ -286,7 +286,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   }, [tenantId, mailboxId])
   useEffect(() => {
     // Load the complete selected range, never unbounded mailbox history.
-    if (!tenantId || !mailboxId || location.view !== 'contacts') return
+    if (embedded || !tenantId || !mailboxId || location.view !== 'contacts') return
     let cancelled = false
     let running = false
     let stored = false
@@ -320,7 +320,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     void refresh()
     const interval = window.setInterval(() => { if (stored || Date.now() - lastRefresh >= 300000) void refresh() }, 15000)
     return () => { cancelled = true; controller.abort(); window.clearInterval(interval); refreshEmailSummaries.current = null }
-  }, [tenantId, mailboxId, location.view, dateFrom, dateTo])
+  }, [embedded, tenantId, mailboxId, location.view, dateFrom, dateTo])
   useEffect(() => {
     if (!previewHistory) return
     const sampleThreads = createConversationEmailPreview(people)
@@ -552,8 +552,9 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       await requestJson(`/api/conversations/email?tenant=${tenantId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mailboxId, senderEmail, ...recipients, subject: draft.subject, body, html, threadId: thread.providerThreadId }) })
       setEmailDrafts(current => { const next = { ...current }; delete next[active.id]; return next })
       setThreads(current => current.filter(item => item.id !== active.id || item.messages.length))
-      navigate({ view: 'contact', contactId: recipients.to[0], activeId: '', channel: 'email', screen: 'list' })
       setNotice('Email sent.')
+      if (embedded) { embedded.onSent?.(); embedded.onClose(); return }
+      navigate({ view: 'contact', contactId: recipients.to[0], activeId: '', channel: 'email', screen: 'list' })
       await loadEmails(recipients.to[0])
     } catch (error) { setSendError(error instanceof Error ? error.message : 'Email could not be sent.') }
     finally { sendLock.current = false; setSending(false) }

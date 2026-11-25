@@ -15,6 +15,7 @@ import { AccountProfileToolbar } from '@/beta-source/app/content-studio-prototyp
 import layoutStyles from '@/beta-source/app/content-studio-prototype/students/StudentWorkspace.module.css'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import LiveContactCommunication from './LiveContactCommunication'
+import { ProfileComposerLayout } from '@/components/inbox/ProfileComposerLayout'
 import { AccountEditorCanvas, type AccountEditorContact } from '@/beta-source/app/content-studio-prototype/students/AccountEditor'
 import { InlineWorkspaceContext } from '@/beta-source/app/content-studio-prototype/students/InlineWorkspaceContext'
 import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
@@ -100,6 +101,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const [noteError, setNoteError] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
   const [calling, setCalling] = useState(false)
+  const [visitedChannels, setVisitedChannels] = useState({ email: false, sms: false })
   const [compose, setCompose] = useState<'sms' | 'email' | null>(null)
   const [status, setStatus] = useState('')
   const [comingSoonFeature, setComingSoonFeature] = useState<string | null>(null)
@@ -216,20 +218,17 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const comingSoon = section === 'schedule' ? { icon: <CalendarDays />, title: 'Schedule & lessons' }
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
-  return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="min(calc(75vw + 200px), 1160px)">
+  return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="50dvw">
+      <ProfileComposerLayout open={!!compose} profile={<>
       <SlidePanelHeader title={editing ? 'Edit Contact' : name.replace(/\s*\(account\)\s*$/i, '')} subtitle={editing ? name : subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
-        toast={status || undefined} onClose={close} onBack={compose ? () => setCompose(null) : undefined} backLabel="Back to contact" />
-      {compose ? <div className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ background: colors.surfaceMuted }}>
-        <LiveContactCommunication key={compose} tenantId={tenantId} channel={compose} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
-          destination={(compose === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
-      </div> : <>
+        toast={status || undefined} onClose={close} onBack={undefined} backLabel="Back to contact" />
       {!editing && <><AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
-          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
-          <Button aria-label="Send email" variant="secondary" disabled={saving || (person ? !displayedEmail || (holderRouting && !canComposeToHolder) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setCompose('email') } }}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>
+          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
+          <Button aria-label="Send email" variant="secondary" disabled={saving || (person ? !displayedEmail || (holderRouting && !canComposeToHolder) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>
         </>} actions={<>
           <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => { setSection('account'); setEditing(true); setStatus('') }}><Pencil size={14} />Edit Contact</Button>
           <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
@@ -332,7 +331,13 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
               : <EmptyState icon={<Landmark />} title="No funding program assigned" description="Funding authorization and coverage details appear here when this student is assigned to a funding program." />
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
-      </>}
+      </>} composer={<>
+        <SlidePanelHeader title={compose === 'sms' ? 'Send a Text Message' : 'Send Email'} onClose={() => setCompose(null)} closeLabel="Close composer" onBack={mobile ? () => setCompose(null) : undefined} backLabel="Back to contact" />
+        {(['email', 'sms'] as const).map(channel => visitedChannels[channel] && <div key={channel} hidden={compose !== channel} className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ display: compose === channel ? 'flex' : 'none', background: colors.surfaceMuted }}>
+          <LiveContactCommunication tenantId={tenantId} channel={channel} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
+            destination={(channel === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
+        </div>)}
+      </>} />
     <Modal isOpen={discardTarget !== null} onClose={() => setDiscardTarget(null)} size="sm" layout="content" ariaLabel="Discard contact changes">
       <ModalHeader title="Discard unsaved changes?" onClose={() => setDiscardTarget(null)} />
       <ModalBody>Your unsaved contact edits will be lost. Family changes already saved are not affected.</ModalBody>

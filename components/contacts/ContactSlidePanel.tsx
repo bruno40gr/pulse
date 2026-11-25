@@ -15,7 +15,6 @@ import PrototypeContactSms from './PrototypeContactSms'
 import { usesAccountHolder } from '@/lib/contact-presentation'
 import { useState, useEffect, useContext } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
-import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import { CalendarDays, Copy, CreditCard, Landmark, MessageSquare, Pencil, Phone, Sparkles } from 'lucide-react'
 import { Button, Badge, Avatar, Input, FieldGrid, SectionTitle, CompactMetaCard, DenseSectionPanel, EmptyState, Select, SlidePanel, SlidePanelHeader, FieldLabel, FieldValue, NotesSection, StatusBadge, Tabs } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -167,7 +166,6 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
   const request = useLeadWorkspaceRequest()
   const tenantId = getActiveTenantId()
   const isMobile = useIsMobile()
-  const contextualCompose = useContext(ConversationComposeContext)
   const [smsOpen, setSmsOpen] = useState(false)
   useEffect(() => { setSmsOpen(false) }, [contact.id])
   const isInstructor = contact.staff_id != null || contact.custom_fields?.contact_kind === 'instructor'
@@ -591,7 +589,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
   }
 
   // ── Normal view ──
-  if (smsOpen) return <SlidePanel isOpen onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+  if (smsOpen && prototype) return <SlidePanel isOpen onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
     {prototype ? <PrototypeContactSms subject={contact} phone={contactPhone || null}
       holders={holderRouting ? accountHolders.flatMap(holder => holder.person_id && holder.name ? [{ person_id: holder.person_id, name: holder.name, phone: holder.phone, is_primary: holder.is_primary }] : []) : []}
       recipientId={holderRouting ? contact.account_holder_person_id || '' : contact.id}
@@ -603,7 +601,8 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
 
   return (
     <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
-      <ProfileEmailWorkspace key={contact.id} identity={contact.id} backDestination="contact" onClose={onClose}>
+      <ProfileEmailWorkspace key={contact.id} identity={contact.id} backDestination="contact" onClose={onClose}
+        renderSms={back => <CardSmsComposer embedded backDestination="contact" recipientId={contact.id} name={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()} onBack={back} onClose={onClose} />}>
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -724,7 +723,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
         </Button>
         {prototype ? <Button variant="secondary" disabled={!contactPhone} onClick={() => setSmsOpen(true)}>Send SMS</Button> : holderRouting ? <Button type="button" variant="secondary" size="md"
           disabled={!contactPhone || !onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
-          <Button variant="secondary" disabled={!contactPhone} onClick={() => contextualCompose ? contextualCompose('sms') : setSmsOpen(true)}>Send SMS</Button>}
+          <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="sms" disabled={!contactPhone} />}
         <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="email"
           disabled={prototype || !contactEmail || holderRouting}
           unavailableReason={holderRouting ? 'Account-holder routing is not yet supported in Conversations.' : undefined} />

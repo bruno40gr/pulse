@@ -2,13 +2,12 @@
 
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useRef, useState } from 'react'
-import { CommunicationCanvas, type CommunicationThread } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
+import { CommunicationCanvas } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
 import PrototypeEmailComposer from '@/components/inbox/PrototypeEmailComposer'
 import { Notice, Select } from '@/components/ui'
 import { personThread, type ConversationPerson, type LiveThread } from '@/lib/conversations-live'
 import { smsDestination, type RecipientResolution } from '@/lib/communication-recipients'
 import { formatPhoneNumber } from '@/lib/phone'
-import { loadConversationEmailPages } from '@/lib/conversation-email-pages'
 import { conversationSignatureHtml, type ConversationSignature } from '@/lib/conversation-signature'
 import type { OrganisationSender } from '@/lib/organisation-email-policy'
 import type { MockTemplate } from '@/lib/prototype-messaging'
@@ -39,7 +38,6 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const [signature, setSignature] = useState<ConversationSignature | null>(null)
   const [setupLoading, setSetupLoading] = useState(channel === 'email')
   const [setupError, setSetupError] = useState('')
-  const [threads, setThreads] = useState<LiveThread[]>([])
   const [sms, setSms] = useState<LiveThread['messages']>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -100,68 +98,34 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
     return () => controller.abort()
   }, [channel, destination, ids, normalize, refresh, tenant])
 
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyError, setHistoryError] = useState('')
-  const [syncPending, setSyncPending] = useState(false)
-  useEffect(() => {
-    if (channel !== 'email' || !target || !mailboxes.length) return
-    const controller = new AbortController()
-    const { signal } = controller
-    const history = new Map<string, LiveThread>()
-    setHistoryLoading(true); setHistoryError('')
-    const pendingMailboxes = new Set<string>()
-    void Promise.all(mailboxes.map(box => loadConversationEmailPages<LiveThread>(async cursor => {
-      const params = new URLSearchParams({ tenant: tenantId, mailbox: box.id, person: target.id, from: '2000-01-01', to: new Date().toISOString().slice(0, 10) })
-      if (cursor) params.set('cursor', cursor)
-      const result = await json<{ threads: LiveThread[]; nextCursor?: string; sync?: { state: string } }>(`/api/conversations/email?${params}`, { signal })
-      if (result.sync && result.sync.state !== 'complete') pendingMailboxes.add(box.id)
-      return result
-    }, rows => {
-      for (const row of rows) history.set(row.id, row)
-      if (!signal.aborted) setThreads([...history.values()].sort((a, b) => (b.messages.at(-1)?.timestamp || '').localeCompare(a.messages.at(-1)?.timestamp || '')))
-    }, () => signal.aborted))).then(() => { if (!signal.aborted) setSyncPending(pendingMailboxes.size > 0) }).catch(error => { if (!signal.aborted) setHistoryError(error.message) }).finally(() => { if (!signal.aborted) setHistoryLoading(false) })
-    return () => controller.abort()
-  }, [channel, mailboxes, target, tenantId])
-
-  useEffect(() => {
-    if (!syncPending || historyLoading || loading || historyError || error) return
-    const timer = window.setTimeout(() => {
-      if (document.visibilityState === 'visible') setRefresh(value => value + 1)
-    }, 15000)
-    return () => window.clearTimeout(timer)
-  }, [syncPending, historyLoading, loading, historyError, error])
-
   async function send(url: string, payload: object, done: () => void) {
     if (locked.current) return
     locked.current = true; setSending(true); setSendError('')
-    try { await json(url, post(payload)); done(); setRefresh(n => n + 1) }
+    try { await json(url, post(payload)); done(); if (channel === 'sms') setRefresh(n => n + 1) }
     catch (error) { setSendError(error instanceof Error ? error.message : 'The message could not be sent.') }
     finally { locked.current = false; setSending(false) }
   }
 
   const contact = { name: target?.name || name, phone: channel === 'sms' ? formatPhoneNumber(destination) : '', email: channel === 'email' ? destination : '' }
   const smsThread = { ...personThread({ ...contact, id: prefix, student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: sms }
-  const emailThreads: CommunicationThread[] = threads.filter(thread => thread.messages.length).map(thread => ({ id: thread.id, subject: thread.subject || 'No subject', messages: thread.messages.map(item => ({ id: item.id, direction: item.direction, text: item.body, timestamp: item.timestamp || '', from: item.emailFrom, to: item.emailTo?.join(', ') })) }))
   if (loading || setupLoading) return <LoadingSkeleton label="Loading composer" />
   if (error || setupError) return <Notice variant="error">{error || setupError}</Notice>
-  return <CommunicationCanvas composeInPlace person={contact} channel={channel} smsThread={smsThread} threads={emailThreads} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
-    emailHistoryPending={loading || historyLoading || syncPending || !!historyError || !!error}
-    notice={(error || historyError || sendError) ? <Notice variant="error">{sendError || error || historyError}</Notice> : (loading || historyLoading || syncPending) ? <LoadingSkeleton label="Loading conversation" /> : undefined}
+  return <CommunicationCanvas composeInPlace person={contact} channel={channel} smsThread={smsThread} threads={[]} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
+    notice={sendError ? <Notice variant="error">{sendError}</Notice> : undefined}
     liveSms={{ disabled: !target || loading || sending || !!error, onSend: body => {
       if (target) void send(`/api/inbox/reply?${tenant}`, { contact_id: target.id.slice('person:'.length), to_phone: target.address, body }, () => onDraft(`${prefix}:sms`, ''))
     }, onDraft: async () => {
       const result = await json<{ text?: string; draft?: string }>(`/api/draft-message?${tenant}`, post({ description: drafts[`${prefix}:sms`] || 'Write a warm friendly reply', recipient_context: `Writing to ${contact.name}.` }))
       return result.text || result.draft || ''
     } }}
-    renderEmail={({ draft, onChange, onBack, replying, threadId }) => {
-      const thread = threads.find(item => item.id === threadId)
+    renderEmail={({ draft, onChange, onBack, replying }) => {
       return <>
         {sendError && <Notice variant="error">{sendError}</Notice>}
         <PrototypeEmailComposer name={contact.name} email={contact.email} student="" draft={draft} onChange={onChange}
           onSend={(body, html) => {
-            if (!target?.canSend || !mailbox || !sender || thread && thread.mailboxId !== mailbox.id) return
-            void send(`/api/conversations/email?${tenant}`, { mailboxId: mailbox.id, senderEmail: sender.email, to: [target.id], cc: [], bcc: [], subject: draft.subject, body, html, threadId: thread?.providerThreadId, expectedContactEmail: target.address }, () => { onChange({ subject: '', html: '' }); onBack() })
-          }} disabled={!target?.canSend || !mailbox || !sender || sending || !!(thread && thread.mailboxId !== mailbox.id)}
+            if (!target?.canSend || !mailbox || !sender) return
+            void send(`/api/conversations/email?${tenant}`, { mailboxId: mailbox.id, senderEmail: sender.email, to: [target.id], cc: [], bcc: [], subject: draft.subject, body, html, expectedContactEmail: target.address }, () => { onChange({ subject: '', html: '' }); onBack() })
+          }} disabled={!target?.canSend || !mailbox || !sender || sending}
           senderName={sender?.name || ''} senderEmail={sender?.email || ''}
           fromControl={<Select aria-label="Send email from" value={sender?.email || ''} onChange={event => setSenderId(event.target.value)} disabled={sending || !senders.length}>
             {!sender && <option value="">No authorised sender</option>}{senders.map(item => <option key={item.id} value={item.email}>{item.name} — {item.email}</option>)}

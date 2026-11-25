@@ -6,7 +6,6 @@ import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { ProfileEmailWorkspace } from '@/components/inbox/ProfileEmailWorkspace'
 import { useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
-import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import { Copy, Pencil, Phone } from 'lucide-react'
 import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, type NotificationTone } from '@/components/ui'
 import { FollowUpModal } from '@/components/follow-ups/FollowUpModal'
@@ -23,6 +22,7 @@ import { LeadStudentsEditor } from './LeadStudentsEditor'
 import { LEAD_STATUSES, formatLeadStatus } from '@/lib/lead-status'
 import { LeadWorkspaceContext } from './LeadWorkspaceContext'
 import { reviewWinbackHierarchy } from '@/lib/winback-hierarchy'
+import styles from './LeadDetailPanel.module.css'
 
 type LeadDraft = { note?: string; followUpDate?: string; followUpNote?: string }
 type OpportunityValueUnit = 'mo' | 'session'
@@ -210,11 +210,9 @@ function Field({ label: fieldLabel, value }: { label: string; value: string }) {
 }
 
 export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, onEdit, onClose, calling, isMobile, draft, onDraftChange, onSmsViewChange, staticDetails = false }: LeadDetailPanelProps) {
-  const contextualCompose = useContext(ConversationComposeContext)
   const workspaceAdapter = useContext(LeadWorkspaceContext)
-  const [smsOpen, setSmsOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<'details' | 'notes'>('details')
-  useEffect(() => { setSmsOpen(false); setMobileSection('details') }, [lead.id])
+  useEffect(() => { setMobileSection('details') }, [lead.id])
   const [serviceEditing, setServiceEditing] = useState(false)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
@@ -387,10 +385,6 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
     </div>
   )
 
-  if (smsOpen && lead.contact?.id) return <CardSmsComposer backDestination="lead" recipientId={lead.contact.id} name={contactName}
-    leadId={lead.intake_type === 'job_application' ? undefined : lead.id}
-    onBack={() => { setSmsOpen(false); onSmsViewChange?.(false) }} onClose={onClose} />
-
   const renderHeader = (onRequestClose: () => void) => (
       <SlidePanelHeader
         title={contactName}
@@ -448,7 +442,8 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         background: colors.background,
       }}
     >
-      <ProfileEmailWorkspace key={lead.id} identity={lead.id} backDestination="lead" onClose={onClose} onViewChange={onSmsViewChange}>
+      <ProfileEmailWorkspace key={lead.id} identity={lead.id} backDestination="lead" onClose={onClose} onViewChange={onSmsViewChange}
+        renderSms={back => <CardSmsComposer embedded backDestination="lead" recipientId={lead.contact?.id || ''} name={contactName} leadId={lead.intake_type === 'job_application' ? undefined : lead.id} onBack={back} onClose={onClose} />}>
       {renderHeader(onClose)}
       {followUpModal}
 
@@ -492,10 +487,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         )}
         <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} ><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
-          <Button variant="secondary" disabled={!lead.contact?.id || !lead.contact?.phone} onClick={() => {
-            if (contextualCompose) contextualCompose('sms')
-            else { setSmsOpen(true); onSmsViewChange?.(true) }
-          }}>Send SMS</Button>
+          <ConversationComposeLink backDestination="lead" recipient={`lead:${lead.contact?.id || ''}`} channel="sms" disabled={!lead.contact?.id || !lead.contact?.phone} />
           <ConversationComposeLink backDestination="lead" recipient={`lead:${lead.contact?.id || ''}`} channel="email" disabled={!lead.contact?.id || !lead.contact?.email} />
           <CompactMetaCard fullWidth={isMobile} style={{ ...emailControlStyle, ...emailControlMdStyle }}>
             <span style={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.contact?.email || 'Not provided'}</span>
@@ -602,8 +594,8 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
 
           </div>
         ) : (
-          <div style={columnsStyle}>
-            <div style={columnStyle}>
+          <div className={styles.columns}>
+            <div style={{ ...columnStyle, flexShrink: 0 }}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
                 <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
                 <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={<Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setFollowUpOpen(true)}>{lead.follow_up_at ? 'Edit follow-up' : 'Add follow-up'}</Button>} />
@@ -653,7 +645,6 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
 
 
 const notesRailStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.sm, flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', padding: spacing.xs }
-const columnsStyle: CSSProperties = { display: 'grid', gridTemplateRows: 'minmax(0, 1fr)', overflow: 'hidden', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: spacing.lg, minHeight: 0, flex: 1, padding: `0 ${spacing.lg} ${spacing.lg}` }
 const columnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.lg, minHeight: 0, overflowY: 'auto', paddingRight: spacing.xs, overscrollBehavior: 'contain' }
 const stackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: spacing.md }
 const twoColumnStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: spacing.md }

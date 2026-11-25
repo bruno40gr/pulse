@@ -37,7 +37,8 @@ test('card shortcuts open same-width drawers or return to the contextual compose
   for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
     const card = fs.readFileSync(path.join(root, file), 'utf8')
     assert.match(card, /CardSmsComposer/)
-    assert.match(card, /contextualCompose\('sms'\)/)
+    assert.match(card, /ConversationComposeLink[^\n]+channel="sms"/)
+    assert.match(card, /renderSms=\{back => <CardSmsComposer embedded/)
     assert.match(card, /ConversationComposeLink[^\n]+channel="email"/)
   }
 })

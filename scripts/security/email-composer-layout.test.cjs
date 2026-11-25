@@ -97,17 +97,17 @@ test('contact, staff and inbox compose drawers use the same width contract', () 
 
 test('profile email switches preserve mounted profile/draft and delegate recipient context', () => {
   const workspace = read('components/inbox/ProfileEmailWorkspace.tsx')
-  assert.match(workspace, /hidden=\{open\}/)
-  assert.match(workspace, /hidden=\{!open\}/)
+  assert.match(workspace, /<ProfileComposerLayout open=\{open\}/)
+  assert.match(workspace, /visited\[value\]/)
   assert.match(workspace, /key=\{`\$\{identity\}:\$\{recipient\}`\}/)
-  assert.match(workspace, /onBack=\{back\}/)
+  assert.match(workspace, /onBack=\{mobile \? back : undefined\}/)
   assert.doesNotMatch(workspace, /<SlidePanel\s/)
   for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
     assert.match(read(file), /<ProfileEmailWorkspace/)
   }
   const link = read('components/inbox/ConversationComposeLink.tsx')
   assert.match(link, /contextualCompose \? contextualCompose\(channel\)/)
-  assert.match(link, /profileEmail\(recipient\)/)
+  assert.match(link, /profileEmail\(recipient, channel\)/)
 })
 
 test('live email composes in place after required requests settle, preserving verification and send contract', () => {
@@ -123,4 +123,17 @@ test('live email composes in place after required requests settle, preserving ve
   assert.match(live, /catch \(error\) \{ setSendError/)
   const workspace = read('components/inbox/Conversations.tsx')
   assert.match(workspace, /embedded && location.channel === 'email' && \(!mailboxesLoaded \|\| !sendersLoaded \|\| !signatureLoaded \|\| !templatesLoaded\)/)
+})
+
+test('new contact email never fetches or polls history and split layout expands the existing dialog', () => {
+  const live = read('components/contacts/LiveContactCommunication.tsx')
+  assert.doesNotMatch(live, /loadConversationEmailPages|Loading conversation|historyLoading|setInterval|setTimeout/)
+  assert.match(live, /threads=\{\[\]\}/)
+  assert.match(read('components/inbox/Conversations.tsx'), /if \(embedded \|\| !tenantId \|\| !mailboxId \|\| location.view !== 'contacts'\) return/)
+  const layout = read('components/inbox/ProfileComposerLayout.tsx')
+  assert.match(layout, /mobile \|\| open \? '100dvw' : '50dvw'/)
+  assert.match(layout, /aria-label="Profile" hidden=\{mobile && open\}/)
+  assert.match(layout, /aria-label="Message composer" hidden=\{!open\}/)
+  assert.doesNotMatch(layout, /<SlidePanel\s/)
+  assert.match(read('components/contacts/LiveContactPanel.tsx'), /visitedChannels\[channel\]/)
 })

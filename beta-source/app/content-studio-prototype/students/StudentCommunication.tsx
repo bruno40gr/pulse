@@ -74,7 +74,7 @@ export function CommunicationCanvas({ person, channel, smsThread, threads, draft
   </section>
   const conversation = <>
     {channel === 'sms' && <SurfacePanel appearance="flat" padding="0" style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      <PrototypeSmsConversation panelLayout thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />
+      <PrototypeSmsConversation panelLayout compact={composeInPlace} thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />
     </SurfacePanel>}
     {channel === 'email' && <SurfacePanel appearance="flat" padding="0" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className={styles.emailBrowser} data-reader={mobileReader}>

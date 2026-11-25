@@ -1,5 +1,33 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: side-by-side composition
+
+The initial view-switching implementation below is superseded by a desktop
+split workspace: the profile opens at 50vw; composing expands the same dialog to
+100vw with profile left and composer right, each taking half. At mobile widths
+(960px and below), the mounted panes switch visibility instead of squeezing into
+columns. Closing the composer restores the profile width and retains drafts.
+
+- Shared ProfileComposerLayout is used by live contacts and the contact/lead
+  workspace. Existing SMS transports and contextual compose precedence remain.
+- Email and SMS are mounted on first use and retained separately, avoiding
+  settings reloads when reopening or switching channels. Closing the entire
+  profile/reloading still does not provide durable draft storage.
+- New live email no longer requests, paginates, polls or shows loading for email
+  history. Embedded lead email also avoids loading history after sending. No
+  history button is added in this composer-focused change; Inbox is unchanged.
+- Recipient/settings loading and error gates remain; send verification, locks,
+  routing and payloads are unchanged. Lead profile columns adapt to pane width.
+- Validation: 52/52 focused contracts; TypeScript passes; targeted ESLint has
+  zero errors and the same five existing warnings. Full suite: 1133/1150 with
+  the same 17 baseline failures, no new failures. Synthetic browser acceptance
+  covers 1440px, 1076px and 390px, separate SMS/email drafts, actual lead panel,
+  settings failures, retained profile state, verified sends and no email-history
+  reads. Contacts/family browser regression passes at 1440px and 390px.
+- Local logs: /tmp/split-composer-{focused,types,lint,browser,family,full}.log.
+
+## Initial implementation (historical)
+
 ## Scope
 
 Implements roadmap item 3: switch between profile and email within the existing

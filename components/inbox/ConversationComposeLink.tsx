@@ -26,7 +26,7 @@ export default function ConversationComposeLink({ recipient, channel, disabled =
   const label = channel === 'email' ? 'Send email' : 'Send SMS'
   return <>
     <Button variant="secondary" aria-label={destination ? label : undefined} disabled={disabled} title={disabled ? unavailableReason || `No ${channel === 'email' ? 'email address' : 'phone number'} available` : undefined}
-      onClick={() => contextualCompose ? contextualCompose(channel) : channel === 'email' && profileEmail && !simulated ? profileEmail(recipient) : setOpen(true)}>
+      onClick={() => contextualCompose ? contextualCompose(channel) : profileEmail && (!simulated || channel === 'sms') ? profileEmail(recipient, channel) : setOpen(true)}>
       {channel === 'email' ? <Mail size={16} /> : <MessageCircle size={16} />}{label}{destination && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{destination}</span>}
     </Button>
     {open && <SlidePanel isOpen onClose={() => setOpen(false)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH} ariaLabel={`${label} composer`}>

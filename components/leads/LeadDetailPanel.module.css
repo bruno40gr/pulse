@@ -1,0 +1,26 @@
+.columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+}
+
+.columns > div {
+  flex-shrink: 0;
+  overflow: visible !important;
+}
+
+@container (min-width: 760px) {
+  .columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .columns > div {
+    overflow-y: auto !important;
+  }
+}
