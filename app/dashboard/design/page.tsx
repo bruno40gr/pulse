@@ -12,6 +12,7 @@ import { FieldRow } from '@/components/ui/FieldRow'
 import { ModalShowcase } from '@/components/design-system/ModalShowcase'
 import { LeadToolbarShowcase } from '@/components/design-system/LeadToolbarShowcase'
 import { InteractionShowcase } from '@/components/design-system/InteractionShowcase'
+import { FollowUpShowcase } from '@/components/design-system/FollowUpShowcase'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
 
 export default function DesignPage() {
@@ -23,6 +24,7 @@ export default function DesignPage() {
 
       <InteractionShowcase />
       <ModalShowcase />
+      <FollowUpShowcase />
       <p style={{ marginBottom: spacing.xl }}><a href="/dashboard/design/contacts-table" style={{ color: colors.link }}>Open interactive Contacts table shell →</a></p>
       <LeadToolbarShowcase />
 

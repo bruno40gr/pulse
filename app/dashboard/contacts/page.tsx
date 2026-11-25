@@ -23,6 +23,8 @@ import { SlidePanelHeader } from '@/components/ui'
 import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
+import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
+import { compareContactFollowUps } from '@/lib/contact-follow-up-summary'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import LiveContactPanel, { type ContactCapabilities, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
@@ -33,7 +35,8 @@ import { TablePagination } from '@/components/ui/TablePagination'
 import { TablePersonViewToggle } from '@/components/ui/TablePersonViewToggle'
 import { contactDestination, familyHolderPerson } from '@/lib/contact-presentation'
 import CSVImporter from '@/components/contacts/CSVImporter'
-import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, type DataTableColumn, type DataTableSort } from '@/components/ui'
+import { ContactRelationshipBadges } from '@/components/contacts/ContactRelationshipBadges'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
 import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
@@ -42,6 +45,10 @@ import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
 
 export interface Contact {
+  follow_up_at?: string | null
+  follow_up_note?: string | null
+  follow_up_count?: number
+  relationship_badges?: import('@/lib/contact-relationship').RelationshipBadge[]
   id: string
   tenant_id?: string
   student_id?: string | null
@@ -142,6 +149,7 @@ export default function ContactsPage() {
   const contextOpenContact = useContext(ContactNameOpenContext)
   const onOpenContact = onOpenSample || contextOpenContact
   const prototype = useContext(ContactPrototypeContext)
+  const followUpsEnabled = sharedFollowUpsEnabled() && !sampleContacts && !prototype
   const tablePreferences = useTablePreferences(CONTACT_TABLE_SCHEMA)
   const [contacts, setContacts] = useState<Contact[]>(sampleContacts || [])
   const [tenantFields, setTenantFields] = useState<TenantField[]>([])
@@ -230,6 +238,7 @@ export default function ContactsPage() {
   const filteredContacts = displayIds !== null ? contacts.filter(c => displayIds.includes(c.id)) : standardFiltered
   const displayed = filteredContacts
   const sortedDisplayed = [...displayed].sort((left, right) => {
+    if (contactSort.key === 'followUp') return compareContactFollowUps(left.follow_up_at, right.follow_up_at, contactSort.direction)
     const direction = contactSort.direction === 'asc' ? 1 : -1
     const text = (value: string | null | undefined) => value || ''
     const leftDestination = contactDestination(left)
@@ -242,6 +251,7 @@ export default function ContactsPage() {
       accountManager: [text(left.account_holder_name), text(right.account_holder_name)],
       contact: [text(leftContact), text(rightContact)],
       instructor: [text(left.instructor?.name), text(right.instructor?.name)],
+      followUp: ['', ''],
     }
     const [leftValue, rightValue] = values[contactSort.key]
     const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' })
@@ -326,15 +336,17 @@ export default function ContactsPage() {
     setContacts([])
     setCapabilities(noContactCapabilities)
     setTenantFields([])
+    setSearchError('')
     void fetch(`/api/contacts?tenant=${tenantId}`, { signal: controller.signal })
       .then(async response => {
         const contactData = await response.json()
+        if (!response.ok || !Array.isArray(contactData)) throw new Error(contactData.error || 'Could not load contacts.')
         if (!cancelled) {
           setCapabilities(contactCapabilities(response))
           setContacts(Array.isArray(contactData) ? contactData : [])
         }
       })
-      .catch(() => { /* Existing empty state remains available on fetch failure. */ })
+      .catch(error => { if (!cancelled) setSearchError(error instanceof Error ? error.message : 'Could not load contacts.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     void fetch(`/api/tenant-fields?tenant=${tenantId}`, { signal: controller.signal })
       .then(r => r.json())
@@ -503,6 +515,11 @@ export default function ContactsPage() {
 
 
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
+    ...(followUpsEnabled ? [{ id: 'followUp', header: 'Follow-up', width: '180px', sortable: true, sortKey: 'followUp' as const,
+      render: (contact: Contact) => <ControlButton kind="name" title={contact.follow_up_note || undefined} onClick={() => openFamilyPerson(contact)}>
+        {contact.follow_up_at ? `${new Date(contact.follow_up_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${(contact.follow_up_count ?? 0) > 1 ? ` (+${contact.follow_up_count! - 1})` : ''}` : 'View follow-ups'}
+      </ControlButton>,
+    }] : []),
     {
       id: 'account', header: 'Family / account', width: 'minmax(160px, 1fr)',
       render: contact => contact.family_name || contact.account_holder_name || '—',
@@ -535,10 +552,10 @@ export default function ContactsPage() {
     {
       id: 'status',
       header: 'Status',
-      width: '86px',
+      width: '150px',
       sortable: true,
       sortKey: 'status',
-      render: (contact) => contact.is_student === false ? null : <StatusBadge status={contact.client_status} label={contact.client_status.charAt(0).toUpperCase() + contact.client_status.slice(1)} />,
+      render: (contact) => <span style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}><ContactRelationshipBadges contact={contact} /></span>,
     },
     {
       id: 'funded',
@@ -775,7 +792,7 @@ export default function ContactsPage() {
               setSelectedContact(group.parent)
             }
           }}
-          columns={['status', 'name', 'phone', 'email', 'funded', 'instructor'].flatMap(id => contactColumns.filter(column => column.id === id))}
+          columns={['status', 'name', 'phone', 'email', 'funded', 'instructor', 'followUp'].flatMap(id => contactColumns.filter(column => column.id === id))}
           getRowKey={(contact) => contact.id}
           sort={contactSort}
           onSortChange={nextSort => { setContactSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
@@ -867,6 +884,7 @@ export default function ContactsPage() {
       {!useLivePanel && selectedContact && (
         <ContactSlidePanel
           key={selectedContact.id}
+          canEditFollowUps={capabilities.edit}
           prototype={prototype}
           contact={selectedContact}
           initialPanelTab={accountPanelTab}
@@ -938,6 +956,9 @@ export default function ContactsPage() {
               <Select controlSize="compact" label="Funding" value={filterDraft.funded || ''} onChange={event => updateFilterDraft('funded', event.target.value)}>
                 <option value="">Any</option><option value="yes">Funded</option><option value="no">Not funded</option>
               </Select>
+              {followUpsEnabled && <Select controlSize="compact" label="Follow-up" value={filterDraft.follow_up || ''} onChange={event => updateFilterDraft('follow_up', event.target.value)}>
+                <option value="">Any follow-up</option><option value="overdue">Overdue</option><option value="today">Due today</option><option value="upcoming">Upcoming</option><option value="scheduled">Scheduled</option><option value="none">No follow-up</option>
+              </Select>}
             </FieldGrid>
             <label style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, ...typography.bodySmall, color: colors.text, cursor: 'pointer' }}>
               <input type="checkbox" checked={filterDraft.active_only === 'true'} onChange={event => updateFilterDraft('active_only', event.target.checked ? 'true' : '')} />

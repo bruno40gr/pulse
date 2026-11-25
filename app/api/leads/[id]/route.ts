@@ -497,7 +497,7 @@ export async function PATCH(
     if (typeof body.email === 'string') contactUpdates.email = body.email.trim().toLowerCase() || null
     if (typeof body.phone === 'string') contactUpdates.phone = body.phone.trim() || null
 
-    if (requestedStatus === 'won' || (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload))) {
+    if (body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)) {
       const existingPayloadResult = await withTimeout<any>(
         crmSupabaseAdmin
           .from('lead_intakes')
@@ -518,7 +518,6 @@ export async function PATCH(
       leadUpdates.payload = {
         ...currentPayload,
         ...body.payload,
-        ...(requestedStatus === 'won' ? { follow_up_at: null, follow_up_note: null } : {}),
       }
       // Automation metadata is server-managed, never accepted from generic payload edits.
       if ('status_automation' in currentPayload) {
@@ -542,7 +541,7 @@ export async function PATCH(
       }
     }
 
-    const followUpChanged = requestedStatus === 'won' || Boolean(
+    const followUpChanged = Boolean(
       body.payload &&
       typeof body.payload === 'object' &&
       !Array.isArray(body.payload) &&

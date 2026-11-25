@@ -257,6 +257,14 @@ export function NotesSection({
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm, ...(panel ? { order: -1, flexShrink: 0, marginBottom: spacing.md } : {}) }}>
           {mentionsEnabled ? (
             <MentionTextarea
+              showMentionButton
+              renderActions={mentionButton => <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+                {mentionButton}
+                <div style={{ display: 'flex', gap: spacing.sm, marginLeft: 'auto' }}>
+                  <Button variant="ghost" size="sm" onMouseDown={event => event.preventDefault()} onClick={() => { setShowInput(false); updateInput(''); setMentionMembershipIds([]) }}>Cancel</Button>
+                  <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
+                </div>
+              </div>}
               value={input}
               onChange={updateInput}
               mentionMembershipIds={mentionMembershipIds}
@@ -275,10 +283,10 @@ export function NotesSection({
               style={{ minHeight: '100px', border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: spacing.md, fontSize: typography.sizeBase, fontFamily: typography.fontSans, resize: 'vertical' }}
             />
           )}
-          <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
+          {!mentionsEnabled && <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
             <Button variant="ghost" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowInput(false); updateInput(''); setMentionMembershipIds([]) }}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={saving}>{saving ? 'Saving...' : 'Save note'}</Button>
-          </div>
+          </div>}
         </div>
       ) : null}
     </div>

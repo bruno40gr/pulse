@@ -9,6 +9,7 @@ for (const [name, date, note, event] of [
   ['schedule', '2026-11-02T20:00:00.000Z', 'Call after school', 'follow_up_scheduled'],
   ['update', '2026-11-09T20:00:00.000Z', 'Send lesson options', 'follow_up_scheduled'],
   ['clear', null, null, 'follow_up_cleared'],
+  ['enroll', '2026-11-09T20:00:00.000Z', 'Keep after enrollment', 'follow_up_scheduled'],
 ]) {
   test(`follow-up ${name} persists reminder and activity without replacing lead details`, async () => {
     const h = createHarness()
@@ -26,7 +27,7 @@ for (const [name, date, note, event] of [
       },
     })
     const response = await h.load('app/api/leads/[id]/route.ts').PATCH(new Request('https://synthetic.invalid/api/leads/inquiry', {
-      method: 'PATCH', body: JSON.stringify({ payload: { follow_up_at: date, follow_up_note: note } }),
+      method: 'PATCH', body: JSON.stringify({ ...(name === 'enroll' ? { status: 'won' } : {}), payload: { follow_up_at: date, follow_up_note: note } }),
     }), { params: Promise.resolve({ id: 'inquiry' }) })
     assert.equal(response.status, 200)
     const write = h.getWrites().find(q => q.table === 'lead_intakes' && q.operation === 'update')
@@ -34,7 +35,8 @@ for (const [name, date, note, event] of [
     assert.equal(write.payload.payload.follow_up_note, note)
     assert.equal(write.payload.payload.student_name, 'Keep student')
     assert.deepEqual(write.payload.payload.siblings, [{ name: 'Keep sibling' }])
-    assert.equal('status' in write.payload, false)
+    if (name === 'enroll') assert.equal(write.payload.status, 'won')
+    else assert.equal('status' in write.payload, false)
     assert.ok(h.getWrites().some(q => q.table === 'lead_events' && q.operation === 'insert' && q.payload.event_type === event))
   })
 }
@@ -43,7 +45,10 @@ test('read-only identity details do not disable the independent follow-up editor
   const panel = fs.readFileSync(path.join(__dirname, '../../components/leads/LeadDetailPanel.tsx'), 'utf8')
   assert.match(panel, /const followUpEditor = <DenseSectionPanel/)
   assert.match(panel, /actions=\{<div/)
-  assert.match(panel, /Clear follow-up/)
-  assert.match(panel, /\{isMobile \? <Disclosure[^\n]+\{followUpEditor\}[^\n]+: followUpEditor\}/)
+  assert.match(panel, /Edit follow-up/)
+  assert.match(panel, /followUpOpen && <FollowUpModal/)
+  assert.match(panel, /\{followUpModal\}/)
+  assert.match(panel, /No follow-up scheduled/)
+  assert.doesNotMatch(panel, /<Textarea label="Reminder note"/)
   assert.doesNotMatch(panel, /staticDetails \? <DenseSectionPanel title=\{<SectionTitle>Follow-up/)
 })

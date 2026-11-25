@@ -2,6 +2,7 @@
    untyped here and the account relation is inferred as both object and array; typing these
    callbacks properly needs a verified row contract, tracked separately from this UI work. */
 import { PERMISSIONS } from '@/lib/permissions'
+import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -11,6 +12,7 @@ import { enrichDemoContact } from '@/lib/demo-contact-enrichment'
 import { getImportProfile, saveImportProfile, classifyStatus } from '@/lib/import-profile'
 import { isNonStudentBooking } from '@/lib/contact-kind'
 import { isCurrentEnrollment } from '@/lib/current-enrollment'
+import { contactRelationshipBadges, mergeRelationshipBadges } from '@/lib/contact-relationship'
 
 type DedupPerson = {
   id: string
@@ -288,6 +290,17 @@ export async function GET(request: Request) {
 
       return enrichDemoContact({
         id: person.id,
+        relationship_badges: mergeRelationshipBadges((person.students ?? []).flatMap((record: any) => {
+          const enrollments = record.enrollments ?? []
+          const hasLessons = enrollments.some((entry: any) => !isNonStudentBooking(entry))
+          const hasServices = enrollments.some((entry: any) => isNonStudentBooking(entry))
+          return [contactRelationshipBadges({
+            is_student: hasLessons || enrollments.length === 0,
+            client_status: record.client_status,
+            status_class: classifyStatus(record.client_status, importProfile),
+            custom_fields: { contact_kind: hasServices ? 'booking' : 'student' },
+          })]
+        })),
         student_id: nonStudentBooking ? null : (student.id ?? null),
         profile_enrollments: (student.enrollments ?? []).filter((entry: any) => !isNonStudentBooking(entry) && isCurrentEnrollment(entry)).map((entry: any) => {
           const teacher = personById.get(entry.instructor_person_id)
@@ -345,7 +358,12 @@ export async function GET(request: Request) {
 
     // Sunset instructors are not viewable/actionable — hide them from the list.
     console.info('[contacts][list]', { durationMs: Date.now() - startedAt, count: flattened.length })
-    return NextResponse.json(flattened.filter((c: any) => !(c.staff_id && c.is_active === false)), { headers: {
+    const visible = flattened.filter((c: any) => !(c.staff_id && c.is_active === false))
+    // Keep CRM configuration optional while the shared rollout is off.
+    const contacts = sharedFollowUpsEnabled() && access.context
+      ? await (await import('@/lib/contact-follow-ups-server')).attachContactFollowUps(tenantId, visible, hasPermission(PERMISSIONS.leadsRead))
+      : visible
+    return NextResponse.json(contacts, { headers: {
       'X-Contacts-Can-Edit': String(hasPermission(PERMISSIONS.contactsManage)),
       'X-Contacts-Can-Read-Notes': String(canReadNotes),
       'X-Contacts-Can-Edit-Notes': String(hasPermission(PERMISSIONS.notesManage)),

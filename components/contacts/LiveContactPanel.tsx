@@ -1,10 +1,11 @@
 'use client'
 
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
+import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, Input, NotesSection, Select, SlidePanel, SlidePanelHeader, Tabs, Textarea, StatusBadge } from '@/components/ui'
+import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
 import { MetadataRow } from '@/beta-source/app/content-studio-prototype/students/MetadataRow'
@@ -264,9 +265,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
               <DenseSectionPanel title="Account Balance" actions={<Button size="sm" variant="secondary" onClick={() => setSection('billing')}>View billing</Button>}>
                 <div style={{ ...stack, gap: spacing.sm }}><strong>Coming soon</strong><DetailField label="Unpaid invoices" value="Coming soon" /><DetailField label="Next payment" value="Coming soon" /></div>
               </DenseSectionPanel>
-              <DenseSectionPanel title="Follow ups" actions={<Button disabled>Update follow-up</Button>} contentStyle={stack}>
-                <div style={muted}>Coming soon</div><Input label="Date" type="date" disabled /><Select label="Quick pick" disabled><option>Choose an interval</option></Select><Textarea label="Reminder note" disabled />
-              </DenseSectionPanel>
+              {person && <ContactFollowUps personId={person.id} tenantId={tenantId} name={name} canEdit={capabilities.edit} onChanged={summary => onUpdated({ ...person, ...summary })} />}
           </>} /> : section === 'notes' ? <DenseSectionPanel title={person ? `Notes for ${name}` : 'Notes'} contentStyle={stack}>
           {!person ? <div style={muted}>Coming soon</div> : !capabilities.readNotes ? <p>You don’t have permission to view notes.</p> : <>
             <Tabs<NoteKind> ariaLabel="Note types" activeKey={notesTab} onChange={next => { setNoteError(''); setNotesTab(next) }} items={[{ key: 'notes', label: 'Notes' }, { key: 'internal', label: 'Internal notes' }]} />

@@ -7,11 +7,11 @@ import { useContext, useEffect, useState, type CSSProperties, type ReactNode } f
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import { Copy, Pencil, Phone } from 'lucide-react'
-import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, Textarea, type NotificationTone } from '@/components/ui'
+import { Button, CompactMetaCard, DenseSectionPanel, Input, NotesSection, NotificationCard, SectionTitle, Select, SlidePanelHeader, type NotificationTone } from '@/components/ui'
+import { FollowUpModal } from '@/components/follow-ups/FollowUpModal'
 import { colors, radius, semanticColors, spacing, typography } from '@/lib/tokens'
 import { formatPhoneNumber } from '@/lib/phone'
 import { LeadActivitySection } from './LeadActivitySection'
-import { Disclosure } from '@/components/ui/Disclosure'
 import { getFollowUpTone } from '@/lib/follow-up'
 import { formatLeadSource } from '@/lib/lead-sources'
 import { isLessonLead, readLessonRequestFields } from '@/lib/lead-lesson-details'
@@ -87,11 +87,6 @@ const WINBACK_STATUSES = [
   { value: 're_enrolled', label: 'Re-enrolled' },
   { value: 'closed', label: 'Closed' },
 ]
-const QUICK_FOLLOW_UPS = [
-  { value: 'tomorrow', label: 'Tomorrow', days: 1 },
-  { value: 'next_week', label: 'Next week', days: 7 },
-  { value: 'next_month', label: 'Next month', days: 30 },
-]
 
 function normalizeServiceType(value: string) {
   return value.trim().replace(/\s+/g, ' ')
@@ -138,12 +133,6 @@ function dateLabel(value: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function dateInputValue(value: Date) {
-  const year = value.getFullYear()
-  const month = String(value.getMonth() + 1).padStart(2, '0')
-  const day = String(value.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 type StatusTone = 'booked' | keyof Pick<typeof semanticColors, 'success' | 'danger' | 'warning'>
 
@@ -235,6 +224,8 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
   const [serviceEditor, setServiceEditor] = useState<ServiceEditorState>({ types: [], newType: '', opportunityValue: '', opportunityValueUnit: 'session' })
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpNote, setFollowUpNote] = useState('')
+  const [followUpOpen, setFollowUpOpen] = useState(false)
+  useEffect(() => { setFollowUpOpen(false) }, [lead.id])
 
   const isLesson = isLessonLead(lead.intake_type)
   const lessonRequest = readLessonRequestFields(lead.payload)
@@ -282,21 +273,6 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch {}
-  }
-
-  const saveFollowUp = async () => {
-    if (!followUpDate) return
-    const saved = await onPatch({ payload: { follow_up_at: new Date(`${followUpDate}T12:00:00`).toISOString(), follow_up_note: followUpNote.trim() || null } })
-    if (saved) onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
-  }
-
-  const clearFollowUp = async () => {
-    const saved = await onPatch({ payload: { follow_up_at: null, follow_up_note: null } })
-    if (saved) {
-      setFollowUpDate('')
-      setFollowUpNote('')
-      onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
-    }
   }
 
   const resetServiceEditor = () => {
@@ -430,31 +406,26 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
 
   // Follow-up is an independent workflow, including when identity details are read-only.
   const followUpEditor = <DenseSectionPanel title={<SectionTitle>Follow-up</SectionTitle>} style={followUpSectionStyle} actions={<div style={actionRowStyle}>
-    {lead.follow_up_at && <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button>}
-    <Button type="button" size="sm" disabled={saving || !followUpDate} onClick={() => void saveFollowUp()}>{saving ? 'Saving…' : 'Update follow-up'}</Button>
+    <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setFollowUpOpen(true)}>{lead.follow_up_at ? 'Edit follow-up' : 'Add follow-up'}</Button>
   </div>}>
     <div style={stackStyle}>
-      <div style={twoColumnStyle}>
-        <Input label="Date" aria-label="Date" type="date" value={followUpDate} onChange={(event) => { setFollowUpDate(event.target.value); onDraftChange({ ...draft, followUpDate: event.target.value }) }} />
-        <Select label="Quick pick" aria-label="Quick pick" value="" onChange={(event) => {
-          const chosen = QUICK_FOLLOW_UPS.find((item) => item.value === event.target.value)
-          if (chosen) {
-            const date = new Date()
-            date.setDate(date.getDate() + chosen.days)
-            const value = dateInputValue(date)
-            setFollowUpDate(value)
-            onDraftChange({ ...draft, followUpDate: value })
-          }
-        }}><option value="">Choose an interval</option>{QUICK_FOLLOW_UPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select>
-      </div>
-      <Textarea label="Reminder note" aria-label="Reminder note" value={followUpNote} onChange={(event) => { setFollowUpNote(event.target.value); onDraftChange({ ...draft, followUpNote: event.target.value }) }} placeholder="Optional reminder note" style={{ minHeight: spacing['4xl'] }} />
+      <span>{lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'No follow-up scheduled'}</span>
+      {lead.follow_up_note && <span style={{ whiteSpace: 'pre-wrap' }}>{lead.follow_up_note}</span>}
     </div>
   </DenseSectionPanel>
+
+  const followUpModal = followUpOpen && <FollowUpModal name={contactName} date={followUpDate} reminder={followUpNote} hasFollowUp={Boolean(lead.follow_up_at)} busy={saving}
+      onDraftChange={({ date, reminder }) => { setFollowUpDate(date); setFollowUpNote(reminder); onDraftChange({ ...draft, followUpDate: date, followUpNote: reminder }) }}
+      onSave={async patch => {
+        const saved = await onPatch({ payload: patch })
+        if (saved) onDraftChange({ ...draft, followUpDate: undefined, followUpNote: undefined })
+        return saved
+      }} onClose={() => setFollowUpOpen(false)} />
 
   const notesRail = (
     <div aria-label="Lead notes and follow-up" style={notesRailStyle}>
               <NotesSection key={lead.id} title="Notes" panel notes={lead.notes_history || []} avatarInitial={(lead.contact?.full_name || "L").charAt(0)} avatarBg={colors.crimson} cardBg={colors.surfaceMuted} saving={saving} draft={draft.note} onDraftChange={(note) => onDraftChange({ ...draft, note })} mentionsEnabled onEdit={(entry, text) => onPatch({ edit_note: { id: entry.id, text, previous_text: entry.text } })} onSave={(text, mentionMembershipIds) => onPatch({ add_note: text, mention_membership_ids: mentionMembershipIds }).then((saved) => { if (saved) onDraftChange({ ...draft, note: undefined }); return saved })} />
-              {isMobile ? <Disclosure summary={<SectionTitle style={{ marginBottom: 0 }}>Follow-up</SectionTitle>} style={{ flexShrink: 0, padding: spacing.md }}>{followUpEditor}</Disclosure> : followUpEditor}
+              {followUpEditor}
               <LeadActivitySection key={lead.id} entries={activityEvents.map((event) => <div key={event.id} style={activityRowStyle}><span style={{ ...activityMarkerStyle, background: getActivityTone(event).border }} aria-hidden="true" /><div style={activityContentStyle}><div style={activityTitleStyle}>{activityActor(event) ? `${activityActor(event)} · ${activityLabel(event)}` : activityLabel(event)}</div><div style={activityTimeStyle}>{dateLabel(event.created_at)} · {new Date(event.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div></div></div>)} />
             </div>
   )
@@ -477,6 +448,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
       }}
     >
       {renderHeader(onClose)}
+      {followUpModal}
 
       {isMobile && <div role="group" aria-label="Lead panel section" style={{ display: 'flex', gap: spacing.sm, padding: spacing.sm, flexShrink: 0 }}>
         <ControlButton kind="tab" selected={mobileSection === 'details'} aria-pressed={mobileSection === 'details'} onClick={() => setMobileSection('details')}>Details</ControlButton>
@@ -543,7 +515,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
           }}>
             <div style={oneColumnStyle}>
               <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
-              <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
+              <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={<Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setFollowUpOpen(true)}>{lead.follow_up_at ? 'Edit follow-up' : 'Add follow-up'}</Button>} />
             </div>
             {winback && (
               <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>
@@ -632,7 +604,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             <div style={columnStyle}>
               <div style={{ ...leftMetricsStyle, ...metricSectionStyle }}>
                 <NotificationCard fullWidth label="Opportunity value" value={opportunity == null ? 'Not provided' : `$${opportunity.toLocaleString()}${opportunityUnit}`} caption={isLesson ? `${familyMemberCount + 1} student${familyMemberCount === 0 ? '' : 's'}` : undefined} />
-                <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={lead.follow_up_at ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => void clearFollowUp()}>Clear follow-up</Button> : undefined} />
+                <NotificationCard fullWidth label="Next follow-up" tone={followUpCardTone(urgency.urgency)} value={lead.follow_up_at ? dateLabel(lead.follow_up_at) : 'Not scheduled'} caption={<Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setFollowUpOpen(true)}>{lead.follow_up_at ? 'Edit follow-up' : 'Add follow-up'}</Button>} />
               </div>
               {winback && (
                 <DenseSectionPanel title={<SectionTitle>Disenrolled</SectionTitle>} style={lessonSectionStyle}>

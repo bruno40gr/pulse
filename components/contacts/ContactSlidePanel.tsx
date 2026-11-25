@@ -1,5 +1,6 @@
 'use client'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
+import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { ContactPrototypeContext, ContactBandEnrollmentContext } from './ContactPrototypeContext'
 import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
@@ -8,6 +9,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
+import { ContactRelationshipBadges } from './ContactRelationshipBadges'
 import PrototypeContactSms from './PrototypeContactSms'
 import { usesAccountHolder } from '@/lib/contact-presentation'
 import { useState, useEffect, useContext } from 'react'
@@ -60,6 +62,9 @@ interface InstructorStudent {
 }
 
 interface Contact {
+  relationship_badges?: import('@/lib/contact-relationship').RelationshipBadge[]
+  student_id?: string | null
+  status_class?: 'active' | 'inactive' | 'unknown'
   is_student?: boolean
   account_holder_person_id?: string | null
   id: string
@@ -130,6 +135,7 @@ const valenceConfig: Record<string, { dotColor: string; bg: string; titleColor: 
 }
 
 interface ContactSlidePanelProps {
+  canEditFollowUps?: boolean
   contact: Contact
   tenantFields: TenantField[]
   onClose: () => void
@@ -154,7 +160,7 @@ const dividerStyle: React.CSSProperties = {
   margin: '24px 0',
 }
 
-export default function ContactSlidePanel({ prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
+export default function ContactSlidePanel({ canEditFollowUps = false, prototype = false, contact, tenantFields, onClose, onUpdated, onCompose, onViewInstructor, initialNotesTab = 'notes', mockFundingCase, initialPanelTab = 'profile', startEditing = false, onInvoiceStatusChange, onFundingCaseUpdated }: ContactSlidePanelProps) {
   const simulated = useContext(ContactPrototypeContext)
   const bandEnrollments = useContext(ContactBandEnrollmentContext)
   const request = useLeadWorkspaceRequest()
@@ -431,7 +437,6 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
   const age = getAgeFromDOB(contact.date_of_birth)
   const computedIsMinor = age !== null ? age < 18 : contact.is_minor
   const ageLabel = age !== null ? `Age ${age}` : null
-  const statusLabel = (contact.client_status || 'active').charAt(0).toUpperCase() + (contact.client_status || 'active').slice(1)
   const isInstructorActive = contact.is_active !== false
   const activeStudents = contact.active_students || []
 
@@ -609,7 +614,8 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
         compact={isMobile}
         badge={
           <>
-            {contact.is_student !== false && <StatusBadge status={contact.opted_out ? 'spam' : contact.client_status} label={contact.opted_out ? 'Opted out' : statusLabel} size="md" />}
+            <ContactRelationshipBadges contact={contact} size="md" />
+            {contact.opted_out && <StatusBadge status="spam" label="Opted out" size="md" />}
             {isInstructor && <Badge variant="info">Instructor</Badge>}
             {isInstructor && !isInstructorActive && <Badge variant="inactive">Sunset</Badge>}
             {computedIsMinor && <Badge variant="minor">Minor</Badge>}
@@ -957,7 +963,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
                       {student.lesson_time && <span>{student.lesson_time}</span>}
                     </div>
                   </div>
-                  <StatusBadge status={student.client_status} label={student.client_status.charAt(0).toUpperCase() + student.client_status.slice(1)} />
+                  <ContactRelationshipBadges contact={{ is_student: true, client_status: student.client_status }} />
                 </div>
               ))}
             </DenseSectionPanel>
@@ -1045,6 +1051,7 @@ export default function ContactSlidePanel({ prototype = false, contact, tenantFi
 
         {/* RIGHT COLUMN — Notes + Internal notes */}
         <div style={{ overflowY: isMobile ? 'visible' : 'auto', overflowX: 'hidden', padding: isMobile ? '0 16px 16px' : '24px 28px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {!simulated && !prototype && <ContactFollowUps personId={contact.id} tenantId={tenantId} name={`${contact.first_name} ${contact.last_name}`} canEdit={canEditFollowUps} onChanged={summary => onUpdated({ ...contact, ...summary })} />}
           <DenseSectionPanel tone="default" style={{ height: 'fit-content' }}>
             <Tabs
               items={[

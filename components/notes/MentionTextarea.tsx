@@ -2,6 +2,7 @@
 
 
 import { ControlButton } from '@/components/ui/ControlButton'
+import { Button } from '@/components/ui/Button'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { colors, radius, shadows, typography } from '@/lib/tokens'
 import { getActiveTenantId } from '@/lib/tenant'
@@ -33,9 +34,11 @@ interface MentionTextareaProps {
   autoGrow?: boolean
   onRelatedPersonMention?: (person: TaskPerson) => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  showMentionButton?: boolean
+  renderActions?: (mentionButton: React.ReactNode) => React.ReactNode
 }
 
-export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown, taskMentions = false, highlightMentions = false, autoGrow = false, onRelatedPersonMention }: MentionTextareaProps) {
+export default function MentionTextarea({ value, onChange, mentionMembershipIds = [], onMentionMembershipIdsChange, placeholder, style, onKeyDown, taskMentions = false, highlightMentions = false, autoGrow = false, onRelatedPersonMention, showMentionButton = false, renderActions }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cursorRef = useRef(0)
   const selectedMentionTokensRef = useRef(new Map<string, string>())
@@ -143,6 +146,22 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
     })
   }
 
+  const startMention = () => {
+    const el = textareaRef.current
+    const start = el?.selectionStart ?? value.length
+    const end = el?.selectionEnd ?? start
+    const prefix = start > 0 && !/\s/.test(value[start - 1]) ? ' @' : '@'
+    const next = value.slice(0, start) + prefix + value.slice(end)
+    const cursor = start + prefix.length
+    cursorRef.current = cursor
+    onChange(next)
+    detectMention(next, cursor)
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(cursor, cursor)
+    })
+  }
+
   const selectRelated = (person: TaskPerson) => {
     const start = mentionStart ?? 0
     const name = person.name.replace(/ /g, NBSP)
@@ -203,6 +222,7 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
   const highlighted = highlightMentions && /@[\u00a0\p{L}\p{N}._-]+/u.test(value)
   const textStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', fontFamily: typography.fontSans, fontSize: typography.sizeBase, lineHeight: 1.5, letterSpacing: 'normal', wordSpacing: 'normal', textAlign: 'left', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', color: colors.text, padding: 0, ...style }
   return (
+    <>
     <div style={{ position: 'relative' }}>
       {highlighted && <div aria-hidden="true" style={{ ...textStyle, position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
         <div style={{ color: 'transparent', transform: `translateY(-${scrollTop}px)` }}>{value.split(/(@[\u00a0\p{L}\p{N}._-]+)/gu).map((part, index) => part.startsWith('@') ? <span key={index} style={{ background: '#DBEAFE', borderRadius: 4 }}>{part}</span> : part)}</div>
@@ -265,5 +285,9 @@ export default function MentionTextarea({ value, onChange, mentionMembershipIds 
         </div>
       )}
     </div>
+    {showMentionButton && (renderActions ? renderActions(
+      <Button type="button" variant="ghost" size="sm" onMouseDown={event => event.preventDefault()} onClick={startMention} aria-label="Mention staff">@ Mention</Button>
+    ) : <Button type="button" variant="ghost" size="sm" onMouseDown={event => event.preventDefault()} onClick={startMention} aria-label="Mention staff">@ Mention</Button>)}
+    </>
   )
 }

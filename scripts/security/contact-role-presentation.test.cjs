@@ -97,6 +97,8 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     return chain
   } }
   const route = load('app/api/contacts/route.ts', {
+    '@/lib/shared-follow-up': { sharedFollowUpsEnabled: () => false },
+    '@/lib/contact-relationship': load('lib/contact-relationship.ts'),
     '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
     '@/lib/permissions': { PERMISSIONS: { contactsRead: 'contacts.read' } },
     '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant' } },
@@ -106,12 +108,14 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
       getImportProfile: async () => ({ active_statuses: ['active', 'member'], inactive_statuses: ['lost'] }),
       classifyStatus: status => ['active', 'member'].includes(status.toLowerCase()) ? 'active' : 'inactive',
     },
-    '@/lib/contact-kind': { isNonStudentBooking: () => false },
+    '@/lib/contact-kind': load('lib/contact-kind.ts'),
   })
   const result = await route.GET({})
   assert.equal(result[0].student_id, 'student-role')
   assert.equal(result[0].is_student, true)
   assert.equal(result[0].status_class, 'active')
+  assert.deepEqual(Array.from(result[0].relationship_badges), ['Enrolled'])
+  assert.deepEqual(Array.from(result[1].relationship_badges), [])
   assert.equal(result[0].account_holder_person_id, 'adult')
   assert.equal(result[1].is_student, false)
   assert.equal(result[1].student_id, null)
@@ -122,6 +126,12 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
   const legacy = await route.GET({})
   assert.equal(legacy[0].account_holder_person_id, null, 'Unavailable optional relation does not guess holder identity')
   assert.equal(legacy[0].student_id, 'student-role')
+  people.push({ id: 'mixed', tenant_id: 'tenant', custom_fields: {}, students: [
+    { id: 'old', client_status: 'lost', enrollments: [{ service_type: 'private' }] },
+    { id: 'current', client_status: 'active', enrollments: [{ service_type: 'private' }, { service_type: 'studio booking' }] },
+  ] })
+  const mixed = await route.GET({})
+  assert.deepEqual(Array.from(mixed.find(person => person.id === 'mixed').relationship_badges), ['Enrolled', 'Service client'], 'Badge summary includes all roles, not only the first enrollment')
   const before = queries.length
   denied = true
   assert.equal((await route.GET({})).error, 'Denied')

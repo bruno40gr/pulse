@@ -24,7 +24,7 @@ function setup(props = {}) {
     './DenseSectionPanel': { DenseSectionPanel: stub('DenseSectionPanel') },
     'lucide-react': { Shield: stub('Shield') },
     '@/components/ui': { Button: stub('Button'), Textarea: stub('Textarea') },
-    '@/components/notes/MentionTextarea': { default: stub('MentionTextarea') },
+    '@/components/notes/MentionTextarea': { __esModule: true, default: stub('MentionTextarea') },
     '@/lib/tokens': { colors: {}, typography: {}, radius: {}, spacing: {} },
     '@/lib/note-author': { getNoteAuthorInitials: () => '?' },
     './Avatar': { Avatar: stub('Avatar') },
@@ -60,6 +60,21 @@ test('notes card uses header action; history scrolls independently from editor',
   assert.ok(editor)
   assert.equal(editor.props.style.flexShrink, 0)
   assert.ok(find(editor, node => node.type === 'Textarea'))
+})
+
+test('mention control shares the existing save/cancel row and saves existing recipient IDs', async () => {
+  const saved = []
+  const { render } = setup({ mentionsEnabled: true, draft: 'Hello', onSave: async (...args) => { saved.push(args); return true } })
+  render().props.actions.props.onClick()
+  let editor = find(render(), node => node.type === 'MentionTextarea')
+  assert.equal(editor.props.showMentionButton, true)
+  editor.props.onMentionMembershipIdsChange(['cohen'])
+  editor = find(render(), node => node.type === 'MentionTextarea')
+  const actions = editor.props.renderActions('mention-control')
+  button(actions, 'Save note').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(Array.from(saved[0][1]), ['cohen'])
+  assert.ok(render().props.actions)
 })
 
 test('failed saves retain draft; success clears it; cancel does not save', async () => {

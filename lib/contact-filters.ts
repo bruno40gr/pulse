@@ -1,10 +1,12 @@
 import { lessonServicesForContact, matchesDuration, matchesFormat, matchesLesson, matchesLevel } from './service-types'
 import { contactDestination, type ContactPresentation } from './contact-presentation'
 import { matchesClientTypes } from './contact-client-types'
+import { matchesContactFollowUp } from './contact-follow-up-summary'
 
 export const DEFAULT_CONTACT_FILTERS: Record<string, string> = { active_only: 'true' }
 
 type FilterContact = ContactPresentation & {
+  follow_up_at?: string | null
   first_name: string; last_name: string; client_status: string; last_attended: string | null
   funded?: boolean; instructor?: { person_id: string | null; name: string | null } | null
   status_class?: 'active' | 'inactive' | 'unknown'
@@ -18,6 +20,9 @@ export function matchesContactFilters(contact: FilterContact, filters: Record<st
   for (const [key, value] of Object.entries(filters)) {
     if (!value) continue
     switch (key) {
+      case 'follow_up':
+        if (!matchesContactFollowUp(contact.follow_up_at, value, new Date(now))) return false
+        break
       case 'client_types':
         // Imported lesson enrollments are a separate source from explicitly recorded service types.
         if (!matchesClientTypes(contact.custom_fields?.client_types, value) &&
