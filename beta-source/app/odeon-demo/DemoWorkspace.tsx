@@ -42,6 +42,7 @@ import { saveCalendarBooking } from '@/beta-source/lib/academy-calendar-booking'
 
 import { loadLocalAcademyWorkspace, saveLocalAcademyWorkspace, validAcademyWorkspace, readAcademyWorkspaceResponse, type AcademyWorkspaceState } from '@/beta-source/lib/academy-workspace-storage'
 import { Notice } from '@/components/ui/Notice'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { Button } from '@/components/ui/Button'
 export default function DemoWorkspace({ onboarding = false, bandReview }: { onboarding?: boolean; bandReview?: import('@/lib/band-review-data').BandReviewData }) {
   const params = useSearchParams()
@@ -54,6 +55,12 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const [staffId, setStaffId] = useState<string | null>(null)
   const [bookingEntry, setBookingEntry] = useState<BookingPrefill | null>(null)
   const tenant = params.get('tenant') || ''
+  const liveStaff = Boolean(tenant && params.get('screen') === 'staff')
+  useEffect(() => {
+    if (!liveStaff) return
+    const person = params.get('person')
+    router.replace(`/dashboard/staff${person ? `?person=${encodeURIComponent(person)}` : ''}`)
+  }, [liveStaff, params, router])
   const [storageError, setStorageError] = useState('')
   const blockedSave = useRef(false)
   const revision = useRef(0)
@@ -63,6 +70,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   const [saveStatus, setSaveStatus] = useState('')
   useEffect(() => {
     let cancelled = false
+    if (liveStaff) return
     blockedSave.current = false
     setReady(false)
     setStorageError('')
@@ -98,9 +106,9 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     }
     void load()
     return () => { cancelled = true }
-  }, [tenant])
+  }, [tenant, liveStaff])
   useEffect(() => {
-    if (!ready || blockedSave.current) return
+    if (!ready || liveStaff || blockedSave.current) return
     const state = { snapshot, setup }
     if (!tenant) {
       try { saveLocalAcademyWorkspace(localStorage, state); setSaveStatus('') }
@@ -129,7 +137,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
       finally { saving.current = false }
     }
     void flush()
-  }, [snapshot, setup, ready, tenant])
+  }, [snapshot, setup, ready, tenant, liveStaff])
   const onChange = useCallback((data: FamilyPreviewData, makeups: MakeupPreviewState) => setSnapshot({ data, makeups }), [])
   const onSetup = useCallback((data: Record<string, SetupRecord[]>) => setSetup(data), [])
   const parent = params.get('view') === 'parent', staff = params.get('screen') === 'staff'
@@ -203,7 +211,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
   }, [teacherIdForName, queue.academy.groups, queue.state.events, snapshot.data, setup])
   const [enrollmentFocused, setEnrollmentFocused] = useState(false)
   const enrollmentAvailability = useMemo(() => calendarEnrollmentAvailability({ data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }, queue.state.events), [snapshot.data, setup, queue.academy.groups, queue.state.events])
-  if (!ready) return null
+  if (!ready || liveStaff) return <LoadingSkeleton label="Loading school workspace" />
   const bookingContext = { data: snapshot.data, setup, groups: queue.academy.groups, occurrences: [] }
   const startCalendarEnrollment = (proposal: CalendarBooking, action: 'staff' | 'send') => {
     const expanded = expandPreviewCalendar(snapshot.data, proposal.date)
@@ -227,7 +235,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
       if (complete) setSnapshot(current => ({ ...current, data: result.data }))
     },
   }
-  if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/odeon-demo?screen=calendar">Open sample calendar</a></Notice>
+  if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/dashboard/staff">Return to school staff</a></Notice>
   if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
   return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent || (workflow && enrollmentFocused)}>
     {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{bandReview

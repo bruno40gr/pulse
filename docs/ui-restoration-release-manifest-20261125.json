@@ -1,0 +1,619 @@
+{
+  "baseCommit": "a0288897f6996f0ab3c3f704dac91c6c67c06a69",
+  "sourceSnapshot": "/private/tmp/pulse-card-summary-release-20261122",
+  "status": "user-authorized-commit-and-push-production-promotion-not-performed",
+  "manifestSha256": {
+    "card-summary-release-files.json": "e8cef3661d14f449ba7b7121bc8e8ad4ea5feb6f7347ddb6b554d49dfae5b812",
+    "family-hierarchy-release-files.json": "71e8e61a5df0cc8631d29f5e395c56de8b8f9fa466b7253e1a048cd3dbff29d3",
+    "family-inline-release-files.json": "263f926dd48c661936f69dfdccce04bbf55999860bbfa80e73859ff9856536dd",
+    "followup-release-files.json": "9801c70337a55798c8d5724249983b5c0e3ff30f51539e6b2d9680b151ad63f8",
+    "lead-count-release-files.json": "ec289321828eab278b70293ca2e99570d75c75c3fddfc3f4867f646bc5324e4d",
+    "modal-editor-release-files.json": "0e95762a30d5f0cfb100f0fc7eb7d2d6f132314e5be8af64602082a6200f1710",
+    "release-files.json": "e41559496a329487f57060d32234996fc1c0bbdb1a4d3ae3dd7928fe13529c35",
+    "ui-rhythm-release-files.json": "475dfbde9faba8a71d9673f2201baea9a11b0d579caf6b8e4937329af33d99ce"
+  },
+  "files": [
+    {
+      "path": "app/api/bands/drafts/route.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "6e1ad24d964ded4509b848f4d868cbdde0d320d449a21b8333ba08a620c4c989",
+      "restoredSha256": "6e1ad24d964ded4509b848f4d868cbdde0d320d449a21b8333ba08a620c4c989"
+    },
+    {
+      "path": "app/api/bands/route.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "1b6f8d34b8abc04a2cd746550c393f1fbd4060e827c04998bb58a523ec83f7b2",
+      "restoredSha256": "1b6f8d34b8abc04a2cd746550c393f1fbd4060e827c04998bb58a523ec83f7b2"
+    },
+    {
+      "path": "app/api/contacts/family/route.ts",
+      "manifests": [
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "84b37a848d09ec85fe4388ebf904fc9bdad892bf3c4980c263a29afe6cfad7f5",
+      "restoredSha256": "84b37a848d09ec85fe4388ebf904fc9bdad892bf3c4980c263a29afe6cfad7f5"
+    },
+    {
+      "path": "app/api/contacts/route.ts",
+      "manifests": [
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "reconciled-nov23-query-caller-import-guards-preserving-admin",
+      "snapshotSha256": "15b81586aeb78fa770b4e1adb69d1ac5ede52cf95b7a9014b4860317a21de3c5",
+      "restoredSha256": "9d25d66d9e25ba54048d2004aa2a05adb82166c468d5f53b400963775714e9d5"
+    },
+    {
+      "path": "app/api/leads/route.ts",
+      "manifests": [
+        "lead-count-release-files.json"
+      ],
+      "disposition": "reconciled-preserving-current-admin-or-reader-behavior",
+      "snapshotSha256": "62d49e35d4850063594e5652a0938d01629cc193d0ea85e839b885efbd0a3be1",
+      "restoredSha256": "8ad498d3a179b34fcad101b68e8621139c96ddbba0650ffba35750a21107d8a2"
+    },
+    {
+      "path": "app/dashboard/contacts/page.tsx",
+      "manifests": [
+        "card-summary-release-files.json",
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "reconciled-preserving-current-admin-or-reader-behavior",
+      "snapshotSha256": "9f414072c598cc837bf2c3ce8668fd1a2d38d3d58ba589f1e76f32c55e2a1845",
+      "restoredSha256": "b675b8c81e4fb2a3e19319a5d5e2b9e84b3197d2ac39616174663f644c228676"
+    },
+    {
+      "path": "app/globals.css",
+      "manifests": [
+        "followup-release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "fbb5171630cde396343ee0360b3c836a5e779859390aefba572f15a85d7ff8a7",
+      "restoredSha256": "fbb5171630cde396343ee0360b3c836a5e779859390aefba572f15a85d7ff8a7"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/event-explorer/WorkflowEditor.tsx",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "c12bb9fb6f6943b62aa98c96fb41ec1bbfa94780f5ca25b3f5a50f3d63090c81",
+      "restoredSha256": "c12bb9fb6f6943b62aa98c96fb41ec1bbfa94780f5ca25b3f5a50f3d63090c81"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/AccountEditor.tsx",
+      "manifests": [
+        "card-summary-release-files.json",
+        "modal-editor-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "6181f01967ab35f0aa3ed3d0b64e74b3572901628b00aff0120485015cb319b3",
+      "restoredSha256": "6181f01967ab35f0aa3ed3d0b64e74b3572901628b00aff0120485015cb319b3"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/AccountSubscriptions.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "605e5b2f0896e963e11505605756da4cf1df71a40b9319c71698dc76a254cb4f",
+      "restoredSha256": "605e5b2f0896e963e11505605756da4cf1df71a40b9319c71698dc76a254cb4f"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/CalendarBookingLayout.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "57ab0993c663fbc47a6db9f2c9fbdb4227d7decf130c7244070e712478f6c4ac",
+      "restoredSha256": "57ab0993c663fbc47a6db9f2c9fbdb4227d7decf130c7244070e712478f6c4ac"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/ContactEditor.tsx",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "6f85238eecaee0ce977b9828a01b153e11ec1c6033215e84456c8198cac51e96",
+      "restoredSha256": "6f85238eecaee0ce977b9828a01b153e11ec1c6033215e84456c8198cac51e96"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/MakeupWorkspace.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "1b4b92a72db8f016404632a5844b83b5883ba38a87597df38c72bb943a84a958",
+      "restoredSha256": "1b4b92a72db8f016404632a5844b83b5883ba38a87597df38c72bb943a84a958"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/MoveLesson.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "68332476221855409a1fbcb95029c0d55d7d4f4c287a38adc04913570ab3b2a3",
+      "restoredSha256": "68332476221855409a1fbcb95029c0d55d7d4f4c287a38adc04913570ab3b2a3"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/ParentFamilyGroup.module.css",
+      "manifests": [
+        "family-hierarchy-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "35e34385e116bf577db16f363e3f17af4d9bb59b2d8608e70156a09eea1c0b44",
+      "restoredSha256": "35e34385e116bf577db16f363e3f17af4d9bb59b2d8608e70156a09eea1c0b44"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/ParentFamilyGroup.tsx",
+      "manifests": [
+        "family-hierarchy-release-files.json",
+        "family-inline-release-files.json",
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "540eae02c89cdbaed6a876ae222950bd01ad4155983f1b67fd8396ae14952a3b",
+      "restoredSha256": "540eae02c89cdbaed6a876ae222950bd01ad4155983f1b67fd8396ae14952a3b"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/SubscriptionCard.tsx",
+      "manifests": [
+        "card-summary-release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "reconciled-preserving-current-admin-or-reader-behavior",
+      "snapshotSha256": "812bde877f13151490543cf90988ee7caebc56abc74ce5af5f1864b1710333cc",
+      "restoredSha256": "646b23902f3ea63b1e0b13385213f399f63bf3bead5f3a6579d6b1e3d87268c3"
+    },
+    {
+      "path": "beta-source/app/content-studio-prototype/students/UpcomingBookings.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "9693de4b6e99229d59f9ffc18518c51c4e54af52ee3592ec48e44af4681e322c",
+      "restoredSha256": "9693de4b6e99229d59f9ffc18518c51c4e54af52ee3592ec48e44af4681e322c"
+    },
+    {
+      "path": "components/bands/CreateBandWizard.tsx",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "be85ef2d164cd03be5288e0d95748d15087c617f4dfca9cbf871c84170a91ca3",
+      "restoredSha256": "be85ef2d164cd03be5288e0d95748d15087c617f4dfca9cbf871c84170a91ca3"
+    },
+    {
+      "path": "components/bands/ProductionBandsWorkspace.tsx",
+      "manifests": [
+        "release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "f940849109a39a16c37dcfc20da1f74c441e71e62fe9fb436fe0fabb1f705a16",
+      "restoredSha256": "f940849109a39a16c37dcfc20da1f74c441e71e62fe9fb436fe0fabb1f705a16"
+    },
+    {
+      "path": "components/contacts/LiveContactPanel.tsx",
+      "manifests": [
+        "card-summary-release-files.json",
+        "followup-release-files.json",
+        "modal-editor-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "reconciled-preserving-current-admin-or-reader-behavior",
+      "snapshotSha256": "ea79b62c9bc08c1518cfe0e909cb17452d8b0970cfd0a6a129d6def1cf8034b1",
+      "restoredSha256": "37b1947eda5742cdc519f1c5768d580bb927f95aa48a816c54ac62990cfa89a0"
+    },
+    {
+      "path": "components/contacts/LiveFamilyManagement.tsx",
+      "manifests": [
+        "family-hierarchy-release-files.json",
+        "family-inline-release-files.json",
+        "followup-release-files.json",
+        "modal-editor-release-files.json",
+        "release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "54074069b9186230a15191e96aeaece9e44d78def4640ac60beb2c88631419e5",
+      "restoredSha256": "54074069b9186230a15191e96aeaece9e44d78def4640ac60beb2c88631419e5"
+    },
+    {
+      "path": "components/contacts/ParticipantPicker.tsx",
+      "manifests": [
+        "family-inline-release-files.json",
+        "followup-release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "3b92a03501611a8af365339b92a36435352f5ec1df016f3edda96e7cf38033f0",
+      "restoredSha256": "3b92a03501611a8af365339b92a36435352f5ec1df016f3edda96e7cf38033f0"
+    },
+    {
+      "path": "components/leads/LeadsView.tsx",
+      "manifests": [
+        "lead-count-release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "reconciled-preserving-current-admin-or-reader-behavior",
+      "snapshotSha256": "5b1ff38b4602db3a00e7ede566e62df38aaff5ce0006764d3d3d67b63bd14444",
+      "restoredSha256": "ef1c4181f7b9e5f7666cd0ed3c6c0d05595f0b86b11e31b6fc2c0bafadc127a5"
+    },
+    {
+      "path": "components/ui/LessonSummary.tsx",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "16cbb78ac13902797e1d4dc1987263687da8c5f7b1d3a8aa6ae660abc0f7c14a",
+      "restoredSha256": "16cbb78ac13902797e1d4dc1987263687da8c5f7b1d3a8aa6ae660abc0f7c14a"
+    },
+    {
+      "path": "components/ui/SlidePanelHeader.tsx",
+      "manifests": [
+        "modal-editor-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "7cdc28dfc898e0a20fd6b0988f4e45601fccc617d495c406b6e270934b7f21ae",
+      "restoredSha256": "7cdc28dfc898e0a20fd6b0988f4e45601fccc617d495c406b6e270934b7f21ae"
+    },
+    {
+      "path": "docs/adding-people-convention.md",
+      "manifests": [
+        "followup-release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "695e83d310ca2ab53a0fc5c336c16d937030326c621836d289837ee0940062a7",
+      "restoredSha256": "194dc5aa6e56e73b69b723029ebce8d8422599f97a7afb2ea17182ba575e7ae1"
+    },
+    {
+      "path": "docs/band-family-parity-rollout.md",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "39f681f21ccb3ede9c6f21472422941c4a9eb3ab537122bb74f5ba927a13c983",
+      "restoredSha256": "39f681f21ccb3ede9c6f21472422941c4a9eb3ab537122bb74f5ba927a13c983"
+    },
+    {
+      "path": "docs/beta-integration-progress.md",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "4d22b9057e22f9b7182a750e480176ddf1d5fdba5e475990c56f04fbcb013ce8",
+      "restoredSha256": "21d61ceafa82fabc8019a108dc6b8067d2eea86baf77874c00639ce970bca512"
+    },
+    {
+      "path": "lib/band-creation-draft.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "4d0e11461e6ade69e7b683ba05367e630bda022f0c1a5f863adabc71b01262c7",
+      "restoredSha256": "4d0e11461e6ade69e7b683ba05367e630bda022f0c1a5f863adabc71b01262c7"
+    },
+    {
+      "path": "lib/communication-recipient-directory.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "492aeedacb06759ce36cec7902fa63e89db3aafdbbc598687ac70c734b2a3389",
+      "restoredSha256": "492aeedacb06759ce36cec7902fa63e89db3aafdbbc598687ac70c734b2a3389"
+    },
+    {
+      "path": "lib/communication-recipients.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "4a6298fe781cd6935a87e7520ef48cfffe0f9827994434cc9ccb5e71ceebaf50",
+      "restoredSha256": "4a6298fe781cd6935a87e7520ef48cfffe0f9827994434cc9ccb5e71ceebaf50"
+    },
+    {
+      "path": "lib/contact-presentation.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "8abd36fb36b0034e10371b3a219dad42a9b3c3f4c5528c92f337676eb84ef7b0",
+      "restoredSha256": "8abd36fb36b0034e10371b3a219dad42a9b3c3f4c5528c92f337676eb84ef7b0"
+    },
+    {
+      "path": "lib/contact-profile-family.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "de5359254203417b2d489aaf67bb80bf1631d8bb2b14e90db44557f3c999fc7a",
+      "restoredSha256": "de5359254203417b2d489aaf67bb80bf1631d8bb2b14e90db44557f3c999fc7a"
+    },
+    {
+      "path": "lib/conversations-directory.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "803e7630a911820e661b0bddb9f82b3bfe8ebbfe9bf9ec578ad121347eba96b7",
+      "restoredSha256": "803e7630a911820e661b0bddb9f82b3bfe8ebbfe9bf9ec578ad121347eba96b7"
+    },
+    {
+      "path": "lib/family-list.ts",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "174c1312872f9d7ee3745b684075fc0e8fa8d2ce3054c5671401a56951bea330",
+      "restoredSha256": "174c1312872f9d7ee3745b684075fc0e8fa8d2ce3054c5671401a56951bea330"
+    },
+    {
+      "path": "lib/lesson-summary.ts",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "25188d947126feadc2c212988c4e299e7be9fd387f6972e56325b09b6f8abc0a",
+      "restoredSha256": "25188d947126feadc2c212988c4e299e7be9fd387f6972e56325b09b6f8abc0a"
+    },
+    {
+      "path": "scripts/security/band-create-wizard.test.cjs",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "9fe22db5f6f30d6c91923057508f246a930df8a93900d674584b48abb3b37b8b",
+      "restoredSha256": "9fe22db5f6f30d6c91923057508f246a930df8a93900d674584b48abb3b37b8b"
+    },
+    {
+      "path": "scripts/security/check-parity-postgres.cjs",
+      "manifests": [
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "9844d64d9e543fe06eba78d122a563f29793f72d705e92acab5d8034f701a4bd",
+      "restoredSha256": "9844d64d9e543fe06eba78d122a563f29793f72d705e92acab5d8034f701a4bd"
+    },
+    {
+      "path": "scripts/security/contact-add-student.test.cjs",
+      "manifests": [
+        "family-hierarchy-release-files.json",
+        "family-inline-release-files.json",
+        "followup-release-files.json",
+        "modal-editor-release-files.json",
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "744ef513848b98547a1eb6f227f193aee1784889dbd41f49c0dca056bef23965",
+      "restoredSha256": "744ef513848b98547a1eb6f227f193aee1784889dbd41f49c0dca056bef23965"
+    },
+    {
+      "path": "scripts/security/durable-parity-browser.cjs",
+      "manifests": [
+        "card-summary-release-files.json",
+        "family-hierarchy-release-files.json",
+        "family-inline-release-files.json",
+        "followup-release-files.json",
+        "modal-editor-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "c4a57d4ce879aa70cc858c4d46fc09106330000756d680e1ec233ce6c3a6dfd8",
+      "restoredSha256": "c4a57d4ce879aa70cc858c4d46fc09106330000756d680e1ec233ce6c3a6dfd8"
+    },
+    {
+      "path": "scripts/security/durable-parity.test.cjs",
+      "manifests": [
+        "followup-release-files.json",
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "7a78f41806b8bea4965eab17b07f0aa88a801913304a35f58646e33977cca4c1",
+      "restoredSha256": "7a78f41806b8bea4965eab17b07f0aa88a801913304a35f58646e33977cca4c1"
+    },
+    {
+      "path": "scripts/security/gmail-conversations.test.cjs",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "68ff06ccb57b26cee463d9359137eea6644622e032c031b30568c52af92fb672",
+      "restoredSha256": "0765aa1def1079284844975cd85bf290f073a28395643ac95408eae7af516c45"
+    },
+    {
+      "path": "scripts/security/lead-count.test.cjs",
+      "manifests": [
+        "lead-count-release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "59e8b310dad246c95f44b81d72d696fcca19a0ed6b35a28e8306a1e9fb2ed344",
+      "restoredSha256": "cbd69161114f7501a9e8db1f0fa2ab07f32afd02ed73cfb4eb4edb282f983fd7"
+    },
+    {
+      "path": "scripts/security/lead-counter-semantics.test.cjs",
+      "manifests": [
+        "lead-count-release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "3f8e803cf9663bae67ff4243ae28cb87e3795df41cb0c6e42613d1aa144178bf",
+      "restoredSha256": "42ad05f46be8a69a6fd94bc1c51dbbea3d6a9155b90b1b965c3efe16c87be65f"
+    },
+    {
+      "path": "scripts/security/lesson-summary.test.cjs",
+      "manifests": [
+        "card-summary-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "f9d3dfced16c44e3961a2c1a80174933b4b3165916765b5d88d2a7eb235284ea",
+      "restoredSha256": "f9d3dfced16c44e3961a2c1a80174933b4b3165916765b5d88d2a7eb235284ea"
+    },
+    {
+      "path": "scripts/security/loading-surfaces.test.cjs",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "655e447ea41d9f25cb1714e95b5017cfc8860e20fecb6db460bcae3bfbd5670b",
+      "restoredSha256": "655e447ea41d9f25cb1714e95b5017cfc8860e20fecb6db460bcae3bfbd5670b"
+    },
+    {
+      "path": "scripts/security/participant-picker.test.cjs",
+      "manifests": [
+        "family-hierarchy-release-files.json",
+        "family-inline-release-files.json",
+        "followup-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "1857cc7fb7486a11da1bbfda4c9ccd5c6e335ee8ff44337ae08e8b13db4e5e37",
+      "restoredSha256": "1857cc7fb7486a11da1bbfda4c9ccd5c6e335ee8ff44337ae08e8b13db4e5e37"
+    },
+    {
+      "path": "scripts/security/synthetic-harness.cjs",
+      "manifests": [
+        "lead-count-release-files.json"
+      ],
+      "disposition": "current-or-updated-validation",
+      "snapshotSha256": "7fc14781716c001440054f07b6536ba4ee8b0a5acf92e577f30768d23fce2455",
+      "restoredSha256": "32619ee6331d465d1f8ec064d76ed37c19f6c2e21e0580c2075aca732839acbd"
+    },
+    {
+      "path": "scripts/security/ui-rhythm.test.cjs",
+      "manifests": [
+        "ui-rhythm-release-files.json"
+      ],
+      "disposition": "excluded-historical-document-or-superseded-test",
+      "snapshotSha256": "cc2e14308cd9f137ebb35ac9b9ce748a4656a43d0173326a7fc4a4a71b6c5dbc",
+      "restoredSha256": null
+    },
+    {
+      "path": "supabase/migrations/202611210003_band_creation_drafts.sql",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "0ee1650d581ee8efff36f6ede20fc75c8107fb95ef7357e7b6ddc7ef3f9950dd",
+      "restoredSha256": "0ee1650d581ee8efff36f6ede20fc75c8107fb95ef7357e7b6ddc7ef3f9950dd"
+    },
+    {
+      "path": "supabase/migrations/202611210004_contact_family_management.sql",
+      "manifests": [
+        "release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "e45fb7c0cc90bc093a8377b12fc9ddc8e76386b8e3ae051c86939bf3ff21edf5",
+      "restoredSha256": "e45fb7c0cc90bc093a8377b12fc9ddc8e76386b8e3ae051c86939bf3ff21edf5"
+    },
+    {
+      "path": "supabase/migrations/202611210005_account_manager_people.sql",
+      "manifests": [
+        "followup-release-files.json"
+      ],
+      "disposition": "exact-shipped-snapshot",
+      "snapshotSha256": "a813b90918775af39689a6b772670df2281e5e8dc32e619e378505fc1f2b2617",
+      "restoredSha256": "a813b90918775af39689a6b772670df2281e5e8dc32e619e378505fc1f2b2617"
+    }
+  ],
+  "excluded": [
+    "unfinished calendar/Services writers",
+    "unapproved scheduling migrations",
+    "production configuration or data changes"
+  ],
+  "historicalMigrations": "Three previously deployed band/family migration source files restored for provenance and isolated tests only; DO NOT replay them against production. Hosted migration versions may differ.",
+  "additionalReferenceCommits": [
+    "bf05621b48363917c00d3a8868ff2077b89c78fd",
+    "a9da509b59b648fda6bd8ffa7ce9cdb6e5ee84f8"
+  ],
+  "preparedChangeSha256": {
+    "app/api/bands/drafts/route.ts": "6e1ad24d964ded4509b848f4d868cbdde0d320d449a21b8333ba08a620c4c989",
+    "app/api/bands/route.ts": "1b6f8d34b8abc04a2cd746550c393f1fbd4060e827c04998bb58a523ec83f7b2",
+    "app/api/contacts/[id]/route.ts": "c64b7bb0c997497c57c366e5a680ce596362e31b844df0534ec4525306264235",
+    "app/api/contacts/family/route.ts": "84b37a848d09ec85fe4388ebf904fc9bdad892bf3c4980c263a29afe6cfad7f5",
+    "app/api/contacts/route.ts": "9d25d66d9e25ba54048d2004aa2a05adb82166c468d5f53b400963775714e9d5",
+    "app/dashboard/contacts/page.tsx": "b675b8c81e4fb2a3e19319a5d5e2b9e84b3197d2ac39616174663f644c228676",
+    "app/globals.css": "fbb5171630cde396343ee0360b3c836a5e779859390aefba572f15a85d7ff8a7",
+    "app/odeon-demo/page.tsx": "f138710880a2704a7f1688e1f7199b3a7e11be5c4de473a7bcd101aa48ce41e2",
+    "beta-source/app/content-studio-prototype/event-explorer/WorkflowEditor.tsx": "c12bb9fb6f6943b62aa98c96fb41ec1bbfa94780f5ca25b3f5a50f3d63090c81",
+    "beta-source/app/content-studio-prototype/students/AccountEditor.tsx": "6181f01967ab35f0aa3ed3d0b64e74b3572901628b00aff0120485015cb319b3",
+    "beta-source/app/content-studio-prototype/students/AccountSubscriptions.tsx": "605e5b2f0896e963e11505605756da4cf1df71a40b9319c71698dc76a254cb4f",
+    "beta-source/app/content-studio-prototype/students/CalendarBookingLayout.tsx": "57ab0993c663fbc47a6db9f2c9fbdb4227d7decf130c7244070e712478f6c4ac",
+    "beta-source/app/content-studio-prototype/students/ContactEditor.tsx": "6f85238eecaee0ce977b9828a01b153e11ec1c6033215e84456c8198cac51e96",
+    "beta-source/app/content-studio-prototype/students/MakeupWorkspace.tsx": "1b4b92a72db8f016404632a5844b83b5883ba38a87597df38c72bb943a84a958",
+    "beta-source/app/content-studio-prototype/students/MoveLesson.tsx": "68332476221855409a1fbcb95029c0d55d7d4f4c287a38adc04913570ab3b2a3",
+    "beta-source/app/content-studio-prototype/students/ParentFamilyGroup.module.css": "35e34385e116bf577db16f363e3f17af4d9bb59b2d8608e70156a09eea1c0b44",
+    "beta-source/app/content-studio-prototype/students/ParentFamilyGroup.tsx": "540eae02c89cdbaed6a876ae222950bd01ad4155983f1b67fd8396ae14952a3b",
+    "beta-source/app/content-studio-prototype/students/SubscriptionCard.tsx": "646b23902f3ea63b1e0b13385213f399f63bf3bead5f3a6579d6b1e3d87268c3",
+    "beta-source/app/content-studio-prototype/students/UpcomingBookings.tsx": "9693de4b6e99229d59f9ffc18518c51c4e54af52ee3592ec48e44af4681e322c",
+    "beta-source/app/odeon-demo/DemoWorkspace.tsx": "db4234e45e361c39e2faedac8892bd38cb40e943a62b19b56e1c29162381e9e1",
+    "components/bands/CreateBandWizard.tsx": "be85ef2d164cd03be5288e0d95748d15087c617f4dfca9cbf871c84170a91ca3",
+    "components/bands/ProductionBandsWorkspace.tsx": "f940849109a39a16c37dcfc20da1f74c441e71e62fe9fb436fe0fabb1f705a16",
+    "components/contacts/LiveContactPanel.tsx": "37b1947eda5742cdc519f1c5768d580bb927f95aa48a816c54ac62990cfa89a0",
+    "components/contacts/LiveFamilyManagement.tsx": "54074069b9186230a15191e96aeaece9e44d78def4640ac60beb2c88631419e5",
+    "components/contacts/ParticipantPicker.tsx": "3b92a03501611a8af365339b92a36435352f5ec1df016f3edda96e7cf38033f0",
+    "components/leads/LeadsView.tsx": "ef1c4181f7b9e5f7666cd0ed3c6c0d05595f0b86b11e31b6fc2c0bafadc127a5",
+    "components/ui/LessonSummary.tsx": "16cbb78ac13902797e1d4dc1987263687da8c5f7b1d3a8aa6ae660abc0f7c14a",
+    "components/ui/SlidePanelHeader.tsx": "7cdc28dfc898e0a20fd6b0988f4e45601fccc617d495c406b6e270934b7f21ae",
+    "docs/band-family-parity-rollout.md": "39f681f21ccb3ede9c6f21472422941c4a9eb3ab537122bb74f5ba927a13c983",
+    "docs/ui-interaction-colors.md": "1d0696e627dfb54c38c907854d768a132cee4ff588435437b9ba17ab5ff84b6f",
+    "docs/ui-restoration-20261125.md": "08a925c232874f39878e25051bb41492207c55598c385edd4139007d043ff21f",
+    "lib/band-creation-draft.ts": "4d0e11461e6ade69e7b683ba05367e630bda022f0c1a5f863adabc71b01262c7",
+    "lib/communication-recipient-directory.ts": "492aeedacb06759ce36cec7902fa63e89db3aafdbbc598687ac70c734b2a3389",
+    "lib/communication-recipients.ts": "4a6298fe781cd6935a87e7520ef48cfffe0f9827994434cc9ccb5e71ceebaf50",
+    "lib/contact-presentation.ts": "8abd36fb36b0034e10371b3a219dad42a9b3c3f4c5528c92f337676eb84ef7b0",
+    "lib/contact-profile-family.ts": "de5359254203417b2d489aaf67bb80bf1631d8bb2b14e90db44557f3c999fc7a",
+    "lib/contact-subscriptions.ts": "7352799ab9cf635d17d58ae659a491f3fe08a833d073a9ecd2b613a74f40787b",
+    "lib/conversations-directory.ts": "803e7630a911820e661b0bddb9f82b3bfe8ebbfe9bf9ec578ad121347eba96b7",
+    "lib/current-enrollment.ts": "6b0e10865dba68cae80d3f0d1912e41eb308e569db5c1fec7ae8221efa2ae92e",
+    "lib/current-subscription-teacher.ts": "00095a4bde78d864b48e0fc46711af37a1e9f5dbf268f177367e03fd8c146cfb",
+    "lib/family-list.ts": "174c1312872f9d7ee3745b684075fc0e8fa8d2ce3054c5671401a56951bea330",
+    "lib/lesson-summary.ts": "25188d947126feadc2c212988c4e299e7be9fd387f6972e56325b09b6f8abc0a",
+    "lib/subscription-source.ts": "65eb56f5a46696860601947776686b20c3b9829a443d8082ec33a3d4e1c577ad",
+    "scripts/security/band-create-wizard.test.cjs": "9fe22db5f6f30d6c91923057508f246a930df8a93900d674584b48abb3b37b8b",
+    "scripts/security/check-parity-postgres.cjs": "9844d64d9e543fe06eba78d122a563f29793f72d705e92acab5d8034f701a4bd",
+    "scripts/security/contact-add-student.test.cjs": "744ef513848b98547a1eb6f227f193aee1784889dbd41f49c0dca056bef23965",
+    "scripts/security/contact-role-presentation.test.cjs": "b95d32cc9c50b9af01293592ac23afef4560711d18b42eb2377a3a168d218ef4",
+    "scripts/security/contact-subscriptions.test.cjs": "4a7998c395f197fa00085af4f3ce8847bde3a92234fd582885d44a2cc2ce484e",
+    "scripts/security/current-enrollment.test.cjs": "88272e3255efbce3432e8e8f2e5b647a18a1328ddabb37cadbba3edf38da94e1",
+    "scripts/security/current-subscription-teacher.test.cjs": "6d2420cf4242d0472709b1499ee642e0d7fd38b7a084aa9f0e3ebcde26b47363",
+    "scripts/security/durable-parity-browser.cjs": "c4a57d4ce879aa70cc858c4d46fc09106330000756d680e1ec233ce6c3a6dfd8",
+    "scripts/security/durable-parity.test.cjs": "7a78f41806b8bea4965eab17b07f0aa88a801913304a35f58646e33977cca4c1",
+    "scripts/security/lesson-summary.test.cjs": "f9d3dfced16c44e3961a2c1a80174933b4b3165916765b5d88d2a7eb235284ea",
+    "scripts/security/loading-surfaces.test.cjs": "655e447ea41d9f25cb1714e95b5017cfc8860e20fecb6db460bcae3bfbd5670b",
+    "scripts/security/modal-component-contract.test.cjs": "4a2c77e7f6442e350d378b6d6163e39f9c97aae1959d0c275752d07023f1db9f",
+    "scripts/security/participant-picker.test.cjs": "1857cc7fb7486a11da1bbfda4c9ccd5c6e335ee8ff44337ae08e8b13db4e5e37",
+    "scripts/security/subscription-restoration-contract.test.cjs": "7bbfee04ae3dafb046f49ba2be96172383c036a8135a1d4894da2d551fb38208",
+    "scripts/security/subscription-source.test.cjs": "2bde8b55afa789741ea14ba226106a5c05be876d8042cb6c94868d476b049311",
+    "scripts/security/ui-release-restoration.test.cjs": "accecd6b475d501f0806d365e292fe0dd90d1f7344e64058574c0d17d2ab26de",
+    "scripts/security/ui-restoration-browser.cjs": "c314e7cab48e51e57ef32fc3e28c84edd43d7c4a36e797e18ad70978afc19c30",
+    "supabase/migrations/202611210003_band_creation_drafts.sql": "0ee1650d581ee8efff36f6ede20fc75c8107fb95ef7357e7b6ddc7ef3f9950dd",
+    "supabase/migrations/202611210004_contact_family_management.sql": "e45fb7c0cc90bc093a8377b12fc9ddc8e76386b8e3ae051c86939bf3ff21edf5",
+    "supabase/migrations/202611210005_account_manager_people.sql": "a813b90918775af39689a6b772670df2281e5e8dc32e619e378505fc1f2b2617"
+  },
+  "validation": {
+    "fullSuite": {
+      "tests": 1125,
+      "passed": 1108,
+      "failed": 17,
+      "newFailureNamesComparedWithCleanBase": []
+    },
+    "typecheck": "passed",
+    "changedCodeLint": {
+      "errors": 0,
+      "warnings": 36
+    },
+    "desktopMobileSyntheticBrowsers": "passed",
+    "authenticatedProductionAcceptance": "not-performed"
+  }
+}

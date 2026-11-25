@@ -2,6 +2,15 @@
 
 ## Norm
 
+### Focus styling decision — November 25, 2026
+
+The owner explicitly reaffirmed the previously shipped no-focus-ring convention.
+`app/globals.css` suppresses outlines and box-shadow rings on `*:focus` and
+`*:focus-visible`. This supersedes the visible-outline guidance below. Retain
+keyboard navigation, tab order, native control behavior and dialog focus handling;
+do not disable focus or blur elements to implement this visual decision. The
+focus token remains available, but must not reintroduce global focus rings.
+
 The source of truth is `interaction` in `lib/tokens.ts`. `lib/interaction-theme.ts`
 publishes those values as CSS custom properties on the root layout. Beta reuses
 the same roles, not a second palette.

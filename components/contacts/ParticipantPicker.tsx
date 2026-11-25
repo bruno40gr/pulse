@@ -16,7 +16,7 @@ export type ParticipantOption = { id: string; name: string; detail?: string; gro
 export type NewParticipant = ContactDetails
 
 /** Shared event/band contact selection. Persistence belongs to the caller. */
-export function ParticipantPicker({ options, selectedIds, onSelectionChange, multiple = false, mode, onModeChange, draft, onDraftChange, onCreate, creating = false, disabled = false, state = 'ready', error, label = 'Participants' }: {
+export function ParticipantPicker({ options, selectedIds, onSelectionChange, multiple = false, mode, onModeChange, draft, onDraftChange, onCreate, creating = false, disabled = false, state = 'ready', error, label = 'Participants', existingOnly = false }: {
   options: ParticipantOption[]
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
@@ -31,6 +31,8 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
   state?: 'loading' | 'ready' | 'error'
   error?: string
   label?: string
+  /** For choosing an existing relationship target, where creation is not applicable. */
+  existingOnly?: boolean
 }) {
   const [query, setQuery] = useState('')
   const name = useId()
@@ -42,20 +44,20 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
       : selectedIds.includes(person.id) ? [] : [person.id])
   }
   return <div style={{ display: 'grid', gap: spacing.md, minWidth: 0 }}>
-    <RadioOptionGroup label="Contact type" hideLabel value={mode}
+    {!existingOnly && <RadioOptionGroup label="Contact type" hideLabel value={mode}
       options={[{ id: 'existing', label: 'Existing contact' }, { id: 'new', label: 'New contact' }]}
-      onChange={next => { if (!creating && !disabled) { setQuery(''); onModeChange(next as 'existing' | 'new') } }} />
-    {mode === 'new' ? <div style={{ minHeight: 240, display: 'grid', alignContent: 'start', gap: spacing.md }}>
-      <SectionTitle as="h3">Contact details</SectionTitle>
+      onChange={next => { if (!creating && !disabled) { setQuery(''); onModeChange(next as 'existing' | 'new') } }} />}
+    {!existingOnly && mode === 'new' ? <div style={{ paddingTop: spacing.lg, minHeight: 240, display: 'grid', alignContent: 'start', gap: spacing.md }}>
+      <SectionTitle as="h2">Contact details</SectionTitle>
       <ContactDetailsFields value={draft} disabled={creating || disabled} onChange={(field, value) => onDraftChange({ ...draft, [field]: value })} />
       {onCreate && <div><Button variant="secondary" disabled={creating || disabled || !`${draft.firstName} ${draft.lastName}`.trim()} onClick={onCreate}>{creating ? 'Adding…' : 'Add and select'}</Button></div>}
     </div> : <>
       <Input label="Search contacts" type="search" placeholder="Name or email" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
       <div role="region" aria-label={label} aria-busy={state === 'loading'} tabIndex={0}
-        style={{ height: 'clamp(160px, 28dvh, 280px)', overflow: 'auto', overscrollBehavior: 'contain', minWidth: 0 }}>
+        style={{ maxHeight: 'clamp(160px, 28dvh, 280px)', overflow: 'auto', overscrollBehavior: 'contain', minWidth: 0 }}>
         {state === 'loading' ? <LoadingSkeleton label="Loading contacts" />
           : state === 'error' ? <Notice variant="error">{error || 'Could not load contacts. Please try again.'}</Notice>
-          : <ResponsiveDataTable rows={matches} getRowKey={person => person.id} ariaLabel={label} minDesktopWidth={320}
+          : <ResponsiveDataTable rows={matches} getRowKey={person => person.id} ariaLabel={label} minDesktopWidth={320} stickyHeaderOffset={0}
             emptyContent={query.trim() ? 'No contacts match your search.' : 'No contacts available to add.'}
             selection={multiple ? { selectedKeys: new Set(selectedIds), allSelected: matches.some(person => !person.disabled) && matches.filter(person => !person.disabled).every(person => selectedIds.includes(person.id)),
               onToggle: toggle,

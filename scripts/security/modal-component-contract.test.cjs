@@ -70,7 +70,7 @@ test('Settings separates staff roles from permission editing and uses the shared
 test('Contacts shares a reserved results slot and contextual actions', () => {
   const contacts = source('app/dashboard/contacts/page.tsx')
   assert.match(contacts, /contextualToolbar=\{selectedIds.size > 0/)
-  assert.match(contacts, /beforeTable=\{<TableResultCount>/)
+  assert.match(contacts, /beforeTable=\{loading \|\| aiLoading \? undefined : <TableResultCount>/)
   const modes = source('components/ui/TableWorkspaceControls.tsx')
   assert.match(modes, /inert=\{active\}/)
   assert.match(modes, /aria-label="Clear selection"/)

@@ -2,6 +2,7 @@
 export function groupContactFamilies<T extends {
   id: string; tenant_id?: string; student_id?: string | null; is_student?: boolean; account_id?: string | null; account_holder_name?: string | null
   custom_fields?: Record<string, unknown>; staff_id?: string | null
+  linked_account_ids?: string[]; account_holders?: { person_id?: string; account_id?: string; name: string | null }[]
 }>(contacts: T[]): { id: string; holder: string | null; members: T[] }[] {
   const groups = new Map<string, { id: string; holder: string | null; members: T[] }>()
   for (const contact of contacts) {
@@ -13,6 +14,12 @@ export function groupContactFamilies<T extends {
     const group = groups.get(id) || { id, holder: linked ? contact.account_holder_name?.trim() || 'Account holder' : null, members: [] }
     group.members.push(contact)
     groups.set(id, group)
+    if (studentRole) for (const accountId of new Set(contact.linked_account_ids || [])) {
+      if (accountId === contact.account_id) continue
+      const key = `${scope}account:${accountId}`
+      const other = groups.get(key) || { id: key, holder: contact.account_holders?.find(holder => holder.account_id === accountId)?.name || 'Account holder', members: [] }
+      other.members.push(contact); groups.set(key, other)
+    }
   }
   return [...groups.values()]
 }

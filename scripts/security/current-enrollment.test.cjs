@@ -10,4 +10,7 @@ test('an ended enrollment never reads as a current subscription', () => {
   assert.equal(isCurrentEnrollment({ custom_fields: {} }), true)
   assert.equal(isCurrentEnrollment({}), true)
   assert.equal(isCurrentEnrollment(null), true)
+  assert.equal(isCurrentEnrollment({status:' Ended ',custom_fields:{status:'active'}}),false)
+  assert.equal(isCurrentEnrollment({status:'active',custom_fields:{status:'ended'}}),false)
+  assert.equal(isCurrentEnrollment({status:'pending'}),true)
 })

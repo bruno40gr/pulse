@@ -100,6 +100,13 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     '@/lib/shared-follow-up': { sharedFollowUpsEnabled: () => false },
     '@/lib/contact-relationship': load('lib/contact-relationship.ts'),
     '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
+    '@/lib/current-subscription-teacher': load('lib/current-subscription-teacher.ts'),
+    '@/lib/subscription-source': load('lib/subscription-source.ts', { papaparse: require('papaparse') }),
+    '@/lib/contact-subscriptions': load('lib/contact-subscriptions.ts', {
+      '@/lib/contact-kind': load('lib/contact-kind.ts'),
+      '@/lib/current-enrollment': load('lib/current-enrollment.ts'),
+      '@/lib/current-subscription-teacher': load('lib/current-subscription-teacher.ts'),
+    }),
     '@/lib/permissions': { PERMISSIONS: { contactsRead: 'contacts.read' } },
     '@/lib/tenant-request': { authorizeTenantRequest: async () => denied ? { ok: false, status: 403, error: 'Denied' } : { ok: true, tenantId: 'tenant' } },
     'next/server': { NextResponse: { json: value => value } },

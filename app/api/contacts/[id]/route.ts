@@ -10,6 +10,9 @@ import { requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
 import { createDetailRequestTiming } from '@/lib/detail-request-timing'
 import { getDurationMs } from '@/lib/request-runtime'
+import { contactSubscriptions, currentStudentEnrollments, type SubscriptionTeacher } from '@/lib/contact-subscriptions'
+import { isCurrentEnrollment } from '@/lib/current-enrollment'
+import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -36,6 +39,8 @@ async function authorizeContactWrite(request: Request, tenantId: string) {
 
 interface InstructorEnrollmentRow {
   id: string
+  status?: string | null
+  custom_fields?: Record<string, unknown> | null
   instrument: string | null
   service_type: string | null
   lesson_day: string | null
@@ -76,21 +81,23 @@ interface ActiveInstructorStudent {
   lesson_time: string | null
 }
 
-async function getActiveInstructorStudents(instructorPersonId: string) {
+async function getActiveInstructorStudents(instructorPersonId: string, tenantId: string) {
   const { data, error } = await supabaseAdmin
     .from('enrollments')
     .select(`
-      id, instrument, service_type, lesson_day, lesson_time,
+      id, status, custom_fields, instrument, service_type, lesson_day, lesson_time,
       student:students (
         client_status,
         person:people ( id, first_name, last_name )
       )
     `)
     .eq('instructor_person_id', instructorPersonId)
+    .eq('tenant_id', tenantId)
 
   if (error) throw error
 
   return ((data || []) as InstructorEnrollmentRow[])
+    .filter(isCurrentEnrollment)
     .map((enrollment): ActiveInstructorStudent | null => {
       const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student
       const studentPerson = Array.isArray(student?.person) ? student.person[0] : student?.person
@@ -120,6 +127,16 @@ async function getActiveInstructorStudents(instructorPersonId: string) {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+async function subscriptionTeachers(student: { enrollments?: { instructor_person_id?: string | null }[] }, tenantId: string) {
+  const ids = [...new Set((student.enrollments ?? []).map(entry => entry.instructor_person_id).filter((id): id is string => Boolean(id)))]
+  if (!ids.length) return new Map<string, SubscriptionTeacher>()
+  const { data, error } = await supabaseAdmin.from('people')
+    .select('id, first_name, last_name, phone, email, custom_fields')
+    .eq('tenant_id', tenantId).in('id', ids)
+  if (error) throw error
+  return new Map<string, SubscriptionTeacher>((data ?? []).map(person => [person.id, person]))
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { requestLog, timings, measure, responseHeaders } = createDetailRequestTiming(request)
   const { id } = await params
@@ -137,12 +154,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             accounts ( id, name, phone, email )
           ),
           enrollments (
-            instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields,
-            instructor_id,
-            instructor:staff (
-              id,
-              person:people ( id, first_name, last_name, phone, email )
-            )
+            id, status, instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields, instructor_person_id
           )
         )
       `
@@ -151,7 +163,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         students (
           id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
-          enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
+          enrollments ( id, status, instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields, instructor_person_id )
         )
       `
 
@@ -184,7 +196,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const student = (person as any).students?.[0] || {}
     const account = student.accounts || {}
-    const enrollment = student.enrollments?.[0] || {}
+    const enrollment = currentStudentEnrollments(student.enrollments)[0] || {}
+    const teachers = await measure('subscriptions', () => subscriptionTeachers(student, person.tenant_id))
 
     // Detect if this person is an instructor (staff) so they can be edited and sunset like a contact.
     const { data: ownInstructor } = await measure('instructor', () => supabaseAdmin
@@ -196,7 +209,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const staffId = ownInstructor?.id ?? null
     const isInstructor = !!staffId
     const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
-    const activeStudents = isInstructor ? await measure('students', () => getActiveInstructorStudents(person.id)) : []
+    const activeStudents = isInstructor ? await measure('students', () => getActiveInstructorStudents(person.id, person.tenant_id)) : []
 
     // Build account_holders array from student_accounts
     const studentAccounts = student.student_accounts ?? []
@@ -219,17 +232,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       })
     }
 
-    // Build instructor info from staff join
-    const instructor = enrollment.instructor
-    const nonStudentBooking = isNonStudentBooking(enrollment)
-    const instructorInfo = instructor ? {
-      staff_id: instructor.id,
-      person_id: instructor.person?.id ?? null,
-      name: instructor.person
-        ? `${instructor.person.first_name} ${instructor.person.last_name}`
-        : null,
-      phone: instructor.person?.phone ?? null,
-      email: instructor.person?.email ?? null,
+    const instructor = teachers.get(enrollment.instructor_person_id ?? '')
+    const nonStudentBooking = !currentStudentEnrollments(student.enrollments).length && isNonStudentBooking(student.enrollments?.[0])
+    const instructorInfo = currentSubscriptionTeacher(instructor) ? {
+      staff_id: null,
+      person_id: instructor!.id,
+      name: currentSubscriptionTeacher(instructor),
+      phone: instructor!.phone ?? null,
+      email: instructor!.email ?? null,
     } : null
 
     console.info('[contacts][detail]', {
@@ -239,6 +249,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     })
     return NextResponse.json(enrichDemoContact({
       id: person.id,
+      profile_enrollments: contactSubscriptions(student.enrollments, teachers),
       student_id: nonStudentBooking ? null : (student.id ?? null),
       account_id: nonStudentBooking ? null : (student.account_id ?? null),
       is_student: !nonStudentBooking && Boolean(student.id),
@@ -386,7 +397,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    // Return updated flattened record (legacy joins — student_accounts/staff tables do not exist in prod yet)
+    // Return the same subscription contract as GET after contact updates.
     const { data: person } = await supabaseAdmin
       .from('people')
       .select(`
@@ -394,7 +405,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         students (
           id, client_status, last_attended, message_routing, is_minor, account_id,
           accounts ( name, phone, email ),
-          enrollments ( instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields )
+          enrollments ( id, status, instrument, service_type, lesson_day, lesson_time, plan_name, session_name, custom_fields, instructor_person_id )
         )
       `)
       .eq('id', id)
@@ -404,7 +415,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const student = (person as any).students?.[0] || {}
     const account = student.accounts || {}
-    const enrollment = student.enrollments?.[0] || {}
+    const enrollment = currentStudentEnrollments(student.enrollments)[0] || {}
+    const teachers = await subscriptionTeachers(student, person.tenant_id)
 
     // Detect if this person is an instructor (staff) so they can be edited and sunset like a contact.
     const { data: ownInstructor } = await supabaseAdmin
@@ -416,7 +428,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const staffId = ownInstructor?.id ?? null
     const isInstructor = !!staffId
     const isActive = (person.custom_fields?.staff_status ?? 'active') !== 'sunset'
-    const activeStudents = isInstructor ? await getActiveInstructorStudents(person.id) : []
+    const activeStudents = isInstructor ? await getActiveInstructorStudents(person.id, person.tenant_id) : []
 
     // Build account_holders array
     const studentAccounts = student.student_accounts ?? []
@@ -438,20 +450,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       })
     }
 
-    const instructor = enrollment.instructor
-    const nonStudentBooking = isNonStudentBooking(enrollment)
-    const instructorInfo = instructor ? {
-      staff_id: instructor.id,
-      person_id: instructor.person?.id ?? null,
-      name: instructor.person
-        ? `${instructor.person.first_name} ${instructor.person.last_name}`
-        : null,
-      phone: instructor.person?.phone ?? null,
-      email: instructor.person?.email ?? null,
+    const instructor = teachers.get(enrollment.instructor_person_id ?? '')
+    const nonStudentBooking = !currentStudentEnrollments(student.enrollments).length && isNonStudentBooking(student.enrollments?.[0])
+    const instructorInfo = currentSubscriptionTeacher(instructor) ? {
+      staff_id: null,
+      person_id: instructor!.id,
+      name: currentSubscriptionTeacher(instructor),
+      phone: instructor!.phone ?? null,
+      email: instructor!.email ?? null,
     } : null
 
     return NextResponse.json(enrichDemoContact({
       id: person.id,
+      profile_enrollments: contactSubscriptions(student.enrollments, teachers),
       student_id: nonStudentBooking ? null : (student.id ?? null),
       is_student: !nonStudentBooking && Boolean(student.id),
       tenant_id: person.tenant_id,

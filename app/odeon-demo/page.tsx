@@ -1,5 +1,6 @@
 import DemoWorkspace from '@/beta-source/app/odeon-demo/DemoWorkspace'
 import { Suspense } from 'react'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import LocalBandReview from '@/beta-source/app/content-studio-prototype/event-explorer/LocalBandReview'
@@ -12,7 +13,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     if (process.env.NODE_ENV !== 'development' || !process.env.LOCAL_BAND_REVIEW_DIR || params.tenant || params.screen !== 'groups') notFound()
     const host = (await headers()).get('host') || ''
     if (!/^(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(host)) notFound()
-    return <Suspense fallback={null}><LocalBandReview /></Suspense>
+    return <Suspense fallback={<LoadingSkeleton label="Loading school workspace" />}><LocalBandReview /></Suspense>
   }
-  return <Suspense fallback={null}><DemoWorkspace /></Suspense>
+  return <Suspense fallback={<LoadingSkeleton label="Loading school workspace" />}><DemoWorkspace /></Suspense>
 }

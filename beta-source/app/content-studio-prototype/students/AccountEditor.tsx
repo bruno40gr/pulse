@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Button, DenseSectionPanel, FieldGrid, Input } from '@/beta-source/components/ui'
 import { previewContacts, type FamilyAction, type FamilyPreviewData, type PreviewAccount } from '@/beta-source/lib/academy-family-preview'
 import { spacing } from '@/beta-source/lib/tokens'
@@ -17,15 +17,25 @@ export function AccountEditor({ data, account, contactId, onApply, onBack }: { d
 }
 
 /** Beta and live Contacts use the same editor; callers own persistence. */
-export function AccountEditorCanvas({ contacts, holderId, accountName, studentOnly, family, onSave, onBack }: {
+export function AccountEditorCanvas({ contacts, holderId, accountName, studentOnly, family, onSave, onBack, embedded = false, formId: providedFormId, onDirtyChange }: {
   contacts: AccountEditorContact[]; holderId?: string; accountName: string; studentOnly?: boolean; family?: React.ReactNode
   onSave: (contacts: AccountEditorContact[], saved: (id: string) => void) => string | null | Promise<string | null>; onBack: () => void
+  embedded?: boolean; formId?: string
+  onDirtyChange?: (dirty: boolean) => void
 }) {
-  const formId = useId()
+  const generatedFormId = useId()
+  const formId = providedFormId || generatedFormId
   const [saving, setSaving] = useState(false)
   const [drafts, setDrafts] = useState(() => Object.fromEntries(contacts.map(contact => [contact.id, { ...contact }])))
   const [error, setError] = useState('')
-  return <AccountWorkspace title="Edit Contact" accountName={accountName} profileSubtitle={studentOnly ? 'Student profile' : 'Account manager'} onBack={onBack} actions={<><Button variant="secondary" disabled={saving} onClick={onBack}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>Save changes</Button></>}>
+  const dirty = contacts.some(contact => {
+    const draft = drafts[contact.id]
+    return draft && (['firstName', 'lastName', 'email', 'phone', 'birthday'] as const)
+      .filter(field => !contact.accountRecord || field !== 'lastName' && field !== 'birthday')
+      .some(field => (draft[field] || '').trim() !== (contact[field] || '').trim())
+  })
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  const content = <>
     <form id={formId} noValidate style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }} onSubmit={async event => {
       event.preventDefault()
       if (saving) return
@@ -46,6 +56,7 @@ export function AccountEditorCanvas({ contacts, holderId, accountName, studentOn
       })}
       {error && <p role="alert">{error}</p>}
     </form>
-    {family && <section aria-label="Manage Family Group" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>{family}</section>}
-  </AccountWorkspace>
+    {family && <section aria-label="Manage Family Group" style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg, marginTop: spacing.xl }}>{family}</section>}
+  </>
+  return embedded ? content : <AccountWorkspace title="Edit Contact" accountName={accountName} profileSubtitle={studentOnly ? 'Student profile' : 'Account manager'} onBack={onBack} actions={<><Button variant="secondary" disabled={saving} onClick={onBack}>Cancel</Button><Button type="submit" form={formId} disabled={saving}>Save changes</Button></>}>{content}</AccountWorkspace>
 }

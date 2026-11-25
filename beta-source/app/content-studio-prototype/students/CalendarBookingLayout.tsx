@@ -7,13 +7,15 @@ import { scheduleTeachers, formatScheduleDate, formatScheduleTime } from '@/beta
 import type { PreviewMakeup } from '@/beta-source/lib/academy-makeup-preview'
 import { CalendarLegend } from './CalendarLegend'
 import styles from './CalendarBookingLayout.module.css'
+import { LessonSummary } from '@/components/ui/LessonSummary'
 
 /** The calendar owns the first column; changing controls never changes its top edge. */
-export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar, hideConfirm = false, rightControls }: {
+export function CalendarBookingLayout({ children, moving = false, booking = false, makeup, program, level, studentName, sameTeacher, onSameTeacher, teacher, onTeacher, selected, onConfirm, error, sidebar, hideConfirm = false, rightControls }: {
   children: ReactNode; moving?: boolean; booking?: boolean; makeup: PreviewMakeup; program: string
   sameTeacher: boolean; onSameTeacher: (same: boolean) => void; teacher: string; onTeacher: (teacher: string) => void
   selected: NonNullable<PreviewMakeup['booking']> | null; onConfirm: () => void; error: string
   rightControls?: ReactNode; hideConfirm?: boolean; sidebar?: ReactNode; studentName?: string
+  level?: number
 }) {
   const teachers = scheduleTeachers.filter(item => (item.instruments as readonly string[]).includes(program))
   const slotLabel = (date: string, time: string) => `${formatScheduleDate(date, { weekday: 'short', month: 'short', day: 'numeric' })}, ${formatScheduleTime(time)}`
@@ -24,9 +26,11 @@ export function CalendarBookingLayout({ children, moving = false, booking = fals
       {sidebar}
       {(moving || booking) && <SurfacePanel appearance="flat"><section aria-label={moving ? 'Move summary' : 'Makeup summary'} className={styles.moveSummary} aria-live="polite">
         {studentName && <p>{studentName}</p>}
-        <p>{moving ? 'Original lesson' : 'Makeup credit'}: {program} · {formatScheduleDate(makeup.date)} · {makeup.teacher}</p>
+        <p><strong><LessonSummary part="identity" instrument={program} level={level} /></strong></p>
+        <p className={styles.summary}><LessonSummary part="details" format={makeup.service} duration={makeup.duration} /></p>
+        <div><p className={styles.summary}>{moving ? 'Original lesson' : 'Makeup credit'}</p><p>{formatScheduleDate(makeup.date)} · {makeup.teacher}</p></div>
         <p>{moving ? 'Reschedule to:' : 'Schedule makeup to:'}</p>
-        {selected ? <><div className={styles.destination}><p>{program}</p><p>{selected.teacher}</p><p>{slotLabel(selected.date, selected.time)}</p></div>{selected.teacher !== makeup.teacher && <StatusBadge status="pending" label="Teacher change" />}</> : <p className={styles.emptySelection}>Select a lesson time</p>}
+        {selected ? <><div className={styles.destination}><p>{slotLabel(selected.date, selected.time)}</p><p className={styles.summary}>{selected.teacher}</p></div>{selected.teacher !== makeup.teacher && <StatusBadge status="pending" label="Teacher change" />}</> : <p className={styles.emptySelection}>Select a lesson time</p>}
       </section></SurfacePanel>}
       {!moving && !booking && <label className={styles.checkbox}><input type="checkbox" checked={sameTeacher} onChange={event => onSameTeacher(event.target.checked)} />Same teacher</label>}
       {!moving && !booking && !sameTeacher && <fieldset className={styles.teachers}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { List, Grid2X2 } from 'lucide-react'
+import { LessonSummary } from '@/components/ui/LessonSummary'
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useContext, useState } from 'react'
@@ -63,8 +63,8 @@ export function UpcomingBookings({ data, makeups, location, onEnsure, onLesson, 
       const rescheduled = !cancelled && 'originalDate' in item && Boolean(item.originalDate && item.originalDate !== item.date)
       const status = cancelled ? 'Cancelled' : rescheduled ? 'Rescheduled' : item.status
       return <LessonCard key={item.id}
-        title={<>{formatScheduleDate(item.date, { weekday: 'long', month: 'short', day: 'numeric' })} · {formatScheduleTime(item.time)}</>}
-        subtitle={<>{item.student.firstName} · {item.program} • {item.duration} min</>}
+        title={<>{formatScheduleDate(item.date, { weekday: 'long', month: 'short', day: 'numeric' })} · {formatScheduleTime(item.time)} <span style={{ ...typography.bodySmall, color: colors.textSecondary, fontWeight: typography.weightNormal }}>(<LessonSummary part="details" format={item.enrollment.service} duration={item.duration} />)</span></>}
+        subtitle={<>{item.student.firstName} • <LessonSummary part="identity" instrument={item.program} level={item.enrollment.level} /></>}
         selectLabel={`Select ${item.student.firstName} ${item.program} lesson ${item.date}${item.makeup ? ', makeup lesson' : ''}`}
         selected={selectedId === item.id} onSelect={() => setSelectedId(selectedId === item.id ? null : item.id)}
         leading={inline && onRescheduleTogether && item.status === 'Scheduled' ? <input type="checkbox" aria-label={`Include ${item.student.firstName} ${item.program} lesson ${item.date}`} checked={checked.includes(item.id)} onChange={event => setChecked(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} /> : undefined}

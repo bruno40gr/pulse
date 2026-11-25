@@ -48,6 +48,7 @@ export function SlidePanelHeader({
       padding: isMobile ? '4px 16px' : '8px 24px',
       borderBottom: `1px solid ${colors.borderLight}`,
       display: 'flex',
+      flexWrap: isMobile && actions ? 'wrap' : undefined,
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
@@ -58,7 +59,7 @@ export function SlidePanelHeader({
       boxSizing: 'border-box',
       background: colors.surface,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, minWidth: 0, flex: 1, flexBasis: isMobile && actions ? '100%' : undefined }}>
         {onBack && <BackControl label={backLabel} onClick={onBack} />}
         {avatar && (
           <Avatar
@@ -109,7 +110,7 @@ export function SlidePanelHeader({
           )}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexShrink: 0, ...(isMobile && actions ? { width: '100%', justifyContent: 'flex-end' } : {}) }}>
         {toast && (
           <span style={{ fontSize: typography.sizeSm, color: colors.textMuted, fontFamily: typography.fontSans }}>
             {toast}

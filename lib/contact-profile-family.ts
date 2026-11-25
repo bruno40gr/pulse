@@ -7,10 +7,12 @@ export function contactProfileFamilies<T extends FamilyPerson>(roster: T[], tena
   const linkedIds = (person: T) => [person.account_holder_person_id, ...(person.account_holders ?? []).map(holder => holder.person_id)]
   const accounts = new Map<string, T[]>()
   for (const row of local) {
-    if (!row.account_id || row.is_student === false) continue
-    const members = accounts.get(row.account_id) ?? []
-    members.push(row)
-    accounts.set(row.account_id, members)
+    if (row.is_student === false) continue
+    for (const account of new Set([row.account_id, ...(row.linked_account_ids || [])].filter((id): id is string => !!id))) {
+      const members = accounts.get(account) ?? []
+      members.push(row)
+      accounts.set(account, members)
+    }
   }
   return [...accounts].flatMap(([id, students]) => {
     const ids = new Set(students.flatMap(linkedIds).filter(Boolean))

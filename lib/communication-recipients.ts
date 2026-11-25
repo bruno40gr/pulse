@@ -4,7 +4,7 @@ export type RecipientContact = {
   students?: Array<{
     is_minor?: boolean | null; message_routing?: string | null
     accounts?: RecipientAccount | RecipientAccount[] | null
-    student_accounts?: Array<{ accounts?: RecipientAccount | RecipientAccount[] | null }> | null
+    student_accounts?: Array<{ communication_enabled?: boolean; accounts?: RecipientAccount | RecipientAccount[] | null }> | null
   }> | null
 }
 export type ResolvedRecipient = { destination: string; name: string; contactIds: string[] }
@@ -21,7 +21,7 @@ const array = <T,>(value: T | T[] | null | undefined): T[] => value ? Array.isAr
 
 /** Shared direct and linked account lookup for directory display and delivery. */
 export const recipientAccounts = (students: NonNullable<RecipientContact['students']>) => students.flatMap(student => [
-  ...array(student.accounts), ...(student.student_accounts || []).flatMap(link => array(link.accounts)),
+  ...array(student.accounts), ...(student.student_accounts || []).filter(link => link.communication_enabled !== false).flatMap(link => array(link.accounts)),
 ])
 const emailAddress = (value?: string | null) => {
   const email = value?.trim().toLowerCase() || ''
