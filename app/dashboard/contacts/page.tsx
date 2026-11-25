@@ -510,9 +510,9 @@ export default function ContactsPage() {
   }
   const contactColumns: DataTableColumn<Contact, ContactSortKey>[] = [
     ...(followUpsEnabled ? [{ id: 'followUp', header: 'Follow-up date', width: '180px', sortable: true, sortKey: 'followUp' as const,
-      render: (contact: Contact) => <ControlButton kind="name" title={contact.follow_up_note || undefined} onClick={() => openContactFollowUps(contact)}>
-        {contact.follow_up_at ? `${new Date(contact.follow_up_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${(contact.follow_up_count ?? 0) > 1 ? ` (+${contact.follow_up_count! - 1})` : ''}` : 'View follow-ups'}
-      </ControlButton>,
+      render: (contact: Contact) => contact.follow_up_at ? <ControlButton kind="name" title={contact.follow_up_note || undefined} onClick={() => openContactFollowUps(contact)}>
+        {`${new Date(contact.follow_up_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${(contact.follow_up_count ?? 0) > 1 ? ` (+${contact.follow_up_count! - 1})` : ''}`}
+      </ControlButton> : null,
     }, { id: 'followUpNote', header: 'Follow-up note', width: 'minmax(220px, 1.2fr)', sortable: true, sortKey: 'followUpNote' as const,
       render: (contact: Contact) => contact.follow_up_note
         ? <ControlButton kind="name" title={contact.follow_up_note} onClick={() => openContactFollowUps(contact)}><span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{contact.follow_up_note}</span></ControlButton>

@@ -36,3 +36,10 @@ test('Contacts badges are name relationships, not a status column; date/note col
   assert.match(source, /id: 'followUpNote', header: 'Follow-up note'.*sortable: true, sortKey: 'followUpNote'/)
   assert.match(source, /id: 'followUp', header: 'Follow-up date'.*sortable: true, sortKey: 'followUp'/)
 })
+test('missing follow-up dates leave the table cell empty instead of an action placeholder', () => {
+  const source = readFileSync(resolve(__dirname, '../../app/dashboard/contacts/page.tsx'), 'utf8')
+  const dateColumn = source.split("id: 'followUp', header:")[1].split("id: 'followUpNote'")[0]
+  assert.match(dateColumn, /render: \(contact: Contact\) => contact.follow_up_at \? <ControlButton/)
+  assert.match(dateColumn, /<\/ControlButton> : null/)
+  assert.doesNotMatch(dateColumn, /View follow-ups/)
+})
