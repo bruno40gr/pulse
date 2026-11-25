@@ -15,7 +15,7 @@ import { contactSubscriptions, currentStudentEnrollments } from '@/lib/contact-s
 import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 import { readSubscriptionSource } from '@/lib/subscription-source'
 import { familyAccountId } from '@/lib/family-account'
-import { readFamilyAccountLinks, readFamilyAccountNames } from '@/lib/family-account-server'
+import { readFamilyAccountLinks, readDisplayFamilyAccountLinks, readFamilyAccountNames } from '@/lib/family-account-server'
 import { contactRelationshipBadges, mergeRelationshipBadges } from '@/lib/contact-relationship'
 
 type DedupPerson = {
@@ -280,7 +280,8 @@ export async function GET(request: Request) {
     const instructorIdByAllPersonIds = new Map((allInstructorRows || []).map((i: any) => [i.person_id, i.id]))
 
     // Flatten the joined data to match the contacts shape
-    const familyAccounts = await readFamilyAccountLinks(tenantId)
+    const reminderAccounts = await readFamilyAccountLinks(tenantId)
+    const familyAccounts = await readDisplayFamilyAccountLinks(tenantId)
     const familyNames = await readFamilyAccountNames(tenantId, familyAccounts.links)
     const flattened = visiblePeople.map((person: any) => {
       const student = person.students?.[0] ?? {}
@@ -332,6 +333,7 @@ export async function GET(request: Request) {
       return enrichDemoContact({
         id: person.id,
         family_account_id: student.account_id ? familyAccountId(student.account_id, familyAccounts.links) : null,
+        reminder_account_id: student.account_id ? familyAccountId(student.account_id, reminderAccounts.links) : null,
         family_linked_account_ids: (linkedAccounts.get(student.id) || []).map(link => familyAccountId(link.account_id, familyAccounts.links)),
         relationship_badges: mergeRelationshipBadges((person.students ?? []).flatMap((record: any) => {
           const enrollments = record.enrollments ?? []

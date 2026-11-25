@@ -7,6 +7,7 @@ import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { requireOwner, requirePermission } from '@/lib/request-context'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getLeadOpportunityValue, OPEN_LEAD_STATUSES, WON_STATUS } from '@/lib/lead-value'
+import { NEW_LEAD_WINDOW_MS, netNewLeadCounts } from '@/lib/lead-counter-semantics'
 
 const DEFAULT_TENANT_ID = process.env.CRM_TENANT_ID || '00000000-0000-0000-0000-000000000001'
 const LEADS_QUERY_TIMEOUT_MS = 8000
@@ -195,24 +196,58 @@ async function getLeadTabCounts(tenantId: string, status: string | null) {
   }
 }
 
-/** A net-new notification expires after 24 hours or when status leaves New, whichever comes first. */
+/** Distinct net-new contacts: uncontacted AND younger than 48 hours. */
 async function getNewLeadCounts(tenantId: string) {
   const now = new Date()
-  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
-  const count = async (types: readonly string[]) => {
+  const cutoff = new Date(now.getTime() - NEW_LEAD_WINDOW_MS).toISOString()
+  const leads: { id: string; contact_id: string | null; intake_type: string; created_at: string }[] = []
+  for (let offset = 0; ; offset += 500) {
     const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes')
-      .select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
-      .in('intake_type', types).is('person_id', null)
+      .select('id,contact_id,intake_type,created_at').eq('tenant_id', tenantId)
+      .in('intake_type', [...LESSON_LEAD_TYPES, 'service_inquiry']).is('person_id', null)
       .neq('source_form', WINBACK_SOURCE_FORM)
       // Legacy band opportunities predate person_id and are still existing students.
       .neq('source_form', 'contact-band-opportunity').eq('status', 'new')
-      .gt('created_at', cutoff).lte('created_at', now.toISOString()),
+      .gt('created_at', cutoff).lte('created_at', now.toISOString()).order('id').range(offset, offset + 499),
     LEADS_QUERY_TIMEOUT_MS, 'net-new lead count query')
     if (result.error) throw result.error
-    return result.count ?? 0
+    leads.push(...(result.data || []))
+    if ((result.data || []).length < 500) break
   }
-  const [lesson_inquiry, service_inquiry] = await Promise.all([count(LESSON_LEAD_TYPES), count(['service_inquiry'])])
-  return { lesson_inquiry, service_inquiry }
+  const events: { lead_intake_id: string | null; contact_id: string | null; event_type: string; payload: Record<string, unknown> | null }[] = []
+  const contactIds = [...new Set(leads.map(lead => lead.contact_id).filter((id): id is string => !!id))]
+  // A repeat submission must not restart a person's 48-hour notification window.
+  for (let start = 0; start < contactIds.length; start += 100) {
+    for (let offset = 0; ; offset += 500) {
+      const result = await withTimeout(crmSupabaseAdmin.from('lead_intakes').select('id,contact_id,created_at,status,person_id')
+        .eq('tenant_id', tenantId).in('contact_id', contactIds.slice(start, start + 100))
+        .order('id').range(offset, offset + 499), LEADS_QUERY_TIMEOUT_MS, 'net-new identity history query')
+      if (result.error) throw result.error
+      for (const row of result.data || []) {
+        if (row.created_at <= cutoff || row.person_id || ['contacted', 'booked', 'processing', 'won'].includes(row.status)) {
+          events.push({ lead_intake_id: row.id, contact_id: row.contact_id, event_type: 'updated', payload: { next_status: 'contacted' } })
+        }
+      }
+      if ((result.data || []).length < 500) break
+    }
+  }
+  for (const [column, ids] of [
+    ['contact_id', contactIds],
+    ['lead_intake_id', leads.map(lead => lead.id)],
+  ] as const) {
+    for (let start = 0; start < ids.length; start += 100) {
+      for (let offset = 0; ; offset += 500) {
+        const result = await withTimeout(crmSupabaseAdmin.from('lead_events')
+          .select('lead_intake_id,contact_id,event_type,payload').eq('tenant_id', tenantId)
+          .in(column, ids.slice(start, start + 100)).order('id').range(offset, offset + 499),
+        LEADS_QUERY_TIMEOUT_MS, 'net-new contact history query')
+        if (result.error) throw result.error
+        events.push(...(result.data || []))
+        if ((result.data || []).length < 500) break
+      }
+    }
+  }
+  return netNewLeadCounts(leads, events)
 }
 
 

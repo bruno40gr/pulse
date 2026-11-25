@@ -165,3 +165,42 @@ test('legacy account linking uses explicit accounts and never creates a duplicat
   assert.equal(h.getWrites()[0].payload.p_change.member_account_id, other)
   assert.equal((await family.POST(request({ ...body, memberAccountId: account }))).status, 400)
 })
+
+test('Aguilar, Abutin and Berns saved relationships form display families without changing account or messaging data', async () => {
+  const h = createHarness(), { displayFamilyAccountLinks, familyAccountId } = h.load('lib/family-account.ts')
+  const students = [{ id: 'Trik', account_id: 'Rob' }, { id: 'Nathan', account_id: 'Nathan' },
+    { id: 'Jonathan', account_id: 'Jonathan' }, { id: 'Arya', account_id: 'Sam' }]
+  const memberships = [{ student_id: 'Trik', account_id: 'Alexandra' }, { student_id: 'Nathan', account_id: 'Cynthia' },
+    { student_id: 'Jonathan', account_id: 'Sam' }]
+  const original = JSON.stringify({ students, memberships }), links = displayFamilyAccountLinks([], students, memberships)
+  for (const [one, two] of [['Rob', 'Alexandra'], ['Nathan', 'Cynthia'], ['Jonathan', 'Sam']]) assert.equal(familyAccountId(one, links), familyAccountId(two, links))
+  const { groupContactFamilies } = h.load('lib/family-list.ts')
+  const rows = students.map(student => ({ id: student.id, tenant_id: HEAD, account_id: student.account_id,
+    family_account_id: familyAccountId(student.account_id, links), is_student: true }))
+  const groups = groupContactFamilies(rows)
+  assert.equal(groups.length, 3)
+  assert.equal(groups.flatMap(group => group.members).length, 4)
+  assert.equal(JSON.stringify({ students, memberships }), original)
+
+  h.setScenario({ fixtures: { students: [{ id: 'Trik', tenant_id: HEAD, account_id: 'Rob' }, { id: 'foreign', tenant_id: DEMO, account_id: 'Foreign' }],
+    student_accounts: [{ student_id: 'Trik', account_id: 'Alexandra', 'accounts.tenant_id': HEAD, accounts: { tenant_id: HEAD } },
+      { student_id: 'Trik', account_id: 'Foreign', 'accounts.tenant_id': DEMO, accounts: { tenant_id: DEMO } }],
+  }, errors: { family_account_links: { code: '42P01' } } })
+  const directory = await h.load('lib/family-account-server.ts').readDisplayFamilyAccountLinks(HEAD)
+  assert.equal(directory.supported, false)
+  assert.equal(directory.links.length, 1)
+  assert.equal(directory.links[0].member_account_id, 'Alexandra')
+  assert.equal(h.getWrites().length, 0)
+})
+
+test('display grouping does not reassign account reminder ownership', async () => {
+  const h = createHarness()
+  h.setScenario({ fixtures: { account_follow_ups: [
+    { id: 'rob-note', tenant_id: HEAD, account_id: 'Rob', status: 'open', message: 'Rob reminder', due_at: '2026-12-01' },
+    { id: 'alex-note', tenant_id: HEAD, account_id: 'Alexandra', status: 'open', message: 'Alex reminder', due_at: '2026-12-02' },
+  ] } })
+  const rows = await h.load('lib/contact-follow-ups-server.ts').attachContactFollowUps(HEAD, [
+    { id: 'alex', account_id: 'Alexandra', family_account_id: 'Rob', reminder_account_id: 'Alexandra' },
+  ], false)
+  assert.equal(rows[0].follow_up_note, 'Alex reminder')
+})

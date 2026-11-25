@@ -71,7 +71,7 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
             columns={[
               ...(!multiple ? [{ id: 'select', header: 'Select', width: '60px', render: (person: ParticipantOption) => <input type="radio" name={name} aria-label={person.name} checked={selectedIds.includes(person.id)} disabled={disabled || person.disabled} style={{ accentColor: interaction.selected }} onChange={() => toggle(person)} /> }] : []),
               { id: 'name', header: 'Contact', width: '1.4fr', render: person => <PersonName>{person.name}</PersonName> },
-              { id: 'detail', header: 'Details', width: '1fr', render: person => <span style={{ color: colors.textSecondary }}>{person.disabled ? 'Already registered' : person.group || person.detail || '—'}</span> },
+              { id: 'detail', header: 'Details', width: '1fr', render: person => <span style={{ color: colors.textSecondary }}>{person.group || person.detail || (person.disabled ? 'Already registered' : '—')}</span> },
             ]} />}
       </div>
       <p role="status" style={{ margin: 0 }}>{selectedIds.length} selected</p>

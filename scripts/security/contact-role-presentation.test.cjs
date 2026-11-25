@@ -105,6 +105,7 @@ test('list API exposes real student roles, tenant-scoped holder mappings and saf
     '@/lib/family-account': load('lib/family-account.ts'),
     '@/lib/family-account-server': {
       readFamilyAccountLinks: async () => ({ supported: true, links: [] }),
+      readDisplayFamilyAccountLinks: async () => ({ supported: true, links: [] }),
       readFamilyAccountNames: async () => new Map(),
     },
     '@/lib/contact-subscriptions': load('lib/contact-subscriptions.ts', {

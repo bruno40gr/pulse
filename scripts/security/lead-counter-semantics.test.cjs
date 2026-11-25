@@ -35,3 +35,24 @@ test('list filters change tab totals without changing net-new open-pipeline noti
   assert.equal(summary.newCounts.service_inquiry, 3)
   assert.equal(summary.newCounts.lesson_inquiry, 2)
 })
+
+test('48-hour AND boundary, saved-contact deduplication, contact history, tenant isolation and refresh', async () => {
+  const now = Date.now(), h = createHarness()
+  const row = (id, age, patch = {}) => ({ id, tenant_id: HEAD, contact_id: id, intake_type: 'lesson_inquiry', source_form: 'website',
+    status: 'new', created_at: new Date(now - age).toISOString(), ...patch })
+  const fixtures = { lead_intakes: [row('day-and-half', 36 * 3600000), row('boundary', 48 * 3600000), row('old', 49 * 3600000),
+    row('duplicate-one', 3600000, { contact_id: 'same' }), row('duplicate-two', 3500000, { contact_id: 'same', intake_type: 'service_inquiry' }),
+    row('reopened', 3600000), row('contact-outbound', 3600000), row('foreign-history', 3600000), row('foreign-lead', 3600000, { tenant_id: DEMO }),
+    row('repeat-old', 72 * 3600000, { contact_id: 'repeat' }), row('repeat-new', 3600000, { contact_id: 'repeat' })],
+    lead_events: [{ tenant_id: HEAD, lead_intake_id: 'reopened', event_type: 'updated', payload: { next_status: 'contacted' } },
+      { tenant_id: HEAD, contact_id: 'contact-outbound', event_type: 'outbound_sms' },
+      { tenant_id: DEMO, contact_id: 'foreign-history', event_type: 'call_started' }] }
+  const scenario = () => h.setScenario({ enforceRangeFilters: true, actor: { access: { kind: 'demo', tenantId: HEAD } }, fixtures })
+  scenario()
+  const get = () => h.load('app/api/leads/route.ts').GET(new Request(`https://synthetic.invalid/api/leads?tenant=${HEAD}&count_only=1`))
+  assert.equal((await (await get()).json()).count, 3)
+  fixtures.lead_events.push({ tenant_id: HEAD, contact_id: 'day-and-half', event_type: 'call_started' })
+  scenario()
+  assert.equal((await (await get()).json()).count, 2)
+  assert.equal(h.getWrites().length, 0)
+})

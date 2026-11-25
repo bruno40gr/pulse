@@ -15,7 +15,7 @@ function setup(options = {}) {
         lead('existing-student-band', { intake_type: 'service_inquiry', person_id: 'student' }),
         lead('legacy-student-band', { intake_type: 'service_inquiry', source_form: 'contact-band-opportunity' }),
         lead('existing-student-lesson', { person_id: 'student' }),
-        lead('expired-new', { created_at: new Date(Date.now() - 86400001).toISOString() }),
+        lead('expired-new', { created_at: new Date(Date.now() - 172800001).toISOString() }),
         lead('future-new', { created_at: new Date(Date.now() + 3600000).toISOString() }),
         lead('missing-date', { created_at: null }),
         lead('booked', { status: 'booked' }), lead('enrolling', { status: 'processing' }), lead('lost', { status: 'lost' }), lead('spam', { status: 'spam' }),
@@ -26,16 +26,16 @@ function setup(options = {}) {
   return { h, get: () => h.load('app/api/leads/route.ts').GET(new Request(`https://synthetic.invalid/api/leads?tenant=${HEAD}&count_only=1`)) }
 }
 
-test('sidebar counts only net-new names still New and less than 24 hours old in the authorized tenant', async () => {
+test('sidebar counts only net-new names still New and less than 48 hours old in the authorized tenant', async () => {
   const { h, get } = setup()
   const response = await get()
   assert.equal(response.status, 200)
   assert.deepEqual(await response.json(), { count: 3, newCounts: { lesson_inquiry: 2, service_inquiry: 1 } })
   assert.equal(response.headers.get('cache-control'), 'no-store')
   const queries = h.getQueries().filter(q => q.table === 'lead_intakes')
-  assert.equal(queries.length, 2)
+  assert.equal(queries.length, 1)
   for (const query of queries) {
-    assert.ok(query.filters.some(f => f[0] === 'select' && f[2]?.head === true && f[2]?.count === 'exact'))
+    assert.ok(query.filters.some(f => f[0] === 'select' && f[1].includes('contact_id')))
     assert.ok(query.filters.some(f => f[0] === 'is' && f[1] === 'person_id' && f[2] === null))
     assert.ok(query.filters.some(f => f[0] === 'neq' && f[1] === 'source_form' && f[2] === 'contact-band-opportunity'))
     assert.ok(query.filters.some(f => f[0] === 'eq' && f[1] === 'status' && f[2] === 'new'))

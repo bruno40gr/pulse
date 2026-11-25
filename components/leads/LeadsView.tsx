@@ -1488,7 +1488,7 @@ function LeadWorkspace({ adapter, correctionPrototype, matching }: { adapter?: L
   const leadTabItems = useMemo(
     () => LEAD_TABS
       .filter((tab) => !isMobileLayout || tab.key !== 'job_application')
-      .map((tab) => ({ key: tab.key, label: tab.label, count: tab.key === 'lesson_inquiry' || tab.key === 'service_inquiry' ? undefined : tabCounts[tab.key] ?? 0,
+      .map((tab) => ({ key: tab.key, label: tab.label, count: tabCounts[tab.key] ?? 0, countAppearance: 'bubble' as const,
         notificationCount: tab.key === 'lesson_inquiry' || tab.key === 'service_inquiry' ? newLeadCounts[tab.key] : undefined })),
     [isMobileLayout, tabCounts, newLeadCounts],
   )

@@ -2,7 +2,7 @@ import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
 import { contactFollowUpSummary } from '@/lib/contact-follow-up-summary'
 
 /** Bounded, paginated reads; never mask a failed read as no reminders. */
-export async function attachContactFollowUps<T extends { id: string; account_id?: string | null; family_account_id?: string | null }>(tenantId: string, contacts: T[], includeInquiries: boolean) {
+export async function attachContactFollowUps<T extends { id: string; account_id?: string | null; family_account_id?: string | null; reminder_account_id?: string | null }>(tenantId: string, contacts: T[], includeInquiries: boolean) {
   const byPerson = new Map<string, { due_at: string | null; message: string | null; status: string }[]>()
   for (let start = 0; start < contacts.length; start += 100) {
     for (let offset = 0; ; offset += 1000) {
@@ -19,7 +19,7 @@ export async function attachContactFollowUps<T extends { id: string; account_id?
     }
   }
   const byAccount = new Map<string, { due_at: string | null; message: string | null; status: string }[]>()
-  const accountIds = [...new Set(contacts.map(contact => contact.family_account_id || contact.account_id).filter((id): id is string => Boolean(id)))]
+  const accountIds = [...new Set(contacts.map(contact => contact.reminder_account_id || contact.family_account_id || contact.account_id).filter((id): id is string => Boolean(id)))]
   for (let start = 0; start < accountIds.length; start += 100) {
     for (let offset = 0; ; offset += 1000) {
       const result = await crmSupabaseAdmin.from('account_follow_ups').select('id,account_id,due_at,message,status')
@@ -37,7 +37,7 @@ export async function attachContactFollowUps<T extends { id: string; account_id?
     }
   }
   return contacts.map(contact => {
-    const familyRows = byAccount.get(contact.family_account_id || contact.account_id || '') ?? []
+    const familyRows = byAccount.get(contact.reminder_account_id || contact.family_account_id || contact.account_id || '') ?? []
     return { ...contact, ...contactFollowUpSummary([...(byPerson.get(contact.id) ?? []), ...familyRows]),
       family_follow_up_at: contactFollowUpSummary(familyRows).follow_up_at }
   })

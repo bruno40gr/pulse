@@ -53,7 +53,7 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
       // Primary and explicitly linked accounts are both part of the family view.
       setMembers(roster.filter((person: Person & { linked_account_ids?: string[] }) => person.is_student === true
         && (person.account_id === accountId || person.linked_account_ids?.includes(accountId || '')
-          || (person.account_id && familyAccountId(person.account_id, directory.family_account_links || []) === accountId))))
+          || (person.account_id && accountId && familyAccountId(person.account_id, directory.family_account_links || []) === familyAccountId(accountId, directory.family_account_links || [])))))
       setLoaded(true)
     }).catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Family unavailable.') })
     return () => controller.abort()
@@ -125,12 +125,9 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
     <ModalBody>
       {error && <Notice variant="error">{error}</Notice>}
       {task === 'student' ? studentPicker : <div style={{ display: 'grid', gap: spacing.lg }}>
-        <Notice>Link an existing person or account. Linking accounts keeps each account’s subscription payers and messaging routing unchanged.</Notice>
-        {!accountLinkingSupported && <Notice>Existing-account linking requires the family-account database update. Existing people can still be linked.</Notice>}
         <div style={{ display: 'grid', gap: spacing.sm }}>
-          <div>{account?.name || 'Current account'} · Current account</div>
-          {accountLinks.filter(link => link.family_account_id === currentAccountId).map(link => <div key={link.member_account_id}>
-            {accounts.find(row => row.id === link.member_account_id)?.name || 'Linked account'} · Linked account; existing payer retained
+          {accounts.filter(row => row.id !== currentAccountId && familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)).map(row => <div key={row.id}>
+            {row.name} · Linked co-holder
           </div>)}
           {accountManagers.map(link => <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' }}>
             <span>{people.find(person => person.id === link.person_id) ? (() => { const person = people.find(person => person.id === link.person_id)!; return `${person.first_name} ${person.last_name}`.trim() })() : 'Account holder'}{link.is_primary ? ' · Primary' : ''}</span>
@@ -140,7 +137,8 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
         <ParticipantPicker label="Account holders" options={[
           ...people.map(person => ({ ...personOption(person), disabled: accountManagers.some(link => link.person_id === person.id) })),
           ...accounts.filter(row => row.id !== currentAccountId).map(row => ({ id: `account:${row.id}`, name: row.name,
-            detail: [row.email, row.phone, 'Existing account · payer unchanged'].filter(Boolean).join(' · '),
+            detail: [row.email, row.phone, familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)
+              ? 'Already linked co-holder' : !accountLinkingSupported ? 'New account links unavailable; select an existing person instead' : 'Existing account · payer unchanged'].filter(Boolean).join(' · '),
             disabled: !accountLinkingSupported || accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id) })),
         ]}
           selectedIds={selectedAccount ? [selectedAccount] : []} onSelectionChange={ids => setSelectedAccount(ids[0] || '')}

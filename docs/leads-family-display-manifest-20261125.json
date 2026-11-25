@@ -1,0 +1,98 @@
+{
+  "date": "2026-11-25",
+  "base_commit": "91eb60e10e707e02a80d9fdca33857e87feb3ec9",
+  "state": "locally_validated_uncommitted",
+  "production_writes": false,
+  "hosted_migrations_executed": false,
+  "validation": {
+    "focused": {
+      "passed": 54,
+      "failed": 0
+    },
+    "typescript": "passed",
+    "changed_lint": {
+      "errors": 0,
+      "warnings": 36
+    },
+    "full_suite": {
+      "passed": 1123,
+      "total": 1140,
+      "failed": 17,
+      "same_known_baseline": true
+    },
+    "browser_widths": [
+      1440,
+      390
+    ]
+  },
+  "files": [
+    {
+      "path": "app/api/contacts/family/route.ts",
+      "sha256": "e87ef4f66ea689adf38aff6439306cadce2df6603dde79cc15d2836472ad8121"
+    },
+    {
+      "path": "app/api/contacts/route.ts",
+      "sha256": "1dcec7137c9e3333c41c782ad29f85b2a36d289cec07c662d77ae1245b0e0838"
+    },
+    {
+      "path": "app/api/leads/route.ts",
+      "sha256": "5b2588024d7c1bd4d748cbfe931eda55a7a0b16c69d6bd8d514c0ff9963549eb"
+    },
+    {
+      "path": "components/contacts/LiveFamilyManagement.tsx",
+      "sha256": "72ce95544e0bd3f2a42729a574a064d9623fe3a6bca3de937acb47df81f74624"
+    },
+    {
+      "path": "components/contacts/ParticipantPicker.tsx",
+      "sha256": "3d5634b8e084cfd3d749e21a1fee0c5ac9858c53f09800b0642d8a8efe738362"
+    },
+    {
+      "path": "components/leads/LeadsView.tsx",
+      "sha256": "995f3b0fa68e5dee36dd6e292a06f4bc4c0b8f09fea4b191f35dc5fddfaf4be5"
+    },
+    {
+      "path": "docs/leads-family-display-20261125.md",
+      "sha256": "4a1b8cf2587774f10edad9140bea6298aaa22e60f0f8af440d2249bcf43673ac"
+    },
+    {
+      "path": "lib/contact-follow-ups-server.ts",
+      "sha256": "8b1c5e248fecdc2ba7b1729233204707e224389940088a8f58cee8cdb429810c"
+    },
+    {
+      "path": "lib/family-account-server.ts",
+      "sha256": "35d3ee01f95c0e6bbd1b7292a7338877cb39f7157056c18c9247ce32513f00ad"
+    },
+    {
+      "path": "lib/family-account.ts",
+      "sha256": "35948f0a1036f42548837b961d7e7b4e8a34c6797cc055279aef61bb309c85f1"
+    },
+    {
+      "path": "lib/lead-counter-semantics.ts",
+      "sha256": "6c72ae110f49e4bffb3b56dbf81b92fcf0c4d480232af95b8ec314f4993e495b"
+    },
+    {
+      "path": "scripts/security/contact-role-presentation.test.cjs",
+      "sha256": "823af8d2d526d7562441a675f20553d68dd3d841f60e474a3cec9d8671d9e4d9"
+    },
+    {
+      "path": "scripts/security/family-account-browser.cjs",
+      "sha256": "9da973c46b72a0908413a6864e21074b2d1b0f44f2acda077c5a4882cf46f69d"
+    },
+    {
+      "path": "scripts/security/family-account.test.cjs",
+      "sha256": "39d318986f967b9905c7692ee59d8b2bdfa9f03c0e8441cfaeed419e275f91a9"
+    },
+    {
+      "path": "scripts/security/lead-count.test.cjs",
+      "sha256": "7ef101888aa1f2277d06e40f1b17fa00b4caf7f6fd4ca3f87b231cdad1fe9ca7"
+    },
+    {
+      "path": "scripts/security/lead-counter-semantics.test.cjs",
+      "sha256": "ac6c40a0f44153fec62c259e42d1f66b8c473933f623cbc1837ce32f34650281"
+    },
+    {
+      "path": "scripts/security/lead-tab-badges-browser.cjs",
+      "sha256": "532e153c076610704b99bd6f20579d80bc10dd28c595b11a406ee26427b784e7"
+    }
+  ]
+}

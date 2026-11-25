@@ -3,7 +3,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { UUID_PATTERN } from '@/lib/band-creation-draft'
 import { validateContactProfile } from '@/lib/contact-profile'
-import { readFamilyAccountLinks } from '@/lib/family-account-server'
+import { readDisplayFamilyAccountLinks } from '@/lib/family-account-server'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const roles = /^(family|student|parent|customer|guardian)$/
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     if ((result.data || []).length < 500) break
   }
   try {
-    const family = await readFamilyAccountLinks(access.tenantId)
+    const family = await readDisplayFamilyAccountLinks(access.tenantId)
     return Response.json({ accounts, managers, family_account_links: family.links, account_linking_supported: family.supported }, { headers })
   } catch {
     return Response.json({ error: 'Family account links could not be loaded.' }, { status: 503, headers })

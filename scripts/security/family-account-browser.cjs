@@ -16,7 +16,7 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       page.setDefaultTimeout(20000)
       await page.context().addCookies([{ name: 'pulse_access', value: cookie, url: base }])
       const errors = [], unexpected = [], writes = []
-      let reminder = null, links = []
+      let reminder = null, links = [], linkingSupported = true
       const adult = { id: adultId, tenant_id: tenant, first_name: 'Adult', last_name: 'Example', is_student: true,
         student_id: uuid(13), account_id: account, family_account_id: account, account_holder_person_id: adultId,
         account_holder_name: 'Adult Example', family_name: 'Adult Example', client_status: 'active', status_class: 'active',
@@ -42,7 +42,7 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
           }
           return fulfill({ accounts: [{ id: account, name: 'Adult Example' }, { id: other, name: 'Legacy Holder Example' }],
             managers: [{ id: uuid(14), account_id: account, person_id: adultId, is_primary: true }],
-            family_account_links: links, account_linking_supported: true })
+            family_account_links: links, account_linking_supported: linkingSupported })
         }
         if (path === `/api/contacts/accounts/${account}/follow-ups`) {
           if (request.method() === 'PATCH') {
@@ -82,7 +82,17 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       await holders.getByRole('searchbox', { name: 'Search contacts', exact: true }).fill('Legacy Holder')
       await holders.getByRole('radio', { name: 'Legacy Holder Example', exact: true }).check()
       await holders.getByRole('button', { name: 'Link account holder', exact: true }).click()
-      await holders.getByText('Legacy Holder Example · Linked account; existing payer retained', { exact: true }).waitFor()
+      await holders.getByText('Legacy Holder Example · Linked co-holder', { exact: true }).waitFor()
+      assert.equal(await holders.getByText(/Link an existing person or account|Existing-account linking requires|· Current account/).count(), 0)
+      await holders.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      linkingSupported = false
+      await panel.getByRole('button', { name: 'Edit Contact', exact: true }).click()
+      await panel.getByRole('button', { name: 'Manage account holders', exact: true }).click()
+      await holders.getByText('Legacy Holder Example · Linked co-holder', { exact: true }).waitFor()
+      await holders.getByRole('searchbox', { name: 'Search contacts', exact: true }).fill('Legacy Holder')
+      assert.equal(await holders.getByRole('radio', { name: 'Legacy Holder Example', exact: true }).isDisabled(), true)
+      await holders.getByText(/Already linked co-holder/).waitFor()
       assert.equal(writes.length, 3)
       assert.deepEqual(errors, [])
       assert.deepEqual(unexpected, [])
