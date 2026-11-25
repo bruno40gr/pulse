@@ -40,7 +40,7 @@ test('editing replaces the profile chrome with header-owned save and cancel', ()
   assert.match(panel, /closeOnBackdrop=\{!editing\} closeOnEscape=\{!editing\}/)
   assert.match(panel, /title=\{editing \? 'Edit Contact'/)
   assert.match(panel, /actions=\{editing \? /)
-  assert.match(panel, /!editing && <><AccountProfileToolbar/)
+  assert.match(panel, /!editing && <><ProfileEntryActions><AccountProfileToolbar/)
   assert.match(panel, /<AccountEditorCanvas embedded formId=\{editorFormId\}/)
 })
 

@@ -15,7 +15,7 @@ import { AccountProfileToolbar } from '@/beta-source/app/content-studio-prototyp
 import layoutStyles from '@/beta-source/app/content-studio-prototype/students/StudentWorkspace.module.css'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import LiveContactCommunication from './LiveContactCommunication'
-import { ProfileComposerLayout } from '@/components/inbox/ProfileComposerLayout'
+import { ProfileComposerLayout, ProfileEntryActions } from '@/components/inbox/ProfileComposerLayout'
 import { AccountEditorCanvas, type AccountEditorContact } from '@/beta-source/app/content-studio-prototype/students/AccountEditor'
 import { InlineWorkspaceContext } from '@/beta-source/app/content-studio-prototype/students/InlineWorkspaceContext'
 import { FundingContactDetails } from '@/components/funding/FundingContactDetails'
@@ -226,14 +226,14 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
         toast={status || undefined} onClose={close} onBack={undefined} backLabel="Back to contact" />} profile={<>
 
-      {!editing && <><AccountProfileToolbar mobile={mobile} communication={<>
+      {!editing && <><ProfileEntryActions><AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
-          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />Send SMS {displayedPhone}</Button>
-          <Button aria-label="Send email" variant="secondary" disabled={saving || (person ? !displayedEmail || (holderRouting && !canComposeToHolder) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Send email{displayedEmail && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{displayedEmail}</span>}</Button>
+          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />SMS {displayedPhone}</Button>
+          <Button aria-label="Send email" title={displayedEmail || undefined} variant="secondary" disabled={saving || (person ? (!displayedEmail || (holderRouting && !canComposeToHolder)) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Email{displayedEmail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayedEmail}</span>}</Button>
         </>} actions={<>
           <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => { setSection('account'); setEditing(true); setStatus('') }}><Pencil size={14} />Edit Contact</Button>
           <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
-        </>} />
+        </>} /></ProfileEntryActions>
       <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
         <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%' }} activeKey={section} onChange={next => {
           if (next === section || !canLeave()) return
@@ -333,7 +333,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         ) : <EmptyState icon={comingSoon.icon} title={comingSoon.title} description="Coming soon" />}
       </div>
       </>} composer={<>
-        {(['email', 'sms'] as const).map(channel => visitedChannels[channel] && <div key={channel} hidden={compose !== channel} className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ display: compose === channel ? 'flex' : 'none', background: colors.surfaceMuted }}>
+        {(['email', 'sms'] as const).map(channel => visitedChannels[channel] && <div key={channel} hidden={compose !== channel} className={layoutStyles.communicationContent} style={{ display: compose === channel ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0, background: colors.surface }}>
           <LiveContactCommunication active={compose === channel} tenantId={tenantId} channel={channel} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
             destination={(channel === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
         </div>)}

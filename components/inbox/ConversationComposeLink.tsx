@@ -25,9 +25,9 @@ export default function ConversationComposeLink({ recipient, channel, disabled =
   const mobile = useIsMobile()
   const label = channel === 'email' ? 'Send email' : 'Send SMS'
   return <>
-    <Button variant="secondary" aria-label={destination ? label : undefined} disabled={disabled} title={disabled ? unavailableReason || `No ${channel === 'email' ? 'email address' : 'phone number'} available` : undefined}
+    <Button variant="secondary" aria-label={label} style={{ maxWidth: 'min(320px, 100%)', minWidth: 0, whiteSpace: 'nowrap' }} disabled={disabled} title={disabled ? unavailableReason || `No ${channel === 'email' ? 'email address' : 'phone number'} available` : destination}
       onClick={() => contextualCompose ? contextualCompose(channel) : profileEmail && (!simulated || channel === 'sms') ? profileEmail(recipient, channel) : setOpen(true)}>
-      {channel === 'email' ? <Mail size={16} /> : <MessageCircle size={16} />}{label}{destination && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{destination}</span>}
+      {channel === 'email' ? <Mail size={16} style={{ flexShrink: 0 }} /> : <MessageCircle size={16} style={{ flexShrink: 0 }} />}{channel === 'email' ? 'Email' : 'SMS'}{destination && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{destination}</span>}
     </Button>
     {open && <SlidePanel isOpen onClose={() => setOpen(false)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH} ariaLabel={`${label} composer`}>
       <SlidePanelHeader title={channel === 'email' ? 'Send Email' : 'Send a Text Message'} onBack={() => setOpen(false)} backLabel={`Back to ${backDestination}`} onClose={() => setOpen(false)} />

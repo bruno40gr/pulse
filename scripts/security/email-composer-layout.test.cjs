@@ -110,6 +110,23 @@ test('profile email switches preserve mounted profile/draft and delegate recipie
   assert.match(link, /profileEmail\(recipient, channel\)/)
 })
 
+test('profile composition hides entry actions without removing tabs, and drops outer composer gutters', () => {
+  const layout = read('components/inbox/ProfileComposerLayout.tsx')
+  assert.match(layout, /ProfileComposingContext.Provider value=\{open\}/)
+  assert.match(layout, /return composing \? null : <>\{children\}<\/>/)
+  for (const file of ['components/contacts/LiveContactPanel.tsx', 'components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
+    assert.match(read(file), /<ProfileEntryActions>/)
+  }
+  const live = read('components/contacts/LiveContactPanel.tsx')
+  assert.match(live, /className=\{layoutStyles.communicationContent\}/)
+  assert.doesNotMatch(live, /className=\{`\$\{layoutStyles.panelContent\} \$\{layoutStyles.communicationContent\}`\}/)
+  const link = read('components/inbox/ConversationComposeLink.tsx')
+  assert.match(link, /maxWidth: 'min\(320px, 100%\)'/)
+  assert.match(link, /textOverflow: 'ellipsis', whiteSpace: 'nowrap'/)
+  assert.match(link, /: destination\}/)
+  assert.match(link, /channel === 'email' \? 'Email' : 'SMS'/)
+})
+
 test('live email composes in place after required requests settle, preserving verification and send contract', () => {
   const live = read('components/contacts/LiveContactCommunication.tsx')
   assert.match(live, /Promise.allSettled/)

@@ -9,6 +9,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { ProfileEmailWorkspace } from '@/components/inbox/ProfileEmailWorkspace'
+import { ProfileEntryActions } from '@/components/inbox/ProfileComposerLayout'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { ContactRelationshipBadges } from './ContactRelationshipBadges'
 import PrototypeContactSms from './PrototypeContactSms'
@@ -626,7 +627,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
         onClose={onClose}
         toast={toastMessage || undefined}
         titleBadge={!isInstructor ? (
-          <ControlButton kind="icon"
+          <ProfileEntryActions><ControlButton kind="icon"
             type="button"
             aria-label="Edit contact"
             title="Edit contact"
@@ -634,7 +635,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
             style={{ width: '32px' }}
           >
             <Pencil size={16} />
-          </ControlButton>
+          </ControlButton></ProfileEntryActions>
         ) : undefined}
         actions={isInstructor ? (
           <>
@@ -711,7 +712,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
       />}>
 
 
-      {!isInstructor && <SlidePanelActionBar isMobile={isMobile}>
+      {!isInstructor && <ProfileEntryActions><SlidePanelActionBar isMobile={isMobile}>
         <Button
           type="button"
           size="md"
@@ -722,8 +723,8 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
           <Phone size={16} />
           {calling ? 'Calling…' : `Call${contactPhone ? ` ${displayPhone(contactPhone)}` : ''}`}
         </Button>
-        {prototype ? <Button variant="secondary" disabled={!contactPhone} onClick={() => setSmsOpen(true)}>Send SMS</Button> : holderRouting ? <Button type="button" variant="secondary" size="md"
-          disabled={!contactPhone || !onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">Send SMS</Button> :
+        {prototype ? <Button aria-label="Send SMS" variant="secondary" disabled={!contactPhone} onClick={() => setSmsOpen(true)}>SMS</Button> : holderRouting ? <Button aria-label="Send SMS" type="button" variant="secondary" size="md"
+          disabled={!contactPhone || !onCompose} onClick={() => onCompose?.([contact.id])} title="Uses the existing account-holder messaging flow">SMS</Button> :
           <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="sms" disabled={!contactPhone} />}
         <ConversationComposeLink backDestination="contact" recipient={`person:${contact.id}`} channel="email"
           disabled={prototype || !contactEmail || holderRouting}
@@ -737,7 +738,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
           )}
           {copiedEmail && <span role="status" style={{ color: colors.success, fontSize: typography.sizeXs, fontWeight: typography.weightMedium }}>Copied</span>}
         </CompactMetaCard>
-      </SlidePanelActionBar>}
+      </SlidePanelActionBar></ProfileEntryActions>}
 
       <div style={{ padding: isMobile ? `0 ${spacing.lg}` : `0 ${spacing['3xl']}`, background: colors.surface, flexShrink: 0, overflowX: 'auto' }}>
           <Tabs

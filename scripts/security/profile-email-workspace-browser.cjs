@@ -71,13 +71,42 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       const panel = page.getByRole('dialog')
       const initialProfileWidth = (await panel.boundingBox()).width
       assert.ok(Math.abs(initialProfileWidth - (width > 960 ? width / 2 : width)) < 2)
+      const emailEntry = panel.getByRole('button', { name: 'Send email', exact: true })
+      assert.equal(await emailEntry.getAttribute('title'), 'alex@example.invalid')
+      assert.ok((await emailEntry.innerText()).startsWith('Email'))
+      const ellipsis = await emailEntry.evaluate(button => {
+        const address = button.querySelector('span'), original = address.textContent
+        address.textContent = 'an.extremely.long.email.address.that.must.not.wrap.or.expand.the.profile@example.invalid'
+        const style = getComputedStyle(address), box = button.getBoundingClientRect()
+        const result = { width: box.width, clipped: address.scrollWidth > address.clientWidth, overflow: style.textOverflow, nowrap: style.whiteSpace, fits: box.right <= innerWidth }
+        address.textContent = original
+        return result
+      })
+      assert.ok(ellipsis.width <= 320 && ellipsis.fits, 'Contact action width is capped and fits viewport')
+      assert.equal(ellipsis.clipped, true, 'Long address is clipped inside the button')
+      assert.equal(ellipsis.overflow, 'ellipsis')
+      assert.equal(ellipsis.nowrap, 'nowrap')
       await panel.getByRole('button', { name: 'Send email', exact: true }).click()
       await panel.getByRole('status', { name: 'Loading composer' }).waitFor()
       assert.equal(await panel.getByRole('textbox', { name: 'Email body' }).count(), 0, 'Wait for sender settings before displaying the editor')
       releaseSender()
       const subject = panel.getByRole('textbox', { name: 'Email subject' }), body = panel.getByRole('textbox', { name: 'Email body' })
+      async function focusedComposer(channel) {
+        for (const name of ['Call', 'Send SMS', 'Send email', 'Edit Contact', 'Impersonate']) {
+          assert.equal(await panel.getByRole('button', { name, exact: true }).count(), 0, `Hide redundant ${name} while composing`)
+        }
+        if (width > 960) {
+          const tabs = await panel.getByRole('group', { name: 'Contact sections' }).boundingBox()
+          const profile = await panel.getByRole('region', { name: 'Profile', exact: true }).boundingBox()
+          assert.ok(Math.abs(tabs.y - profile.y) < 2, 'Profile tabs sit directly below shared header')
+        }
+        const pane = await panel.getByRole('region', { name: 'Message composer', exact: true }).boundingBox()
+        const content = await panel.getByRole('region', { name: channel === 'sms' ? 'Text message composer' : 'Email composer', exact: true }).first().boundingBox()
+        for (const edge of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(pane[edge] - content[edge]) < 2, `Full-bleed ${channel}: ${edge}`)
+      }
       await subject.fill('Lesson question')
       await body.fill('Keep this email draft')
+      await focusedComposer('email')
       assert.equal(await panel.getByRole('button', { name: 'Close', exact: true }).count(), 1)
       assert.equal(await panel.getByRole('heading', { name: 'Write email', level: 2 }).count(), 1)
       const closeBox = await panel.getByRole('button', { name: 'Close', exact: true }).boundingBox()
@@ -97,6 +126,8 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await panel.getByRole('heading', { name: 'Alex Example', exact: true }).waitFor()
       await page.waitForFunction(expected => Math.abs(document.querySelector('[role="dialog"]').getBoundingClientRect().width - expected) < 2, initialProfileWidth)
       assert.equal((await panel.boundingBox()).width, initialProfileWidth)
+      assert.equal((await panel.getByRole('button', { name: 'Send email', exact: true }).innerText()).startsWith('Email'), true)
+      assert.equal(await panel.getByRole('button', { name: 'Impersonate', exact: true }).count(), 1, 'Cancel restores contact actions')
       await panel.getByRole('button', { name: 'Send email', exact: true }).click()
       await subject.waitFor()
       assert.equal(senderReads, settingsBeforeReopen, 'Reopening uses the mounted composer without reloading settings')
@@ -132,6 +163,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       assert.equal(await panel.getByRole('combobox', { name: 'SMS account holder' }).count(), 0)
       assert.equal(await panel.getByRole('button', { name: 'Send', exact: true }).count(), 1)
       const smsComposer = panel.getByRole('region', { name: 'Message composer', exact: true })
+      await focusedComposer('sms')
       const headingBox = await smsComposer.getByRole('heading', { name: 'Messaging Alex Example' }).boundingBox()
       const composerBox = await smsComposer.boundingBox(), editorBox = await sms.boundingBox()
       assert.ok(headingBox.y - composerBox.y < 60, 'SMS toolbar is at the top, not centered beside history')
@@ -158,6 +190,8 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await panel.getByRole('button', { name: 'Send email', exact: true }).click()
       await subject.fill('Separate email draft')
       await body.fill('Separate email body')
+      assert.equal(await panel.getByRole('button', { name: 'Send SMS', exact: true }).count(), 0, 'Lead entry actions hide during email composition')
+      assert.equal(await panel.getByRole('button', { name: 'Edit lead', exact: true }).count(), 0)
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
       await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
       assert.equal(await sms.inputValue(), 'Keep this SMS draft')

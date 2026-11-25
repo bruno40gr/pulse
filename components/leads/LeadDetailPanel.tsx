@@ -4,6 +4,7 @@
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
 import { ProfileEmailWorkspace } from '@/components/inbox/ProfileEmailWorkspace'
+import { ProfileEntryActions } from '@/components/inbox/ProfileComposerLayout'
 import { useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { Copy, Pencil, Phone } from 'lucide-react'
@@ -393,7 +394,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         titleSize={isMobile ? typography.sizeLg : typography.size2xl}
         compact={isMobile}
         onClose={onRequestClose}
-        titleBadge={<ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton>}
+        titleBadge={<ProfileEntryActions><ControlButton kind="icon" type="button" aria-label="Edit lead" title="Edit lead" onClick={onEdit} style={{ width: '28px' }}><Pencil size={15} /></ControlButton></ProfileEntryActions>}
         actions={<>{!isMobile && statusControls}{workspaceAdapter?.onSendEnrollment && lead.intake_type === 'lesson_inquiry' && lead.payload.service_type !== 'band' && !['won', 'lost', 'spam', 'ghosted_us'].includes(lead.status) && <Button type="button" variant="secondary" size="sm" onClick={() => workspaceAdapter.onSendEnrollment?.(lead.id)}>Send enrollment request</Button>}</>}
       />
   )
@@ -484,7 +485,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             </div>
           </div>
         )}
-        <div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+        <ProfileEntryActions><div style={{ ...contactActionsSectionStyle, padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <Button type="button" size="md" disabled={!lead.contact?.phone || calling} onClick={() => void onCall()} ><Phone size={16} />{calling ? 'Calling…' : `Call${lead.contact?.phone ? ` ${formatPhoneNumber(lead.contact.phone)}` : ''}`}</Button>
           <ConversationComposeLink backDestination="lead" recipient={`lead:${lead.contact?.id || ''}`} channel="sms" disabled={!lead.contact?.id || !lead.contact?.phone} />
           <ConversationComposeLink backDestination="lead" recipient={`lead:${lead.contact?.id || ''}`} channel="email" disabled={!lead.contact?.id || !lead.contact?.email} />
@@ -493,7 +494,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
             {lead.contact?.email && <Button type="button" variant="ghost" size="sm" aria-label="Copy email" onClick={() => void copyEmail()} ><Copy size={15} /></Button>}
             {copied && <span role="status" style={copiedStyle}>Copied</span>}
           </CompactMetaCard>
-        </div>
+        </div></ProfileEntryActions>
       </>
 
       {isMobile && mobileSection === 'notes' ? notesRail : isMobile ? (

@@ -1,5 +1,26 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: focused, full-bleed composition
+
+- Profile entry labels are now SMS / Email; the actual composer Send action stays
+  unchanged. Communication buttons are capped at 320px or available width, with
+  single-line, ellipsized email destinations and the full address in the title.
+- While SMS or email is open, redundant Call / SMS / Email / Edit Contact /
+  Impersonate entry controls are hidden. Contact tabs move directly beneath the
+  shared identity header; Cancel restores the actions without discarding drafts.
+  Shared context also hides legacy contact/lead entry actions and edit icons.
+- Live SMS/email no longer inherit profile-card content padding or the gray outer
+  surround. The composer fills its pane; internal toolbar/reply padding and the
+  phone preview's subtle background remain intentional.
+- TypeScript and 86 focused tests pass; targeted lint has zero errors and five
+  existing warnings. Browser geometry covers full-bleed SMS/email, retained tabs,
+  restored actions, and constrained long-address ellipsis at 1440/1076/390px.
+- Full suite: 1143/1160 pass, with exactly the same 17 failure names as the prior
+  history-repair run and no added failures. Desktop/mobile screenshots reviewed;
+  `git diff --check` passes.
+- Validation logs: `/tmp/sms-fullbleed-{browser,focused,types,lint,full}.log`.
+  Production deployment is not verified by local synthetic browser acceptance.
+
 ## Correction: restore profile SMS conversations (latest)
 
 This supersedes the earlier decisions to suppress profile SMS history and use an
