@@ -14,7 +14,7 @@ export type FamilyListGroup<Row> = {
   subtitle: string
   contact?: ReactNode
   summaryCells?: Record<string, ReactNode>
-  members: { id: string; row?: Row; name: string; detail?: string; isAccountHolder?: boolean }[]
+  members: { id: string; row?: Row; name: string; detail?: string; isAccountHolder?: boolean; summaryCells?: Record<string, ReactNode> }[]
 }
 
 /** Contacts interactions on the same grouped-row primitive used by released Leads. */
@@ -71,6 +71,7 @@ export default function FamilyListTable<Row, SortKey extends string>({ groups, n
           {member.row && renderPersonRole?.(member.row)}
         </div>
         if (member.row) return column.render(member.row, index)
+        if (member.summaryCells && column.id in member.summaryCells) return member.summaryCells[column.id]
         return column.id === detailColumn ? member.detail : null
       }),
     }))}

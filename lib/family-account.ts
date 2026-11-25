@@ -40,6 +40,26 @@ export function familyAccountId(accountId: string, links: FamilyAccountLink[]) {
 }
 
 type Holder = { person_id?: string; account_id?: string; name: string | null }
+export type DisplayAccountHolder = Holder & { phone?: string | null; email?: string | null; is_primary?: boolean }
+/** Saved account summaries are visible even without a corresponding person row.
+ * Display only: never feed these summaries into recipient selection. */
+export function displayAccountHolders(members: { account_id?: string | null; account_holder_name?: string | null; account_holder_phone?: string | null; account_holder_email?: string | null; account_holders?: DisplayAccountHolder[] }[]) {
+  const holders = new Map<string, DisplayAccountHolder>()
+  for (const member of members) {
+    const summaries = member.account_holders || []
+    if (member.account_id && member.account_holder_name && !summaries.some(holder => holder.is_primary || holder.account_id === member.account_id)) {
+      const key = `account:${member.account_id}`
+      if (!holders.has(key)) holders.set(key, { account_id: member.account_id, name: member.account_holder_name,
+        phone: member.account_holder_phone, email: member.account_holder_email, is_primary: true })
+    }
+    for (const holder of summaries) {
+      const accountId = holder.account_id || (holder.is_primary ? member.account_id : null)
+      const key = holder.person_id ? `person:${holder.person_id}` : accountId ? `account:${accountId}` : null
+      if (key && holder.name && !holders.has(key)) holders.set(key, { ...holder, account_id: accountId || undefined })
+    }
+  }
+  return [...holders.entries()].map(([id, holder]) => ({ ...holder, id }))
+}
 type Member = { id: string; is_student?: boolean; student_id?: string | null; account_holder_person_id?: string | null; account_holders?: Holder[] }
 /** A holder's own student role is not a dependent. Do not infer identity from names. */
 export function familyDependents<T extends Member>(members: T[]) {

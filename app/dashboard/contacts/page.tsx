@@ -24,7 +24,7 @@ import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
-import { familyDependents } from '@/lib/family-account'
+import { familyDependents, displayAccountHolders } from '@/lib/family-account'
 import { compareContactFollowUps, compareContactFollowUpNotes } from '@/lib/contact-follow-up-summary'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
 import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
@@ -730,6 +730,8 @@ export default function ContactsPage() {
           filters={<TableFiltersButton count={appliedFilterCount} onClick={() => { setFilterDraft({ ...appliedFilters }); setShowFilters(true) }} onClear={() => { setFilterDraft({}); setAppliedFilters({}); setDisplayIds(null); setFilterExplanation('') }} />}
           groups={visibleFamilies.map(group => {
             const holderPerson = group.parent
+            const summaryHolders = displayAccountHolders(group.members).filter(holder => !holder.person_id
+              && holder.account_id && !group.id.endsWith(`account:${holder.account_id}`))
             const followUpContact = sortedDisplayed.find(contact => group.members.some(member => member.id === contact.id)) || group.members[0]
             return {
               id: group.id,
@@ -744,11 +746,14 @@ export default function ContactsPage() {
                 phone: <span style={{ color: colors.tableSecondary }}>{formatPhoneNumber(holderPerson ? holderPerson.phone : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.phone ?? group.members[0].account_holder_phone) || 'No phone'}</span>,
                 email: <span style={{ color: colors.tableSecondary }}>{(holderPerson ? holderPerson.email : group.members[0].account_holders?.find(holder => group.id.endsWith(`account:${holder.account_id}`))?.email ?? group.members[0].account_holder_email) || ''}</span>,
               },
-              members: contactView === 'family' && (group.holder || group.members.some(member => member.id !== holderPerson?.id)) ? group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
+              members: contactView === 'family' && (group.holder || group.members.some(member => member.id !== holderPerson?.id)) ? [...summaryHolders.map(holder => ({
+                id: holder.id, name: holder.name || 'Account holder', isAccountHolder: true,
+                summaryCells: { phone: formatPhoneNumber(holder.phone) || '', email: holder.email || '' },
+              })), ...group.members.filter(contact => contact.id !== holderPerson?.id).map(contact => ({
                 id: contact.id, row: contact, name: `${contact.first_name} ${contact.last_name}`.trim(),
                 isAccountHolder: group.members.some(member => member.tenant_id === contact.tenant_id
                   && (member.account_holder_person_id === contact.id || member.account_holders?.some(holder => holder.person_id === contact.id))),
-              })).sort((left, right) => Number(right.isAccountHolder) - Number(left.isAccountHolder)) : [],
+              }))].sort((left, right) => Number(right.isAccountHolder) - Number(left.isAccountHolder)) : [],
             }
           })}
           nameColumn="name"
@@ -809,6 +814,7 @@ export default function ContactsPage() {
 
       {/* Contact slide panel */}
       {useLivePanel && <LiveContactPanel
+        accountHolders={displayAccountHolders(profileFamilies.flatMap(family => family.students))}
         key={selectedPerson ? `person:${selectedPerson.id}` : `account:${selectedAccount!.id}`}
         subject={selectedPerson ? (selectedIsHolder ? {
           kind: 'holder', person: selectedPerson,

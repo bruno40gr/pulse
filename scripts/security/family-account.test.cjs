@@ -204,3 +204,27 @@ test('display grouping does not reassign account reminder ownership', async () =
   ], false)
   assert.equal(rows[0].follow_up_note, 'Alex reminder')
 })
+
+test('second holders saved as accounts survive the actual Contacts reader and are display-only', async () => {
+  const h = createHarness(), tenant = HEAD
+  h.setScenario({ actor: { access: { kind: 'demo', tenantId: tenant } }, fixtures: {
+    people: [{ id: 'trik', tenant_id: tenant, first_name: 'Trik', last_name: 'Aguilar', students: [{ id: 'trik-role',
+      account_id: 'rob', accounts: { name: 'Rob Aguilar', email: 'rob@example.invalid' }, enrollments: [] }] }],
+    students: [{ id: 'trik-role', tenant_id: tenant, account_id: 'rob' }],
+    accounts: [{ id: 'rob', tenant_id: tenant, name: 'Rob Aguilar' }],
+    student_accounts: [{ student_id: 'trik-role', account_id: 'alex', relationship: 'Parent / guardian', is_primary: true,
+      'accounts.tenant_id': tenant, accounts: { id: 'alex', tenant_id: tenant, name: 'Alexandra Laustsen', email: 'alex@example.invalid', phone: '2025550101' } }],
+  }, errors: { family_account_links: { code: '42P01' } } })
+  const response = await h.load('app/api/contacts/route.ts').GET(new Request(`https://synthetic.invalid/api/contacts?tenant=${tenant}`))
+  assert.equal(response.status, 200)
+  const rows = await response.json(), before = JSON.stringify(rows)
+  const holders = h.load('lib/family-account.ts').displayAccountHolders(rows)
+  assert.equal(holders.length, 2)
+  const alex = holders.find(holder => holder.name === 'Alexandra Laustsen')
+  assert.equal(alex.account_id, 'alex')
+  assert.equal(alex.person_id, undefined)
+  assert.equal(alex.email, 'alex@example.invalid')
+  assert.equal(JSON.stringify(rows), before)
+  assert.equal(h.load('lib/family-account.ts').displayAccountHolders([...rows, ...rows]).length, 2, 'Siblings/repeated members do not duplicate holder summaries')
+  assert.equal(h.getWrites().length, 0)
+})

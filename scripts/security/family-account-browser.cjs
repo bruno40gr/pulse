@@ -20,7 +20,8 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       const adult = { id: adultId, tenant_id: tenant, first_name: 'Adult', last_name: 'Example', is_student: true,
         student_id: uuid(13), account_id: account, family_account_id: account, account_holder_person_id: adultId,
         account_holder_name: 'Adult Example', family_name: 'Adult Example', client_status: 'active', status_class: 'active',
-        relationship_badges: ['Enrolled'], account_holders: [{ person_id: adultId, name: 'Adult Example', is_primary: true }],
+        relationship_badges: ['Enrolled'], account_holders: [{ person_id: adultId, account_id: account, name: 'Adult Example', is_primary: true },
+          { account_id: other, name: 'Alexandra Laustsen', phone: '2025550101', email: 'alex@example.invalid', is_primary: false }],
         phone: '', email: '', custom_fields: {}, profile_enrollments: [] }
       page.on('pageerror', error => errors.push(error.message))
       await page.route('**/api/**', async route => {
@@ -63,8 +64,13 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       await table.getByRole('button', { name: 'Adult Example', exact: true }).waitFor()
       assert.equal(await table.getByRole('button', { name: 'Adult Example', exact: true }).count(), 1)
       await table.getByText('Enrolled', { exact: true }).first().waitFor()
+      await table.getByText('Alexandra Laustsen', { exact: true }).waitFor()
+      await table.getByText('alex@example.invalid', { exact: true }).waitFor()
+      assert.equal(await table.getByRole('checkbox', { name: 'Select Alexandra Laustsen', exact: true }).count(), 0)
       await table.getByRole('button', { name: 'Adult Example', exact: true }).click()
       const panel = page.getByRole('dialog').first()
+      await panel.getByText('Account holders', { exact: true }).waitFor()
+      await panel.getByText('Alexandra Laustsen', { exact: true }).waitFor()
       await panel.getByText('Family follow-up', { exact: true }).waitFor()
       assert.equal(await panel.getByText('0', { exact: true }).count() > 0, true)
       const familySection = panel.getByText('Family follow-up', { exact: true }).locator('..').locator('..')

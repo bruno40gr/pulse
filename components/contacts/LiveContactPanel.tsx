@@ -26,7 +26,7 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { LiveFamilyManagement } from './LiveFamilyManagement'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
 import { LessonSummary } from '@/components/ui/LessonSummary'
-import { familyDependents } from '@/lib/family-account'
+import { familyDependents, displayAccountHolders, type DisplayAccountHolder } from '@/lib/family-account'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
 type Subject =
@@ -67,7 +67,8 @@ function under18(dateOfBirth?: string | null) {
   return birthday > cutoff && birthday <= now
 }
 
-export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink, onFamilyChanged }: {
+export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink, onFamilyChanged, accountHolders }: {
+  accountHolders?: (DisplayAccountHolder & { id: string })[]
   onFamilyChanged?: () => void
   subject: Subject; tenantId: string; capabilities: ContactCapabilities
   initialNotesTab: NoteKind; startOnNotes?: boolean; onClose: () => void
@@ -79,6 +80,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const person = subject.kind === 'account-holder' ? null : subject.person
   const account = subject.kind === 'account-holder' ? subject.account : null
   const students = subject.kind === 'student' ? [] : subject.students
+  const visibleHolders = accountHolders ?? displayAccountHolders(subject.kind === 'student' ? [subject.person] : students)
   const familyId = account?.id || students[0]?.family_account_id || students[0]?.account_id || person?.family_account_id || person?.account_id
   const memberSince = subject.kind === 'student' ? subject.person.account_member_since ?? null : subject.kind === 'holder' ? subject.memberSince : subject.account.memberSince
   const showsAccount = subject.kind !== 'student'
@@ -264,6 +266,13 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                   <DetailField label="Birthday" value={formatMemberSince(person?.date_of_birth ?? null) || 'Not added'} />
                 </MetadataRow>
               </DenseSectionPanel>
+              {visibleHolders.length > 0 && <DenseSectionPanel title="Account holders">
+                <div style={stack}>{visibleHolders.map(holder => <div key={holder.id} style={{ display: 'grid', gap: spacing.xs }}>
+                  <strong>{holder.name}</strong>
+                  {holder.phone && <span style={muted}>{formatPhoneNumber(holder.phone)}</span>}
+                  {holder.email && <span style={muted}>{holder.email}</span>}
+                </div>)}</div>
+              </DenseSectionPanel>}
               {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
                 accountId={familyId} addStudentOnly
                 onCancel={() => setAddingStudent(false)} onChanged={() => { setAddingStudent(false); onFamilyChanged?.() }} />}
