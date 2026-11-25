@@ -235,7 +235,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
           <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
         </>} /></ProfileEntryActions>
       <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
-        <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%' }} activeKey={section} onChange={next => {
+        <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%', minHeight: compose && !mobile ? 'var(--profile-toolbar-height, 64px)' : undefined, boxSizing: 'border-box', alignItems: 'stretch' }} activeKey={section} onChange={next => {
           if (next === section || !canLeave()) return
           setEditing(false)
           setSection(next)

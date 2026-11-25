@@ -1,5 +1,20 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: aligned profile tabs and composer headers
+
+- Profile tabs and the SMS/email toolbar share a 64px desktop baseline while
+  composing. The active toolbar publishes its measured height to the workspace;
+  tabs stretch to match when a recipient name or holder control wraps.
+- Hidden retained channel toolbars cannot overwrite that measurement. Mobile
+  remains naturally wrapping; no fixed height clips headings or Send/Cancel.
+- Toolbar vertical padding is reduced and a bottom divider aligns with the tab
+  divider. Normal non-composing profile tabs retain their existing size.
+- TypeScript and 14 focused tests pass. Full suite: 1144/1161, the same 17
+  baseline failures; targeted lint has zero errors and two existing warnings.
+- Browser checks cover equal heights/bottom edges for SMS and email and a
+  deliberately long heading, alongside existing desktop/mobile regressions.
+  Logs: `/tmp/profile-header-{browser,focused,types,lint,full}.log`.
+
 ## Update: shared participant picker content
 
 - Shared family/student/band/event picker retains two content columns: Contact

@@ -752,7 +752,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
             activeKey={activePanelTab}
             onChange={setActivePanelTab}
             compact={isMobile}
-            style={isMobile ? { minWidth: 430 } : undefined}
+            style={isMobile ? { minWidth: 430 } : { minHeight: 'var(--profile-toolbar-height)', boxSizing: 'border-box', alignItems: 'stretch' }}
           />
       </div>
 
