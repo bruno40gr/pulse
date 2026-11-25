@@ -844,7 +844,7 @@ export default function ContactsPage() {
           href: `/dashboard/contacts?contact=${encodeURIComponent(studentHolder.id)}`,
           open: () => openFamilyPerson(studentHolder),
         } : {
-          name: studentAccount.students[0]?.account_holder_name || 'Account holder',
+          name: studentAccount.students[0]?.family_name || studentAccount.students[0]?.account_holder_name || 'Account holder',
           href: `/dashboard/contacts?account=${encodeURIComponent(studentAccount.id)}`,
           open: () => openFamilyAccount(studentAccount.id, studentAccount.students),
         } : undefined}

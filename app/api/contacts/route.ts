@@ -15,6 +15,7 @@ import { contactSubscriptions, currentStudentEnrollments } from '@/lib/contact-s
 import { currentSubscriptionTeacher } from '@/lib/current-subscription-teacher'
 import { readSubscriptionSource } from '@/lib/subscription-source'
 import { familyAccountId } from '@/lib/family-account'
+import { isLegacyStudentBillingAccount } from '@/lib/legacy-billing-account'
 import { readFamilyAccountLinks, readDisplayFamilyAccountLinks, readFamilyAccountNames } from '@/lib/family-account-server'
 import { contactRelationshipBadges, mergeRelationshipBadges } from '@/lib/contact-relationship'
 
@@ -299,14 +300,15 @@ export async function GET(request: Request) {
       const holderPeople = [...(holderPeopleByAccount.get(student.account_id) || [])]
         .map(holderId => contactPersonById.get(holderId))
         .filter(Boolean) as Array<{ id: string; first_name: string; last_name: string; phone: string | null; email: string | null }>
+      const billingOnlySummary = isLegacyStudentBillingAccount(tenantId, student.account_id, person.custom_fields?.external_id)
       const accountHolders: Array<{ person_id?: string; account_id?: string; name: string | null; phone: string | null; email: string | null; relationship: string | null; is_primary: boolean }> = holderPeople.length
         ? holderPeople.map(holder => ({ person_id: holder.id, name: `${holder.first_name} ${holder.last_name}`.trim(), phone: holder.phone, email: holder.email, relationship: null, is_primary: primaryHolderIds.has(`${student.account_id}:${holder.id}`) }))
-        : account.name
-          ? [{ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
+        : account.name && !billingOnlySummary
+          ? [{ account_id: student.account_id, name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true }]
           : []
       accountHolders.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
-      if (account.name && !accountHolders.some(holder => holder.is_primary)) {
-        accountHolders.unshift({ name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true })
+      if (account.name && !billingOnlySummary && !accountHolders.some(holder => holder.is_primary)) {
+        accountHolders.unshift({ account_id: student.account_id, name: account.name, phone: account.phone, email: account.email, relationship: null, is_primary: true })
       }
       for (const link of linkedAccounts.get(student.id) || []) {
         if (link.account_id === student.account_id) continue
@@ -373,7 +375,9 @@ export async function GET(request: Request) {
         account_holder_name: nonStudentBooking ? null : account.name,
         account_holder_phone: nonStudentBooking ? null : account.phone,
         account_holder_email: nonStudentBooking ? null : account.email,
-        family_name: nonStudentBooking ? null : familyNames.get(familyAccountId(student.account_id || '', familyAccounts.links)) || account.name,
+        family_name: nonStudentBooking ? null : billingOnlySummary
+          ? accountHolders.find(holder => holder.is_primary)?.name || accountHolders[0]?.name || 'Family'
+          : familyNames.get(familyAccountId(student.account_id || '', familyAccounts.links)) || account.name,
         account_member_since: nonStudentBooking ? null : account.created_at ?? null,
         account_holders: nonStudentBooking ? [] : accountHolders,
         instructor: instructorInfo,

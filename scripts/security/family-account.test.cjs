@@ -23,6 +23,51 @@ function setup(options = {}) {
 }
 const route = 'app/api/contacts/accounts/[id]/follow-ups/route.ts'
 const command = { action: 'save', lead_intake_id: null, expected_version: 0, due_at: '2026-12-01T20:00:00Z', message: 'Family reminder' }
+
+test('reviewed source IDs suppress all 13 student billing shells without name or age matching', () => {
+  const h = createHarness()
+  const { isLegacyStudentBillingAccount } = h.load('lib/legacy-billing-account.ts')
+  const evidence = require('../../lib/legacy-billing-account-evidence.json')
+  assert.equal(evidence.billing_only_student_accounts.length, 13)
+  for (const row of evidence.billing_only_student_accounts) {
+    assert.equal(isLegacyStudentBillingAccount(HEAD, row.account_id, row.source_client_id), true)
+    assert.equal(isLegacyStudentBillingAccount(DEMO, row.account_id, row.source_client_id), false)
+    assert.equal(isLegacyStudentBillingAccount(HEAD, row.account_id, 'different-source'), false)
+    assert.equal(isLegacyStudentBillingAccount(HEAD, 'different-account', row.source_client_id), false)
+  }
+})
+
+test('actual Contacts reader keeps Nathan and Jonathan as students, not holders; preserves billing/reminder/routing IDs', async () => {
+  for (const [accountId, sourceId, studentName, holderName] of [
+    ['41f77e8e-6c8e-4d5f-b383-c2715edbec8a', '721d6181-efde-46f6-8b57-8c71d3a49d3d', 'Nathan Abutin', 'Cynthia Abutin'],
+    ['6771e198-5c51-4c7c-829c-d177e60bc3b7', 'd26061f4-280e-4cd4-a407-39382160f6ef', 'Jonathan Berns', 'Sam Berns'],
+  ]) {
+    const h = createHarness()
+    h.setScenario({ actor: { access: { kind: 'demo', tenantId: HEAD } }, fixtures: {
+      people: [{ id: 'child', tenant_id: HEAD, first_name: studentName.split(' ')[0], last_name: studentName.split(' ')[1], custom_fields: { external_id: sourceId },
+        students: [{ id: 'role', account_id: accountId, is_minor: true, message_routing: 'account_holder', accounts: { name: studentName }, enrollments: [] }] }],
+      student_accounts: [{ student_id: 'role', account_id: other, is_primary: true, 'accounts.tenant_id': HEAD, accounts: { id: other, tenant_id: HEAD, name: holderName, phone: '2025550100' } }],
+    } })
+    const response = await h.load('app/api/contacts/route.ts').GET(new Request(`https://synthetic.invalid/api/contacts?tenant=${HEAD}`))
+    assert.equal(response.status, 200)
+    const rows = await response.json(), child = rows[0]
+    assert.equal(child.account_id, accountId)
+    assert.equal(child.reminder_account_id, accountId)
+    assert.equal(child.message_routing, 'account_holder')
+    assert.equal(child.account_holder_name, studentName, 'Legacy routing summary is not rewritten')
+    assert.equal(child.family_name, holderName)
+    const holders = h.load('lib/family-account.ts').displayAccountHolders(rows)
+    assert.deepEqual(Array.from(holders, row => row.name), [holderName])
+    assert.equal(h.load('lib/family-account.ts').familyDependents(rows).length, 1)
+    assert.equal(h.getWrites().length, 0)
+  }
+})
+
+test('an explicit empty holder list is authoritative, not a request to infer a holder from billing', () => {
+  const { displayAccountHolders } = createHarness().load('lib/family-account.ts')
+  assert.equal(displayAccountHolders([{ account_id: account, account_holder_name: 'Student', account_holders: [] }]).length, 0)
+  assert.equal(displayAccountHolders([{ account_id: account, account_holder_name: 'Legacy summary' }]).length, 1)
+})
 const req = (body, id = account) => new Request(`https://synthetic.invalid/api/contacts/accounts/${id}/follow-ups?tenant=${HEAD}`,
   body ? { method: 'PATCH', body: JSON.stringify(body) } : {})
 const params = (id = account) => ({ params: Promise.resolve({ id }) })

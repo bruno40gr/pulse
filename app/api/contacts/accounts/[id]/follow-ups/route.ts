@@ -34,7 +34,7 @@ export async function GET(request: Request, { params }: Context) {
     if (result.error || !Array.isArray(result.data)) throw new Error('Read failed')
     return Response.json({ follow_ups: result.data, account_id: auth.accountId, can_edit_inquiries: false }, { headers })
   } catch {
-    return Response.json({ error: 'Could not load family follow-up. Verify the account follow-up database update is installed, then try again.' }, { status: 503, headers })
+    return Response.json({ error: 'Could not load family follow-up. Please try again.' }, { status: 503, headers })
   }
 }
 export async function PATCH(request: Request, { params }: Context) {

@@ -104,6 +104,7 @@ function createHarness() {
   function load(file) {
     file = path.resolve(file)
     if (cache.has(file)) return cache.get(file).exports
+    if (file.endsWith('.json')) return JSON.parse(fs.readFileSync(file, 'utf8'))
     const loadedModule = { exports: {} }
     cache.set(file, loadedModule)
     const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {

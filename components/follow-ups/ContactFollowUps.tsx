@@ -49,7 +49,7 @@ function ContactFollowUpsContent({ personId, accountId, tenantId, name, canEdit,
     return () => controller.abort()
   }, [endpoint, reload])
   function launch(record: SharedFollowUp | null) {
-    setError(''); setEditor({ record, draft: { date: dateInput(record?.due_at ?? null), reminder: record?.message ?? '' } })
+    setEditor({ record, draft: { date: dateInput(record?.due_at ?? null), reminder: record?.message ?? '' } })
   }
   async function mutate(record: SharedFollowUp | null, action: 'save' | 'clear' | 'complete', due: string | null = null, reminder: string | null = null) {
     if (savingRef.current) return false
@@ -73,7 +73,7 @@ function ContactFollowUpsContent({ personId, accountId, tenantId, name, canEdit,
   const general = rows.find(row => !row.lead_intake_id)
   const open = rows.filter(row => row.status === 'open')
   return <>
-    <DenseSectionPanel title={accountId ? 'Family follow-up' : 'Follow-up'} actions={!loading && !error && canEdit && general?.status !== 'open'
+    <DenseSectionPanel title={accountId ? 'Family follow-up' : 'Follow-up'} actions={!loading && canEdit && general?.status !== 'open'
       ? <Button size="sm" variant="secondary" onClick={() => launch(general ?? null)}>Add follow-up</Button> : undefined}>
       {loading ? <LoadingSkeleton label="Loading follow-ups" rows={2} /> : <div style={{ display: 'grid', gap: spacing.lg }}>
         {error && <Notice variant="error">{error} <Button size="sm" variant="ghost" disabled={busy || Boolean(editor)} onClick={() => setReload(value => value + 1)}>Reload follow-ups</Button></Notice>}

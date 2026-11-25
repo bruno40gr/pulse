@@ -138,7 +138,7 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
           ...people.map(person => ({ ...personOption(person), disabled: accountManagers.some(link => link.person_id === person.id) })),
           ...accounts.filter(row => row.id !== currentAccountId).map(row => ({ id: `account:${row.id}`, name: row.name,
             detail: [row.email, row.phone, familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)
-              ? 'Already linked co-holder' : !accountLinkingSupported ? 'New account links unavailable; select an existing person instead' : 'Existing account · payer unchanged'].filter(Boolean).join(' · '),
+              ? 'Already linked co-holder' : !accountLinkingSupported ? 'Account linking is temporarily unavailable' : null].filter(Boolean).join(' · '),
             disabled: !accountLinkingSupported || accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id) })),
         ]}
           selectedIds={selectedAccount ? [selectedAccount] : []} onSelectionChange={ids => setSelectedAccount(ids[0] || '')}

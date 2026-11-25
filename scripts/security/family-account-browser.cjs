@@ -17,6 +17,7 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       await page.context().addCookies([{ name: 'pulse_access', value: cookie, url: base }])
       const errors = [], unexpected = [], writes = []
       let reminder = null, links = [], linkingSupported = true
+      let failFollowUps = false
       const adult = { id: adultId, tenant_id: tenant, first_name: 'Adult', last_name: 'Example', is_student: true,
         student_id: uuid(13), account_id: account, family_account_id: account, account_holder_person_id: adultId,
         account_holder_name: 'Adult Example', family_name: 'Adult Example', client_status: 'active', status_class: 'active',
@@ -46,6 +47,7 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
             family_account_links: links, account_linking_supported: linkingSupported })
         }
         if (path === `/api/contacts/accounts/${account}/follow-ups`) {
+          if (failFollowUps && request.method() === 'GET') return fulfill({ error: 'Could not load family follow-up. Please try again.' }, 503)
           if (request.method() === 'PATCH') {
             const body = request.postDataJSON(); writes.push(body)
             assert.equal(body.lead_intake_id, null)
@@ -74,6 +76,7 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       await panel.getByText('Family follow-up', { exact: true }).waitFor()
       assert.equal(await panel.getByText('0', { exact: true }).count() > 0, true)
       const familySection = panel.getByText('Family follow-up', { exact: true }).locator('..').locator('..')
+      await familySection.getByText('No follow-up scheduled.', { exact: true }).waitFor()
       await familySection.getByRole('button', { name: 'Add follow-up', exact: true }).click()
       const modal = page.getByRole('dialog').last()
       await modal.getByLabel('Date', { exact: true }).fill('2026-12-05')
@@ -100,6 +103,15 @@ const cookie = `${payload}.${createHmac('sha256', process.env.PULSE_SESSION_SECR
       assert.equal(await holders.getByRole('radio', { name: 'Legacy Holder Example', exact: true }).isDisabled(), true)
       await holders.getByText(/Already linked co-holder/).waitFor()
       assert.equal(writes.length, 3)
+      await holders.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await panel.getByRole('button', { name: 'Close', exact: true }).click()
+      failFollowUps = true
+      await table.getByRole('button', { name: 'Adult Example', exact: true }).click()
+      await panel.getByText('Could not load family follow-up. Please try again.', { exact: false }).waitFor()
+      await familySection.getByRole('button', { name: 'Add follow-up', exact: true }).click()
+      await page.getByRole('dialog').last().getByLabel('Date', { exact: true }).waitFor()
+      await page.getByRole('dialog').last().getByRole('button', { name: 'Cancel', exact: true }).click()
       assert.deepEqual(errors, [])
       assert.deepEqual(unexpected, [])
       console.log(`PASS ${width}px: adult holder appears once with Enrolled badge and zero dependents; account-owned reminder save/complete; legacy account searchable/linkable with explicit account operation; synthetic IO only`)

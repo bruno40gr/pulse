@@ -1,4 +1,5 @@
--- CRM database. Primary account and actor identities are verified by the API.
+-- CRM client database (consolidated production: same Odeon project as primary).
+-- Primary account and actor identities are verified by the API.
 -- Separate scope: no person/inquiry reminders are reassigned or backfilled.
 BEGIN;
 CREATE TABLE public.account_follow_ups (

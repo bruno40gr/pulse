@@ -5,7 +5,7 @@ import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { useId, useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
+import { Avatar, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
 import { MetadataRow } from '@/beta-source/app/content-studio-prototype/students/MetadataRow'
@@ -267,11 +267,12 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                 </MetadataRow>
               </DenseSectionPanel>
               {visibleHolders.length > 0 && <DenseSectionPanel title="Account holders">
-                <div style={stack}>{visibleHolders.map(holder => <div key={holder.id} style={{ display: 'grid', gap: spacing.xs }}>
-                  <strong>{holder.name}</strong>
-                  {holder.phone && <span style={muted}>{formatPhoneNumber(holder.phone)}</span>}
-                  {holder.email && <span style={muted}>{holder.email}</span>}
-                </div>)}</div>
+                <div style={stack}>{visibleHolders.map(holder => <DenseSectionPanel key={holder.id} title={holder.name} headingLevel="h4">
+                  <FieldGrid>
+                    <DetailField label="Phone" value={formatPhoneNumber(holder.phone ?? null) || 'Not added'} />
+                    <DetailField label="Email" value={holder.email || 'Not added'} />
+                  </FieldGrid>
+                </DenseSectionPanel>)}</div>
               </DenseSectionPanel>}
               {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
                 accountId={familyId} addStudentOnly

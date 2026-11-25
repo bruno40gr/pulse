@@ -47,7 +47,7 @@ export function displayAccountHolders(members: { account_id?: string | null; acc
   const holders = new Map<string, DisplayAccountHolder>()
   for (const member of members) {
     const summaries = member.account_holders || []
-    if (member.account_id && member.account_holder_name && !summaries.some(holder => holder.is_primary || holder.account_id === member.account_id)) {
+    if (!('account_holders' in member) && member.account_id && member.account_holder_name) {
       const key = `account:${member.account_id}`
       if (!holders.has(key)) holders.set(key, { account_id: member.account_id, name: member.account_holder_name,
         phone: member.account_holder_phone, email: member.account_holder_email, is_primary: true })

@@ -1,0 +1,99 @@
+{
+  "tenant_id": "00000000-0000-0000-0000-000000000001",
+  "source": "clients_report_September_25_2026",
+  "billing_only_student_accounts": [
+    {
+      "account_id": "90ecd570-66ad-4c09-af02-00e2c296e9b6",
+      "source_client_id": "c69504f8-293d-4c12-a391-095ff961bab4",
+      "source_manager_ids": [
+        "270c6b8d-893a-4785-acd7-37fd611cd9af"
+      ]
+    },
+    {
+      "account_id": "c71be133-31e8-4a46-9aa1-e2ed28e9877e",
+      "source_client_id": "ac775830-04f8-43a8-a07f-17f7d26dc523",
+      "source_manager_ids": [
+        "d3bae2d6-b4af-4b64-a8ff-2cdf4616c6e4"
+      ]
+    },
+    {
+      "account_id": "fb69b874-d84e-480a-aeec-5195f6e014c9",
+      "source_client_id": "11e16217-fa80-423f-bae2-73f1a82973ec",
+      "source_manager_ids": [
+        "d38b7e13-1cf1-4bb3-8535-323d7df81568",
+        "6e9f9c02-0d45-4639-9a91-95f41bcfd3b7"
+      ]
+    },
+    {
+      "account_id": "90574f44-102e-4ac4-8f7d-a3466c6eee11",
+      "source_client_id": "2ed10b16-866b-4092-98a1-8f11164a389c",
+      "source_manager_ids": [
+        "95394dee-503d-48ce-86f4-e6c2c0933536",
+        "c5b0615a-0302-4c17-8385-26316c662edc"
+      ]
+    },
+    {
+      "account_id": "3c8b734b-16d1-4da4-917a-7bf9353c50ef",
+      "source_client_id": "b679b8fc-217b-4cc6-9ea7-6f5505c1efac",
+      "source_manager_ids": [
+        "e07ec9a1-cf86-4f7b-9ffb-06ce29ccd19a"
+      ]
+    },
+    {
+      "account_id": "af042ead-7167-4930-98f1-b92685b72276",
+      "source_client_id": "e30ced3f-40f3-4c76-8e32-8b367de324b9",
+      "source_manager_ids": [
+        "958fc6bb-d05b-4e53-8b78-714c2d5250a6"
+      ]
+    },
+    {
+      "account_id": "54656e9a-36a7-428b-9468-d45663accbc1",
+      "source_client_id": "9591dac7-5c55-43d5-8022-2d3b449f3fb6",
+      "source_manager_ids": [
+        "78ed26cd-a81d-44e0-bbdd-24d7c7041daa"
+      ]
+    },
+    {
+      "account_id": "111aedf3-9203-4821-be86-ebf57f9d385c",
+      "source_client_id": "c52b44a0-d8c0-4ec9-92ba-44a8c0aeece8",
+      "source_manager_ids": [
+        "1f8fa14c-aa6c-4bfc-9ad8-6650d8d3a3d3"
+      ]
+    },
+    {
+      "account_id": "41f77e8e-6c8e-4d5f-b383-c2715edbec8a",
+      "source_client_id": "721d6181-efde-46f6-8b57-8c71d3a49d3d",
+      "source_manager_ids": [
+        "ab9ebb31-adb6-43ea-9e3d-df4eeb30445b"
+      ]
+    },
+    {
+      "account_id": "c4ffa066-81dc-4b80-95d2-b9d6d7eb1eed",
+      "source_client_id": "011c6467-0dc0-4d56-aead-842c2ee15002",
+      "source_manager_ids": [
+        "9ae16a29-ceac-4c74-a75e-b52340a168ad"
+      ]
+    },
+    {
+      "account_id": "a4f15d2b-75fb-419a-9d5e-847d59f08559",
+      "source_client_id": "5cb200be-3eb6-4bae-b1a9-be5a7c2975de",
+      "source_manager_ids": [
+        "956ba271-cd1a-4864-a756-b735c8e646fe"
+      ]
+    },
+    {
+      "account_id": "6f073e51-8d0b-46fc-89be-b36166366c7c",
+      "source_client_id": "616375b8-d405-4fdc-8d74-594aa1830151",
+      "source_manager_ids": [
+        "10cbd571-d8d4-4b92-ab63-1d605a7d29a2"
+      ]
+    },
+    {
+      "account_id": "6771e198-5c51-4c7c-829c-d177e60bc3b7",
+      "source_client_id": "d26061f4-280e-4cd4-a407-39382160f6ef",
+      "source_manager_ids": [
+        "72a6784a-f969-4726-80b0-71ad75d2a668"
+      ]
+    }
+  ]
+}
