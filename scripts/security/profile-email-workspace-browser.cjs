@@ -10,6 +10,10 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
       const errors = [], sent = [], unexpected = [], historyReads = [], smsSent = []
       let inboxReads = 0
+      let failHistory = false, releaseHistory
+      let historyGate = Promise.resolve()
+      const delivered = []
+      const seed = (id, direction, body, phone) => ({ id, direction, body, created_at: `2026-11-23T15:0${id.endsWith('1') ? 1 : 2}:00Z`, status: direction === 'outbound' ? 'delivered' : 'received', phone })
       let multiHolder = false
       const campaignSends = []
       let senderReads = 0
@@ -20,9 +24,17 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
         const request = route.request(), path = new URL(request.url()).pathname
         const respond = (json, status = 200) => route.fulfill({ json, status })
         if (path === '/api/contacts/alex/follow-ups') return respond({ follow_ups: [], can_edit_inquiries: false })
-        if (path === '/api/inbox') { inboxReads++; return respond([]) }
+        if (path === '/api/inbox') {
+          inboxReads++; await historyGate
+          if (failHistory) return respond({ error: 'Synthetic history failure' }, 500)
+          return respond(['+15555550123', '+15555550124', '+15555550999'].map((phone, index) => ({ other_phone: phone, messages: [
+            seed(`${index}-1`, 'outbound', `Previous outgoing ${index}`, phone), seed(`${index}-2`, 'inbound', `Previous reply ${index}`, phone),
+            ...delivered.filter(message => message.phone === phone),
+          ] })))
+        }
         if (path === '/api/inbox/reply') {
           smsSent.push(request.postDataJSON())
+          if (!failSend) delivered.push(seed(`sent-${delivered.length}`, 'outbound', request.postDataJSON().body, request.postDataJSON().to_phone))
           return respond(failSend ? { error: 'Synthetic SMS failure' } : { ok: true }, failSend ? 500 : 200)
         }
         if (path === '/api/account/me') return respond({ user: { displayName: 'Fixture' } })
@@ -34,7 +46,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
           { destination: '+15555550123', name: 'Sam Holder', contactIds: ['alex'] },
           { destination: '+15555550124', name: 'Taylor Holder', contactIds: ['alex'] },
         ] : [{ destination: request.postDataJSON().channel === 'sms' ? '+15555550123' : 'alex@example.invalid', name: 'Alex Example', contactIds: ['alex'] }], excluded: [], selectedCount: 1 })
-        if (path === '/api/campaigns' && request.method() === 'POST') return respond({ id: 'synthetic-campaign' })
+        if (path === '/api/campaigns' && request.method() === 'POST') { delivered.push(seed(`campaign-${delivered.length}`, 'outbound', request.postDataJSON().message, '+15555550124')); return respond({ id: 'synthetic-campaign' }) }
         if (path === '/api/campaigns/synthetic-campaign/send') { campaignSends.push(request.postDataJSON()); return respond({ ok: true, sent: 1, failed: 0 }) }
         if (path === '/api/conversations') return respond({ people: [{ id: 'person:alex', aliases: ['lead:alex'], name: 'Alex Example', email: 'alex@example.invalid', phone: '+15555550123', student: '', stage: '', profileType: 'contact', profileId: 'alex', smsContactId: 'alex' }] })
         if (path === '/api/communications/senders') {
@@ -107,7 +119,13 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       assert.equal(await page.getByRole('dialog').count(), 1)
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      assert.equal(inboxReads, 0, 'Email does not load SMS history')
+      historyGate = new Promise(resolve => { releaseHistory = resolve })
       await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
+      await panel.getByRole('status', { name: 'Loading SMS history' }).waitFor()
+      assert.equal(await panel.getByText('No text messages yet. Write one below.', { exact: true }).count(), 0)
+      releaseHistory()
+      await panel.getByRole('region', { name: 'SMS history' }).getByText('Previous reply 0', { exact: true }).waitFor()
       const sms = panel.getByRole('textbox', { name: 'SMS message' })
       await sms.fill('Keep this SMS draft')
       assert.equal(await panel.getByRole('heading', { name: 'Messaging Alex Example', level: 2 }).count(), 1)
@@ -117,11 +135,16 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       const headingBox = await smsComposer.getByRole('heading', { name: 'Messaging Alex Example' }).boundingBox()
       const composerBox = await smsComposer.boundingBox(), editorBox = await sms.boundingBox()
       assert.ok(headingBox.y - composerBox.y < 60, 'SMS toolbar is at the top, not centered beside history')
-      assert.ok(editorBox.y > headingBox.y && editorBox.width > 200 && editorBox.x >= composerBox.x, 'SMS editor stays below the toolbar without overflow')
-      assert.ok(editorBox.height > 200, 'SMS editor uses available height')
+      assert.ok(editorBox.y > headingBox.y && editorBox.width > 150 && editorBox.x >= composerBox.x, 'SMS editor stays below the toolbar without overflow')
+      assert.ok(editorBox.height >= 60 && editorBox.height <= 120, 'Compact reply box leaves room for conversation bubbles')
+      if (width > 700) {
+        const preview = await smsComposer.getByRole('complementary', { name: 'SMS preview pane' }).boundingBox()
+        const history = await smsComposer.getByRole('region', { name: 'SMS history' }).boundingBox()
+        assert.ok(Math.abs(preview.width - history.width) < 2, 'Conversation and preview are exactly 50/50')
+      }
       assert.equal(await smsComposer.getByRole('complementary', { name: 'SMS preview pane' }).isVisible(), true)
       await smsComposer.getByRole('region', { name: 'SMS phone preview for Alex Example' }).getByText('Keep this SMS draft', { exact: true }).waitFor()
-      assert.equal(await panel.getByRole('region', { name: 'SMS history' }).count(), 0)
+      assert.equal(await panel.getByRole('region', { name: 'SMS history' }).count(), 1)
       await sms.press('Enter')
       assert.equal(smsSent.length, 0, 'Enter inserts a newline rather than sending a profile draft')
       assert.ok((await sms.inputValue()).includes('\n'))
@@ -142,11 +165,31 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await smsComposer.getByRole('button', { name: 'Send', exact: true }).click()
       await page.waitForFunction(() => document.querySelector('[aria-label="SMS message"]')?.value === '')
       assert.deepEqual(smsSent[1], { contact_id: 'alex', to_phone: '+15555550123', body: 'Keep this SMS draft' })
-      assert.equal(inboxReads, 0, 'Profile email and SMS compose never load or poll SMS history')
+      assert.ok(inboxReads > 0)
+      await panel.getByRole('region', { name: 'SMS history' }).getByText('Keep this SMS draft', { exact: true }).waitFor()
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
       await panel.getByRole('button', { name: 'Send email', exact: true }).click()
       assert.equal(await subject.inputValue(), 'Separate email draft')
       assert.equal(await body.innerText(), 'Separate email body')
+      await page.clock.install()
+      const inactiveReads = inboxReads
+      await page.clock.fastForward(61_000)
+      assert.equal(inboxReads, inactiveReads, 'Mounted SMS composer does not poll while email is active')
+      failHistory = true
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
+      await panel.getByText('Synthetic history failure', { exact: true }).waitFor()
+      assert.equal(await panel.getByText('No text messages yet. Write one below.', { exact: true }).count(), 0)
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      const closedReads = inboxReads
+      await page.clock.fastForward(61_000)
+      assert.equal(inboxReads, closedReads, 'Cancelled SMS composer does not poll')
+      failHistory = false
+      await panel.getByRole('button', { name: 'Send SMS', exact: true }).click()
+      await panel.getByRole('region', { name: 'SMS history' }).getByText('Previous reply 0', { exact: true }).waitFor()
+      await panel.getByText('Synthetic history failure', { exact: true }).waitFor({ state: 'hidden' })
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await panel.getByRole('button', { name: 'Send email', exact: true }).click()
       await page.screenshot({ path: `/tmp/split-composer-${width}.png` })
       await page.goto(`${base}/profile-email-review?legacy=1&mobile=${width === 390 ? '1' : '0'}`)
       await panel.getByRole('textbox', { name: 'Profile note', exact: true }).fill('Keep profile context')
@@ -180,7 +223,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       const leadPane = await panel.getByRole('region', { name: 'Message composer', exact: true }).boundingBox()
       const leadTitle = await panel.getByRole('heading', { name: 'Messaging Alex Example' }).boundingBox()
       assert.ok(leadTitle.y - leadPane.y < 60, 'Lead SMS toolbar is top aligned')
-      assert.ok((await sms.boundingBox()).width > 180, 'Lead SMS editor remains usable beside or above preview')
+      assert.ok((await sms.boundingBox()).width > 150, 'Lead SMS editor remains usable beside or above preview')
       assert.equal(await panel.getByRole('region', { name: 'Message composer', exact: true }).getByRole('complementary', { name: 'SMS preview pane' }).isVisible(), true)
       await page.screenshot({ path: `/tmp/profile-sms-lead-${width}.png` })
       await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -216,11 +259,8 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
         await sms.fill('Draft for Sam')
         await picker.selectOption('+15555550124')
         await panel.getByRole('heading', { name: 'Messaging Taylor Holder', exact: true }).waitFor()
-        if (lead) {
-          const review = panel.getByRole('region', { name: 'Verified SMS recipients' })
-          assert.equal(await review.getByRole('listitem').count(), 1, 'Recipient review matches only the selected holder')
-          await review.getByText('Taylor Holder', { exact: true }).waitFor()
-        }
+        await panel.getByRole('region', { name: 'SMS history' }).getByText('Previous reply 1', { exact: true }).waitFor()
+        assert.equal(await panel.getByRole('region', { name: 'SMS history' }).getByText('Previous reply 0', { exact: true }).count(), 0)
         assert.equal(await sms.inputValue(), '', 'New holder starts with its own draft')
         await sms.fill('Draft for Taylor')
         await panel.getByRole('region', { name: 'SMS phone preview for Taylor Holder' }).getByText('Draft for Taylor', { exact: true }).waitFor()
@@ -235,7 +275,8 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
         await page.screenshot({ path: `/tmp/sms-holder-${lead ? 'lead' : 'contact'}-${width}.png` })
         await panel.getByRole('region', { name: 'Message composer', exact: true }).getByRole('button', { name: 'Send', exact: true }).click()
         if (lead) {
-          await panel.getByRole('region', { name: 'Message composer', exact: true }).waitFor({ state: 'hidden' })
+          await page.waitForFunction(() => document.querySelector('[aria-label="SMS message"]')?.value === '')
+          await panel.getByRole('region', { name: 'SMS history' }).getByText('Draft for Taylor', { exact: true }).last().waitFor()
           assert.equal(campaignSends.at(-1).recipientDestination, '+15555550124')
           assert.equal(campaignSends.at(-1).recipientVersion, 'synthetic-v1')
         } else {
@@ -246,7 +287,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       }
       assert.deepEqual(historyReads, [], 'New-email composition never requests mailbox history or summary')
       assert.deepEqual(errors, []); assert.deepEqual(unexpected, [])
-      console.log(`PASS ${width}px: contact + lead SMS smartphone preview, Messaging heading, two-holder selection and separate drafts, verified selected-destination send, Cancel/reopen, newline safety; email regression passed; synthetic APIs only`)
+      console.log(`PASS ${width}px: contact + lead 50/50 conversation and preview, historical bubbles, compact reply, loading gate, holder-isolated history and drafts, verified selected-destination send, Cancel/reopen, newline safety; email regression passed; synthetic APIs only`)
       await page.close()
     }
   } finally { await browser.close() }

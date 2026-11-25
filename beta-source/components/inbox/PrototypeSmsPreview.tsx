@@ -3,7 +3,7 @@
 import { colors, spacing, typography } from '@/beta-source/lib/tokens'
 
 export default function PrototypeSmsPreview({ name, body, highContrast = false }: { name: string; body: string; highContrast?: boolean }) {
-  return <section aria-label={`SMS phone preview for ${name}`} style={{ width: 240, height: 520, flexShrink: 0, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', margin: '0 auto', border: `6px solid ${colors.text}`, borderRadius: 30, overflow: 'hidden', background: colors.surface, fontFamily: typography.fontSans }}>
+  return <section aria-label={`SMS phone preview for ${name}`} style={{ width: 240, maxWidth: '100%', height: 520, flexShrink: 0, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', margin: '0 auto', border: `6px solid ${colors.text}`, borderRadius: 30, overflow: 'hidden', background: colors.surface, fontFamily: typography.fontSans }}>
     <div aria-hidden="true" style={{ width: 70, height: 12, flexShrink: 0, margin: '0 auto', background: colors.text, borderRadius: '0 0 10px 10px' }} />
     <div style={{ textAlign: 'center', padding: spacing.md, flexShrink: 0, borderBottom: `1px solid ${colors.border}`, overflowWrap: 'anywhere' }}><strong>{name}</strong><div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Text message · SMS</div></div>
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: spacing.lg }}>

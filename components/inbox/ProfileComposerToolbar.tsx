@@ -5,6 +5,7 @@ import { Button, SectionTitle } from '@/components/ui'
 import { spacing } from '@/lib/tokens'
 
 export const ProfileComposerCancelContext = createContext<(() => void) | null>(null)
+export const ProfileComposerActiveContext = createContext(true)
 
 /** Content heading and actions, never a second drawer header. */
 export function ProfileComposerToolbar({ channel, onCancel, children, recipientName, recipientControl }: {

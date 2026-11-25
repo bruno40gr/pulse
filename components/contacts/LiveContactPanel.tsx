@@ -334,7 +334,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
       </div>
       </>} composer={<>
         {(['email', 'sms'] as const).map(channel => visitedChannels[channel] && <div key={channel} hidden={compose !== channel} className={`${layoutStyles.panelContent} ${layoutStyles.communicationContent}`} style={{ display: compose === channel ? 'flex' : 'none', background: colors.surfaceMuted }}>
-          <LiveContactCommunication tenantId={tenantId} channel={channel} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
+          <LiveContactCommunication active={compose === channel} tenantId={tenantId} channel={channel} contactIds={account ? accountRecipients.map(student => student.id) : person ? [person.id] : []}
             destination={(channel === 'sms' ? callPhone : displayedEmail) || ''} name={name} drafts={messageDrafts} onDraft={(key, value) => setMessageDrafts(current => ({ ...current, [key]: value }))} />
         </div>)}
       </>} />

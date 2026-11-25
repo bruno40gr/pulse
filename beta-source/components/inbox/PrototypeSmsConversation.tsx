@@ -12,11 +12,12 @@ import { formatMessageTimestamp } from '@/beta-source/lib/message-timestamp'
 import PrototypeSmsPreview from '@/beta-source/components/inbox/PrototypeSmsPreview'
 import { useMediaQuery } from '@/beta-source/lib/useMediaQuery'
 import styles from './PrototypeSmsConversation.module.css'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 
 /** Mirrors the live SMS inbox's bubble/reply-bar presentation; never calls its handlers. */
-export default function PrototypeSmsConversation({ thread, mobile, draft, onChange, onSend, recipients, disabled = false, sendDisabled = false, panelLayout = false, live = false, onDraft, compact = false, recipientControl }: {
+export default function PrototypeSmsConversation({ thread, mobile, draft, onChange, onSend, recipients, disabled = false, sendDisabled = false, panelLayout = false, live = false, onDraft, compact = false, recipientControl, historyPending = false, historyError }: {
   thread: PrototypeThread; mobile: boolean; draft: string; onChange: (value: string) => void; onSend: () => void; recipients?: MockRecipient[]
-  disabled?: boolean; sendDisabled?: boolean; panelLayout?: boolean; live?: boolean; onDraft?: () => Promise<string>; compact?: boolean; recipientControl?: import('react').ReactNode
+  disabled?: boolean; sendDisabled?: boolean; panelLayout?: boolean; live?: boolean; onDraft?: () => Promise<string>; compact?: boolean; recipientControl?: import('react').ReactNode; historyPending?: boolean; historyError?: string
 }) {
   const cancelProfileCompose = useContext(ProfileComposerCancelContext)
   const wide = useMediaQuery('(min-width: 1000px)')
@@ -38,7 +39,7 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
   const previewName = recipients ? previewRecipient?.name || 'Message preview' : thread.name
   const previewBody = recipients ? fillMockTemplate(draft, previewRecipient) : draft
   const profileCompose = !!cancelProfileCompose
-  const showHistory = !profileCompose && (!recipients || recipients.length === 1)
+  const showHistory = !recipients || recipients.length === 1
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }) }, [thread.id, thread.messages.length])
   return <section aria-label="Text message composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
@@ -46,20 +47,22 @@ export default function PrototypeSmsConversation({ thread, mobile, draft, onChan
     <div aria-label="SMS workspace" className={profileCompose ? styles.profileLayout : panelLayout ? styles.panelLayout : undefined} style={{ display: 'grid', gridTemplateColumns: profileCompose ? undefined : panelLayout ? undefined : desktop ? 'minmax(0, 3fr) minmax(0, 7fr)' : 'minmax(0, 1fr)', flex: 1, minWidth: 0, minHeight: 0, overflow: profileCompose ? 'auto' : 'hidden' }}>
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
     {missingPhone.length > 0 && <Notice variant="warning" title="Excluded from sending" style={{ margin: spacing.md }}>{missingPhone.map(person => `${person.name} — No phone number`).join(', ')}</Notice>}
-    {showHistory && <div role="region" aria-label="SMS history" style={{ flex: 1, minHeight: 180, maxHeight: recipients ? 320 : undefined, overflowY: 'auto', padding: mobile ? `${spacing.lg} ${spacing.md}` : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+    {showHistory && <div role="region" aria-label="SMS history" style={{ flex: 1, minHeight: 180, maxHeight: recipients ? 320 : undefined, overflowY: 'auto', padding: mobile || profileCompose ? spacing.md : `${spacing['2xl']} ${spacing['3xl']}`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
       {recipients && <strong style={{ ...typography.bodySmall, color: colors.textSecondary }}>SMS history with {thread.name}</strong>}
-      {!thread.messages.length && <p style={{ color: colors.textMuted }}>No text messages yet. Write one below.</p>}
-      {thread.messages.map(message => <div key={message.id} style={{ display: 'flex', justifyContent: message.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
-        <div style={{ maxWidth: mobile ? '85%' : undefined }}>
+      {historyPending && <LoadingSkeleton label="Loading SMS history" />}
+      {historyError && <Notice variant="error">{historyError}</Notice>}
+      {!historyPending && !historyError && !thread.messages.length && <p style={{ color: colors.textMuted }}>No text messages yet. Write one below.</p>}
+      {!historyPending && thread.messages.map(message => <div key={message.id} style={{ display: 'flex', justifyContent: message.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
+        <div style={{ maxWidth: '92%' }}>
           <div style={{ maxWidth: mobile ? '100%' : '620px', padding: `${spacing.sm} ${spacing.md}`, borderRadius: message.direction === 'outbound' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: message.direction === 'outbound' ? (panelLayout ? colors.link : '#007AFF') : colors.surface, color: message.direction === 'outbound' ? 'white' : colors.text, fontSize: typography.sizeBase, fontFamily: typography.fontSans, lineHeight: 1.5, border: message.direction === 'inbound' ? `1px solid ${colors.border}` : 'none', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.body}</div>
-          <div style={{ fontSize: typography.sizeXs, color: panelLayout ? colors.textSecondary : colors.textMuted, marginTop: 4, textAlign: message.direction === 'outbound' ? 'right' : 'left' }}>{message.timestamp ? formatMessageTimestamp(message.timestamp) : message.time}{message.simulated ? ' · Mock only — not sent' : ''}</div>
+          <div style={{ fontSize: typography.sizeXs, color: panelLayout ? colors.textSecondary : colors.textMuted, marginTop: 4, textAlign: message.direction === 'outbound' ? 'right' : 'left' }}>{message.timestamp ? formatMessageTimestamp(message.timestamp) : message.time}{message.status ? ` · ${message.status}` : ''}{message.simulated ? ' · Mock only — not sent' : ''}</div>
         </div>
       </div>)}
       <div ref={end} />
     </div>}
-    <div style={{ padding: mobile ? spacing.md : spacing['2xl'], borderTop: profileCompose ? undefined : `1px solid ${colors.border}`, background: colors.surface, display: 'flex', flexDirection: 'column', gap: spacing.sm, flexShrink: 0, ...(profileCompose ? { flex: 1, minHeight: 0, overflowY: 'auto' } : {}) }}>
-      <div className={profileCompose ? styles.profileEditor : undefined}>
-        <Textarea disabled={disabled} aria-label="SMS message" value={draft} onChange={event => onChange(event.target.value)} onKeyDown={event => { if (!profileCompose && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled && !sendDisabled && draft.trim()) onSend() } }} placeholder={profileCompose || recipients ? 'Write a text message…' : `Reply to ${thread.name}...`} style={{ width: '100%', minHeight: profileCompose ? 200 : 60, maxHeight: profileCompose ? undefined : 120, flex: profileCompose ? 1 : undefined, resize: 'none' }} />
+    <div style={{ padding: mobile ? spacing.md : spacing['2xl'], borderTop: `1px solid ${colors.border}`, background: colors.surface, display: 'flex', flexDirection: 'column', gap: spacing.sm, flexShrink: 0 }}>
+      <div>
+        <Textarea disabled={disabled} aria-label="SMS message" value={draft} onChange={event => onChange(event.target.value)} onKeyDown={event => { if (!profileCompose && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled && !sendDisabled && draft.trim()) onSend() } }} placeholder={recipients ? 'Write a text message…' : `Reply to ${thread.name}...`} style={{ width: '100%', minHeight: 60, maxHeight: 120, resize: 'none' }} />
       </div>
       {draftError && <Notice variant="error">{draftError}</Notice>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md }}>

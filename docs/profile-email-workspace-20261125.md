@@ -1,5 +1,41 @@
 # Profile/email workspace — November 25, 2026
 
+## Correction: restore profile SMS conversations (latest)
+
+This supersedes the earlier decisions to suppress profile SMS history and use an
+oversized writing area. Account-holder management selectors are unchanged.
+
+- Contact and lead profile SMS now share conversation bubbles, timestamp/status
+  labels, a compact reply box, and the retained smartphone draft preview.
+- Desktop conversation and preview columns are equal width; mobile stacks them.
+- History comes from the existing tenant-authorized inbox, filtered by normalized
+  selected phone. Results are sorted and deduplicated; caches are tenant/phone
+  scoped. Holder switches abort stale requests and retain separate drafts.
+- Polling uses the existing visibility-aware single-flight helper (60 seconds),
+  only while SMS is active. Cancel and switching to email stop the poller.
+- Loading, empty history, and failed history remain distinct. Successful sends
+  clear the draft, refresh history, and keep the conversation open on both paths.
+- TypeScript passes. Focused recipient/layout/history/polling tests: 68/68.
+  The new controlled-hook tests cover filtering, sorting, duplicate IDs, status,
+  stale-response cancellation, tenant isolation, inactive cleanup, and retry.
+- Synthetic browser acceptance at 1440/1076/390px covers equal desktop geometry,
+  compact reply height, inbound/outbound bubbles, delayed history loading,
+  selected-holder history/drafts, verified send payloads, post-send refresh, and
+  retained email behavior. No real messages are sent by this harness.
+- Browser clock checks also confirm no polling while email is active or SMS is
+  cancelled, and explicit history failure/recovery without a false empty state.
+  Desktop contact and mobile lead screenshots were visually reviewed.
+- Full suite: 1142/1159 pass, with exactly the same 17 failure names as
+  `/tmp/sms-preview-full.log` (no added failures). Targeted ESLint: zero errors,
+  12 warnings. `git diff --check` passes.
+- Logs: `/tmp/sms-history-{browser,focused,types,lint,full}.log`. Screenshots:
+  `/tmp/sms-holder-{contact,lead}-{1440,1076,390}.png`.
+- Real Prathima Prodduturi history and production deployment are not verified by
+  synthetic local acceptance. Do not treat this as confirmation of either.
+- Manage account holders remains pending content agreement: proposal is people
+  only, with Contact / Email / Phone / Eligibility columns and relationships
+  shown separately, rather than mixed account rows and concatenated Details.
+
 ## Correction: retain smartphone preview and select the messaging account holder
 
 - The SMS smartphone preview is intentionally restored, superseding the preview

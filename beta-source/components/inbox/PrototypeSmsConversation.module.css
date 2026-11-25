@@ -1,12 +1,12 @@
 .panelLayout { grid-template-columns: minmax(0, 1fr); }
-.profileLayout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, auto) minmax(568px, auto); }
+.profileLayout { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 .profileLayout .preview { display: flex !important; border-left: 0 !important; border-top: 1px solid var(--color-border, #e5e7eb); }
-@container (min-width: 620px) {
-  .profileLayout { grid-template-columns: minmax(0, 1fr) 280px; grid-template-rows: minmax(0, 1fr); }
+@container (min-width: 520px) {
   .profileLayout .preview { border-top: 0; border-left: 1px solid var(--color-border, #e5e7eb) !important; }
 }
-.profileEditor { display: flex; flex: 1; min-height: 200px; min-width: 0; }
-.profileEditor > div { flex: 1; min-height: 0; }
+@media (max-width: 700px) {
+  .profileLayout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(420px, 70dvh) minmax(568px, auto); }
+}
 .panelLayout .preview { display: none !important; }
 @container (min-width: 620px) {
   .panelLayout { grid-template-columns: repeat(2, minmax(0, 1fr)); }

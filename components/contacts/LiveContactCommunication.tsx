@@ -1,12 +1,12 @@
 'use client'
 
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
-import { useContext, useEffect, useRef, useState } from 'react'
-import { ProfileComposerCancelContext } from '@/components/inbox/ProfileComposerToolbar'
+import { useEffect, useRef, useState } from 'react'
+import { useSmsConversationHistory } from '@/lib/useSmsConversationHistory'
 import { CommunicationCanvas } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
 import PrototypeEmailComposer from '@/components/inbox/PrototypeEmailComposer'
 import { Notice, Select } from '@/components/ui'
-import { personThread, type ConversationPerson, type LiveThread } from '@/lib/conversations-live'
+import { personThread, type ConversationPerson } from '@/lib/conversations-live'
 import { smsDestination, type RecipientResolution } from '@/lib/communication-recipients'
 import { formatPhoneNumber } from '@/lib/phone'
 import { conversationSignatureHtml, type ConversationSignature } from '@/lib/conversation-signature'
@@ -14,7 +14,6 @@ import type { OrganisationSender } from '@/lib/organisation-email-policy'
 import type { MockTemplate } from '@/lib/prototype-messaging'
 
 type Target = { id: string; address: string; name: string; canSend: boolean }
-type InboxThread = { other_phone: string; messages: { id: string; direction: 'inbound' | 'outbound'; body: string; created_at: string }[] }
 type Mailbox = { id: string; email: string; canSend: boolean }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -25,11 +24,10 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 const post = (body: object): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
-export default function LiveContactCommunication({ tenantId, channel, contactIds, destination, name, drafts, onDraft }: {
+export default function LiveContactCommunication({ tenantId, channel, contactIds, destination, name, drafts, onDraft, active = true }: {
   tenantId: string; channel: 'sms' | 'email'; contactIds: string[]; destination: string; name: string
-  drafts: Record<string, string>; onDraft: (key: string, value: string) => void
+  drafts: Record<string, string>; onDraft: (key: string, value: string) => void; active?: boolean
 }) {
-  const profileCompose = !!useContext(ProfileComposerCancelContext)
   const tenant = `tenant=${encodeURIComponent(tenantId)}`
   const ids = contactIds.join(',')
   const [target, setTarget] = useState<Target | null>(null)
@@ -41,13 +39,11 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const [signature, setSignature] = useState<ConversationSignature | null>(null)
   const [setupLoading, setSetupLoading] = useState(channel === 'email')
   const [setupError, setSetupError] = useState('')
-  const [sms, setSms] = useState<LiveThread['messages']>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sendError, setSendError] = useState('')
   const [sending, setSending] = useState(false)
   const [refresh, setRefresh] = useState(0)
-  const historyRefresh = profileCompose ? 0 : refresh
   const locked = useRef(false)
   const normalize = channel === 'sms' ? smsDestination : normalizeEmail
   const mailbox = mailboxes.find(item => item.canSend)
@@ -103,14 +99,10 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
       if (channel === 'email' && (!candidate || !address)) throw new Error('The recipient could not be verified. Check the contact’s saved routing.')
       if (signal.aborted) return
       if (channel === 'email' && candidate) setTarget({ id: candidate.id, address, name: verified?.name || candidate.name, canSend: !!verified })
-      if (channel === 'sms' && !profileCompose) {
-        const inbox = await json<InboxThread[]>(`/api/inbox?${tenant}`, { signal })
-        const messages = inbox.filter(thread => smsDestination(thread.other_phone) === address).flatMap(thread => thread.messages)
-        if (!signal.aborted) setSms([...new Map(messages.map(item => [item.id, item])).values()].sort((a, b) => a.created_at.localeCompare(b.created_at)).map(item => ({ id: item.id, channel: 'sms', direction: item.direction, body: item.body || '', timestamp: item.created_at, time: '' })))
-      }
+
     })().catch(error => { if (!signal.aborted) setError(error.message) }).finally(() => { if (!signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [channel, destination, ids, normalize, historyRefresh, tenant, profileCompose])
+  }, [channel, destination, ids, normalize, tenant])
 
   async function send(url: string, payload: object, done: () => void) {
     if (locked.current) return
@@ -120,11 +112,13 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
     finally { locked.current = false; setSending(false) }
   }
 
+  const history = useSmsConversationHistory(tenantId, channel === 'sms' ? target?.address || '' : '', active && channel === 'sms', refresh)
   const contact = { name: target?.name || name, phone: channel === 'sms' ? formatPhoneNumber(target?.address || destination) : '', email: channel === 'email' ? destination : '' }
-  const smsThread = { ...personThread({ ...contact, id: prefix, student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: sms }
+  const smsThread = { ...personThread({ ...contact, id: prefix, student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: history.messages }
   if (loading || setupLoading) return <LoadingSkeleton label="Loading composer" />
   if (error || setupError) return <Notice variant="error">{error || setupError}</Notice>
   return <CommunicationCanvas composeInPlace person={contact} channel={channel} smsThread={smsThread} threads={[]} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
+    smsHistoryPending={history.loading} smsHistoryError={history.error}
     smsRecipientControl={smsTargets.length > 1 ? <Select aria-label="SMS account holder" controlSize="compact" fullWidth={false} value={target?.address || ''} disabled={sending} onChange={event => { const next = smsTargets.find(item => item.address === event.target.value); if (next) { setTarget(next); setSendError('') } }}>
       {smsTargets.map(item => <option key={item.address} value={item.address}>{item.name} — {formatPhoneNumber(item.address)}</option>)}
     </Select> : undefined}

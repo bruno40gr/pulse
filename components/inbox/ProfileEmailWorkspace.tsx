@@ -3,6 +3,7 @@
 import { createContext, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import { ProfileComposerLayout } from './ProfileComposerLayout'
+import { ProfileComposerActiveContext } from './ProfileComposerToolbar'
 
 const Conversations = lazy(() => import('./Conversations'))
 export const ProfileEmailContext = createContext<((recipient: string, channel: 'email' | 'sms') => void) | null>(null)
@@ -23,9 +24,9 @@ export function ProfileEmailWorkspace({ identity, onViewChange, children, render
   return <ProfileEmailContext.Provider value={(value, nextChannel) => { setRecipient(value); setChannel(nextChannel); setVisited(current => ({ ...current, [nextChannel]: true })); setOpen(true); onViewChange?.(true) }}>
     <ProfileComposerLayout open={open} header={header} onCancel={back} profile={children} composer={<>
       {recipient && (['email', 'sms'] as const).map(value => visited[value] && <div key={value} hidden={channel !== value} style={{ display: channel === value ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
-        <Suspense fallback={<ProfilePanelSkeleton />}>
+        <ProfileComposerActiveContext.Provider value={open && channel === value}><Suspense fallback={<ProfilePanelSkeleton />}>
           {value === 'sms' && renderSms ? renderSms(back) : <Conversations key={`${identity}:${recipient}`} embedded={{ recipient, channel: value, onClose: back, onSent: () => setVisited(current => ({ ...current, [value]: false })) }} />}
-        </Suspense>
+        </Suspense></ProfileComposerActiveContext.Provider>
       </div>)}
     </>} />
   </ProfileEmailContext.Provider>

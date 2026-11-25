@@ -39,13 +39,13 @@ export function StudentCommunication({ account, students, location, channel, dra
 }
 
 export type CommunicationThread = { id: string; subject: string; messages: { id: string; text: string; timestamp: string; direction: 'inbound' | 'outbound'; from?: string; to?: string }[] }
-export function CommunicationCanvas({ person, channel, smsThread, threads, draftPrefix: key, drafts, onDraft, renderEmail, liveSms, notice, emailHistoryPending, renderDraftPanel, composeInPlace = false, smsRecipientControl }: {
+export function CommunicationCanvas({ person, channel, smsThread, threads, draftPrefix: key, drafts, onDraft, renderEmail, liveSms, notice, emailHistoryPending, renderDraftPanel, composeInPlace = false, smsRecipientControl, smsHistoryPending, smsHistoryError }: {
   person: { name: string; phone: string; email: string }; channel: 'sms' | 'email'; smsThread: PrototypeThread; threads: CommunicationThread[]
   draftPrefix: string; drafts: Record<string, string>; onDraft: (key: string, value: string) => void
   renderEmail: (options: { draft: PrototypeEmailDraft; onChange: (draft: PrototypeEmailDraft) => void; onBack: () => void; replying: boolean; threadId?: string }) => ReactNode
   liveSms?: { onSend: (body: string) => void; disabled: boolean; onDraft?: () => Promise<string> }; notice?: ReactNode; emailHistoryPending?: boolean
   renderDraftPanel?: (options: { name: string; close: () => void; children: ReactNode }) => ReactNode
-  composeInPlace?: boolean; smsRecipientControl?: ReactNode
+  composeInPlace?: boolean; smsRecipientControl?: ReactNode; smsHistoryPending?: boolean; smsHistoryError?: string
 }) {
   const profileCompose = useContext(ProfileComposerCancelContext)
   const [composing, setComposing] = useState(false)
@@ -76,7 +76,7 @@ export function CommunicationCanvas({ person, channel, smsThread, threads, draft
   </section>
   const conversation = <>
     {channel === 'sms' && <SurfacePanel appearance="flat" padding="0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', ...(profileCompose ? { border: 0, borderRadius: 0 } : {}) }}>
-      <PrototypeSmsConversation recipientControl={smsRecipientControl} panelLayout compact={composeInPlace} thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />
+      <PrototypeSmsConversation historyPending={smsHistoryPending} historyError={smsHistoryError} recipientControl={smsRecipientControl} panelLayout compact={composeInPlace} thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />
     </SurfacePanel>}
     {channel === 'email' && <SurfacePanel appearance="flat" padding="0" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className={styles.emailBrowser} data-reader={mobileReader}>

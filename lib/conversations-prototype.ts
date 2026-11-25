@@ -7,6 +7,7 @@ export type PrototypeMessage = {
   body: string
   time: string
   timestamp?: string
+  status?: string
   subject?: string
   unread?: boolean
   html?: string

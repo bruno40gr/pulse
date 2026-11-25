@@ -2,7 +2,7 @@
 import { useLeadWorkspaceRequest } from '@/components/leads/LeadWorkspaceContext'
 import ExcludedRecipientsNotice from '@/components/inbox/ExcludedRecipientsNotice'
 
-import { ProfileComposerCancelContext, ProfileComposerToolbar } from '@/components/inbox/ProfileComposerToolbar'
+import { ProfileComposerActiveContext, ProfileComposerCancelContext } from '@/components/inbox/ProfileComposerToolbar'
 import { ComposerFooter } from '@/components/ui/ComposerFooter'
 import { Button } from '@/components/ui/Button'
 import { ControlButton } from '@/components/ui/ControlButton'
@@ -15,8 +15,10 @@ import type { MediaAsset, MediaSuggestionResponse, MessageIntent } from '@/lib/m
 import { useIsMobile } from '@/lib/useMediaQuery'
 import type { RecipientResolution } from '@/lib/communication-recipients'
 import { formatPhoneNumber } from '@/lib/phone'
-import PrototypeSmsPreview from '@/beta-source/components/inbox/PrototypeSmsPreview'
-import smsStyles from '@/beta-source/components/inbox/PrototypeSmsConversation.module.css'
+import PrototypeSmsConversation from '@/beta-source/components/inbox/PrototypeSmsConversation'
+import { personThread } from '@/lib/conversations-live'
+import { useSmsConversationHistory } from '@/lib/useSmsConversationHistory'
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 
 const SACRAMENTO_MARTIAL_ARTS = '00000000-0000-0000-0000-000000000002'
 const KUMON = '00000000-0000-0000-0000-000000000003'
@@ -83,6 +85,8 @@ export default function ComposePanel({
   mode = 'bulk', contactContext, composeSource = 'scratch', composeIntent = 'neutral', internalComms = false, internalCommsLabel = 'Internal comms', internalCommsDescription = 'Use for coordination, coaching, and team follow-up.', recipientPreview = EMPTY_RECIPIENT_PREVIEW, footerLeadingAction, leadId, conversation, draft, resolvedAudience: providedAudience, excludedRecipients = []
 }: ComposePanelProps) {
   const cancelProfileCompose = useContext(ProfileComposerCancelContext)
+  const profileActive = useContext(ProfileComposerActiveContext)
+  const [historyRefresh, setHistoryRefresh] = useState(0)
   const isInsightCompose = composeSource === 'insight'
   const isMobile = useIsMobile()
   const request = useLeadWorkspaceRequest()
@@ -128,6 +132,7 @@ export default function ComposePanel({
   const resolvedAudience = providedAudience || (currentReview?.audience ? { count: currentReview.audience.recipients.length, version: currentReview.audience.version, recipients: currentReview.audience.recipients } : undefined)
   const selectedRecipient = cancelProfileCompose ? selectedDestination ? resolvedAudience?.recipients.find(item => item.destination === selectedDestination) : resolvedAudience?.recipients[0] : undefined
   const messagingName = selectedRecipient?.name || (contactContext ? `${contactContext.first_name} ${contactContext.last_name}`.trim() : 'recipient')
+  const smsHistory = useSmsConversationHistory(tenantId, selectedRecipient?.destination || '', !!cancelProfileCompose && profileActive && !conversation, historyRefresh, request)
   const smsReviewBlocked = needsReview && !currentReview?.audience || !!cancelProfileCompose && !!selectedDestination && !selectedRecipient
 
   useEffect(() => {
@@ -507,7 +512,8 @@ export default function ComposePanel({
       setMediaUrl('')
       setSensitiveCheck(null)
       setRemovedIds(new Set())
-      onSent?.()
+      if (cancelProfileCompose) { setSent(false); setHistoryRefresh(current => current + 1) }
+      else onSent?.()
     } catch (e) {
       console.error(e)
       setSendError('The message could not be sent. Please try again.')
@@ -521,13 +527,28 @@ export default function ComposePanel({
     {isSending ? 'Sending…' : cancelProfileCompose ? 'Send' : sendLabel || 'Send message'}
   </LoadingButton>
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
-      {cancelProfileCompose && <ProfileComposerToolbar channel="sms" recipientName={messagingName} recipientControl={resolvedAudience && resolvedAudience.recipients.length > 1 ? <Select aria-label="SMS account holder" controlSize="compact" fullWidth={false} disabled={isSending} value={selectedRecipient?.destination || ''} onChange={event => {
+  if (cancelProfileCompose && needsReview && !currentReview?.audience) return currentReview?.error ? <Notice variant="error">{currentReview.error}</Notice> : <LoadingSkeleton label="Loading SMS recipient" />
+  if (cancelProfileCompose) return <>
+    {sendError && <Notice variant="error">{sendError}</Notice>}
+    <PrototypeSmsConversation panelLayout live mobile={isMobile}
+      thread={{ ...personThread({ id: selectedRecipient?.destination || 'sms', name: messagingName, phone: selectedRecipient?.destination || '', email: '', student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: smsHistory.messages }}
+      draft={message} onChange={setMessage} onSend={() => void handleSend()} disabled={isSending || conversation?.disabled} sendDisabled={effectiveCount === 0 || smsReviewBlocked}
+      historyPending={smsHistory.loading} historyError={smsHistory.error}
+      onDraft={async () => {
+        const response = await request(`/api/draft-message?tenant=${encodeURIComponent(tenantId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: message || 'Write a warm friendly reply', recipient_context: `Writing to ${messagingName}.`, brand_voice: brandVoice }) })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Could not draft a reply.')
+        return result.text || result.draft || ''
+      }}
+      recipientControl={resolvedAudience && resolvedAudience.recipients.length > 1 ? <Select aria-label="SMS account holder" controlSize="compact" fullWidth={false} disabled={isSending} value={selectedRecipient?.destination || ''} onChange={event => {
         if (!selectedDestination && selectedRecipient) setRecipientDrafts(current => ({ ...current, [selectedRecipient.destination]: message }))
         setSelectedDestination(event.target.value); setSendError(null)
-      }}>{resolvedAudience.recipients.map(item => <option key={item.destination} value={item.destination}>{item.name} — {formatPhoneNumber(item.destination)}</option>)}</Select> : undefined} onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar>}
-      <div className={cancelProfileCompose ? smsStyles.profileLayout : undefined} style={{
+      }}>{resolvedAudience.recipients.map(item => <option key={item.destination} value={item.destination}>{item.name} — {formatPhoneNumber(item.destination)}</option>)}</Select> : undefined} />
+  </>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', background: colors.background, overflow: 'hidden' }}>
+      <div style={{
         display: cancelProfileCompose ? 'grid' : isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
         gridTemplateColumns: isMobile || cancelProfileCompose ? undefined : 'minmax(0, 1fr) minmax(280px, 1fr)',
@@ -825,7 +846,7 @@ export default function ComposePanel({
       </div>
 
       {/* Right column — phone preview (hidden on mobile) */}
-      {cancelProfileCompose && <aside aria-label="SMS preview pane" className={smsStyles.preview} style={{ background: colors.backgroundSecondary, padding: spacing.lg, minWidth: 0, overflowY: 'auto', alignItems: 'center', justifyContent: 'safe center' }}><PrototypeSmsPreview name={messagingName} body={message.replace(/\{first_name\}/gi, messagingName.split(/\s+/)[0])} /></aside>}
+
       {!isMobile && !cancelProfileCompose && (
         <div style={{ background: colors.backgroundSecondary, borderLeft: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${spacing['4xl']} ${spacing['3xl']}` }}>
           {showComposeBootSkeleton ? (
