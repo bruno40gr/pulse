@@ -81,7 +81,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
 
   return <section aria-label="Email composer" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
     {cancelProfileCompose ? <ProfileComposerToolbar channel="email" onCancel={cancelProfileCompose}>{sendAction}</ProfileComposerToolbar> : title ? <PageHeader title={title} onBack={onBack} backLabel="Back to Communications" right={sendAction} singleLine /> : !hideSendAction && <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>{sendAction}</div>}
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${spacing.xl} ${spacing.xl}` }}>
+    <div data-email-composer-body style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `${spacing.lg} ${spacing.xl} ${spacing.xl}` }}>
       <EmailComposerFields from={fromControl || <>{senderName} &lt;{senderEmail}&gt;</>} recipients={recipientSummary ? [{ label: 'To', content: recipientSummary }] : draft.recipients && !draft.contactOnly
         ? (['to', 'cc', 'bcc'] as const).filter(field => field === 'to' || draft.recipients![field].length).map(field => ({
           label: field === 'to' ? 'To' : field === 'cc' ? 'Cc' : 'Bcc',

@@ -1,5 +1,23 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: email envelope spacing and picker visual acceptance
+
+- Added 14px top padding between the aligned email header and From row, retaining
+  full-bleed pane structure and the matching profile/composer header boundaries.
+- Email acceptance passes at 1440/1076/390px with an explicit envelope-gap check.
+  TypeScript, targeted lint and 19 focused email/picker tests pass.
+- Added `scripts/security/people-picker-browser.cjs` for a synthetic fixture at
+  `/private/tmp/pulse-takeover-browser-20261125/app/people-picker-review/page.jsx`.
+  Runs shared picker family/band/event configurations at 1440/390px, checking
+  relationships, two-word statuses, hidden email/phone search, selection, tooltip
+  reasons and no page overflow. No API calls or production writes are allowed.
+- Desktop/mobile picker screenshots and desktop email spacing were visually
+  reviewed. This closes the outstanding shared-picker visual acceptance item,
+  not authenticated production acceptance of each surrounding workflow.
+- Logs: `/tmp/email-spacing-{browser,focused,types}.log`,
+  `/tmp/people-picker-browser.log`; screenshots `/tmp/people-picker-*-*.png`.
+- Next workflow change remains separating account linking from adding people.
+
 ## Update: aligned profile tabs and composer headers
 
 - Profile tabs and the SMS/email toolbar share a 64px desktop baseline while

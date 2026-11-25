@@ -123,6 +123,11 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
       await subject.fill('Lesson question')
       await body.fill('Keep this email draft')
       await focusedComposer('email')
+      const envelopeGap = await panel.locator('[data-email-composer-body]:visible').evaluate(element => {
+        const header = element.previousElementSibling.getBoundingClientRect()
+        return element.firstElementChild.getBoundingClientRect().top - header.bottom
+      })
+      assert.ok(envelopeGap >= 12, 'From row has breathing room below the aligned email header')
       await alignedWrappedToolbar()
       assert.equal(await panel.getByRole('button', { name: 'Close', exact: true }).count(), 1)
       assert.equal(await panel.getByRole('heading', { name: 'Write email', level: 2 }).count(), 1)
