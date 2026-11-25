@@ -11,6 +11,7 @@ import { ConversationComposeContext } from '@/components/inbox/ConversationCompo
 import type { ConversationChannel } from '@/lib/conversation-links'
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { useIsMobile } from '@/lib/useMediaQuery'
+import { ProfileEmailContext } from './ProfileEmailWorkspace'
 
 const Conversations = lazy(() => import('@/components/inbox/Conversations'))
 
@@ -19,12 +20,13 @@ export default function ConversationComposeLink({ recipient, channel, disabled =
 }) {
   const simulated = useContext(ContactPrototypeContext)
   const contextualCompose = useContext(ConversationComposeContext)
+  const profileEmail = useContext(ProfileEmailContext)
   const [open, setOpen] = useState(false)
   const mobile = useIsMobile()
   const label = channel === 'email' ? 'Send email' : 'Send SMS'
   return <>
     <Button variant="secondary" aria-label={destination ? label : undefined} disabled={disabled} title={disabled ? unavailableReason || `No ${channel === 'email' ? 'email address' : 'phone number'} available` : undefined}
-      onClick={() => contextualCompose ? contextualCompose(channel) : setOpen(true)}>
+      onClick={() => contextualCompose ? contextualCompose(channel) : channel === 'email' && profileEmail && !simulated ? profileEmail(recipient) : setOpen(true)}>
       {channel === 'email' ? <Mail size={16} /> : <MessageCircle size={16} />}{label}{destination && <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{destination}</span>}
     </Button>
     {open && <SlidePanel isOpen onClose={() => setOpen(false)} fullScreen={mobile} width={PROFILE_PANEL_WIDTH} ariaLabel={`${label} composer`}>

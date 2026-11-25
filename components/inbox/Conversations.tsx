@@ -101,6 +101,9 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const senderName = authorisedSender?.name || memberName
   const [signature, setSignature] = useState<ConversationSignature | null>(null)
   const [signatureError, setSignatureError] = useState('')
+  const [sendersLoaded, setSendersLoaded] = useState(false)
+  const [signatureLoaded, setSignatureLoaded] = useState(false)
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
   const [emailSummaries, setEmailSummaries] = useState<LiveThread[]>([])
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [emailSyncState, setEmailSyncState] = useState('')
@@ -249,12 +252,12 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   useEffect(() => {
     if (!tenantId) return
     let cancelled = false
-    void requestJson(`/api/communications/senders?tenant=${tenantId}`).then(data => { if (!cancelled) setOrganisationSenders(data.senders || []) }).catch(() => { if (!cancelled) setOrganisationSenders([]) })
+    void requestJson(`/api/communications/senders?tenant=${tenantId}`).then(data => { if (!cancelled) setOrganisationSenders(data.senders || []) }).catch(() => { if (!cancelled) setOrganisationSenders([]) }).finally(() => { if (!cancelled) setSendersLoaded(true) })
     void requestJson(`/api/conversations/email?tenant=${tenantId}`).then(data => {
       if (cancelled) return
       setMailboxes(data.mailboxes); setMailboxId(current => current || data.mailboxes[0]?.id || ''); setMailboxesLoaded(true)
       if (data.emailPreview === true) setEmailPreview(true)
-    }).catch(error => { if (!cancelled) setEmailError(error.message) })
+    }).catch(error => { if (!cancelled) { setEmailError(error.message); setMailboxesLoaded(true) } })
     return () => { cancelled = true }
   }, [tenantId])
   useEffect(() => {
@@ -265,7 +268,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     void requestJson(`/api/conversations/templates?tenant=${encodeURIComponent(tenantId)}`).then(data => {
       if (!Array.isArray(data.templates)) throw new Error('Invalid template response')
       if (!cancelled) setTemplates([...initialMockTemplates().filter(template => template.channel === 'sms'), ...data.templates])
-    }).catch(() => { if (!cancelled) setTemplateError('Shared email templates could not be loaded. Refresh to try again.') })
+    }).catch(() => { if (!cancelled) setTemplateError('Shared email templates could not be loaded. Refresh to try again.') }).finally(() => { if (!cancelled) setTemplatesLoaded(true) })
     return () => { cancelled = true }
   }, [tenantId])
   useEffect(() => {
@@ -273,7 +276,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     let cancelled = false
     void requestJson(`/api/conversations/signature?tenant=${tenantId}`).then(data => {
       if (!cancelled) { setSignature(data); setSignatureError('') }
-    }).catch(() => { if (!cancelled) setSignatureError('Company signature could not be loaded. Check company settings before sending.') })
+    }).catch(() => { if (!cancelled) setSignatureError('Company signature could not be loaded. Check company settings before sending.') }).finally(() => { if (!cancelled) setSignatureLoaded(true) })
     return () => { cancelled = true }
   }, [tenantId])
   useEffect(() => {
@@ -579,7 +582,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   const returnToConversation = () => navigate({ view: standalone ? 'contacts' : 'contact' })
   const draftAction = 'Reply'
 
-  if (loading || (embedded && location.view === 'contacts' && !composeLinkError && !loadError)) return <PageContainer style={{ padding: embedded ? 0 : mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0 }}>{embedded ? <ProfilePanelSkeleton /> : <><PageHeader title="Communications" /><CommunicationsSkeleton /></>}</PageContainer>
+  if (loading || (embedded && location.channel === 'email' && (!mailboxesLoaded || !sendersLoaded || !signatureLoaded || !templatesLoaded)) || (embedded && location.view === 'contacts' && !composeLinkError && !loadError)) return <PageContainer style={{ padding: embedded ? 0 : mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0 }}>{embedded ? <ProfilePanelSkeleton /> : <><PageHeader title="Communications" /><CommunicationsSkeleton /></>}</PageContainer>
   if (loadError) return <PageContainer><Notice variant="error">{loadError}</Notice><Button onClick={() => { setLoadError(''); setLoading(true); refreshSms() }}>Retry</Button></PageContainer>
   if (composeLinkError) return <PageContainer><PageHeader title="Recipient unavailable" /><Notice variant="error">{composeLinkError}</Notice><Button onClick={() => { setComposeLinkError(''); setLocation(initialLocation) }}>Browse Communications</Button></PageContainer>
 

@@ -3,6 +3,7 @@
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
+import { ProfileEmailWorkspace } from '@/components/inbox/ProfileEmailWorkspace'
 import { useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import CardSmsComposer from '@/components/inbox/CardSmsComposer'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
@@ -447,6 +448,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
         background: colors.background,
       }}
     >
+      <ProfileEmailWorkspace key={lead.id} identity={lead.id} backDestination="lead" onClose={onClose} onViewChange={onSmsViewChange}>
       {renderHeader(onClose)}
       {followUpModal}
 
@@ -644,6 +646,7 @@ export function LeadDetailPanel({ renderEditor, lead, saving, onPatch, onCall, o
           </div>
         )}
       </div>
+      </ProfileEmailWorkspace>
     </div>
   )
 }

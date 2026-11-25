@@ -38,12 +38,13 @@ export function StudentCommunication({ account, students, location, channel, dra
 }
 
 export type CommunicationThread = { id: string; subject: string; messages: { id: string; text: string; timestamp: string; direction: 'inbound' | 'outbound'; from?: string; to?: string }[] }
-export function CommunicationCanvas({ person, channel, smsThread, threads, draftPrefix: key, drafts, onDraft, renderEmail, liveSms, notice, emailHistoryPending, renderDraftPanel }: {
+export function CommunicationCanvas({ person, channel, smsThread, threads, draftPrefix: key, drafts, onDraft, renderEmail, liveSms, notice, emailHistoryPending, renderDraftPanel, composeInPlace = false }: {
   person: { name: string; phone: string; email: string }; channel: 'sms' | 'email'; smsThread: PrototypeThread; threads: CommunicationThread[]
   draftPrefix: string; drafts: Record<string, string>; onDraft: (key: string, value: string) => void
   renderEmail: (options: { draft: PrototypeEmailDraft; onChange: (draft: PrototypeEmailDraft) => void; onBack: () => void; replying: boolean; threadId?: string }) => ReactNode
   liveSms?: { onSend: (body: string) => void; disabled: boolean; onDraft?: () => Promise<string> }; notice?: ReactNode; emailHistoryPending?: boolean
   renderDraftPanel?: (options: { name: string; close: () => void; children: ReactNode }) => ReactNode
+  composeInPlace?: boolean
 }) {
   const [composing, setComposing] = useState(false)
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
@@ -67,6 +68,10 @@ export function CommunicationCanvas({ person, channel, smsThread, threads, draft
   function composer(draft: PrototypeEmailDraft, draftKey: string, inline: boolean) {
     return renderEmail({ draft, onChange: value => { onDraft(`${draftKey}:subject`, value.subject); onDraft(`${draftKey}:html`, value.html) }, onBack: () => inline ? setReplyingTo(null) : setComposing(false), replying: inline, threadId: inline ? active?.id : undefined })
   }
+  if (channel === 'email' && composeInPlace) return <section aria-label="Email composer" className={styles.communication}>
+    {notice}
+    {composer(emailDraft, key, false)}
+  </section>
   const conversation = <>
     {channel === 'sms' && <SurfacePanel appearance="flat" padding="0" style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <PrototypeSmsConversation panelLayout thread={smsThread} mobile={mobile} draft={sms} onChange={value => onDraft(`${key}:sms`, value)} onSend={() => liveSms?.onSend(sms)} live={!!liveSms} onDraft={liveSms?.onDraft} sendDisabled={!liveSms || liveSms.disabled} />

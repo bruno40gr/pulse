@@ -94,3 +94,33 @@ test('contact, staff and inbox compose drawers use the same width contract', () 
   assert.ok(workspace.includes("flex: 1, border: 0, borderRadius: 0, boxShadow: 'none'"))
   assert.ok(workspace.includes('padding: embedded ? 0 :'))
 })
+
+test('profile email switches preserve mounted profile/draft and delegate recipient context', () => {
+  const workspace = read('components/inbox/ProfileEmailWorkspace.tsx')
+  assert.match(workspace, /hidden=\{open\}/)
+  assert.match(workspace, /hidden=\{!open\}/)
+  assert.match(workspace, /key=\{`\$\{identity\}:\$\{recipient\}`\}/)
+  assert.match(workspace, /onBack=\{back\}/)
+  assert.doesNotMatch(workspace, /<SlidePanel\s/)
+  for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
+    assert.match(read(file), /<ProfileEmailWorkspace/)
+  }
+  const link = read('components/inbox/ConversationComposeLink.tsx')
+  assert.match(link, /contextualCompose \? contextualCompose\(channel\)/)
+  assert.match(link, /profileEmail\(recipient\)/)
+})
+
+test('live email composes in place after required requests settle, preserving verification and send contract', () => {
+  const live = read('components/contacts/LiveContactCommunication.tsx')
+  assert.match(live, /Promise.allSettled/)
+  assert.match(live, /if \(loading \|\| setupLoading\) return <LoadingSkeleton/)
+  assert.match(live, /if \(error \|\| setupError\) return <Notice/)
+  assert.match(live, /<CommunicationCanvas composeInPlace/)
+  assert.doesNotMatch(live, /<SlidePanel/)
+  assert.match(live, /expectedContactEmail: target.address/)
+  assert.match(live, /if \(locked.current\) return/)
+  assert.match(live, /if \(!target\?\.canSend \|\| !mailbox \|\| !sender/)
+  assert.match(live, /catch \(error\) \{ setSendError/)
+  const workspace = read('components/inbox/Conversations.tsx')
+  assert.match(workspace, /embedded && location.channel === 'email' && \(!mailboxesLoaded \|\| !sendersLoaded \|\| !signatureLoaded \|\| !templatesLoaded\)/)
+})

@@ -4,7 +4,7 @@ import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { useEffect, useRef, useState } from 'react'
 import { CommunicationCanvas, type CommunicationThread } from '@/beta-source/app/content-studio-prototype/students/StudentCommunication'
 import PrototypeEmailComposer from '@/components/inbox/PrototypeEmailComposer'
-import { Notice, Select, SlidePanel, SlidePanelHeader } from '@/components/ui'
+import { Notice, Select } from '@/components/ui'
 import { personThread, type ConversationPerson, type LiveThread } from '@/lib/conversations-live'
 import { smsDestination, type RecipientResolution } from '@/lib/communication-recipients'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -37,6 +37,8 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const [senderId, setSenderId] = useState('')
   const [templates, setTemplates] = useState<MockTemplate[]>([])
   const [signature, setSignature] = useState<ConversationSignature | null>(null)
+  const [setupLoading, setSetupLoading] = useState(channel === 'email')
+  const [setupError, setSetupError] = useState('')
   const [threads, setThreads] = useState<LiveThread[]>([])
   const [sms, setSms] = useState<LiveThread['messages']>([])
   const [loading, setLoading] = useState(true)
@@ -54,10 +56,18 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
     if (channel !== 'email') return
     const controller = new AbortController()
     const { signal } = controller
-    void json<{ mailboxes: Mailbox[] }>(`/api/conversations/email?${tenant}`, { signal }).then(data => setMailboxes(data.mailboxes)).catch(error => { if (!signal.aborted) setError(error.message) })
-    void json<{ senders: OrganisationSender[] }>(`/api/communications/senders?${tenant}`, { signal }).then(data => setSenders(data.senders)).catch(() => {})
-    void json<{ templates: MockTemplate[] }>(`/api/conversations/templates?${tenant}`, { signal }).then(data => setTemplates(data.templates)).catch(() => {})
-    void json<ConversationSignature>(`/api/conversations/signature?${tenant}`, { signal }).then(setSignature).catch(() => {})
+    setSetupLoading(true); setSetupError('')
+    void Promise.allSettled([
+      json<{ mailboxes: Mailbox[] }>(`/api/conversations/email?${tenant}`, { signal }).then(data => { if (!signal.aborted) setMailboxes(data.mailboxes) }),
+      json<{ senders: OrganisationSender[] }>(`/api/communications/senders?${tenant}`, { signal }).then(data => { if (!signal.aborted) setSenders(data.senders) }),
+      json<{ templates: MockTemplate[] }>(`/api/conversations/templates?${tenant}`, { signal }).then(data => { if (!signal.aborted) setTemplates(data.templates) }),
+      json<ConversationSignature>(`/api/conversations/signature?${tenant}`, { signal }).then(data => { if (!signal.aborted) setSignature(data) }),
+    ]).then(results => {
+      if (signal.aborted) return
+      const failure = results.find(result => result.status === 'rejected')
+      if (failure?.status === 'rejected') setSetupError(failure.reason instanceof Error ? failure.reason.message : 'Could not load email settings.')
+      setSetupLoading(false)
+    })
     return () => controller.abort()
   }, [channel, tenant])
 
@@ -132,11 +142,9 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
   const contact = { name: target?.name || name, phone: channel === 'sms' ? formatPhoneNumber(destination) : '', email: channel === 'email' ? destination : '' }
   const smsThread = { ...personThread({ ...contact, id: prefix, student: '', stage: '', profileType: null, profileId: null, smsContactId: null }), messages: sms }
   const emailThreads: CommunicationThread[] = threads.filter(thread => thread.messages.length).map(thread => ({ id: thread.id, subject: thread.subject || 'No subject', messages: thread.messages.map(item => ({ id: item.id, direction: item.direction, text: item.body, timestamp: item.timestamp || '', from: item.emailFrom, to: item.emailTo?.join(', ') })) }))
-  return <CommunicationCanvas person={contact} channel={channel} smsThread={smsThread} threads={emailThreads} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
-    renderDraftPanel={({ name, close, children }) => <SlidePanel isOpen fullScreen ariaLabel="Email drafting workspace" onClose={close}>
-      <SlidePanelHeader title="Draft email" subtitle={name} onBack={close} backLabel="Back to email conversation" onClose={close} />
-      {children}
-    </SlidePanel>}
+  if (loading || setupLoading) return <LoadingSkeleton label="Loading composer" />
+  if (error || setupError) return <Notice variant="error">{error || setupError}</Notice>
+  return <CommunicationCanvas composeInPlace person={contact} channel={channel} smsThread={smsThread} threads={emailThreads} draftPrefix={prefix} drafts={drafts} onDraft={onDraft}
     emailHistoryPending={loading || historyLoading || syncPending || !!historyError || !!error}
     notice={(error || historyError || sendError) ? <Notice variant="error">{sendError || error || historyError}</Notice> : (loading || historyLoading || syncPending) ? <LoadingSkeleton label="Loading conversation" /> : undefined}
     liveSms={{ disabled: !target || loading || sending || !!error, onSend: body => {

@@ -8,6 +8,7 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 
 import { ControlButton } from '@/components/ui/ControlButton'
 import ConversationComposeLink from '@/components/inbox/ConversationComposeLink'
+import { ProfileEmailWorkspace } from '@/components/inbox/ProfileEmailWorkspace'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
 import { ContactRelationshipBadges } from './ContactRelationshipBadges'
 import PrototypeContactSms from './PrototypeContactSms'
@@ -602,6 +603,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
 
   return (
     <SlidePanel isOpen={true} onClose={onClose} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>
+      <ProfileEmailWorkspace key={contact.id} identity={contact.id} backDestination="contact" onClose={onClose}>
       <SlidePanelHeader
         title={`${contact.first_name} ${contact.last_name}`}
         avatar={{
@@ -1179,6 +1181,7 @@ export default function ContactSlidePanel({ canEditFollowUps = false, prototype 
       )}
 
       <InvoiceStatusModal invoice={invoiceEdit} onClose={() => setInvoiceEdit(null)} onSave={saveInvoiceStatus} />
+      </ProfileEmailWorkspace>
     </SlidePanel>
   )
 }
