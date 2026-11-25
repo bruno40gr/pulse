@@ -3,6 +3,7 @@ import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { crmSupabaseAdmin } from '@/lib/supabase/crm-admin'
+import { currentBandEnrollments } from '@/lib/band-enrollments'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -85,7 +86,7 @@ export async function PATCH(request: Request) {
   const membershipValue = requestedMembership
   try {
     const instruments = cleanInstruments(body?.instruments)
-    const patch: Record<string, unknown> = { instrument: instruments ? (instruments[0] ?? null) : instrument }
+    const patch: Record<string, unknown> = instruments || Object.hasOwn(body!, 'instrument') ? { instrument: instruments ? (instruments[0] ?? null) : instrument } : {}
     if (instruments) patch.instruments = instruments
     if (membershipValue) patch.membership = membershipValue
     const membership = await supabaseAdmin.from('band_memberships')
@@ -95,11 +96,12 @@ export async function PATCH(request: Request) {
       // An enrolled member has no explicit row: store the band instrument on the enrollment.
       const student = await supabaseAdmin.from('students').select('id').eq('tenant_id', auth.tenantId).eq('person_id', auth.personId).maybeSingle()
       if (student.error || !student.data) return Response.json({ error: 'Member not found in this band.' }, { status: 404, headers })
-      const enrollment = await supabaseAdmin.from('enrollments').select('id,custom_fields').eq('tenant_id', auth.tenantId).eq('student_id', student.data.id).eq('service_type', 'band')
+      const enrollment = await supabaseAdmin.from('enrollments').select('id,student_id,service_type,session_name,custom_fields,instructor_person_id,instrument,status').eq('tenant_id', auth.tenantId).eq('student_id', student.data.id)
       if (enrollment.error || !enrollment.data?.length) return Response.json({ error: 'Member not found in this band.' }, { status: 404, headers })
-      const row = enrollment.data.find(entry => (entry.custom_fields?.band_name || '') === auth.band) || enrollment.data[0]
+      const row = currentBandEnrollments(enrollment.data).find(entry => (entry.custom_fields?.band_name || entry.session_name || '') === auth.band)
+      if (!row) return Response.json({ error: 'Member not found in this band.' }, { status: 404, headers })
       const updated = await supabaseAdmin.from('enrollments')
-        .update({ custom_fields: { ...(row.custom_fields || {}), band_instrument: instrument } }).eq('id', row.id)
+        .update({ custom_fields: { ...(row.custom_fields || {}), band_instrument: instruments ? instruments[0] ?? null : instrument, ...(instruments ? { band_instruments: instruments } : {}) } }).eq('tenant_id', auth.tenantId).eq('id', row.id)
       if (updated.error) throw updated.error
     }
     return Response.json({ saved: true }, { headers })
@@ -126,16 +128,16 @@ export async function DELETE(request: Request) {
     if (student.error) throw student.error
     if (student.data) {
       const enrollments = await supabaseAdmin.from('enrollments')
-        .select('id,custom_fields,instructor_person_id')
-        .eq('tenant_id', auth.tenantId).eq('student_id', student.data.id).eq('service_type', 'band')
+        .select('id,student_id,service_type,session_name,custom_fields,instructor_person_id,instrument,status')
+        .eq('tenant_id', auth.tenantId).eq('student_id', student.data.id)
       if (enrollments.error) throw enrollments.error
-      for (const row of enrollments.data || []) {
+      for (const row of currentBandEnrollments(enrollments.data || [])) {
         const fields = row.custom_fields || {}
-        if ((fields.band_name || '') !== auth.band) continue
+        if ((fields.band_name || row.session_name || '') !== auth.band) continue
         if (String(fields.status || '').toLowerCase() === 'ended') continue
         const result = await supabaseAdmin.from('enrollments')
-          .update({ custom_fields: { ...fields, status: 'ended', ended_source: 'removed from band', ended_at: new Date().toISOString() } })
-          .eq('id', row.id)
+          .update({ status: 'ended', custom_fields: { ...fields, status: 'ended', ended_source: 'removed from band', ended_at: new Date().toISOString() } })
+          .eq('tenant_id', auth.tenantId).eq('id', row.id)
         if (result.error) throw result.error
         ended += 1
       }

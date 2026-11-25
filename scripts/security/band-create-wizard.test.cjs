@@ -40,3 +40,12 @@ test('the wizard uses shared layout and spacing tokens', () => {
   assert.doesNotMatch(wizard, /padding:\s*\d+px|marginBottom:\s*\d+px/)
   assert.match(source('app/api/bands/route.ts'), /Drafts and newly created bands both stay visible/)
 })
+
+test('draft profiles remain Draft and discoverable alongside resumable wizard drafts', () => {
+  const workspace = source('components/bands/ProductionBandsWorkspace.tsx')
+  assert.match(workspace, /row.status === 'draft' \? 'Draft'/)
+  assert.match(workspace, /ariaLabel="Saved band drafts"/)
+  assert.match(workspace, /title="Band drafts"/)
+  assert.match(workspace, /setResumeDraft\(row\); setCreating\(true\)/)
+  assert.match(workspace, /profileDrafts = bands.filter\(row => row.status === 'draft'\)/)
+})

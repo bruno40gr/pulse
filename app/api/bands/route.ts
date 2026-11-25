@@ -1,6 +1,6 @@
 import { bandWorkspaceEnabled } from '@/lib/band-feature'
 import { assembleBandRoster, type RosterRow } from '@/lib/band-roster'
-import { isCurrentEnrollment } from '@/lib/current-enrollment'
+import { currentBandEnrollments, type BandEnrollment } from '@/lib/band-enrollments'
 import { authorizeTenantRequest } from '@/lib/tenant-request'
 import { PERMISSIONS } from '@/lib/permissions'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -8,15 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 const headers = { 'Cache-Control': 'private, no-store' }
 const pageSize = 500
 
-type EnrollmentRow = {
-  id: string
-  student_id: string
-  service_type: string | null
-  session_name: string | null
-  custom_fields: Record<string, unknown> | null
-  instructor_person_id: string | null
-  instrument: string | null
-}
+type EnrollmentRow = BandEnrollment
 
 /** Read-only roster: enrolled band members (including instructors who play), separate from tentative candidacies. */
 export async function GET(request: Request) {
@@ -27,15 +19,15 @@ export async function GET(request: Request) {
     const enrollments: EnrollmentRow[] = []
     for (let offset = 0; ; offset += pageSize) {
       const result = await supabaseAdmin.from('enrollments')
-        .select('id,student_id,service_type,session_name,custom_fields,instructor_person_id,instrument')
-        .eq('tenant_id', access.tenantId).eq('service_type', 'band')
+        .select('id,student_id,service_type,session_name,custom_fields,instructor_person_id,instrument,status')
+        .eq('tenant_id', access.tenantId)
         .order('id').range(offset, offset + pageSize - 1)
       if (result.error || !Array.isArray(result.data)) throw new Error('Enrollments unavailable')
       enrollments.push(...result.data)
       if (result.data.length < pageSize) break
     }
 
-    const activeEnrollments = enrollments.filter(row => isCurrentEnrollment(row))
+    const activeEnrollments = currentBandEnrollments(enrollments)
     const studentIds = [...new Set(activeEnrollments.map(row => row.student_id).filter(Boolean))]
     const students: { id: string; person_id: string; client_status: string | null }[] = []
     for (let offset = 0; offset < studentIds.length; offset += 100) {
@@ -138,22 +130,31 @@ export async function GET(request: Request) {
 
     const bands = assembleBandRoster([...rows, ...explicit])
       .filter(band => !['external', 'archived'].includes(profiles.get(band.name)?.status || 'active'))
-      .map(band => ({
-        ...band,
-        // An enrolment instructor is the teacher; the band assignment covers a band without lessons.
-        coach: band.coach || coachNames.get(profiles.get(band.name)?.coachPersonId || '') || null,
-        status: profiles.get(band.name)?.status || 'active',
-        description: profiles.get(band.name)?.description ?? null,
-        schedule: profiles.get(band.name)?.schedule ?? null,
-        image_url: profiles.get(band.name)?.image_url ?? null,
-      }))
+      .map(band => {
+        const coaches = new Map<string, { person_id: string; name: string }>()
+        for (const row of rows) if (row.coach_id && row.coach_name && (row.band_name === band.name || row.session_name === band.name)) {
+          coaches.set(row.coach_id, { person_id: row.coach_id, name: row.coach_name })
+        }
+        const profileCoach = profiles.get(band.name)?.coachPersonId
+        if (profileCoach && coachNames.has(profileCoach)) coaches.set(profileCoach, { person_id: profileCoach, name: coachNames.get(profileCoach)! })
+        return {
+          ...band,
+          // An enrolment instructor is the teacher; the band assignment covers a band without lessons.
+          coach: band.coach || coachNames.get(profiles.get(band.name)?.coachPersonId || '') || null,
+          coaches: [...coaches.values()],
+          status: profiles.get(band.name)?.status || 'active',
+          description: profiles.get(band.name)?.description ?? null,
+          schedule: profiles.get(band.name)?.schedule ?? null,
+          image_url: profiles.get(band.name)?.image_url ?? null,
+        }
+      })
 
     // A band with no members yet is not in the assembled roster, so its profile is
     // the only record of it. Drafts and newly created bands both stay visible.
     const known = new Set(bands.map(band => band.name))
     for (const [name, profile] of profiles) {
       if (known.has(name) || ['external', 'archived'].includes(profile.status)) continue
-      bands.push({ name, coach: coachNames.get(profile.coachPersonId || '') || null, members: [], status: profile.status, description: profile.description, schedule: profile.schedule, image_url: profile.image_url })
+      bands.push({ name, coach: coachNames.get(profile.coachPersonId || '') || null, coaches: profile.coachPersonId && coachNames.has(profile.coachPersonId) ? [{ person_id: profile.coachPersonId, name: coachNames.get(profile.coachPersonId)! }] : [], members: [], status: profile.status, description: profile.description, schedule: profile.schedule, image_url: profile.image_url })
     }
     bands.sort((left, right) => left.name.localeCompare(right.name))
     return Response.json({ bands }, { headers })

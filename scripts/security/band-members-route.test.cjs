@@ -119,3 +119,19 @@ test('a failed opportunity write stops the member being added', async () => {
   assert.equal(response.status, 503)
   assert.equal(h.getWrites().some(query => query.table === 'band_memberships'), false)
 })
+
+test('multi-select saves every instrument on the active reconciled enrollment', async () => {
+  const h = setup({ queryResult: ({ table, operation }) => {
+    if (table === 'band_memberships' && operation === 'update') return { data: [], error: null }
+    if (table === 'enrollments' && operation === 'select') return { data: [
+      { id: 'old', student_id: 's1', service_type: 'band', session_name: 'La Paz', status: 'ended', instrument: 'Drums', custom_fields: { band_name: 'La Paz', superseded_by_subscription_snapshot: 'review-v1' } },
+      { id: 'new', student_id: 's1', service_type: 'group', instrument: 'Band', status: 'active', custom_fields: { reconciliation_run: 'review-v1' } },
+    ], error: null }
+  } })
+  const response = await h.load(route).PATCH(request('PATCH', { tenant_id: HEAD, band: 'La Paz', person_id: person, instruments: ['Drums', 'Voice'] }))
+  assert.equal(response.status, 200)
+  const write = h.getWrites().find(query => query.table === 'enrollments')
+  assert.deepEqual(Array.from(write.payload.custom_fields.band_instruments), ['Drums', 'Voice'])
+  assert.equal(write.payload.custom_fields.band_name, 'La Paz')
+  assert.ok(write.filters.some(filter => filter[1] === 'id' && filter[2] === 'new'))
+})

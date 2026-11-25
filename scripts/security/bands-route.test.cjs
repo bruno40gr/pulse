@@ -9,7 +9,7 @@ function setup(options = {}) {
   h.setScenario({ env: options.env || { ENABLE_CONTACT_BAND_OPPORTUNITIES: options.disabled ? 'false' : 'true' },
     actor: options.anonymous ? null : { personId: 'viewer', displayName: 'Viewer' },
     fixtures: { tenant_memberships: [{ id: 'm', tenant_id: HEAD, person_id: 'viewer', role_id: 'r', legacy_access_enabled: true, status: 'unclaimed' }], roles: [{ id: 'r', tenant_id: HEAD, key: options.noPermission ? 'staff' : 'owner' }], role_permissions: [],
-      enrollments: [enrollment('e1', 's1', 'Band A'), enrollment('e2', 's2', 'Band A'), enrollment('e3', 's1', 'Band B'), { ...enrollment('e4', 's3', ''), custom_fields: { band_name: 'Band C' } }, { ...enrollment('e5', 's1', ''), session_name: null, custom_fields: {} }],
+      enrollments: options.enrollments || [enrollment('e1', 's1', 'Band A'), enrollment('e2', 's2', 'Band A'), enrollment('e3', 's1', 'Band B'), { ...enrollment('e4', 's3', ''), custom_fields: { band_name: 'Band C' } }, { ...enrollment('e5', 's1', ''), session_name: null, custom_fields: {} }],
       students: [{ id: 's1', tenant_id: HEAD, person_id: 'p1', client_status: 'member' }, { id: 's2', tenant_id: HEAD, person_id: 'p2', client_status: 'active' }, { id: 's3', tenant_id: HEAD, person_id: 'p3', client_status: 'member' }],
       instructors: options.instructors || [],
       band_memberships: options.memberships || [],
@@ -125,4 +125,23 @@ test('a band with no enrolments takes its teacher from the band profile', async 
   const band = bands.find(row => row.name === 'New Band')
   assert.equal(band.coach, 'Ada Lovelace')
   assert.equal(band.members.length, 0)
+})
+
+test('subscription reconciliation retains the full four-person roster and coach', async () => {
+  const enrollments = ['s1', 's2', 's3'].flatMap((student, index) => [
+    { ...enrollment(`old-${index}`, student, 'SunKast'), status: 'ended', instructor_person_id: 'p3', instrument: 'Drums', custom_fields: { band_name: 'SunKast', status: 'ended', superseded_by_subscription_snapshot: 'review-v1' } },
+    { ...enrollment(`new-${index}`, student, null), service_type: 'group', status: 'active', instrument: 'Band', custom_fields: { reconciliation_run: 'review-v1', status: 'active' } },
+  ])
+  const h = setup({ enrollments, memberships: [{ tenant_id: HEAD, band_name: 'SunKast', person_id: 'p4', membership: 'confirmed' }], queryResult: ({ table }) => table === 'people' ? { data: [
+    { id: 'p1', first_name: 'Ada', last_name: 'Lovelace' }, { id: 'p2', first_name: 'Bo', last_name: 'Chen' },
+    { id: 'p3', first_name: 'Cy', last_name: 'Diaz' }, { id: 'p4', first_name: 'Dee', last_name: 'Example' },
+  ], error: null } : undefined })
+  const response = await h.load(route).GET(request())
+  assert.equal(response.status, 200)
+  const band = (await response.json()).bands.find(row => row.name === 'SunKast')
+  assert.equal(band.members.length, 4)
+  assert.equal(band.coach, 'Cy Diaz')
+  assert.equal(band.coaches[0].person_id, 'p3')
+  assert.deepEqual(Array.from(band.members.find(row => row.person_id === 'p1').instruments), ['Drums'])
+  assert.equal(h.getWrites().length, 0)
 })
