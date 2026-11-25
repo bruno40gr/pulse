@@ -289,8 +289,8 @@ export default function ProductionBandsWorkspace() {
       <ModalHeader title={`Add students to ${band.name}`} onClose={() => { if (!saving && !creatingStudent) setAdding(false) }} />
       <ModalBody>
         <BandStudentPicker options={[
-          ...prospects.map(person => ({ ...person, detail: candidates.find(candidate => candidate.id === person.id)?.detail, group: 'Seeking a band' })),
-          ...candidates.filter(person => !prospects.some(prospect => prospect.id === person.id)),
+          ...prospects.map(person => ({ ...person, relationship: 'Student', searchText: candidates.find(candidate => candidate.id === person.id)?.detail, status: 'Seeking band' })),
+          ...candidates.filter(person => !prospects.some(prospect => prospect.id === person.id)).map(person => ({ ...person, relationship: 'Student' })),
         ]} selectedIds={picked} onSelectionChange={setPicked} state={candidateState} error={candidateError}
           disabled={saving} onBusyChange={setCreatingStudent}
           onCreated={person => { setCandidates(current => [...current, person]); setPicked(current => [...current, person.id]) }} />

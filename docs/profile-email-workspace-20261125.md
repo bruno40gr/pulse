@@ -1,5 +1,20 @@
 # Profile/email workspace — November 25, 2026
 
+## Update: shared participant picker content
+
+- Shared family/student/band/event picker retains two content columns: Contact
+  (name with a known relationship/role below) and Details (two-word status max).
+- Email, phone and account/family metadata remain searchable instead of being
+  concatenated into Details. Longer status reasons are available via title text.
+- Callers supply contextual statuses such as Already added, Already registered,
+  Seeking band, Already linked and Another family. Selection, eligibility and
+  save transports are unchanged. Account rows are explicitly labeled Account;
+  separating account linking from person selection remains a follow-up.
+- Validation: TypeScript and targeted lint pass; focused tests 40/40. Full suite
+  1144/1161 with the same 17 baseline failure names and no new failures.
+  Logs: `/tmp/people-picker-{tests,types,lint,full}.log`.
+- This content pass has not received a fresh browser visual acceptance run.
+
 ## Update: focused, full-bleed composition
 
 - Profile entry labels are now SMS / Email; the actual composer Send action stays

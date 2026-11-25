@@ -143,7 +143,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
       </div></DenseSectionPanel>}
       {record.kind === 'registration' && <DenseSectionPanel title={steps[record.step]} style={{ border: 0, padding: 0 }}><div className={styles.stack}>
         {record.step === 1 && <ParticipantPicker
-          options={context.people.map(person => ({ id: person.id, name: person.name, detail: `${person.email} ${person.family}`, disabled: !!event && eventAlreadyRegistered(event, context.registrations || [], person.id, record.data.activityId) }))}
+          options={context.people.map(person => ({ id: person.id, name: person.name, searchText: `${person.email} ${person.family}`, status: event && eventAlreadyRegistered(event, context.registrations || [], person.id, record.data.activityId) ? 'Already registered' : 'Available', disabled: !!event && eventAlreadyRegistered(event, context.registrations || [], person.id, record.data.activityId) }))}
           selectedIds={record.data.personId && record.data.personId !== 'new' ? [record.data.personId] : []}
           onSelectionChange={ids => patch({ ...record, data: { ...record.data, personId: ids[0] || '', agreed: false, responses: {}, policyOverrides: [] } })}
           mode={record.data.personId === 'new' ? 'new' : 'existing'}

@@ -12,7 +12,7 @@ import { Notice } from '@/components/ui/Notice'
 import { Button } from '@/components/ui/Button'
 import { spacing, colors, interaction } from '@/lib/tokens'
 
-export type ParticipantOption = { id: string; name: string; detail?: string; group?: string; disabled?: boolean }
+export type ParticipantOption = { id: string; name: string; relationship?: string; status?: string; statusReason?: string; searchText?: string; detail?: string; group?: string; disabled?: boolean }
 export type NewParticipant = ContactDetails
 
 /** Shared event/band contact selection. Persistence belongs to the caller. */
@@ -36,7 +36,7 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
 }) {
   const [query, setQuery] = useState('')
   const name = useId()
-  const matches = options.filter(person => `${person.name} ${person.detail || ''} ${person.group || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const matches = options.filter(person => `${person.name} ${person.relationship || ''} ${person.searchText || ''} ${person.detail || ''} ${person.group || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
   const toggle = (person: ParticipantOption) => {
     if (disabled || person.disabled) return
     onSelectionChange(multiple
@@ -52,7 +52,7 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
       <ContactDetailsFields value={draft} disabled={creating || disabled} onChange={(field, value) => onDraftChange({ ...draft, [field]: value })} />
       {onCreate && <div><Button variant="secondary" disabled={creating || disabled || !`${draft.firstName} ${draft.lastName}`.trim()} onClick={onCreate}>{creating ? 'Adding…' : 'Add and select'}</Button></div>}
     </div> : <>
-      <Input label="Search contacts" type="search" placeholder="Name or email" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
+      <Input label="Search contacts" type="search" placeholder="Name, email or phone" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
       <div role="region" aria-label={label} aria-busy={state === 'loading'} tabIndex={0}
         style={{ maxHeight: 'clamp(160px, 28dvh, 280px)', overflow: 'auto', overscrollBehavior: 'contain', minWidth: 0 }}>
         {state === 'loading' ? <LoadingSkeleton label="Loading contacts" />
@@ -70,8 +70,8 @@ export function ParticipantPicker({ options, selectedIds, onSelectionChange, mul
               isSelectable: person => !disabled && !person.disabled } : undefined}
             columns={[
               ...(!multiple ? [{ id: 'select', header: 'Select', width: '60px', render: (person: ParticipantOption) => <input type="radio" name={name} aria-label={person.name} checked={selectedIds.includes(person.id)} disabled={disabled || person.disabled} style={{ accentColor: interaction.selected }} onChange={() => toggle(person)} /> }] : []),
-              { id: 'name', header: 'Contact', width: '1.4fr', render: person => <PersonName>{person.name}</PersonName> },
-              { id: 'detail', header: 'Details', width: '1fr', render: person => <span style={{ color: colors.textSecondary }}>{person.group || person.detail || (person.disabled ? 'Already registered' : '—')}</span> },
+              { id: 'name', header: 'Contact', width: '1.4fr', render: person => <div><PersonName>{person.name}</PersonName>{person.relationship && <div style={{ color: colors.textSecondary }}>{person.relationship}</div>}</div> },
+              { id: 'detail', header: 'Details', width: '1fr', render: person => <span title={person.statusReason || person.status} style={{ color: colors.textSecondary }}>{person.status?.trim().split(/\s+/).slice(0, 2).join(' ') || (person.disabled ? 'Unavailable' : 'Available')}</span> },
             ]} />}
       </div>
       <p role="status" style={{ margin: 0 }}>{selectedIds.length} selected</p>

@@ -36,6 +36,26 @@ const find = (tree, type) => nodes(tree).find(node => node.type === type)
 const people = [{ id: 'a', name: 'Ada', detail: 'ada@example.test' }, { id: 'b', name: 'Bo', disabled: true }, { id: 'c', name: 'Cy', group: 'Seeking a band' }]
 const base = { options: people, selectedIds: [], mode: 'existing', draft: { firstName: '', lastName: '', email: '', phone: '', birthday: '' }, onSelectionChange() {}, onModeChange() {}, onDraftChange() {} }
 
+test('contact shows relationship underneath; Details stays at two words without exposing search metadata', () => {
+  const render = component('components/contacts/ParticipantPicker.tsx')
+  const person = { id: 'parent', name: 'Sam Kim', relationship: 'Parent', status: 'Already added to family', statusReason: 'Already linked to this family', searchText: 'sam@example.invalid 5551234567' }
+  let tree = render({ ...base, options: [person] })
+  const table = find(tree, 'ResponsiveDataTable')
+  assert.deepEqual(Array.from(table.props.columns, column => column.header), ['Select', 'Contact', 'Details'])
+  const contact = table.props.columns[1].render(person)
+  assert.equal(find(contact, 'PersonName').props.children, 'Sam Kim')
+  assert.ok(nodes(contact).some(node => node.props?.children === 'Parent'))
+  const details = table.props.columns[2].render(person)
+  assert.equal(details.props.children, 'Already added')
+  assert.equal(details.props.title, person.statusReason)
+  assert.equal(table.props.columns[2].render({ ...person, status: undefined, disabled: true }).props.children, 'Unavailable')
+  find(tree, 'Input').props.onChange({ target: { value: '5551234567' } })
+  tree = render({ ...base, options: [person] })
+  assert.equal(find(tree, 'ResponsiveDataTable').props.rows.length, 1)
+  find(tree, 'Input').props.onChange({ target: { value: 'sam@' } })
+  assert.equal(find(render({ ...base, options: [person] }), 'ResponsiveDataTable').props.rows.length, 1)
+})
+
 test('loading and failure never masquerade as an empty contact list; region remains bounded', () => {
   const render = component('components/contacts/ParticipantPicker.tsx')
   const loading = render({ ...base, state: 'loading' })

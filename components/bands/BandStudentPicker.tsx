@@ -28,7 +28,7 @@ export function BandStudentPicker({ options, selectedIds, onSelectionChange, onC
       })
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.person?.id) throw new Error(data?.error || 'Could not add that student.')
-      onCreated({ id: data.person.id, name: data.person.name, detail: draft.email })
+      onCreated({ id: data.person.id, name: data.person.name, relationship: 'Student', searchText: `${draft.email} ${draft.phone}` })
       setDraft({ firstName: '', lastName: '', email: '', phone: '', birthday: '' }); setMode('existing')
     } catch (cause) { setCreateError(cause instanceof Error ? cause.message : 'Could not add that student.') }
     finally { setCreating(false); onBusyChange?.(false) }

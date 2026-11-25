@@ -99,7 +99,8 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
   const personOption = (person: Person): ParticipantOption => {
     const linkedIds = [...new Set([person.account_id, ...(person.family_links || []).map(link => link.account_id)].filter((id): id is string => !!id))]
     return { id: person.id, name: `${person.first_name} ${person.last_name}`.trim(),
-      detail: [person.email, person.phone, ...linkedIds.map(id => accounts.find(account => account.id === id)?.name || 'Linked account')].filter(Boolean).join(' · ') }
+      relationship: accountManagers.find(link => link.person_id === person.id)?.relationship || (accountManagers.some(link => link.person_id === person.id) ? 'Account holder' : person.is_student ? 'Student' : undefined),
+      searchText: [person.email, person.phone, ...linkedIds.map(id => accounts.find(account => account.id === id)?.name || 'Linked account')].filter(Boolean).join(' ') }
   }
   const closeTask = () => { if (!busy) { setActiveTask(null); setError(''); onCancel?.() } }
   const studentAction = <Button disabled={busy || (studentMode === 'existing' ? !existingStudent : !studentDraft.firstName.trim() || !studentDraft.lastName.trim())} onClick={async () => {
@@ -116,7 +117,7 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
         personId: selectedAccount, ...manager })
     if (!message) { setSelectedAccount(''); setManager(emptyContact) }
   }}>{busy ? 'Saving…' : managerMode === 'new' ? 'Add account holder' : 'Link account holder'}</Button>
-  const studentPicker = <ParticipantPicker label="Students to add" options={people.filter(person => person.is_student === true).map(person => ({ ...personOption(person), disabled: members.some(member => member.id === person.id) }))}
+  const studentPicker = <ParticipantPicker label="Students to add" options={people.filter(person => person.is_student === true).map(person => ({ ...personOption(person), status: members.some(member => member.id === person.id) ? 'Already added' : 'Available', disabled: members.some(member => member.id === person.id) }))}
     selectedIds={existingStudent ? [existingStudent] : []} onSelectionChange={ids => setExistingStudent(ids[0] || '')}
     mode={studentMode} onModeChange={setStudentMode} draft={studentDraft} onDraftChange={setStudentDraft} disabled={busy} />
   const task = addStudentOnly ? 'student' : activeTask
@@ -136,13 +137,15 @@ export function LiveFamilyManagement({ tenantId, accountId, personId, onChanged,
           </div>)}
         </div>
         <ParticipantPicker label="Account holders" options={[
-          ...people.map(person => ({ ...personOption(person), disabled: accountManagers.some(link => link.person_id === person.id) })),
+          ...people.map(person => ({ ...personOption(person), status: accountManagers.some(link => link.person_id === person.id) ? 'Already added' : 'Available', disabled: accountManagers.some(link => link.person_id === person.id) })),
           ...accounts.filter(row => row.id !== currentAccountId && !people.some(person => person.account_id === row.id
             && isLegacyStudentBillingAccount(tenantId, row.id, person.custom_fields?.external_id))).map(row => ({ id: `account:${row.id}`, name: row.name,
-            detail: [row.email, row.phone, familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)
+            relationship: 'Account', searchText: [row.email, row.phone].filter(Boolean).join(' '),
+            status: familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks) ? 'Already linked' : !accountLinkingSupported ? 'Unavailable' : accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id) ? 'Another family' : 'Available',
+            statusReason: familyAccountId(row.id, accountLinks) === familyAccountId(currentAccountId, accountLinks)
               ? 'Already linked co-holder' : !accountLinkingSupported ? 'Account linking is temporarily unavailable'
                 : accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id)
-                  ? 'Belongs to another family · family merging is not supported' : null].filter(Boolean).join(' · '),
+                  ? 'Belongs to another family · family merging is not supported' : undefined,
             disabled: !accountLinkingSupported || accountLinks.some(link => link.member_account_id === row.id || link.family_account_id === row.id) })),
         ]}
           selectedIds={selectedAccount ? [selectedAccount] : []} onSelectionChange={ids => setSelectedAccount(ids[0] || '')}

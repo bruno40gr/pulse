@@ -70,7 +70,7 @@ export function CreateBandWizard({ initialName = '', initialDraft, onClose, onCr
   return <>
     {error && <Notice variant="error">{error}</Notice>}
     <WorkflowEditor initial={draft} context={context} staff={staff} persistenceBusy={busy}
-      bandCandidatePicker={(selectedIds, onChange) => <BandStudentPicker options={context.people.map(person => ({ id: person.id, name: person.name, group: person.family, detail: person.email }))} selectedIds={selectedIds} onSelectionChange={onChange} state="ready" disabled={busy}
+      bandCandidatePicker={(selectedIds, onChange) => <BandStudentPicker options={context.people.map(person => ({ id: person.id, name: person.name, relationship: 'Student', searchText: `${person.email} ${person.family}` }))} selectedIds={selectedIds} onSelectionChange={onChange} state="ready" disabled={busy}
         onBusyChange={setBusy} onCreated={person => { setContext(current => current ? { ...current, people: [...current.people, { id: person.id, name: person.name, email: person.detail || '', family: '', roles: ['Student'], enrolled: true, customer: true }] } : current); onChange([...selectedIds, person.id]) }} />}
       onUpdate={() => { /* The shared editor owns unsaved fields until Save & close. */ }}
       onSave={record => void save(record, false)} onComplete={record => void save(record, true)}
