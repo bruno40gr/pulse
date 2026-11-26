@@ -44,8 +44,29 @@ test('the wizard uses shared layout and spacing tokens', () => {
 test('draft profiles remain Draft and discoverable alongside resumable wizard drafts', () => {
   const workspace = source('components/bands/ProductionBandsWorkspace.tsx')
   assert.match(workspace, /row.status === 'draft' \? 'Draft'/)
-  assert.match(workspace, /ariaLabel="Saved band drafts"/)
-  assert.match(workspace, /title="Band drafts"/)
+  assert.match(workspace, /<SectionTitle>Band drafts<\/SectionTitle>/)
+  assert.match(workspace, /creationDrafts.length > 0 && <section/)
+  assert.doesNotMatch(workspace, /ariaLabel="Saved band drafts"/)
   assert.match(workspace, /setResumeDraft\(row\); setCreating\(true\)/)
   assert.match(workspace, /profileDrafts = bands.filter\(row => row.status === 'draft'\)/)
+})
+
+test('BandOS omits duplicate draft framing and search, and uses band-facing copy', () => {
+  const workspace = source('components/bands/ProductionBandsWorkspace.tsx')
+  assert.match(workspace, />Form a band<\/Button>/)
+  assert.doesNotMatch(workspace, /TableSearchControl|bandSearch|bandQuery|No unfinished wizard|<DenseSectionPanel title="Band drafts"/)
+  assert.match(workspace, /draftState === 'ready' && bandsState === 'ready' && creationDrafts.length === 0 && profileDrafts.length === 0 && <p>No bands being formed<\/p>/)
+  assert.match(workspace, /rows=\{rows\} getRowKey/)
+  const editor = source('beta-source/app/content-studio-prototype/event-explorer/WorkflowEditor.tsx')
+  assert.match(editor, /formingBand \? 'Form a band'/)
+  assert.doesNotMatch(editor, /formingBand \? 'Create band'/)
+})
+
+test('band messaging uses concise recipient copy without the individual email alert', () => {
+  const communications = source('components/bands/BandCommunications.tsx')
+  assert.match(communications, /Send message to band members or their account holders/)
+  assert.doesNotMatch(communications, /Each recipient gets a separate email|Other account holders are not included|Select members to message their routed/)
+  assert.match(communications, /emailMode === 'shared' && <Notice>/)
+  assert.match(communications, /<ContactGroupEmailComposer/)
+  assert.match(communications, /<ContactBulkComposer/)
 })

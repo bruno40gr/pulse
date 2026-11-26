@@ -97,7 +97,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
   ]} />
   const group = record.kind === 'membership' ? context.academy.groups.find(group => group.id === record.data.groupId) : undefined
   const event = record.kind === 'registration' ? context.events.find(event => event.id === record.data.eventId) : undefined
-  return <EnrollmentLayout title={formingBand ? 'Create band' : record.kind === 'program' ? context.academy.kind === 'music' ? 'Band / ensemble' : context.academy.kind === 'martial' ? 'Practice team' : 'Study group' : workflowLabels[record.kind]} actions={<Button variant="secondary" disabled={persistenceBusy} onClick={() => save(record)}>Save & close</Button>} steps={steps} currentStep={record.step} onStepChange={move} completedSteps={record.reviewedSteps.filter(index => !workflowStepError(record, index, context))}>
+  return <EnrollmentLayout title={formingBand ? 'Form a band' : record.kind === 'program' ? context.academy.kind === 'music' ? 'Band / ensemble' : context.academy.kind === 'martial' ? 'Practice team' : 'Study group' : workflowLabels[record.kind]} actions={<Button variant="secondary" disabled={persistenceBusy} onClick={() => save(record)}>Save & close</Button>} steps={steps} currentStep={record.step} onStepChange={move} completedSteps={record.reviewedSteps.filter(index => !workflowStepError(record, index, context))}>
     <fieldset disabled={persistenceBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <div className={offering ? styles.workflowSingle : styles.workflowLayout}>
     <SurfacePanel appearance="flat" padding={spacing.xl}>
@@ -164,7 +164,7 @@ export default function WorkflowEditor({ initial, context, staff, onSave, onUpda
     </div>
     <div className={enrollmentStyles.formFooter}>
       {record.step > 0 ? <Button variant="ghost" onClick={() => move(record.step - 1)}><ArrowLeft size={15} aria-hidden="true" />Back</Button> : <span />}
-      {record.step < lastStep ? <Button onClick={() => move(record.step + 1)}>Continue<ArrowRight size={15} aria-hidden="true" /></Button> : <Button onClick={complete}>{record.parentId ? 'Save & return' : record.kind === 'program' ? 'Confirm booking' : formingBand ? 'Create band' : record.kind === 'group' ? 'Save group' : record.kind === 'event' ? 'Save event' : record.kind === 'membership' ? 'Save membership' : 'Save registration'}</Button>}
+      {record.step < lastStep ? <Button onClick={() => move(record.step + 1)}>Continue<ArrowRight size={15} aria-hidden="true" /></Button> : <Button onClick={complete}>{record.parentId ? 'Save & return' : record.kind === 'program' ? 'Confirm booking' : formingBand ? 'Form a band' : record.kind === 'group' ? 'Save group' : record.kind === 'event' ? 'Save event' : record.kind === 'membership' ? 'Save membership' : 'Save registration'}</Button>}
     </div>
     </SurfacePanel>
     <Modal isOpen={addingStudent} onClose={() => setAddingStudent(false)} ariaLabel="Add external student"><ModalHeader title="Add external student" onClose={() => setAddingStudent(false)} /><ModalBody><div className={styles.stack}>

@@ -1,10 +1,10 @@
 import type { ContactPresentation } from './contact-presentation'
 
-type FamilyPerson = ContactPresentation & { account_holders?: { person_id?: string }[] }
+type FamilyPerson = ContactPresentation & { account_holders?: { person_id?: string; display_person_id?: string }[] }
 
 export function contactProfileFamilies<T extends FamilyPerson>(roster: T[], tenantId: string, personId?: string, accountId?: string) {
   const local = roster.filter(person => person.tenant_id === tenantId)
-  const linkedIds = (person: T) => [person.account_holder_person_id, ...(person.account_holders ?? []).map(holder => holder.person_id)]
+  const linkedIds = (person: T) => [person.account_holder_person_id, ...(person.account_holders ?? []).map(holder => holder.person_id || holder.display_person_id)]
   const accounts = new Map<string, T[]>()
   for (const row of local) {
     if (row.is_student === false) continue

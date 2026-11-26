@@ -599,7 +599,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
   return <PageContainer style={{ padding: embedded ? 0 : mobile ? spacing.md : spacing['3xl'], boxSizing: 'border-box', minWidth: 0, color: colors.text, fontFamily: typography.fontSans, ...(embedded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' } : {}) }}>
     {!embedded && !standalone && <div ref={heading} tabIndex={-1} style={{ outline: 'none' }}>
       <PageHeader title={location.view === 'sms-compose' ? 'Write a text message' : location.view === 'contacts' ? 'Communications' : standalone ? 'New message' : contact.name}
-        titleAction={location.view !== 'contacts' && location.view !== 'sms-compose' && !standalone ? <ControlButton kind="link" aria-label={`Open lead for ${contact.name}`} disabled={!selectedPerson?.profileId || sending} onClick={() => selectedPerson && setProfile(selectedPerson)}>View lead</ControlButton> : undefined}
+        titleAction={location.view !== 'contacts' && location.view !== 'sms-compose' && !standalone ? <ControlButton kind="link" aria-label={`View contact for ${contact.name}`} disabled={!selectedPerson?.profileId || sending} onClick={() => selectedPerson && setProfile(selectedPerson)}>View contact</ControlButton> : undefined}
         onBack={location.view === 'contacts' ? undefined : goBackToConversations} backLabel="Back to Communications"
         right={location.view === 'contacts' ? <MessageActions onSms={() => { setNewMessageChannel('sms'); setNewMessageOpen(true) }} onEmail={() => { setNewMessageChannel('email'); setNewMessageOpen(true) }} /> : undefined} />
     </div>}
@@ -715,7 +715,10 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
       if (channel === 'email') {
         if (active && emailDrafts[active.id]) navigate({ view: 'compose', channel, activeId: active.id, screen: 'reader' })
         else newEmail()
-      } else navigate({ view: 'contact', channel, screen: 'reader' })
+      } else {
+        if (location.channel !== 'sms') navigate({ view: 'contact', channel, screen: 'reader' })
+        requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="SMS message"]')?.focus())
+      }
     }} />}
 
     <Modal isOpen={leaveSmsOpen} onClose={() => setLeaveSmsOpen(false)} ariaLabel="Discard message and go back" size="sm"><ModalHeader title="Go back to Communications?" onClose={() => setLeaveSmsOpen(false)} /><ModalBody>Going back to Communications will discard the current message</ModalBody><ModalFooter><Button variant="secondary" onClick={() => setLeaveSmsOpen(false)}>Cancel</Button><Button onClick={leaveSms}>Continue</Button></ModalFooter></Modal>

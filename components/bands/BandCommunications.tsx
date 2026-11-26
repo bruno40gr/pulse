@@ -28,7 +28,7 @@ export default function BandCommunications({ bandName, members, initialChannel }
     <DenseSectionPanel title="Communications" actions={<Button style={mobile ? { width: '100%' } : undefined} disabled={!selectedIds.length} onClick={() => open(selectedIds)}>
       {channel === 'sms' ? <MessageSquare size={14} /> : <Mail size={14} />}Write {channel === 'sms' ? 'text message' : 'email'}{selectedIds.length ? ` (${selectedIds.length})` : ''}
     </Button>} contentStyle={{ display: 'grid', gap: spacing.lg }}>
-      <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Select members to message their routed account holders. The composer verifies addresses and opt-outs, and combines duplicate family destinations.</div>
+      <div style={{ ...typography.bodySmall, color: colors.textSecondary }}>Send message to band members or their account holders</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
         <Select label="Channel" value={channel} onChange={event => setChannel(event.target.value as 'sms' | 'email')}>
           <option value="sms">Text message</option><option value="email">Email</option>
@@ -37,9 +37,8 @@ export default function BandCommunications({ bandName, members, initialChannel }
           <option value="individual">Individual emails</option><option value="shared">One email with CC / BCC</option>
         </Select>}
       </div>
-      <Notice>{channel === 'sms' ? 'Each recipient gets a separate SMS—not a group text.' : emailMode === 'individual'
-        ? 'Each recipient gets a separate email. Other account holders are not included.'
-        : 'One shared email. Recipients start in BCC for privacy; use Manage recipients to move them to CC or To.'}</Notice>
+      {channel === 'sms' ? <Notice>Each recipient gets a separate SMS—not a group text.</Notice>
+        : emailMode === 'shared' && <Notice>One shared email. Recipients start in BCC for privacy; use Manage recipients to move them to CC or To.</Notice>}
       <Checkbox label="Select all band members" disabled={!ids.length} checked={!!ids.length && selectedIds.length === ids.length}
         onChange={event => setSelected(event.target.checked ? ids : [])} />
       <div role="group" aria-label="Band communication recipients">

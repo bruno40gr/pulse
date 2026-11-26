@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const assert = require('node:assert/strict')
 ;(async () => {
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({ channel: 'chrome', headless: true })
   try {
     for (const width of [1440, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } })
@@ -27,7 +27,7 @@ const assert = require('node:assert/strict')
         }
         if (url.pathname === '/api/contacts/alex') return fulfill({ id: 'alex', first_name: 'Alex', last_name: 'Example', phone: people[0].phone, email: people[0].email, client_status: 'active', opted_out: false, last_attended: null, notes: null, family_name: null, account_holder_name: null, account_holder_phone: null, account_holder_email: null, custom_fields: {} })
         if (url.pathname === '/api/leads/taylor') return fulfill({ id: 'taylor', intake_type: 'lesson_inquiry', status: 'new', created_at: '2026-10-17T12:00:00Z', source_form: 'manual', source_page: null, program_label: null, service_label: null, payload: {}, contact: { id: 'taylor', full_name: people[1].name, email: people[1].email, phone: people[1].phone }, notes_history: [], events: [] })
-        if (url.pathname === '/api/tenant-fields') return fulfill([])
+        if (url.pathname === '/api/contacts') return fulfill([])
         return fulfill([])
       })
       await page.goto(process.env.CONVERSATIONS_LIVE_REVIEW_URL || 'http://127.0.0.1:3102')
@@ -35,12 +35,12 @@ const assert = require('node:assert/strict')
       await button('Open conversation with Alex Example').click()
       await page.getByText('Previous real-shaped SMS history', { exact: true }).waitFor()
       await page.getByRole('textbox', { name: 'SMS message', exact: true }).fill('Keep this personal draft')
-      await button('Open lead for Alex Example').click()
+      await button('View contact for Alex Example').click()
       await page.getByRole('dialog').waitFor()
       assert.equal(await page.getByRole('region', { name: 'Lead preview' }).count(), 0)
       await page.getByRole('dialog').getByText('alex@example.com', { exact: true }).first().waitFor()
       const contactPanelWidth = (await page.getByRole('dialog').boundingBox()).width
-      assert.ok(Math.abs(contactPanelWidth - (width > 760 ? Math.min(width * 0.75, 960) : width)) < 1)
+      assert.ok(Math.abs(contactPanelWidth - (width > 760 ? width * 0.5 : width)) < 1)
       for (const channel of ['email', 'sms']) {
         const label = channel === 'email' ? 'Send email' : 'Send SMS'
         await page.getByRole('dialog').getByRole('button', { name: label, exact: true }).click()
@@ -53,7 +53,7 @@ const assert = require('node:assert/strict')
         }
         assert.equal(sends.length, 0)
         if (channel === 'email') {
-          await button('Open lead for Alex Example').click()
+          await button('View contact for Alex Example').click()
           await page.getByRole('dialog').getByText('alex@example.com', { exact: true }).first().waitFor()
         }
       }
@@ -79,17 +79,17 @@ const assert = require('node:assert/strict')
       await button('Back to Communications').click()
       await button('Open conversation with Taylor Example').click()
       await page.getByText('No text messages yet. Write one below.', { exact: true }).waitFor()
-      await button('Open lead for Taylor Example').click()
+      await button('View contact for Taylor Example').click()
       await page.getByRole('dialog', { name: 'Lead details', exact: true }).waitFor()
       await page.getByRole('status', { name: 'Loading profile', exact: true }).waitFor({ state: 'hidden' })
-      assert.ok(Math.abs((await page.getByRole('dialog', { name: 'Lead details', exact: true }).boundingBox()).width - contactPanelWidth) < 1, 'Lead and contact drawers must have identical widths')
+      assert.ok(Math.abs((await page.getByRole('dialog', { name: 'Lead details', exact: true }).boundingBox()).width - (width > 760 ? Math.min(width * 0.75, 960) : width)) < 1, 'Opportunity profiles retain the Leads workspace panel')
       for (const channel of ['email', 'sms']) {
         await page.getByRole('dialog').getByRole('button', { name: channel === 'email' ? 'Send email' : 'Send SMS', exact: true }).click()
         await page.getByRole('dialog').waitFor({ state: 'hidden' })
         assert.equal(page.context().pages().length, 1)
         if (channel === 'email') {
           await page.getByRole('region', { name: 'Email composer', exact: true }).waitFor()
-          await button('Open lead for Taylor Example').click()
+          await button('View contact for Taylor Example').click()
           await page.getByRole('status', { name: 'Loading profile', exact: true }).waitFor({ state: 'hidden' })
         }
       }

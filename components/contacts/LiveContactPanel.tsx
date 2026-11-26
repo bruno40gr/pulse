@@ -5,7 +5,7 @@ import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { useId, useState } from 'react'
 import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
-import { Avatar, Badge, Button, DenseSectionPanel, DetailField, EmptyState, FieldGrid, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
+import { Avatar, Badge, Button, DenseSectionPanel, DetailField, EmptyState, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
 import { ContactRelationshipBadges } from './ContactRelationshipBadges'
 import { ControlButton } from '@/components/ui/ControlButton'
 import { AccountProfileLayout } from '@/beta-source/app/content-studio-prototype/students/AccountProfileLayout'
@@ -28,7 +28,8 @@ import { useIsMobile } from '@/lib/useMediaQuery'
 import { LiveFamilyManagement } from './LiveFamilyManagement'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Modal'
 import { LessonSummary } from '@/components/ui/LessonSummary'
-import { familyDependents, displayAccountHolders, type DisplayAccountHolder } from '@/lib/family-account'
+import { displayAccountHolders, type DisplayAccountHolder } from '@/lib/family-account'
+import { profileFamilyMembers } from '@/lib/profile-family-members'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
 type Subject =
@@ -69,7 +70,11 @@ function under18(dateOfBirth?: string | null) {
   return birthday > cutoff && birthday <= now
 }
 
-export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, accountHolderLink, onFamilyChanged, accountHolders }: {
+export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, onOpenAccount, familyPeople, onBack, onFamilyChanged, accountHolders, onCompose }: {
+  familyPeople?: Contact[]
+  onOpenAccount?: (id: string) => void
+  onBack?: () => void
+  onCompose?: (channel: 'sms' | 'email') => void
   accountHolders?: (DisplayAccountHolder & { id: string })[]
   onFamilyChanged?: () => void
   subject: Subject; tenantId: string; capabilities: ContactCapabilities
@@ -83,6 +88,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const account = subject.kind === 'account-holder' ? subject.account : null
   const students = subject.kind === 'student' ? [] : subject.students
   const visibleHolders = accountHolders ?? displayAccountHolders(subject.kind === 'student' ? [subject.person] : students)
+  const familyMembers = profileFamilyMembers(familyPeople ?? [...students, ...(person ? [person] : [])], visibleHolders, tenantId, person?.id, account?.id)
   const familyId = account?.id || students[0]?.family_account_id || students[0]?.account_id || person?.family_account_id || person?.account_id
   const memberSince = subject.kind === 'student' ? subject.person.account_member_since ?? null : subject.kind === 'holder' ? subject.memberSince : subject.account.memberSince
   const showsAccount = subject.kind !== 'student'
@@ -224,12 +230,12 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
-        toast={status || undefined} onClose={close} onBack={undefined} backLabel="Back to contact" />} profile={<>
+        toast={status || undefined} onClose={close} onBack={onBack ? () => { if (canLeave()) onBack() } : undefined} backLabel="Back to contact" />} profile={<>
 
       {!editing && <><ProfileEntryActions><AccountProfileToolbar mobile={mobile} communication={<>
           <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
-          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />SMS {displayedPhone}</Button>
-          <Button aria-label="Send email" title={displayedEmail || undefined} variant="secondary" disabled={saving || (person ? (!displayedEmail || (holderRouting && !canComposeToHolder)) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Email{displayedEmail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayedEmail}</span>}</Button>
+          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('sms'); return } setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />SMS {displayedPhone}</Button>
+          <Button aria-label="Send email" title={displayedEmail || undefined} variant="secondary" disabled={saving || (person ? (!displayedEmail || (holderRouting && !canComposeToHolder)) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('email'); return } setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Email{displayedEmail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayedEmail}</span>}</Button>
         </>} actions={<>
           <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => { setSection('account'); setEditing(true); setStatus('') }}><Pencil size={14} />Edit Contact</Button>
           <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
@@ -251,36 +257,24 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
             family={capabilities.edit && <LiveFamilyManagement tenantId={tenantId} accountId={familyId}
               personId={subject.kind === 'student' ? person?.id : undefined} onChanged={onFamilyChanged} />} />
         </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
-              <DenseSectionPanel title="Contact details">
-                <MetadataRow label="Contact details metadata">
-                  {showsAccount ? <DetailField label="Dependents"><div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}>
-                    <span>{familyDependents(person ? [...students, person] : students).length}</span>
-                    {capabilities.edit && !addingStudent && <Button size="sm" variant="secondary" disabled={!account?.id && !person?.account_id && !students[0]?.account_id} onClick={() => setAddingStudent(true)}>Add student</Button>}
-                  </div></DetailField> : <DetailField label="Account holder" value="Not added">
-                    {accountHolderLink && <a href={accountHolderLink.href} style={{ color: colors.link }} onClick={event => {
-                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+              {familyMembers.length > 0 && <DenseSectionPanel title="Family members" actions={showsAccount && capabilities.edit && !addingStudent ? <Button size="sm" variant="secondary" disabled={!familyId} onClick={() => setAddingStudent(true)}>Add student</Button> : undefined}>
+                <div style={stack}>{familyMembers.map(member => <div key={member.id}>
+                  <a href={`/dashboard/contacts?${member.person ? `contact=${encodeURIComponent(member.person.id)}` : `account=${encodeURIComponent(member.accountId!)}`}`} style={{ color: colors.link }} onClick={event => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                    if (member.person || onOpenAccount) {
                       event.preventDefault()
-                      if (canLeave()) accountHolderLink.open()
-                    }}>{accountHolderLink.name}</a>}
-                  </DetailField>}
+                      if (canLeave()) { if (member.person) onOpenStudent(member.person); else onOpenAccount?.(member.accountId!) }
+                    }
+                  }}>{member.name}</a>
+                  <div style={muted}>{[member.holder ? 'Account holder' : '', member.student ? 'Student' : ''].filter(Boolean).join(' · ')}</div>
+                </div>)}</div>
+              </DenseSectionPanel>}
+              <DenseSectionPanel title="Contact details" actions={showsAccount && familyMembers.length === 0 && capabilities.edit && !addingStudent ? <Button size="sm" variant="secondary" disabled={!familyId} onClick={() => setAddingStudent(true)}>Add student</Button> : undefined}>
+                <MetadataRow label="Contact details metadata">
                   <DetailField label="Member since" value={formatMemberSince(memberSince) || 'Not added'} />
                   <DetailField label="Birthday" value={formatMemberSince(person?.date_of_birth ?? null) || 'Not added'} />
                 </MetadataRow>
               </DenseSectionPanel>
-              {visibleHolders.length > 0 && <DenseSectionPanel title="Account holders">
-                <div style={stack}>{visibleHolders.map(holder => {
-                  const holderPerson = [person, ...students].find(item => item && item.id === (holder.person_id || holder.display_person_id))
-                  return <DenseSectionPanel key={holder.id} title={<div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-                    <SectionTitle as="h4" variant="card">{holder.name}</SectionTitle>
-                    {holderPerson && <ContactRelationshipBadges contact={holderPerson} />}
-                    {holderPerson?.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}
-                  </div>}>
-                  <FieldGrid>
-                    <DetailField label="Phone" value={formatPhoneNumber(holder.phone ?? null) || 'Not added'} />
-                    <DetailField label="Email" value={holder.email || 'Not added'} />
-                  </FieldGrid>
-                </DenseSectionPanel>})}</div>
-              </DenseSectionPanel>}
               {showsAccount && capabilities.edit && addingStudent && <LiveFamilyManagement tenantId={tenantId}
                 accountId={familyId} addStudentOnly
                 onCancel={() => setAddingStudent(false)} onChanged={() => { setAddingStudent(false); onFamilyChanged?.() }} />}

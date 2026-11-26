@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RichDataTable } from '@/components/ui/RichDataTable'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
-import { TableSearchControl, TableResultCount } from '@/components/ui/TableWorkspaceControls'
+import { TableResultCount } from '@/components/ui/TableWorkspaceControls'
 import LeadsView from '@/components/leads/LeadsView'
 import { CreateBandWizard } from '@/components/bands/CreateBandWizard'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -18,6 +18,7 @@ import { BandStudentPicker } from '@/components/bands/BandStudentPicker'
 import BandNotes from '@/components/bands/BandNotes'
 import BandCommunications from '@/components/bands/BandCommunications'
 import { DenseSectionPanel } from '@/components/ui/DenseSectionPanel'
+import { SectionTitle } from '@/components/ui/SectionTitle'
 import { SlidePanelContent } from '@/components/ui/SlidePanelContent'
 import { SlidePanelActionBar } from '@/components/ui/SlidePanelActionBar'
 import { Mail, MessageSquare, Pencil } from 'lucide-react'
@@ -61,8 +62,6 @@ async function readList<T>(url: string, key: string, signal: AbortSignal): Promi
 
 export default function ProductionBandsWorkspace() {
   const tablePreferences = useTablePreferences(BAND_TABLE_SCHEMA)
-  const [bandSearch, setBandSearch] = useState('')
-  const [bandQuery, setBandQuery] = useState('')
   const [view, setView] = useState<'bands' | 'matching'>('bands')
   const [creationDrafts, setCreationDrafts] = useState<{ id: string; revision: number; state: BandCreationDraft }[]>([])
   const [draftState, setDraftState] = useState<LoadState>('loading')
@@ -179,30 +178,26 @@ export default function ProductionBandsWorkspace() {
   if (creating) return <CreateBandWizard initialDraft={resumeDraft} onClose={() => { setCreating(false); setResumeDraft(undefined); reload() }} onCreated={name => { setCreating(false); setResumeDraft(undefined); setOpened(name); reload() }} />
 
   return <PageContainer>
-    <PageHeader title="BandOS" right={<Button onClick={() => setCreating(true)} disabled={saving || draftState !== 'ready'}>Create new band</Button>} />
+    <PageHeader title="BandOS" right={<Button onClick={() => setCreating(true)} disabled={saving || draftState !== 'ready'}>Form a band</Button>} />
     <Tabs style={{ marginBottom: spacing.lg }} ariaLabel="Bands workspace" items={[{ key: 'bands', label: 'BandOS' }, { key: 'matching', label: 'Students seeking a band' }]} activeKey={view} onChange={setView} />
     {view === 'matching' ? <LeadsView matching /> : <>
       {draftState === 'loading' || tentativeState === 'loading' || bandsState === 'loading' ? <LoadingSkeleton label="Loading bands and drafts" rows={5} /> : <>
       {draftState === 'error' && <Notice variant="error">Band drafts could not be loaded. Check the band drafts migration before creating a band.</Notice>}
-      {draftState === 'ready' && <DenseSectionPanel title="Band drafts" headingLevel="h2">
-        <ResponsiveDataTable rows={creationDrafts} getRowKey={row => row.id} ariaLabel="Band drafts" minDesktopWidth={500} emptyContent="No unfinished wizard drafts." columns={[
+      {draftState === 'ready' && creationDrafts.length > 0 && <section aria-label="Band drafts" style={{ marginBottom: spacing.lg }}>
+        <SectionTitle>Band drafts</SectionTitle>
+        <ResponsiveDataTable rows={creationDrafts} getRowKey={row => row.id} ariaLabel="Band drafts" minDesktopWidth={500} emptyContent="No bands being formed" columns={[
           { id: 'name', header: 'Name', width: '2fr', render: row => <PersonName as="button" onClick={() => { setResumeDraft(row); setCreating(true) }}>{row.state.data.name || 'Unnamed group'}</PersonName> },
           { id: 'progress', header: 'Progress', width: '1fr', render: row => `${row.state.reviewedSteps.length} / 2 complete` },
           { id: 'actions', header: 'Actions', width: '1fr', render: row => <Button variant="secondary" onClick={() => { setResumeDraft(row); setCreating(true) }}>Continue</Button> },
         ]} />
-        {profileDrafts.length > 0 && <ResponsiveDataTable rows={profileDrafts} getRowKey={row => row.name} ariaLabel="Saved band drafts" emptyContent="No saved band drafts." minDesktopWidth={500} columns={[
-          { id: 'name', header: 'Name', width: '2fr', render: row => <PersonName as="button" onClick={() => { setPanelTab('details'); setOpened(row.name) }}>{row.name}</PersonName> },
-          { id: 'status', header: 'Status', width: '1fr', render: () => 'Draft' },
-          { id: 'actions', header: 'Actions', width: '1fr', render: row => <Button variant="secondary" aria-label={`Continue ${row.name}`} onClick={() => { setPanelTab('details'); setOpened(row.name) }}>Continue</Button> },
-        ]} />}
-      </DenseSectionPanel>}
+      </section>}
+      {draftState === 'ready' && bandsState === 'ready' && creationDrafts.length === 0 && profileDrafts.length === 0 && <p>No bands being formed</p>}
       {bandsState === 'error' ? <Notice variant="error">Could not load the band roster. Reload before making changes.</Notice>
         : <>
           {tentativeState === 'error' && <Notice variant="warning">Forming bands could not be loaded. Active bands are unaffected.</Notice>}
           <RichDataTable preferenceSchema={BAND_TABLE_SCHEMA} preferenceState={tablePreferences}
-            search={<TableSearchControl label="Search bands" placeholder="Search bands or teachers" value={bandSearch} onChange={setBandSearch} onSearch={() => setBandQuery(bandSearch)} onClear={() => { setBandSearch(''); setBandQuery('') }} />}
-            beforeTable={<TableResultCount>{rows.filter(row => `${row.name} ${row.coach || ''} ${row.status}`.toLowerCase().includes(bandQuery.trim().toLowerCase())).length} bands</TableResultCount>}
-            rows={rows.filter(row => `${row.name} ${row.coach || ''} ${row.status}`.toLowerCase().includes(bandQuery.trim().toLowerCase()))} getRowKey={row => row.key} ariaLabel="Bands" emptyContent="No bands yet." columns={[
+            beforeTable={<TableResultCount>{rows.length} bands</TableResultCount>}
+            rows={rows} getRowKey={row => row.key} ariaLabel="Bands" emptyContent="No bands yet." columns={[
             { id: 'name', header: 'Group', width: 'minmax(220px, 1.5fr)', render: row => row.band
               ? <PersonName as="button" onClick={() => { setPanelTab('details'); setOpened(row.name) }}>{row.name}</PersonName>
               : <PersonName>{row.name}</PersonName> },

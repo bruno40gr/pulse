@@ -202,7 +202,9 @@ export default function ContactsPage() {
     : Boolean(selectedAccount))
   const isMobile = useIsMobile()
 
+  const [familyTrail, setFamilyTrail] = useState<{ person: Contact | null; account: typeof selectedAccount }[]>([])
   const closeContactState = () => {
+    setFamilyTrail([])
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -218,6 +220,7 @@ export default function ContactsPage() {
   })
 
   const openFamilyPerson = (person: Contact) => {
+    if (selectedContact || selectedAccount) setFamilyTrail(trail => [...trail, { person: selectedContact, account: selectedAccount }])
     setSelectedAccount(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -225,6 +228,7 @@ export default function ContactsPage() {
   }
 
   const openFamilyAccount = (id: string, members: Contact[]) => {
+    if (selectedContact || selectedAccount) setFamilyTrail(trail => [...trail, { person: selectedContact, account: selectedAccount }])
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -816,6 +820,14 @@ export default function ContactsPage() {
 
       {/* Contact slide panel */}
       {useLivePanel && <LiveContactPanel
+        familyPeople={[...new Map(profileFamilies.flatMap(family => [...family.students, ...family.holders]).map(person => [person.id, person])).values()]}
+        onOpenAccount={id => openFamilyAccount(id, profileFamilies.flatMap(family => family.students))}
+        onBack={familyTrail.length ? () => {
+          const previous = familyTrail[familyTrail.length - 1]
+          setFamilyTrail(trail => trail.slice(0, -1))
+          setSelectedContact(previous.person)
+          setSelectedAccount(previous.account)
+        } : undefined}
         accountHolders={displayAccountHolders(profileFamilies.flatMap(family => family.students))}
         key={selectedPerson ? `person:${selectedPerson.id}` : `account:${selectedAccount!.id}`}
         subject={selectedPerson ? (selectedIsHolder ? {

@@ -6,9 +6,10 @@ const path = require('node:path')
 const { createHarness, HEAD } = require('./synthetic-harness.cjs')
 const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8')
 
-test('account details exposes add student beside dependent count outside the contact editor', () => {
+test('family members exposes add student outside the contact editor without a dependent count', () => {
   const panel = source('components/contacts/LiveContactPanel.tsx')
-  assert.match(panel, /showsAccount \? <DetailField label="Dependents">[\s\S]*?capabilities\.edit && !addingStudent[\s\S]*?setAddingStudent\(true\)\}>Add student/)
+  assert.match(panel, /title="Family members" actions=\{showsAccount && capabilities\.edit && !addingStudent[\s\S]*?setAddingStudent\(true\)\}>Add student/)
+  assert.doesNotMatch(panel, /label="Dependents"|title="Account holders"/)
   assert.match(panel, /showsAccount && capabilities\.edit && addingStudent && <LiveFamilyManagement[\s\S]*?addStudentOnly[\s\S]*?setAddingStudent\(false\); onFamilyChanged\?\.\(\)/)
   assert.match(source('components/contacts/LiveFamilyManagement.tsx'), /if \(addStudentOnly\) return dialog/)
 })
