@@ -4,13 +4,13 @@ import type { ReactNode } from 'react'
 import { colors, spacing } from '@/lib/tokens'
 
 /** Shared communication toolbar; callers retain routing and availability rules. */
-export function SlidePanelActionBar({ children, isMobile }: { children: ReactNode; isMobile: boolean }) {
+export function SlidePanelActionBar({ children, isMobile, wrap = true }: { children: ReactNode; isMobile: boolean; wrap?: boolean }) {
   return <div style={{
     display: 'flex',
     alignItems: isMobile ? 'stretch' : 'center',
     flexDirection: isMobile ? 'column' : 'row',
     gap: spacing.sm,
-    flexWrap: 'wrap',
+    flexWrap: wrap ? 'wrap' : 'nowrap',
     padding: isMobile ? '12px 16px' : `${spacing.md} ${spacing.lg}`,
     flexShrink: 0,
     minWidth: 0,

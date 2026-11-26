@@ -47,7 +47,7 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Erro
       await dialog.getByRole('button', { name: 'Edit Contact', exact: true }).waitFor()
       assert.equal(await dialog.getByText('AI highlights', { exact: true }).count(), 0)
       const bounds = await dialog.boundingBox()
-      assert.ok(Math.abs(bounds.width - (width > 760 ? width / 2 : width)) < 2)
+      assert.ok(Math.abs(bounds.width - (width > 760 ? width * 0.65 : width)) < 2)
       await dialog.getByRole('button', { name: 'Send SMS', exact: true }).click()
       await page.getByRole('dialog').waitFor({ state: 'hidden' })
       assert.equal(await sms.inputValue(), 'Preserve this unsent reply')

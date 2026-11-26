@@ -9,8 +9,7 @@ export function profileFamilyMembers<T extends Person>(people: T[], holders: Dis
   const headerHolder = currentAccountId ? familyHeaderHolder(`account:${currentAccountId}`, holders.map((holder, index) => ({ ...holder, id: String(index) }))) : undefined
   const headerPersonId = headerHolder?.person_id || headerHolder?.display_person_id
   for (const [index, holder] of holders.entries()) {
-    const linkedIds = new Set([...local.values()].filter(person => holder.account_id && person.account_id === holder.account_id).map(person => person.account_holder_person_id).filter(Boolean))
-    const personId = holder.person_id || holder.display_person_id || (linkedIds.size === 1 ? [...linkedIds][0] : undefined)
+    const personId = holder.person_id || holder.display_person_id
     if ((currentPersonId && personId === currentPersonId) || headerHolder?.id === String(index)) continue
     const person = personId ? local.get(personId) : undefined
     if (personId && !person) continue

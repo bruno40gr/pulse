@@ -3,7 +3,7 @@
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ContactFollowUps } from '@/components/follow-ups/ContactFollowUps'
 import { useId, useState } from 'react'
-import { CalendarDays, CreditCard, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
+import { CalendarDays, CreditCard, ExternalLink, Landmark, Mail, MessageSquare, Pencil, Phone, RotateCcw, UserRound } from 'lucide-react'
 import type { Contact } from '@/app/dashboard/contacts/page'
 import { Avatar, Badge, Button, DenseSectionPanel, DetailField, EmptyState, NotesSection, SlidePanel, SlidePanelHeader, Tabs, StatusBadge } from '@/components/ui'
 import { ContactRelationshipBadges } from './ContactRelationshipBadges'
@@ -70,10 +70,9 @@ function under18(dateOfBirth?: string | null) {
   return birthday > cutoff && birthday <= now
 }
 
-export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, onOpenAccount, familyPeople, onBack, onFamilyChanged, accountHolders, onCompose }: {
+export default function LiveContactPanel({ subject, tenantId, capabilities, initialNotesTab, startOnNotes, onClose, onUpdated, onAccountUpdated, onNotesUpdated, onOpenStudent, onOpenAccount, familyPeople, onFamilyChanged, accountHolders, onCompose }: {
   familyPeople?: Contact[]
   onOpenAccount?: (id: string) => void
-  onBack?: () => void
   onCompose?: (channel: 'sms' | 'email') => void
   accountHolders?: (DisplayAccountHolder & { id: string })[]
   onFamilyChanged?: () => void
@@ -224,21 +223,21 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
   const comingSoon = section === 'schedule' ? { icon: <CalendarDays />, title: 'Schedule & lessons' }
     : section === 'billing' ? { icon: <CreditCard />, title: 'Billing' } : { icon: <RotateCcw />, title: 'Makeups' }
 
-  return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="50dvw">
-      <ProfileComposerLayout open={!!compose} onCancel={() => setCompose(null)} header={
+  return <SlidePanel isOpen onClose={close} closeOnBackdrop={!editing} closeOnEscape={!editing} fullScreen={mobile} width="65dvw">
+      <ProfileComposerLayout profileWidth="65dvw" open={!!compose} onCancel={() => setCompose(null)} header={
       <SlidePanelHeader title={editing ? 'Edit Contact' : name.replace(/\s*\(account\)\s*$/i, '')} subtitle={editing ? name : subject.kind === 'student' ? 'Student profile' : 'Account manager'} titleSize={mobile ? typography.sizeLg : typography.size2xl}
         actions={editing ? <><Button variant="secondary" disabled={saving} onClick={() => leaveEditor('editor')}>Cancel</Button><Button type="submit" form={editorFormId} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></> : undefined}
         avatar={{ firstName: person?.first_name || name.split(' ')[0], lastName: person?.last_name || name.split(' ').slice(1).join(' '), size: mobile ? 36 : 48 }}
         badge={person ? <><ContactRelationshipBadges contact={person} />{person.staff_id && <Badge size="sm" variant="info">Instructor</Badge>}{person.opted_out && <StatusBadge status="spam" label="Opted out" />}</> : undefined}
-        toast={status || undefined} onClose={close} onBack={onBack ? () => { if (canLeave()) onBack() } : undefined} backLabel="Back to contact" />} profile={<>
+        toast={status || undefined} onClose={close} />} profile={<>
 
-      {!editing && <><ProfileEntryActions><AccountProfileToolbar mobile={mobile} communication={<>
-          <Button aria-label="Call" disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
-          <Button aria-label="Send SMS" variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('sms'); return } setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />SMS {displayedPhone}</Button>
-          <Button aria-label="Send email" title={displayedEmail || undefined} variant="secondary" disabled={saving || (person ? (!displayedEmail || (holderRouting && !canComposeToHolder)) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('email'); return } setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} />Email{displayedEmail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayedEmail}</span>}</Button>
+      {!editing && <><ProfileEntryActions><AccountProfileToolbar mobile={mobile} singleRow communication={<>
+          <Button aria-label="Call" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} disabled={!person || !callPhone || calling} onClick={() => void placeCall()}><Phone size={16} />{calling ? 'Calling…' : 'Call'} {displayedPhone}</Button>
+          <Button aria-label="Send SMS" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} variant="secondary" disabled={saving || (person ? (!callPhone || (holderRouting && !canComposeToHolder)) : !canMessageAccountSms)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('sms'); return } setEditing(false); setVisitedChannels(current => ({ ...current, sms: true })); setCompose('sms') } }}><MessageSquare size={16} />SMS {displayedPhone}</Button>
+          <Button aria-label="Send email" style={{ minWidth: 0, flex: '0 1 auto', overflow: 'hidden', whiteSpace: 'nowrap' }} title={displayedEmail || undefined} variant="secondary" disabled={saving || (person ? (!displayedEmail || (holderRouting && !canComposeToHolder)) : !canMessageAccountEmail)} onClick={() => { if (canLeave()) { if (onCompose) { onCompose('email'); return } setEditing(false); setVisitedChannels(current => ({ ...current, email: true })); setCompose('email') } }}><Mail size={16} style={{ flexShrink: 0 }} />Email{displayedEmail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayedEmail}</span>}</Button>
         </>} actions={<>
           <Button variant="ghost" disabled={!capabilities.edit || saving} onClick={() => { setSection('account'); setEditing(true); setStatus('') }}><Pencil size={14} />Edit Contact</Button>
-          <ControlButton kind="icon" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" /></ControlButton>
+          <Button variant="ghost" aria-label="Impersonate" title="Impersonate — Coming soon" onClick={() => setComingSoonFeature('Impersonate')}><UserRound size={16} aria-hidden="true" />Impersonate</Button>
         </>} /></ProfileEntryActions>
       <div style={{ overflowX: 'auto', flexShrink: 0, paddingInline: mobile ? spacing.lg : spacing.xl }}>
         <Tabs<Section> ariaLabel="Contact sections" compact={mobile} style={{ width: 'max-content', minWidth: '100%', minHeight: compose && !mobile ? 'var(--profile-toolbar-height, 64px)' : undefined, boxSizing: 'border-box', alignItems: 'stretch' }} activeKey={section} onChange={next => {
@@ -259,13 +258,13 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
               {familyMembers.length > 0 && <DenseSectionPanel title="Family members" actions={showsAccount && capabilities.edit && !addingStudent ? <Button size="sm" variant="secondary" disabled={!familyId} onClick={() => setAddingStudent(true)}>Add student</Button> : undefined}>
                 <div style={stack}>{familyMembers.map(member => <div key={member.id}>
-                  <a href={`/dashboard/contacts?${member.person ? `contact=${encodeURIComponent(member.person.id)}` : `account=${encodeURIComponent(member.accountId!)}`}`} style={{ color: colors.link }} onClick={event => {
+                  <a href={`/dashboard/contacts?${member.person ? `contact=${encodeURIComponent(member.person.id)}` : `account=${encodeURIComponent(member.accountId!)}`}`} style={{ color: colors.text, display: 'inline-flex', alignItems: 'center', gap: spacing.xs, maxWidth: '100%', textDecoration: 'none' }} onClick={event => {
                     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                     if (member.person || onOpenAccount) {
                       event.preventDefault()
                       if (canLeave()) { if (member.person) onOpenStudent(member.person); else onOpenAccount?.(member.accountId!) }
                     }
-                  }}>{member.name}</a>
+                  }}><span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{member.name}</span><ExternalLink size={14} style={{ flexShrink: 0 }} aria-hidden="true" /></a>
                   <div style={muted}>{[member.holder ? 'Account holder' : '', member.student ? 'Student' : ''].filter(Boolean).join(' · ')}</div>
                 </div>)}</div>
               </DenseSectionPanel>}

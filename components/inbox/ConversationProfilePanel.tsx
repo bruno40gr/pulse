@@ -25,7 +25,6 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
   const [contact, setContact] = useState<Contact | null>(null)
   const [lead, setLead] = useState<Lead | null>(null)
   const [roster, setRoster] = useState<Contact[]>([])
-  const [familyTrail, setFamilyTrail] = useState<Contact[]>([])
   const [capabilities, setCapabilities] = useState<ContactCapabilities>({ edit: false, readNotes: false, editNotes: false })
   const [draft, setDraft] = useState<Draft>({})
   const [error, setError] = useState('')
@@ -102,11 +101,10 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
   return <ConversationComposeContext.Provider value={channel => history.dismissPanel(() => onCompose(channel))}>
     {contact ? <LiveContactPanel key={contact.id} tenantId={tenantId} capabilities={capabilities} initialNotesTab="notes" onFamilyChanged={() => void refreshFamily()}
       familyPeople={[...new Map(families.flatMap(family => [...family.students, ...family.holders]).map(person => [person.id, person])).values()]}
-      onBack={familyTrail.length ? () => { setContact(familyTrail[familyTrail.length - 1]); setFamilyTrail(trail => trail.slice(0, -1)) } : undefined}
       subject={holderFamily ? { kind: 'holder', person: contact, students: holderFamily.students.filter(row => row.id !== contact.id), memberSince: holderFamily.students[0]?.account_member_since || null } : { kind: 'student', person: contact }}
       accountHolders={displayAccountHolders(families.flatMap(family => family.students))}
       accountHolderLink={holder ? { name: `${holder.first_name} ${holder.last_name}`.trim(), href: `/dashboard/contacts?contact=${encodeURIComponent(holder.id)}`, open: () => setContact(holder) } : undefined}
-      onOpenStudent={next => { setFamilyTrail(trail => [...trail, contact]); setContact(next) }} onUpdated={updateContact} onAccountUpdated={() => void refreshFamily()}
+      onOpenStudent={setContact} onUpdated={updateContact} onAccountUpdated={() => void refreshFamily()}
       onNotesUpdated={(id, field, notes) => {
         setContact(current => current?.id === id ? { ...current, [field]: notes } : current)
         setRoster(rows => rows.map(row => row.id === id ? { ...row, [field]: notes } : row))

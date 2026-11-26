@@ -40,7 +40,7 @@ const assert = require('node:assert/strict')
       assert.equal(await page.getByRole('region', { name: 'Lead preview' }).count(), 0)
       await page.getByRole('dialog').getByText('alex@example.com', { exact: true }).first().waitFor()
       const contactPanelWidth = (await page.getByRole('dialog').boundingBox()).width
-      assert.ok(Math.abs(contactPanelWidth - (width > 760 ? width * 0.5 : width)) < 1)
+      assert.ok(Math.abs(contactPanelWidth - (width > 760 ? width * 0.65 : width)) < 1)
       for (const channel of ['email', 'sms']) {
         const label = channel === 'email' ? 'Send email' : 'Send SMS'
         await page.getByRole('dialog').getByRole('button', { name: label, exact: true }).click()

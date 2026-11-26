@@ -148,7 +148,7 @@ test('new contact email never fetches or polls history and split layout expands 
   assert.match(live, /threads=\{\[\]\}/)
   assert.match(read('components/inbox/Conversations.tsx'), /if \(embedded \|\| !tenantId \|\| !mailboxId \|\| location.view !== 'contacts'\) return/)
   const layout = read('components/inbox/ProfileComposerLayout.tsx')
-  assert.match(layout, /mobile \|\| open \? '100dvw' : '50dvw'/)
+  assert.match(layout, /mobile \|\| open \? '100dvw' : profileWidth/)
   assert.match(layout, /aria-label="Profile" hidden=\{mobile && open\}/)
   assert.match(layout, /aria-label="Message composer" hidden=\{!open\}/)
   assert.doesNotMatch(layout, /<SlidePanel\s/)

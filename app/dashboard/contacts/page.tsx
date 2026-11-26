@@ -202,9 +202,7 @@ export default function ContactsPage() {
     : Boolean(selectedAccount))
   const isMobile = useIsMobile()
 
-  const [familyTrail, setFamilyTrail] = useState<{ person: Contact | null; account: typeof selectedAccount }[]>([])
   const closeContactState = () => {
-    setFamilyTrail([])
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -220,7 +218,6 @@ export default function ContactsPage() {
   })
 
   const openFamilyPerson = (person: Contact) => {
-    if (selectedContact || selectedAccount) setFamilyTrail(trail => [...trail, { person: selectedContact, account: selectedAccount }])
     setSelectedAccount(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -228,11 +225,10 @@ export default function ContactsPage() {
   }
 
   const openFamilyAccount = (id: string, members: Contact[]) => {
-    if (selectedContact || selectedAccount) setFamilyTrail(trail => [...trail, { person: selectedContact, account: selectedAccount }])
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
-    setSelectedAccount({ id, name: members[0]?.family_name || members[0]?.account_holders?.find(holder => holder.account_id === id)?.name || members[0]?.account_holder_name || 'Account holder', members })
+    setSelectedAccount({ id, name: displayAccountHolders(members).find(holder => holder.account_id === id)?.name || 'Account holder', members })
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -822,12 +818,6 @@ export default function ContactsPage() {
       {useLivePanel && <LiveContactPanel
         familyPeople={[...new Map(profileFamilies.flatMap(family => [...family.students, ...family.holders]).map(person => [person.id, person])).values()]}
         onOpenAccount={id => openFamilyAccount(id, profileFamilies.flatMap(family => family.students))}
-        onBack={familyTrail.length ? () => {
-          const previous = familyTrail[familyTrail.length - 1]
-          setFamilyTrail(trail => trail.slice(0, -1))
-          setSelectedContact(previous.person)
-          setSelectedAccount(previous.account)
-        } : undefined}
         accountHolders={displayAccountHolders(profileFamilies.flatMap(family => family.students))}
         key={selectedPerson ? `person:${selectedPerson.id}` : `account:${selectedAccount!.id}`}
         subject={selectedPerson ? (selectedIsHolder ? {
@@ -838,8 +828,8 @@ export default function ContactsPage() {
         } : { kind: 'student', person: selectedPerson }) : {
           kind: 'account-holder',
           account: { id: selectedAccount!.id, name: selectedAccount!.name,
-            phone: selectedAccount!.members[0]?.account_holders?.find(holder => holder.account_id === selectedAccount!.id)?.phone ?? selectedAccount!.members[0]?.account_holder_phone ?? null,
-            email: selectedAccount!.members[0]?.account_holders?.find(holder => holder.account_id === selectedAccount!.id)?.email ?? selectedAccount!.members[0]?.account_holder_email ?? null,
+            phone: displayAccountHolders(selectedAccount!.members).find(holder => holder.account_id === selectedAccount!.id)?.phone ?? null,
+            email: displayAccountHolders(selectedAccount!.members).find(holder => holder.account_id === selectedAccount!.id)?.email ?? null,
             memberSince: selectedAccount!.members[0]?.account_member_since ?? null },
           students: selectedAccount!.members.filter(member => member.is_student === true || (member.is_student !== false && Boolean(member.student_id))),
         }}

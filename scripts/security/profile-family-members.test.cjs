@@ -34,3 +34,10 @@ test('account views retain a second holder on the same account', () => {
   const rows = members()([person('child'), person('holder', { is_student: false }), person('second', { is_student: false })], holders, HEAD, undefined, 'family')
   assert.deepEqual(rows.map(row => row.name), ['second', 'child'])
 })
+test('account-only holders never inherit another holder person from a shared student account', () => {
+  const rows = members()([person('child', { account_holder_person_id: 'holder' }), person('holder', { is_student: false })],
+    [{ person_id: 'holder', name: 'holder', account_id: 'family' }, { name: 'Alexandra Lausten', account_id: 'family' }], HEAD, 'child')
+  assert.equal(rows[1].name, 'Alexandra Lausten')
+  assert.equal(rows[1].person, undefined)
+  assert.equal(rows[1].accountId, 'family')
+})

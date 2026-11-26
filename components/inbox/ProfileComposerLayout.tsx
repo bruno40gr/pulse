@@ -16,15 +16,16 @@ export function ProfileEntryActions({ children }: { children: ReactNode }) {
 }
 
 /** Two independently scrolling panes in one dialog. Hidden panes stay mounted. */
-export function ProfileComposerLayout({ open, header, profile, composer, onCancel }: {
+export function ProfileComposerLayout({ open, header, profile, composer, onCancel, profileWidth = '50dvw' }: {
+  profileWidth?: string
   open: boolean; header: ReactNode; profile: ReactNode; composer: ReactNode; onCancel: () => void
 }) {
   const mobile = useIsMobile()
   const setWidth = useContext(SlidePanelWidthContext)
   useEffect(() => {
-    setWidth?.(mobile || open ? '100dvw' : '50dvw')
+    setWidth?.(mobile || open ? '100dvw' : profileWidth)
     return () => setWidth?.(undefined)
-  }, [mobile, open, setWidth])
+  }, [mobile, open, setWidth, profileWidth])
   const pane = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }
   return <ProfileComposingContext.Provider value={open}>
     {header}
