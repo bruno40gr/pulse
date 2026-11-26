@@ -3,18 +3,21 @@
 import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { PersonName } from '@/components/ui/PersonName'
 import { getStaffAvatarUrl } from '@/lib/staff-avatars'
-import { useState, useEffect, type ComponentProps } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
 import { Avatar, Button, PageHeader, SlidePanel, SlidePanelHeader, StatusBadge, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { RichDataTable } from '@/components/ui/RichDataTable'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { STAFF_TABLE_SCHEMA } from '@/lib/staff-table-preferences'
-import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import ConversationProfilePanel from '@/components/inbox/ConversationProfilePanel'
+import type { Contact } from '@/app/dashboard/contacts/page'
+import type { ConversationPerson } from '@/lib/conversations-live'
+import { conversationComposeHref } from '@/lib/conversation-links'
 import ComposePanel from '@/components/campaigns/ComposePanel'
 import { Send } from 'lucide-react'
 import { colors, typography, spacing, radius } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
-import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
 type StaffSortKey = import('@/lib/staff-table-preferences').StaffSortKey
 
@@ -28,20 +31,23 @@ interface StaffMember {
   is_active: boolean
 }
 
-type ContactPanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
-type ContactPanelTenantField = ComponentProps<typeof ContactSlidePanel>['tenantFields'][number]
-type ComposeContact = (ContactPanelContact & { bulk?: false }) | {
+type ComposeContact = (Contact & { bulk?: false }) | {
   bulk: true
   recipientIds: string[]
   recipientPreview: Array<{ id: string; first_name: string; last_name: string }>
 }
 
 export default function StaffPage() {
+  const router = useRouter()
   const tenantId = getActiveTenantId()
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedContact, setSelectedContact] = useState<ContactPanelContact | null>(null)
-  const [tenantFields, setTenantFields] = useState<ContactPanelTenantField[]>([])
+  const [profileStaff, setProfileStaff] = useState<StaffMember | null>(null)
+  const profilePerson = useMemo<ConversationPerson | null>(() => profileStaff?.person_id ? {
+    id: profileStaff.person_id, profileId: profileStaff.person_id, profileType: 'contact', smsContactId: profileStaff.person_id,
+    name: `${profileStaff.first_name || ''} ${profileStaff.last_name || ''}`.trim(),
+    phone: profileStaff.phone || '', email: profileStaff.email || '', student: '', stage: '',
+  } : null, [profileStaff])
   const [composeContact, setComposeContact] = useState<ComposeContact | null>(null)
   const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
   const tablePreferences = useTablePreferences(STAFF_TABLE_SCHEMA)
@@ -51,17 +57,9 @@ export default function StaffPage() {
     if (storedSort) setStaffSort({ key: storedSort.key as StaffSortKey, direction: storedSort.direction })
   }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const isMobile = useIsMobile()
-  const contactHistory = useMobilePanelHistory({
-    isOpen: Boolean(selectedContact),
-    isMobile,
-    historyKey: 'pulseMobileStaffContactProfile',
-    onClose: () => setSelectedContact(null),
-  })
-
-  const fetchStaff = () => fetch(`/api/staff?tenant=${tenantId}`).then(r => r.json())
 
   useEffect(() => {
-    fetchStaff()
+    fetch(`/api/staff?tenant=${encodeURIComponent(tenantId)}`).then(r => r.json())
       .then(data => {
         const list = (Array.isArray(data) ? data : []).filter((s: StaffMember) => s.is_active !== false)
         list.sort((a: StaffMember, b: StaffMember) =>
@@ -71,17 +69,7 @@ export default function StaffPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-
-    fetch(`/api/tenant-fields?tenant=${tenantId}`)
-      .then(r => r.json())
-      .then(d => setTenantFields(Array.isArray(d) ? d : []))
-      .catch(() => {})
   }, [tenantId])
-
-  const openContact = async (personId: string) => {
-    const contact = await fetch(`/api/contacts/${personId}`).then(r => r.json())
-    if (contact && !contact.error) setSelectedContact(contact)
-  }
 
   const displayPhone = (phone: string | null) => {
     if (!phone) return '—'
@@ -211,7 +199,7 @@ export default function StaffPage() {
         skeletonRows={6}
         emptyContent="No staff found."
         onRowClick={(member) => {
-          if (member.person_id) void openContact(member.person_id)
+          if (member.person_id) setProfileStaff(member)
         }}
         getRowStyle={(member) => ({
           background: selectedStaffIds.has(member.id) ? colors.surfaceMuted : colors.surface,
@@ -220,23 +208,21 @@ export default function StaffPage() {
         ariaLabel="Staff"
       />
 
-      {selectedContact && (
-        <ContactSlidePanel
-          key={selectedContact.id}
-          contact={selectedContact}
-          tenantFields={tenantFields}
-          onClose={contactHistory.closePanel}
-          onCompose={(ids) => {
-            if (ids.length === 1 && selectedContact) {
-              const contact = selectedContact
-              contactHistory.dismissPanel(() => setComposeContact(contact))
-            }
+      {profilePerson && (
+        <ConversationProfilePanel
+          key={profilePerson.id}
+          person={profilePerson}
+          tenantId={tenantId}
+          onClose={() => setProfileStaff(null)}
+          onCompose={channel => router.push(conversationComposeHref(tenantId, profilePerson.id, channel))}
+          onContactUpdated={(updated) => {
+            setStaff(rows => {
+              const member = rows.find(row => row.person_id === updated.id)
+              const saved = { id: member?.id || updated.staff_id || '', person_id: updated.id, first_name: updated.first_name, last_name: updated.last_name, phone: updated.phone, email: updated.email, is_active: updated.is_active !== false }
+              if (!saved.id) return rows
+              return [...rows.filter(row => row.person_id !== updated.id), saved].filter(member => member.is_active !== false)
+            })
           }}
-          onUpdated={(updated) => {
-            setSelectedContact(updated)
-            fetchStaff().then(data => setStaff(Array.isArray(data) ? data : []))
-          }}
-          onViewInstructor={openContact}
         />
       )}
 

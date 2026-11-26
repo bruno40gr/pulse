@@ -15,12 +15,17 @@ import { PROFILE_PANEL_WIDTH } from '@/lib/conversation-display'
 import { ProfilePanelSkeleton } from '@/components/ui/ProfilePanelSkeleton'
 import { ConversationComposeContext } from '@/components/inbox/ConversationComposeContext'
 import type { ConversationChannel } from '@/lib/conversation-links'
+import type { FundingCase, FundingInvoice } from '@/components/funding/types'
 
 type Lead = ComponentProps<typeof LeadDetailPanel>['lead']
 type Draft = ComponentProps<typeof LeadDetailPanel>['draft']
 
-export default function ConversationProfilePanel({ person, tenantId, onClose, onCompose }: {
+export default function ConversationProfilePanel({ person, tenantId, onClose, onCompose, onContactUpdated, fundingCase, onFundingCaseUpdated, onInvoiceStatusChange }: {
   person: ConversationPerson; tenantId: string; onClose: () => void; onCompose: (channel: ConversationChannel) => void
+  onContactUpdated?: (contact: Contact) => void
+  fundingCase?: FundingCase
+  onFundingCaseUpdated?: (updated: FundingCase) => void
+  onInvoiceStatusChange?: (invoice: FundingInvoice) => void
 }) {
   const [contact, setContact] = useState<Contact | null>(null)
   const [lead, setLead] = useState<Lead | null>(null)
@@ -30,6 +35,8 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [calling, setCalling] = useState(false)
+  const [openingContact, setOpeningContact] = useState(false)
+  const navigationRequest = useRef(0)
   const mounted = useRef(true)
   const mobile = useIsMobile()
   const router = useRouter()
@@ -55,7 +62,7 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
           setCapabilities({ edit: rosterResponse.headers.get('X-Contacts-Can-Edit') === 'true',
             readNotes: rosterResponse.headers.get('X-Contacts-Can-Read-Notes') === 'true',
             editNotes: rosterResponse.headers.get('X-Contacts-Can-Edit-Notes') === 'true' })
-          setContact(contacts.find((row: Contact) => row.id === data.id) || data)
+          setContact({ ...data, ...contacts.find((row: Contact) => row.id === data.id), active_students: data.active_students, staff_id: data.staff_id, is_active: data.is_active })
         }
       } catch (error) {
         if (mounted.current && !controller.signal.aborted) setError(error instanceof Error ? error.message : 'Could not load profile.')
@@ -87,6 +94,7 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
   const updateContact = (updated: Contact) => {
     setRoster(rows => rows.map(row => row.id === updated.id ? updated : row))
     setContact(current => current?.id === updated.id ? updated : current)
+    onContactUpdated?.(updated)
   }
   const refreshFamily = async () => {
     try {
@@ -95,16 +103,35 @@ export default function ConversationProfilePanel({ person, tenantId, onClose, on
       if (!response.ok || !Array.isArray(rows)) throw new Error('Could not refresh contact family.')
       if (!mounted.current) return
       setRoster(rows)
-      setContact(current => current ? rows.find((row: Contact) => row.id === current.id) || current : current)
+      setContact(current => current ? { ...current, ...rows.find((row: Contact) => row.id === current.id) } : current)
     } catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : 'Could not refresh contact family.') }
+  }
+  const openPerson = async (id: string) => {
+    const requestId = ++navigationRequest.current
+    setOpeningContact(true)
+    setError('')
+    try {
+      const response = await fetch(`/api/contacts/${encodeURIComponent(id)}?tenant=${encodeURIComponent(tenantId)}`)
+      const data = await response.json()
+      if (!response.ok || data?.id !== id || (data.tenant_id && data.tenant_id !== tenantId)) throw new Error(data?.error || 'Could not load contact.')
+      if (!mounted.current || requestId !== navigationRequest.current) return
+      setContact({ ...data, ...roster.find(row => row.id === id), active_students: data.active_students, staff_id: data.staff_id, is_active: data.is_active })
+    } catch (cause) {
+      if (mounted.current && requestId === navigationRequest.current) setError(cause instanceof Error ? cause.message : 'Could not load contact.')
+    } finally { if (mounted.current && requestId === navigationRequest.current) setOpeningContact(false) }
   }
   return <ConversationComposeContext.Provider value={channel => history.dismissPanel(() => onCompose(channel))}>
     {contact ? <LiveContactPanel key={contact.id} tenantId={tenantId} capabilities={capabilities} initialNotesTab="notes" onFamilyChanged={() => void refreshFamily()}
+      initialSection={fundingCase && contact.id === person.profileId ? 'funding' : 'account'}
+      fundingCase={contact.id === person.profileId ? fundingCase : undefined}
+      onFundingCaseUpdated={contact.id === person.profileId ? onFundingCaseUpdated : undefined}
+      onInvoiceStatusChange={contact.id === person.profileId ? onInvoiceStatusChange : undefined}
+      navigationError={error} openingContact={openingContact}
       familyPeople={[...new Map(families.flatMap(family => [...family.students, ...family.holders]).map(person => [person.id, person])).values()]}
       subject={holderFamily ? { kind: 'holder', person: contact, students: holderFamily.students.filter(row => row.id !== contact.id), memberSince: holderFamily.students[0]?.account_member_since || null } : { kind: 'student', person: contact }}
       accountHolders={displayAccountHolders(families.flatMap(family => family.students))}
       accountHolderLink={holder ? { name: `${holder.first_name} ${holder.last_name}`.trim(), href: `/dashboard/contacts?contact=${encodeURIComponent(holder.id)}`, open: () => setContact(holder) } : undefined}
-      onOpenStudent={setContact} onUpdated={updateContact} onAccountUpdated={() => void refreshFamily()}
+      onOpenStudent={setContact} onOpenPerson={id => void openPerson(id)} onUpdated={updateContact} onAccountUpdated={() => void refreshFamily()}
       onNotesUpdated={(id, field, notes) => {
         setContact(current => current?.id === id ? { ...current, [field]: notes } : current)
         setRoster(rows => rows.map(row => row.id === id ? { ...row, [field]: notes } : row))

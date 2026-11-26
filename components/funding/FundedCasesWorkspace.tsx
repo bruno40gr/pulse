@@ -1,12 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ComponentProps } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge, Button, Notice, PageHeader, Tabs, type DataTableColumn, type DataTableSort } from '@/components/ui'
 import { RichDataTable } from '@/components/ui/RichDataTable'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { FUNDING_TABLE_SCHEMA } from '@/lib/funding-table-preferences'
-import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import ConversationProfilePanel from '@/components/inbox/ConversationProfilePanel'
+import LiveContactPanel from '@/components/contacts/LiveContactPanel'
+import type { Contact } from '@/app/dashboard/contacts/page'
+import type { ConversationPerson } from '@/lib/conversations-live'
+import { conversationComposeHref } from '@/lib/conversation-links'
+import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { PersonName } from '@/components/ui/PersonName'
 import { getActiveTenantId } from '@/lib/tenant'
 import { isFundingDemoTenant, loadDemoFunding, recalculateDemoFundingCase, resetDemoFunding, saveDemoFundingCase } from '@/lib/funding/demo'
@@ -21,9 +26,6 @@ import type { FundingCase, FundingInvoice, FundingInvoiceStatus } from './types'
 type StudentFilter = 'needs_review' | 'waiting' | 'all'
 type CaseSortKey = 'student' | 'organization' | 'status' | 'dueDate' | 'outstanding' | 'updatedAt'
 
-// The slide panel owns the contact contract; reuse it instead of duplicating the person shape.
-type PanelContact = ComponentProps<typeof ContactSlidePanel>['contact']
-
 export default function FundedCasesWorkspace() {
   const isMobile = useIsMobile()
   const router = useRouter()
@@ -35,14 +37,19 @@ export default function FundedCasesWorkspace() {
   useEffect(() => {
     if (storedSort) setCaseSort({ key: storedSort.key as CaseSortKey, direction: storedSort.direction })
   }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
-  const [contactPanel, setContactPanel] = useState<{ contact: PanelContact; fundingCase: FundingCase } | null>(null)
-  const [openingCaseId, setOpeningCaseId] = useState<string | null>(null)
+  const [contactPanel, setContactPanel] = useState<{ contact: Contact; fundingCase: FundingCase } | null>(null)
   const [invoiceEdit, setInvoiceEdit] = useState<{ caseId: string; invoice: FundingInvoice } | null>(null)
   const [dataSource, setDataSource] = useState<'loading' | 'persisted' | 'demo' | 'unavailable'>('loading')
   const [loadError, setLoadError] = useState('')
   const [showNewCase, setShowNewCase] = useState(false)
   const [preferredProgramId, setPreferredProgramId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
+  const demoHistory = useMobilePanelHistory({ isOpen: dataSource === 'demo' && !!contactPanel, isMobile, historyKey: 'pulseMobileDemoFundingProfile', onClose: () => setContactPanel(null) })
+  const profileContact = contactPanel?.contact
+  const profilePerson = useMemo<ConversationPerson | null>(() => profileContact ? {
+    id: profileContact.id, profileId: profileContact.id, profileType: 'contact', smsContactId: profileContact.id,
+    name: `${profileContact.first_name} ${profileContact.last_name}`.trim(), phone: '', email: '', student: '', stage: '',
+  } : null, [profileContact])
 
   useEffect(() => {
     const tenantId = getActiveTenantId()
@@ -82,15 +89,15 @@ export default function FundedCasesWorkspace() {
   const replaceCase = (updated: FundingCase) => {
     if (dataSource === 'demo') saveDemoFundingCase(getActiveTenantId(), updated)
     setCases(current => current.map(item => item.id === updated.id ? updated : item))
+    setContactPanel(current => current?.fundingCase.id === updated.id ? { ...current, fundingCase: updated } : current)
   }
 
-  // Row clicks open the contact record directly on its Funding Program tab. The contact
-  // is fetched per click (not per row) so the table stays a single bulk request.
-  const openContactPanel = async (item: FundingCase) => {
+  // The shared host owns live detail/permission loading; fictional cases never use it.
+  const openContactPanel = (item: FundingCase) => {
     if (dataSource === 'demo') {
       const family = item.contacts.find(contact => contact.purpose === 'family_contact')
       setContactPanel({ fundingCase: item, contact: {
-        id: item.studentPersonId || item.id, first_name: item.student.split(' ')[0], last_name: item.student.split(' ').slice(1).join(' '),
+        id: item.studentPersonId || item.id, tenant_id: getActiveTenantId(), is_student: true, first_name: item.student.split(' ')[0], last_name: item.student.split(' ').slice(1).join(' '),
         phone: null, email: null, client_status: item.missingDetails.length ? 'pending' : 'active', opted_out: false, last_attended: null,
         notes: 'Fictional funding demo student.', family_name: item.parent, account_holder_name: item.parent,
         account_holder_phone: family?.phone || null, account_holder_email: family?.email || null, custom_fields: { funded: true }, is_minor: true,
@@ -102,18 +109,11 @@ export default function FundedCasesWorkspace() {
       return
     }
     setActionError('')
-    setOpeningCaseId(item.id)
-    try {
-      const tenantId = getActiveTenantId()
-      const response = await fetch(`/api/contacts/${item.studentPersonId}?tenant=${encodeURIComponent(tenantId)}`)
-      const body = await response.json()
-      if (!response.ok || body?.error) throw new Error(body?.error || 'Could not open this student.')
-      setContactPanel({ contact: body, fundingCase: item })
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Could not open this student.')
-    } finally {
-      setOpeningCaseId(null)
-    }
+    setContactPanel({ fundingCase: item, contact: {
+      id: item.studentPersonId, first_name: item.student.split(' ')[0], last_name: item.student.split(' ').slice(1).join(' '),
+      phone: null, email: null, client_status: 'active', opted_out: false, last_attended: null, notes: null,
+      family_name: null, account_holder_name: null, account_holder_phone: null, account_holder_email: null, custom_fields: {},
+    } })
   }
 
   const updateInvoiceStatus = async (input: { status: FundingInvoiceStatus; evidence: string; note: string; paidOn: string | null }) => {
@@ -127,6 +127,7 @@ export default function FundedCasesWorkspace() {
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body?.error || 'Could not update invoice status.')
+      if (body?.id !== invoiceEdit.caseId || !Array.isArray(body.invoices)) throw new Error('Invoice update returned an invalid funding case.')
       replaceCase(body)
       return
     }
@@ -150,7 +151,6 @@ export default function FundedCasesWorkspace() {
       })
       const updated = recalculateDemoFundingCase(recalculateFixtureCase({ ...item, invoices, updatedAt: changedAt }, input.status, input.note || input.evidence))
       replaceCase(updated)
-      setContactPanel(current => current?.fundingCase.id === updated.id ? { ...current, fundingCase: updated } : current)
     }
   }
 
@@ -160,7 +160,6 @@ export default function FundedCasesWorkspace() {
       render: item => (
         <div style={{ minWidth: 0 }}>
           <PersonName>{item.student}</PersonName>
-          {openingCaseId === item.id && <div style={secondaryTextStyle}>Opening…</div>}
         </div>
       ),
     },
@@ -217,23 +216,25 @@ export default function FundedCasesWorkspace() {
         onSortChange={nextSort => { setCaseSort(nextSort); tablePreferences.updatePreferences({ ...tablePreferences.preferences, sort: nextSort }) }}
         emptyContent="No funded students in this view."
         onRowClick={item => void openContactPanel(item)}
+        loading={dataSource === 'loading'}
         ariaLabel="Funded Students"
       />
 
-      {contactPanel && (
-        <ContactSlidePanel
+      {contactPanel && profilePerson && (dataSource === 'demo' ? <LiveContactPanel
           key={contactPanel.contact.id}
-          contact={contactPanel.contact}
-          tenantFields={[]}
-          mockFundingCase={contactPanel.fundingCase}
-          initialPanelTab="funding"
-          onClose={() => setContactPanel(null)}
-          onUpdated={() => {}}
+          subject={{ kind: 'student', person: contactPanel.contact }} tenantId={getActiveTenantId()}
+          capabilities={{ edit: false, readNotes: false, editNotes: false }} initialNotesTab="notes" fundingOnly
+          fundingCase={contactPanel.fundingCase} onFundingCaseUpdated={replaceCase}
           onInvoiceStatusChange={invoice => setInvoiceEdit({ caseId: contactPanel.fundingCase.id, invoice })}
-          onFundingCaseUpdated={updated => {
-            replaceCase(updated)
-            setContactPanel(current => current ? { ...current, fundingCase: updated } : current)
-          }}
+          onClose={demoHistory.closePanel} onUpdated={() => {}} onAccountUpdated={() => {}} onNotesUpdated={() => {}} onOpenStudent={() => {}}
+        /> : <ConversationProfilePanel
+          key={contactPanel.contact.id}
+          person={profilePerson} tenantId={getActiveTenantId()}
+          fundingCase={contactPanel.fundingCase}
+          onClose={() => setContactPanel(null)}
+          onCompose={channel => router.push(conversationComposeHref(getActiveTenantId(), profilePerson.id, channel))}
+          onInvoiceStatusChange={invoice => setInvoiceEdit({ caseId: contactPanel.fundingCase.id, invoice })}
+          onFundingCaseUpdated={replaceCase}
         />
       )}
 

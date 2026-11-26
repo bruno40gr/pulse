@@ -1,0 +1,33 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Local source integration contracts. */
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const { readFileSync } = require('node:fs')
+const { resolve } = require('node:path')
+const source = file => readFileSync(resolve(__dirname, '../..', file), 'utf8')
+
+test('Funding retires the legacy caller and keeps live and fictional profile paths separate', () => {
+  const workspace = source('components/funding/FundedCasesWorkspace.tsx')
+  assert.doesNotMatch(workspace, /ContactSlidePanel|tenantFields|mockFundingCase/)
+  assert.match(workspace, /dataSource === 'demo' \? <LiveContactPanel/)
+  assert.match(workspace, /fundingOnly/)
+  assert.match(workspace, /<ConversationProfilePanel/)
+  assert.match(workspace, /loading=\{dataSource === 'loading'\}/)
+  assert.match(workspace, /body\?\.id !== invoiceEdit.caseId/)
+  assert.match(workspace, /current\?\.fundingCase.id === updated.id/)
+  assert.match(workspace, /saveDemoFundingCase/)
+})
+
+test('Funding opens the selected case without leaking it to another person and preserves Billing actions', () => {
+  const host = source('components/inbox/ConversationProfilePanel.tsx')
+  assert.match(host, /initialSection=\{fundingCase && contact.id === person.profileId \? 'funding' : 'account'\}/)
+  assert.match(host, /fundingCase=\{contact.id === person.profileId \? fundingCase : undefined\}/)
+  assert.match(host, /onInvoiceStatusChange=\{contact.id === person.profileId \? onInvoiceStatusChange : undefined\}/)
+  const panel = source('components/contacts/LiveContactPanel.tsx')
+  assert.match(panel, /fundingOnly \? 'funding'/)
+  assert.match(panel, /!fundingOnly && <ProfileEntryActions>/)
+  assert.match(panel, /fundingOnly \? \[\{ key: 'funding'/)
+  assert.match(panel, /funding.loading \|\| fundingOnly \|\| simulated\) return/)
+  assert.match(panel, /section === 'billing' && visibleFunding/)
+  assert.match(panel, /sections="billing" onInvoiceStatusChange=\{onInvoiceStatusChange\}/)
+  assert.match(panel, /onFundingCaseUpdated\?\.\(updated\)/)
+})

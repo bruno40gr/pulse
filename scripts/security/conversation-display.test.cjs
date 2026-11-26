@@ -148,13 +148,13 @@ test('name, latest contact and date sort both directions; unknown dates stay las
   assert.equal(people.slice().sort((a, b) => compareConversations(a, b, 'name', 'desc'))[0].name, 'Zoe')
 })
 test('profile drawers share width; only unresolved profiles need a skeleton', () => {
-  for (const file of ['components/inbox/ConversationProfilePanel.tsx', 'components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadsView.tsx']) {
+  for (const file of ['components/inbox/ConversationProfilePanel.tsx', 'components/contacts/LiveContactPanel.tsx', 'components/leads/LeadsView.tsx']) {
     const source = fs.readFileSync(path.join(root, file), 'utf8')
-    assert.match(source, /width=\{PROFILE_PANEL_WIDTH\}/)
-    if (file === 'components/contacts/ContactSlidePanel.tsx') {
+    if (file === 'components/contacts/LiveContactPanel.tsx') {
+      assert.match(source, /width="65dvw"/)
       assert.doesNotMatch(source, /ProfilePanelSkeleton/)
-      assert.match(source, /Loading AI highlights/)
     } else {
+      assert.match(source, /width=\{PROFILE_PANEL_WIDTH\}/)
       assert.match(source, /<ProfilePanelSkeleton/)
     }
   }

@@ -22,6 +22,8 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Erro
         const url = new URL(route.request().url())
         if (route.request().method() !== 'GET') writes.push(url.pathname)
         if (url.pathname === '/api/contacts') return route.fulfill({ json: roster, headers: { 'X-Contacts-Can-Edit': 'true' } })
+        const person = roster.find(row => url.pathname === `/api/contacts/${row.id}`)
+        if (person) return route.fulfill({ json: person })
         return route.fulfill({ json: [] })
       })
       await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 45000 })

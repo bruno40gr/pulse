@@ -16,7 +16,8 @@ import ContactOpportunityForm from '@/beta-source/components/leads/ContactOpport
 import { createOpportunities } from '@/beta-source/lib/academy-opportunities'
 import BandEnrollmentRequestPanel from './BandEnrollmentRequestPanel'
 import { sendBandEnrollmentRequests, openBandEnrollmentRequest, resolveBandEnrollmentRequests, type BandEnrollmentRequest } from '@/beta-source/lib/academy-band-requests'
-import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import LiveContactPanel from '@/components/contacts/LiveContactPanel'
+import type { Contact } from '@/app/dashboard/contacts/page'
 import { ContactPrototypeContext, ContactBandEnrollmentContext } from '@/components/contacts/ContactPrototypeContext'
 import { explorerContactDirectory } from '@/beta-source/lib/academy-explorer-contacts'
 import { betaAcademyTeachers, betaAvailableTeachers, type BetaTeachingLoad } from '@/beta-source/lib/beta-academy-schedule'
@@ -131,6 +132,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
   const [activeBandEnrollment, setActiveBandEnrollment] = useState<string | null>(null)
   const [bandPanelId, setBandPanelId] = useState<string | null>(null)
   const [studentPanelId, setStudentPanelId] = useState<string | null>(null)
+  const [profileUpdates, setProfileUpdates] = useState<Record<string, Contact>>({})
   const configuredSetup = useMemo(() => academy.kind === 'music' && configuredData ? configuredData : setupData[academy.kind] || (academy.kind === 'music' ? createDemoSetup() : { services: [], locations: [], teachers: [] }), [academy.kind, configuredData, setupData])
   const locations = configuredSetup.locations || []
   const configuredServices = configuredSetup.services || []
@@ -502,7 +504,7 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
     return <div className={styles.stack}>{bands.length ? bands.map(group => <DenseSectionPanel key={group.id} title={group.name} actions={group.memberIds.includes(id) ? <Button variant="secondary" onClick={() => { setStudentPanelId(null); setBandPanelId(group.id) }}>View band</Button> : <Button onClick={() => startBandEnrollment(id, group.id)}>Complete band enrollment</Button>}><p>{group.memberIds.includes(id) ? 'Confirmed' : 'Pending'} · {group.memberIds.length} confirmed members</p>{bandEnrollments.filter(record => record.completedAt && record.studentId === id && record.bandId === group.id).map(record => <p key={record.id}>{record.pricing?.recurring === false ? 'Enrollment paid' : 'Subscription active'} · ${Number(record.monthlyPrice).toFixed(2)} {record.pricing?.unit || '/ month'} · Visa ending in 4242</p>)}</DenseSectionPanel>) : <EmptyState title="No band enrollments" />}</div>
   }
   const selectedBand = academy.kind === 'music' ? academy.groups.find(group => group.id === bandPanelId) : undefined
-  const selectedStudent = studentPanelId ? explorerContactDirectory(state.people, [studentPanelId], state.registrations).contacts.find(contact => contact.id === studentPanelId) : undefined
+  const selectedStudent = studentPanelId ? profileUpdates[studentPanelId] || explorerContactDirectory(state.people, [studentPanelId], state.registrations).contacts.find(contact => contact.id === studentPanelId) : undefined
   return <LeadWorkspaceContext.Provider value={opportunityAdapter}><ContactBandEnrollmentContext.Provider value={academy.kind === 'music' ? bandMemberships : undefined}><ExplorerShell embedded={embedded || enrollmentFocused} groupLabel={academy.kind === 'music' ? 'Bands & ensembles' : academy.kind === 'martial' ? 'Practice teams' : 'Study groups'} screen={screen} onNavigate={navigate}><div className={styles.root} style={rootStyle}><PageContainer style={{ boxSizing: 'border-box' }}><div className={styles.stack}>{notice && <Notice variant="success" onDismiss={() => setNotice('')}>{notice}</Notice>}{errors.length > 0 && <Notice variant="error">{errors.join(' ')}</Notice>}{content}      <Modal isOpen={lessonChooser && !calendarEnrollment?.openBooking} onClose={() => setLessonChooser(false)} size="wide" layout="content" ariaLabel="Enroll">
         <ModalHeader title="Enroll" onClose={() => setLessonChooser(false)} />
         <ModalBody><div className={styles.choices}>
@@ -543,6 +545,11 @@ export default function EventExplorer({ embedded = false, initialScreen = 'event
         const result = createOpportunities(inquiries, state.people, { personIds: opportunityIds || [], interest: type === 'band' ? band?.name || 'Band program' : service?.values.name || '', category: type === 'band' ? 'Program inquiries' : type === 'lesson' ? 'Lesson requests' : 'Service inquiries', origin: 'staff_initiated', programId: type === 'band' ? undefined : serviceId, bandId: band?.id, serviceType: type === 'band' ? 'band' : undefined, followUp: '', note: '' })
         setInquiries(result.inquiries); setCreationKey(''); setOpportunityIds(null); setNotice('Opportunities saved.')
       }} />}
-      {selectedStudent && <ContactPrototypeContext.Provider value><ContactSlidePanel prototype contact={selectedStudent} tenantFields={[]} initialPanelTab="enrollments" onClose={() => setStudentPanelId(null)} onUpdated={() => {}} /></ContactPrototypeContext.Provider>}
+      {selectedStudent && <ContactPrototypeContext.Provider value><LiveContactPanel key={selectedStudent.id} simulated
+        subject={{ kind: 'student', person: selectedStudent }} tenantId={selectedStudent.tenant_id || 'prototype'}
+        capabilities={{ edit: true, readNotes: true, editNotes: true }} initialNotesTab="notes" initialSection="enrollments"
+        onClose={() => setStudentPanelId(null)} onUpdated={updated => setProfileUpdates(rows => ({ ...rows, [updated.id]: updated }))}
+        onNotesUpdated={(id, field, notes) => setProfileUpdates(rows => ({ ...rows, [id]: { ...selectedStudent, ...rows[id], [field]: notes } }))}
+        onAccountUpdated={() => {}} onOpenStudent={student => setStudentPanelId(student.id)} /></ContactPrototypeContext.Provider>}
 </div></PageContainer></div></ExplorerShell></ContactBandEnrollmentContext.Provider></LeadWorkspaceContext.Provider>
 }

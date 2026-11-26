@@ -81,7 +81,7 @@ test('Contacts uses atomic filtered-family selection, keeping drawers and transp
   // The family row toggles its recipients when no single holder row exists.
   assert.match(page, /onToggleMembers=\{\(members, checked\) =>/)
   assert.match(page, /matchesContactFilters\(contact, appliedFilters\)/)
-  assert.match(page, /<ContactSlidePanel/)
+  assert.match(page, /<LiveContactPanel/)
   assert.match(page, /sortedDisplayed\.findIndex\(row => row.id === contact.id\)/)
 })
 test('Leads uses canonical student requests, not duplicate legacy projections', () => {

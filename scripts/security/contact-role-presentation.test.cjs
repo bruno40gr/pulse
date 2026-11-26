@@ -81,10 +81,10 @@ test('Contacts reuses Leads grouped primitive without tree indentation or avatar
   assert.doesNotMatch(page, /<Avatar|<House/)
   assert.doesNotMatch(page, /Via /)
   assert.match(page, /weight=.*'semibold'.*'normal'/)
-  const panel = fs.readFileSync(path.join(root, 'components/contacts/ContactSlidePanel.tsx'), 'utf8')
-  assert.match(panel, /holderRouting \? <Button/)
-  assert.match(panel, /disabled=\{!contactPhone \|\| !onCompose\}/)
-  assert.doesNotMatch(panel, /contactPhone && contactPhone !== contact.phone \? <Button/)
+  const panel = fs.readFileSync(path.join(root, 'components/contacts/LiveContactPanel.tsx'), 'utf8')
+  assert.match(panel, /holderRouting && !canComposeToHolder/)
+  assert.match(panel, /const callPhone = holderRouting \? primaryHolder\?\.phone \|\| person\?\.account_holder_phone : phone/)
+  assert.match(panel, /const canComposeToHolder = holderRouting.*person.is_minor === true \|\| person.message_routing === 'account_holder'/)
 })
 test('list API exposes real student roles, tenant-scoped holder mappings and safe legacy fallback', async () => {
   const queries = []

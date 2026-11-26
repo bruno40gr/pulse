@@ -8,7 +8,7 @@ const source = file => fs.readFileSync(path.resolve(__dirname, '../..', file), '
 
 test('family members exposes add student outside the contact editor without a dependent count', () => {
   const panel = source('components/contacts/LiveContactPanel.tsx')
-  assert.match(panel, /title="Family members" actions=\{showsAccount && capabilities\.edit && !addingStudent[\s\S]*?setAddingStudent\(true\)\}>Add student/)
+  assert.match(panel, /title="Family members" actions=\{!simulated && showsAccount && capabilities\.edit && !addingStudent[\s\S]*?setAddingStudent\(true\)\}>Add student/)
   assert.doesNotMatch(panel, /label="Dependents"|title="Account holders"/)
   assert.match(panel, /showsAccount && capabilities\.edit && addingStudent && <LiveFamilyManagement[\s\S]*?addStudentOnly[\s\S]*?setAddingStudent\(false\); onFamilyChanged\?\.\(\)/)
   assert.match(source('components/contacts/LiveFamilyManagement.tsx'), /if \(addStudentOnly\) return dialog/)
@@ -41,7 +41,7 @@ test('editing replaces the profile chrome with header-owned save and cancel', ()
   assert.match(panel, /closeOnBackdrop=\{!editing\} closeOnEscape=\{!editing\}/)
   assert.match(panel, /title=\{editing \? 'Edit Contact'/)
   assert.match(panel, /actions=\{editing \? /)
-  assert.match(panel, /!editing && <><ProfileEntryActions><AccountProfileToolbar/)
+  assert.match(panel, /!editing && <>\{!fundingOnly && <ProfileEntryActions><AccountProfileToolbar/)
   assert.match(panel, /<AccountEditorCanvas embedded formId=\{editorFormId\}/)
 })
 

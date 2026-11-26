@@ -34,13 +34,17 @@ test('card shortcuts open same-width drawers or return to the contextual compose
   assert.match(source, /embedded=\{\{ recipient, channel/)
   assert.doesNotMatch(source, /target=|<a /)
   assert.doesNotMatch(source, /window\.open|fetch\(/)
-  for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
+  for (const file of ['components/leads/LeadDetailPanel.tsx']) {
     const card = fs.readFileSync(path.join(root, file), 'utf8')
     assert.match(card, /CardSmsComposer/)
     assert.match(card, /ConversationComposeLink[^\n]+channel="sms"/)
     assert.match(card, /renderSms=\{back => <CardSmsComposer embedded/)
     assert.match(card, /ConversationComposeLink[^\n]+channel="email"/)
   }
+  const contact = fs.readFileSync(path.join(root, 'components/contacts/LiveContactPanel.tsx'), 'utf8')
+  assert.match(contact, /<LiveContactCommunication/)
+  assert.match(contact, /setCompose\('sms'\)/)
+  assert.match(contact, /setCompose\('email'\)/)
 })
 
 test('card SMS restores the production composer as an inner view with explicit back navigation', () => {
@@ -51,7 +55,7 @@ test('card SMS restores the production composer as an inner view with explicit b
   assert.match(source, /backDestination: 'lead' \| 'contact'/)
   assert.match(source, /Back to \$\{backDestination\}/)
   assert.doesNotMatch(source, /backLabel=\{leadId/)
-  for (const [file, destination] of [['components/leads/LeadDetailPanel.tsx', 'lead'], ['components/contacts/ContactSlidePanel.tsx', 'contact']]) {
+  for (const [file, destination] of [['components/leads/LeadDetailPanel.tsx', 'lead']]) {
     assert.ok(fs.readFileSync(path.join(root, file), 'utf8').includes(`backDestination="${destination}"`))
   }
   assert.doesNotMatch(source, /<SlidePanel[\s>]|<Conversations/)

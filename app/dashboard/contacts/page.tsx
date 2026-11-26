@@ -17,17 +17,15 @@ import { CONTACT_CLIENT_TYPES } from '@/lib/contact-client-types'
 import { PersonName } from '@/components/ui/PersonName'
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
-import { DEFAULT_TENANT, getActiveTenantId } from '@/lib/tenant'
+import { getActiveTenantId } from '@/lib/tenant'
 import { RefreshCw, Sparkles } from 'lucide-react'
 import { SlidePanelHeader } from '@/components/ui'
-import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
 import { useTablePreferences } from '@/components/ui/TableDisplayControls'
 import { CONTACT_TABLE_SCHEMA } from '@/lib/contact-table-preferences'
 import { sharedFollowUpsEnabled } from '@/lib/shared-follow-up'
 import { familyDependents, displayAccountHolders, familyHeaderHolder } from '@/lib/family-account'
 import { compareContactFollowUps, compareContactFollowUpNotes } from '@/lib/contact-follow-up-summary'
 import FamilyListTable from '@/components/contacts/FamilyListTable'
-import AccountFamilyPanel from '@/components/contacts/AccountFamilyPanel'
 import LiveContactPanel, { type ContactCapabilities, type LiveContactNote } from '@/components/contacts/LiveContactPanel'
 import { contactProfileFamilies } from '@/lib/contact-profile-family'
 import { DEFAULT_CONTACT_FILTERS, matchesContactFilters } from '@/lib/contact-filters'
@@ -40,7 +38,7 @@ import { Button, Badge, SlidePanel, PageHeader, FieldGrid, Select, Input, type D
 import { ContactRelationshipBadges } from '@/components/contacts/ContactRelationshipBadges'
 import { buttonSizeStyles, buttonVariantStyles } from '@/components/ui/Button'
 import { formatPhoneNumber } from '@/lib/phone'
-import { interaction, colors, typography, radius, spacing } from '@/lib/tokens'
+import { colors, typography, radius, spacing } from '@/lib/tokens'
 import { useIsMobile } from '@/lib/useMediaQuery'
 import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 import { removeCurrentSearchParam } from '@/lib/browser-url'
@@ -92,6 +90,16 @@ export interface Contact {
   } | null
   staff_id?: string | null
   is_active?: boolean
+  active_students?: {
+    enrollment_id: string
+    person_id: string
+    name: string
+    client_status: string
+    instrument: string | null
+    service_type: string | null
+    lesson_day: string | null
+    lesson_time: string | null
+  }[]
   funded?: boolean
 }
 
@@ -148,6 +156,7 @@ export default function ContactsPage() {
   const contextOpenContact = useContext(ContactNameOpenContext)
   const onOpenContact = onOpenSample || contextOpenContact
   const prototype = useContext(ContactPrototypeContext)
+  const simulated = prototype || Boolean(sampleContacts)
   const followUpsEnabled = sharedFollowUpsEnabled() && !sampleContacts && !prototype
   const tablePreferences = useTablePreferences(CONTACT_TABLE_SCHEMA)
   const [contacts, setContacts] = useState<Contact[]>(sampleContacts || [])
@@ -167,7 +176,6 @@ export default function ContactsPage() {
   const openedAccountDeepLink = useRef<string | null>(null)
   const [capabilities, setCapabilities] = useState(noContactCapabilities)
   const [notesDeepLink, setNotesDeepLink] = useState(false)
-  const [accountPanelTab, setAccountPanelTab] = useState<'profile' | 'scheduling' | 'billing'>('profile')
   const [initialNotesTab, setInitialNotesTab] = useState<'notes' | 'internal'>('notes')
   const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms')
   const [isComposeOpen, setIsComposeOpen] = useState(false)
@@ -189,20 +197,25 @@ export default function ContactsPage() {
   }, [storedSort?.key, storedSort?.direction]) // eslint-disable-line react-hooks/exhaustive-deps -- identity comes from the stored values
   const [contactView, setContactView] = useState<ContactListView>('family')
   const tenantId = getActiveTenantId()
-  const liveHeadliner = tenantId === DEFAULT_TENANT && !sampleContacts && !prototype
+  const profileTenantId = simulated ? selectedContact?.tenant_id || sampleContacts?.[0]?.tenant_id || tenantId : tenantId
   const selectedPerson = selectedContact && (contacts.find(row => row.id === selectedContact.id) ?? selectedContact)
-  const profileFamilies = liveHeadliner && (selectedPerson || selectedAccount)
-    ? contactProfileFamilies(contacts, tenantId, selectedPerson?.id, selectedAccount?.id) : []
+  const profileFamilies = selectedPerson || selectedAccount
+    ? contactProfileFamilies(contacts, profileTenantId, selectedPerson?.id, selectedAccount?.id) : []
   const selectedIsHolder = !!selectedPerson && profileFamilies.some(family => family.holders.some(holder => holder.id === selectedPerson.id))
   const studentAccount = selectedPerson && !selectedIsHolder ? profileFamilies.find(family => family.id === (selectedPerson.family_account_id || selectedPerson.account_id)) : undefined
   const studentHolder = studentAccount?.holders.find(holder => holder.id === selectedPerson?.account_holder_person_id)
     ?? (studentAccount?.holders.length === 1 ? studentAccount.holders[0] : undefined)
-  const useLivePanel = liveHeadliner && (selectedPerson
-    ? (selectedIsHolder || selectedPerson.is_student === true || Boolean(selectedPerson.student_id))
-    : Boolean(selectedAccount))
+  const useLivePanel = Boolean(selectedPerson || selectedAccount)
+  const profileCapabilities = simulated ? { edit: true, readNotes: true, editNotes: true } : capabilities
+  const navigationRequest = useRef(0)
+  const [navigationError, setNavigationError] = useState('')
+  const [openingContact, setOpeningContact] = useState(false)
   const isMobile = useIsMobile()
 
   const closeContactState = () => {
+    navigationRequest.current++
+    setOpeningContact(false)
+    setNavigationError('')
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -218,6 +231,9 @@ export default function ContactsPage() {
   })
 
   const openFamilyPerson = (person: Contact) => {
+    navigationRequest.current++
+    setOpeningContact(false)
+    setNavigationError('')
     setSelectedAccount(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
@@ -225,10 +241,34 @@ export default function ContactsPage() {
   }
 
   const openFamilyAccount = (id: string, members: Contact[]) => {
+    navigationRequest.current++
+    setOpeningContact(false)
+    setNavigationError('')
     setSelectedContact(null)
     setNotesDeepLink(false)
     setInitialNotesTab('notes')
     setSelectedAccount({ id, name: displayAccountHolders(members).find(holder => holder.account_id === id)?.name || 'Account holder', members })
+  }
+
+  const openProfilePerson = async (id: string) => {
+    if (simulated) {
+      const person = contacts.find(row => row.id === id && row.tenant_id === profileTenantId)
+      if (person) openFamilyPerson(person)
+      return
+    }
+    const requestId = ++navigationRequest.current
+    setOpeningContact(true)
+    setNavigationError('')
+    try {
+      const response = await fetch(`/api/contacts/${encodeURIComponent(id)}?tenant=${encodeURIComponent(tenantId)}`)
+      const person = await response.json()
+      if (!response.ok || person?.id !== id || person.tenant_id !== tenantId) throw new Error(person?.error || 'Could not load contact.')
+      if (requestId !== navigationRequest.current) return
+      setContacts(rows => rows.map(row => row.id === id ? { ...row, ...person } : row))
+      openFamilyPerson(person)
+    } catch (error) {
+      if (requestId === navigationRequest.current) setNavigationError(error instanceof Error ? error.message : 'Could not load contact.')
+    } finally { if (requestId === navigationRequest.current) setOpeningContact(false) }
   }
 
   const standardFiltered = contacts.filter(contact => matchesContactFilters(contact, appliedFilters))
@@ -284,7 +324,7 @@ export default function ContactsPage() {
     fetch(`/api/contacts/${encodeURIComponent(contactId)}?tenant=${tenantId}`, { signal: controller.signal })
       .then((response) => response.json())
       .then((contact) => {
-        if (!controller.signal.aborted && contact?.id === contactId) {
+        if (!controller.signal.aborted && contact?.id === contactId && contact.tenant_id === tenantId) {
           setNotesDeepLink(params.has('notes'))
           setInitialNotesTab(params.get('notes') === 'internal' ? 'internal' : 'notes')
           setSelectedContact(contact)
@@ -295,7 +335,7 @@ export default function ContactsPage() {
   }, [tenantId, sampleContacts])
 
   useEffect(() => {
-    if (!liveHeadliner || !contacts.length) return
+    if (simulated || !contacts.length) return
     const params = new URLSearchParams(window.location.search)
     const accountId = params.get('account')
     if (!accountId || params.has('contact') || openedAccountDeepLink.current === `${tenantId}:${accountId}`) return
@@ -303,7 +343,7 @@ export default function ContactsPage() {
     if (!family) return
     openedAccountDeepLink.current = `${tenantId}:${accountId}`
     openFamilyAccount(family.id, family.students)
-  }, [contacts, liveHeadliner, tenantId])
+  }, [contacts, simulated, tenantId])
 
   const handleSync = async () => {
     if (sampleContacts) return
@@ -435,15 +475,8 @@ export default function ContactsPage() {
   const handleNameClick = async (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation()
     if (onOpenContact?.(contact.id)) return
-    if (contact.staff_id) {
-      const response = await fetch(`/api/contacts/${contact.id}?tenant=${tenantId}`)
-      const detailedContact = await response.json()
-      if (response.ok && detailedContact && !detailedContact.error) {
-        setSelectedContact(detailedContact)
-        return
-      }
-    }
-    setSelectedContact(contact)
+    openFamilyPerson(contact)
+    if (!simulated && contact.staff_id) void openProfilePerson(contact.id)
   }
 
   const toggleSelectAll = () => {
@@ -759,13 +792,12 @@ export default function ContactsPage() {
             }
           })}
           nameColumn="name"
-          onOpenMember={member => { if (onOpenContact?.(member.id)) return; setSelectedAccount(null); setAccountPanelTab('profile'); setSelectedContact(member) }}
+          onOpenMember={member => { if (onOpenContact?.(member.id)) return; openFamilyPerson(member); if (!simulated && member.staff_id) void openProfilePerson(member.id) }}
           onOpenGroup={group => {
             if (group.parent && onOpenContact?.(group.parent.id)) return
             if (group.parent) {
-              setSelectedAccount(null)
-              setAccountPanelTab('profile')
-              setSelectedContact(group.parent)
+              openFamilyPerson(group.parent)
+              if (!simulated && group.parent.staff_id) void openProfilePerson(group.parent.id)
               return
             }
             const members = [...(group.parent ? [group.parent] : []), ...group.members.flatMap(member => member.row ? [member.row] : [])]
@@ -774,9 +806,9 @@ export default function ContactsPage() {
               const source = members.find(member => member.account_id)
               const id = group.id.includes('account:') ? group.id.split('account:').pop() : source?.account_id
               if (id) setSelectedAccount({ id, name: group.name, members: contacts.filter(member => (member.family_account_id === id || member.account_id === id || member.linked_account_ids?.includes(id)) && member.tenant_id === source?.tenant_id) })
-            } else if (group.parent) {
-              setAccountPanelTab('profile')
-              setSelectedContact(group.parent)
+            } else if (members[0]) {
+              if (onOpenContact?.(members[0].id)) return
+              openFamilyPerson(members[0])
             }
           }}
           columns={['name', 'phone', 'email', 'funded', 'instructor', 'followUp', 'followUpNote', 'students'].flatMap(id => contactColumns.filter(column => column.id === id))}
@@ -833,8 +865,9 @@ export default function ContactsPage() {
             memberSince: selectedAccount!.members[0]?.account_member_since ?? null },
           students: selectedAccount!.members.filter(member => member.is_student === true || (member.is_student !== false && Boolean(member.student_id))),
         }}
-        tenantId={tenantId} capabilities={capabilities}
-        onFamilyChanged={() => { void fetch(`/api/contacts?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store' }).then(async response => {
+        tenantId={profileTenantId} capabilities={profileCapabilities} simulated={simulated}
+        navigationError={navigationError} openingContact={openingContact} onOpenPerson={id => void openProfilePerson(id)}
+        onFamilyChanged={() => { if (simulated) return; void fetch(`/api/contacts?tenant=${encodeURIComponent(tenantId)}`, { cache: 'no-store' }).then(async response => {
           if (!response.ok) return
           const rows = await response.json()
           if (!Array.isArray(rows)) return
@@ -842,11 +875,11 @@ export default function ContactsPage() {
           setSelectedContact(current => current ? rows.find((row: Contact) => row.id === current.id) || current : current)
           setSelectedAccount(current => current ? { ...current, members: rows.filter((row: Contact & { linked_account_ids?: string[] }) => row.family_account_id === current.id || row.account_id === current.id || row.linked_account_ids?.includes(current.id)) } : current)
         }).catch(() => { /* Family panel reports persisted changes; next refresh reloads the roster. */ }) }}
-        onOpenStudent={openFamilyPerson}
+        onOpenStudent={person => void openProfilePerson(person.id)}
         accountHolderLink={studentAccount ? studentHolder ? {
           name: `${studentHolder.first_name ?? ''} ${studentHolder.last_name ?? ''}`.trim() || 'Account holder',
           href: `/dashboard/contacts?contact=${encodeURIComponent(studentHolder.id)}`,
-          open: () => openFamilyPerson(studentHolder),
+          open: () => void openProfilePerson(studentHolder.id),
         } : {
           name: studentAccount.students[0]?.family_name || studentAccount.students[0]?.account_holder_name || 'Account holder',
           href: `/dashboard/contacts?account=${encodeURIComponent(studentAccount.id)}`,
@@ -858,7 +891,7 @@ export default function ContactsPage() {
           setSelectedContact(current => current?.id === updated.id ? updated : current)
         }}
         onAccountUpdated={account => {
-          const refresh = (contact: Contact) => contact.tenant_id === tenantId && contact.account_id === account.id ? {
+          const refresh = (contact: Contact) => contact.tenant_id === profileTenantId && contact.account_id === account.id ? {
             ...contact, family_name: account.name, account_holder_name: account.name,
             account_holder_phone: account.phone, account_holder_email: account.email,
             account_holders: contact.account_holders?.map(holder => !holder.person_id && holder.is_primary ? {
@@ -873,45 +906,6 @@ export default function ContactsPage() {
           setSelectedContact(current => current?.id === id ? { ...current, [field]: notes } : current)
         }}
       />}
-      {!useLivePanel && selectedAccount && !selectedContact && <AccountFamilyPanel
-        name={selectedAccount.name}
-        members={selectedAccount.members}
-        onClose={contactHistory.closePanel}
-        onOpenMember={(member, tab) => { setAccountPanelTab(tab); setSelectedContact(member) }}
-      />}
-      {!useLivePanel && selectedContact && (
-        <ContactSlidePanel
-          key={selectedContact.id}
-          canEditFollowUps={capabilities.edit}
-          prototype={prototype}
-          contact={selectedContact}
-          initialPanelTab={accountPanelTab}
-          initialNotesTab={initialNotesTab}
-          tenantFields={tenantFields}
-          onClose={contactHistory.closePanel}
-          onUpdated={(updated) => {
-            setContacts(prev => prev.map(c => c.id === updated.id ? updated : c))
-            setSelectedContact(updated)
-          }}
-          onCompose={(ids) => {
-            if (ids.length === 1) {
-              const contact = contacts.find(c => c.id === ids[0])
-              setSingleComposeContact(contact || null)
-              contactHistory.dismissPanel(() => { setComposeChannel('sms'); setIsComposeOpen(true) })
-            } else {
-              setSelectedIds(new Set(ids))
-              contactHistory.dismissPanel(() => { setComposeChannel('sms'); setIsComposeOpen(true) })
-            }
-          }}
-          onViewInstructor={async (personId) => {
-            const response = await fetch(`/api/contacts/${personId}?tenant=${tenantId}`)
-            const instructorContact = await response.json()
-            if (response.ok && instructorContact && !instructorContact.error) {
-              setSelectedContact(instructorContact)
-            }
-          }}
-        />
-      )}
 
       {/* Compose slide panel */}
       <SlidePanel isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)} fullScreen={isMobile} width={PROFILE_PANEL_WIDTH}>

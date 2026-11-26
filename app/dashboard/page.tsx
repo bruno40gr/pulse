@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { loadAccountContext } from '@/lib/account-context-client'
 import Link from 'next/link'
 import { SyncButton } from '@/components/ui/SyncButton'
@@ -7,10 +8,10 @@ import { getActiveTenantId, shouldUseDemoPhotos, getContactDemoAvatarUrl, getSta
 import { trackDemoEvent } from '@/lib/demo-analytics'
 import { Button, Badge, SlidePanel, SlidePanelHeader, PageHeader } from '@/components/ui'
 import ComposePanel from '@/components/campaigns/ComposePanel'
-import ContactSlidePanel from '@/components/contacts/ContactSlidePanel'
+import ConversationProfilePanel from '@/components/inbox/ConversationProfilePanel'
+import { conversationComposeHref } from '@/lib/conversation-links'
+import type { ConversationPerson } from '@/lib/conversations-live'
 import { colors, typography, radius, spacing } from '@/lib/tokens'
-import { useIsMobile } from '@/lib/useMediaQuery'
-import { useMobilePanelHistory } from '@/lib/useMobilePanelHistory'
 
 interface Insight {
   type: 'risk' | 'milestone' | 'opportunity' | 'nudge'
@@ -70,13 +71,6 @@ interface ContactRecord {
   } | null
   message_routing?: string
   is_minor?: boolean
-}
-
-interface TenantField {
-  field_key: string
-  field_label: string
-  field_type: string
-  field_options: string[] | null
 }
 
 const typeConfig: Record<string, 'error' | 'success' | 'info' | 'warning'> = {
@@ -193,6 +187,7 @@ function writeSessionStorage(key: string, value: string) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -203,16 +198,19 @@ export default function DashboardPage() {
   const [contactPreviewMap, setContactPreviewMap] = useState<Record<string, { id: string, first_name: string, last_name: string }>>({})
   const [contactDetailsMap, setContactDetailsMap] = useState<Record<string, ContactRecord>>({})
   const [staffPreviewMap, setStaffPreviewMap] = useState<Record<string, { id: string, first_name: string, last_name: string }>>({})
-  const [tenantFields, setTenantFields] = useState<TenantField[]>([])
   const [composeTarget, setComposeTarget] = useState<ComposeTarget | null>(null)
   const [selectedContact, setSelectedContact] = useState<ContactRecord | null>(null)
-  const isMobile = useIsMobile()
-  const contactHistory = useMobilePanelHistory({
-    isOpen: Boolean(selectedContact),
-    isMobile,
-    historyKey: 'pulseMobileDashboardContactProfile',
-    onClose: () => setSelectedContact(null),
-  })
+  const profilePerson = useMemo<ConversationPerson | null>(() => selectedContact ? {
+    id: selectedContact.id,
+    name: `${selectedContact.first_name} ${selectedContact.last_name}`.trim(),
+    phone: selectedContact.phone || '',
+    email: selectedContact.email || '',
+    student: '',
+    stage: selectedContact.client_status,
+    smsContactId: selectedContact.id,
+    profileType: 'contact',
+    profileId: selectedContact.id,
+  } : null, [selectedContact])
   const [greeting, setGreeting] = useState(() => getGreetingForTime())
   const [canManageHighlights, setCanManageHighlights] = useState(false)
 
@@ -242,13 +240,6 @@ export default function DashboardPage() {
       path: '/dashboard',
       metadata: { source: 'dashboard_page' },
     })
-  }, [])
-
-  useEffect(() => {
-    fetch(`/api/tenant-fields?tenant=${getActiveTenantId()}`)
-      .then(r => r.json())
-      .then(data => setTenantFields(Array.isArray(data) ? data : []))
-      .catch(() => setTenantFields([]))
   }, [])
 
   useEffect(() => {
@@ -621,13 +612,14 @@ export default function DashboardPage() {
 
       </SlidePanel>
 
-      {selectedContact && (
-        <ContactSlidePanel
-          contact={selectedContact}
-          tenantFields={tenantFields}
-          onClose={contactHistory.closePanel}
-          onUpdated={(updated) => {
-            setSelectedContact(updated)
+      {profilePerson && (
+        <ConversationProfilePanel
+          key={profilePerson.id}
+          person={profilePerson}
+          tenantId={getActiveTenantId()}
+          onClose={() => setSelectedContact(null)}
+          onCompose={channel => router.push(conversationComposeHref(getActiveTenantId(), profilePerson.id, channel))}
+          onContactUpdated={(updated) => {
             setContactDetailsMap(prev => ({ ...prev, [updated.id]: updated }))
             setContactPreviewMap(prev => ({
               ...prev,

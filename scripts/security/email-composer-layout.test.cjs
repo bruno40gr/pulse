@@ -102,7 +102,7 @@ test('profile email switches preserve mounted profile/draft and delegate recipie
   assert.match(workspace, /key=\{`\$\{identity\}:\$\{recipient\}`\}/)
   assert.match(workspace, /onCancel=\{back\}/)
   assert.doesNotMatch(workspace, /<SlidePanel\s/)
-  for (const file of ['components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
+  for (const file of ['components/leads/LeadDetailPanel.tsx']) {
     assert.match(read(file), /<ProfileEmailWorkspace/)
   }
   const link = read('components/inbox/ConversationComposeLink.tsx')
@@ -114,7 +114,7 @@ test('profile composition hides entry actions without removing tabs, and drops o
   const layout = read('components/inbox/ProfileComposerLayout.tsx')
   assert.match(layout, /ProfileComposingContext.Provider value=\{open\}/)
   assert.match(layout, /return composing \? null : <>\{children\}<\/>/)
-  for (const file of ['components/contacts/LiveContactPanel.tsx', 'components/contacts/ContactSlidePanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
+  for (const file of ['components/contacts/LiveContactPanel.tsx', 'components/leads/LeadDetailPanel.tsx']) {
     assert.match(read(file), /<ProfileEntryActions>/)
   }
   const live = read('components/contacts/LiveContactPanel.tsx')

@@ -35,7 +35,11 @@ test('subscription and scheduling surfaces reuse the same summary component', ()
   for (const file of ['components/contacts/LiveContactPanel.tsx', 'beta-source/app/content-studio-prototype/students/AccountSubscriptions.tsx', 'beta-source/app/content-studio-prototype/students/UpcomingBookings.tsx', 'beta-source/app/content-studio-prototype/students/CalendarBookingLayout.tsx']) {
     assert.match(read(file), /<LessonSummary /)
   }
-  assert.doesNotMatch(read('components/contacts/LiveContactPanel.tsx'), /detail=\{plan\}|window\.confirm/)
+  const panel = read('components/contacts/LiveContactPanel.tsx')
+  assert.doesNotMatch(panel, /detail=\{plan\}/)
+  // Instructor offboarding retains its existing confirmation; contact discard uses the app modal.
+  assert.equal((panel.match(/window\.confirm/g) || []).length, 1)
+  assert.match(panel, /!nextActive && !window\.confirm\('Sunset this instructor\?/)
 })
 
 test('contact discard uses app modal and actual dirty state; family section is separated', () => {

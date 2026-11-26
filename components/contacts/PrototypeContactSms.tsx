@@ -6,6 +6,13 @@ import { SlidePanelHeader } from '@/components/ui'
 import { formatPhoneNumber } from '@/lib/phone'
 import { spacing } from '@/lib/tokens'
 import HolderRecipientPicker, { type HolderRecipient } from './HolderRecipientPicker'
+import { LeadWorkspaceContext } from '@/components/leads/LeadWorkspaceContext'
+
+// ComposePanel's setup and AI helpers must remain local as well as its send callback.
+const simulatedWorkspace = {
+  isOwner: false,
+  request: async () => Response.json({ flagged: [], opted_out: [] }),
+}
 
 /** Explicitly opted-in review transport. No campaign creation, API send or persistence. */
 export default function PrototypeContactSms({ subject, recipientId, recipientName, phone, holders = [], onBack, onClose }: {
@@ -24,7 +31,7 @@ export default function PrototypeContactSms({ subject, recipientId, recipientNam
   const selected = holders.length > 1 ? holders.filter(holder => selectedIds.includes(holder.person_id))
     : recipientId ? [{ person_id: recipientId, name: recipientName, phone }] : []
   const subjectName = `${subject.first_name} ${subject.last_name}`
-  return <>
+  return <LeadWorkspaceContext.Provider value={simulatedWorkspace}>
     <SlidePanelHeader title="Send a Text Message" onBack={onBack} backLabel="Back to contact" onClose={onClose} />
     {sent && <p role="status" style={{ paddingInline: spacing.lg }}>Message sent.</p>}
     <ComposePanel recipientCount={selected.length} recipientIds={selected.map(holder => holder.person_id)} mode="single" channel="sms"
@@ -36,5 +43,5 @@ export default function PrototypeContactSms({ subject, recipientId, recipientNam
       recipientPreview={selected.map(holder => ({ id: holder.person_id, first_name: holder.name.split(' ')[0], last_name: holder.name.split(' ').slice(1).join(' ') }))}
       conversation={{ body, onChange: value => { setBody(value); setSent(false) }, disabled: !selected.length || selected.some(holder => !holder.phone),
         onSend: async () => { setSent(true); setBody('') } }} onClose={onBack} />
-  </>
+  </LeadWorkspaceContext.Provider>
 }
