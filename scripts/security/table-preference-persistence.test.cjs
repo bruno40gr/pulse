@@ -27,9 +27,9 @@ test('every table with display controls writes its sort back to preferences', ()
 
 test('the notes hide-done view is remembered per account', () => {
   const notes = source('components/notes/DashboardNotes.tsx')
-  assert.match(notes, /const saveView = \(patch: \{ showDone\?: boolean; filter\?: string \}\) => \{/)
+  assert.match(notes, /const saveView = \(patch: \{ showDone\?: boolean \}\) => \{/)
   assert.match(notes, /pulse_notes_view_v1:/)
   assert.match(notes, /if \(typeof parsed\?\.showDone === 'boolean'\) setShowDone\(parsed\.showDone\)/)
-  assert.match(notes, /if \(typeof parsed\?\.filter === 'string'[^\n]*setFilter/)
+  assert.doesNotMatch(notes, /setFilter\(parsed\.filter\)/, 'Retired task filters must not be restored from old preferences')
   assert.match(notes, /setShowDone\(next\); saveView\(\{ showDone: next \}\)/)
 })

@@ -135,7 +135,7 @@ export default function ContactBulkComposer({ tenantId, contactIds, channel, rec
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
     <div style={{ margin: audience.excluded.length ? spacing.lg : 0 }}><ExcludedRecipientsNotice contacts={audience.excluded} channel="email" /></div>
     {notice && <p role="status" style={{ margin: spacing.lg }}>{notice}</p>}
-    <PrototypeEmailComposer name="" email="" student="" people={[]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])}
+    <PrototypeEmailComposer sharedTemplateTenantId={tenantId} name="" email="" student="" people={[]} templates={templates} onCreateTemplate={template => setTemplates(current => [...current, template])}
       draft={draft} onChange={value => { if (!locked) setDraft({ ...value, senderEmail: draft.senderEmail }) }}
       onSend={send} onCollapse={onClose} onDiscard={() => { if (sending) return; if (window.confirm(locked ? 'Close this send? Emails already submitted cannot be recalled.' : 'Discard this email draft?')) { sessionStorage.removeItem(storageKey); onClose() } }}
       replying={false} signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} companyLogoUrl={signature?.companyLogoUrl} includeSignatureByDefault={!recoveryOf} senderName={sender?.name || ''} senderEmail={sender?.email || ''}

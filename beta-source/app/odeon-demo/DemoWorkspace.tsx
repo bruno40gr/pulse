@@ -17,6 +17,8 @@ import ContactsPage, { type Contact } from '@/app/dashboard/contacts/page'
 import { ContactPrototypeContext, ContactSampleContext } from '@/components/contacts/ContactPrototypeContext'
 import StaffView from '@/beta-source/app/dashboard/staff/StaffView'
 import StudentWorkspaceV3 from '@/beta-source/app/content-studio-prototype/students/StudentWorkspaceV3'
+import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings'
+import { getActiveTenantId } from '@/lib/tenant'
 import SchoolSetup from '@/beta-source/app/content-studio-prototype/school-setup/SchoolSetup'
 import type { SetupRecord } from '@/beta-source/app/content-studio-prototype/school-setup/setup-content'
 import { createDemoWorkspace } from '@/beta-source/lib/odeon-demo-workspace'
@@ -236,7 +238,7 @@ export default function DemoWorkspace({ onboarding = false, bandReview }: { onbo
     },
   }
   if (tenant && storageError) return <Notice variant="error"><p>{storageError}</p><p>No changes have been written to the school account. Your saved browser workspace has not been cleared.</p><a href="/dashboard/staff">Return to school staff</a></Notice>
-  if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
+  if (onboarding || screen === 'setup') return <>{storageError && <Notice variant="error">{storageError}</Notice>}<SchoolSetup emailTemplates={onboarding ? <EmailTemplateSettings tenantId={tenant || getActiveTenantId()} /> : undefined} bookingContext={bookingContext} demo configuredData={setup} onConfiguredChange={onSetup} /></>
   return <CalendarEnrollmentContext.Provider value={enrollmentAdapter}><DashboardShell sample sampleScreen={screen} hideNavigation={parent || (workflow && enrollmentFocused)}>
     {!parent && screen !== 'teacher' && <div style={{ padding: '6px 24px', background: colors.surfaceMuted, color: colors.textSecondary, fontSize: 12 }}>{bandReview
       ? 'Private local band review · Read only · No bookings or imports'

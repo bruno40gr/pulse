@@ -86,3 +86,65 @@ test('invalid actions and bulk seen are rejected without notification writes', a
     assert.ok(!harness.getQueries().some(q => q.table === 'notifications'))
   }
 })
+
+test('mention history includes dismissed items but retains tenant and recipient boundaries', async () => {
+  const { harness, route } = setup()
+  const response = await route.GET(new Request(`http://synthetic.invalid/api/notifications?tenant=${HEAD}&mentions=true&history=true&offset=30`))
+  assert.equal(response.status, 200)
+  const queries = harness.getQueries().filter(q => q.table === 'notifications')
+  const list = queries.find(q => q.filters.some(f => JSON.stringify(f) === JSON.stringify(['eq', 'reason', 'mention.created'])))
+  assert.ok(list)
+  assert.ok(!list.filters.some(f => f[1] === 'dismissed_at'))
+  for (const filter of [['eq', 'tenant_id', HEAD], ['eq', 'recipient_membership_id', 'membership']]) {
+    assert.ok(list.filters.some(f => JSON.stringify(f) === JSON.stringify(filter)))
+  }
+  assert.ok(queries.some(q => q.filters.some(f => JSON.stringify(f) === JSON.stringify(['is', 'dismissed_at', null]))), 'Badge remains scoped to the inbox')
+  assert.equal((await response.json()).has_more, false)
+})
+
+test('invalid offsets fail before querying notifications', async () => {
+  for (const offset of ['-1', '1.5', 'NaN', 'Infinity']) {
+    const { harness, route } = setup()
+    assert.equal((await route.GET(new Request(`http://synthetic.invalid/api/notifications?tenant=${HEAD}&offset=${offset}`))).status, 400)
+    assert.ok(!harness.getQueries().some(q => q.table === 'notifications'))
+  }
+})
+
+test('dismissed history can be marked read without restoring, deleting or completing it', async () => {
+  const { harness, route } = setup()
+  assert.equal((await route.PATCH(new Request(`http://synthetic.invalid/api/notifications?tenant=${HEAD}`, {
+    method: 'PATCH', body: JSON.stringify({ id: 'archived', action: 'seen' }),
+  }))).status, 200)
+  const query = harness.getQueries().find(q => q.table === 'notifications')
+  assert.ok(query.payload.read_at)
+  assert.ok(!query.filters.some(f => f[1] === 'dismissed_at'))
+  assert.equal(query.payload.dismissed_at, undefined)
+  assert.ok(!harness.getQueries().some(q => q.table === 'notes'))
+})
+
+test('pagination fetches one lookahead row with stable ordering and never exposes it on the current page', async () => {
+  const harness = createHarness()
+  harness.setScenario({
+    authUser: { id: 'auth' },
+    fixtures: {
+      tenant_memberships: [{ id: 'membership', tenant_id: HEAD, auth_user_id: 'auth', role_id: 'role', status: 'active' }],
+      roles: [{ id: 'role', tenant_id: HEAD, key: 'instructor' }],
+      role_permissions: [],
+    },
+    queryResult({ table, filters }) {
+      if (table !== 'notifications') return
+      if (filters.some(f => f[0] === 'range')) {
+        assert.deepEqual(filters.find(f => f[0] === 'range').slice(1), [30, 32])
+        assert.deepEqual(filters.filter(f => f[0] === 'order').map(f => f[1]), ['created_at', 'id'])
+        return { data: [{ id: 'first' }, { id: 'second' }, { id: 'lookahead' }], error: null }
+      }
+      return { data: [], error: null, count: 7 }
+    },
+  })
+  const response = await harness.load('app/api/notifications/route.ts').GET(new Request(`http://synthetic.invalid/api/notifications?tenant=${HEAD}&offset=30&limit=2`))
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.deepEqual(body.notifications.map(row => row.id), ['first', 'second'])
+  assert.equal(body.has_more, true)
+  assert.equal(body.unread_count, 7)
+})

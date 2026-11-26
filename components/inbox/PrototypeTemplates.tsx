@@ -9,6 +9,11 @@ export type TemplateProps = {
   onApply: (template: MockTemplate, action: 'insert' | 'replace') => void
   triggerLabel?: string; compact?: boolean; initialOpen?: boolean; onDismiss?: () => void; previousEmails?: number
   currentBody: string; currentSubject?: string; person?: Pick<MockRecipient, 'name' | 'student'>
+  canManage?: boolean
+  onEdit?: (template: MockTemplate) => void | Promise<void>
+  onRemove?: (template: MockTemplate) => void | Promise<void>
+  onOpen?: () => void | Promise<void>
+  managementOnly?: boolean
 }
 
 

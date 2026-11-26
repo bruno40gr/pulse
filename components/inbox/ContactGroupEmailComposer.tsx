@@ -76,7 +76,7 @@ export default function ContactGroupEmailComposer({ tenantId, contactIds, onClos
     {error && <Notice variant="error" style={{ margin: spacing.lg }}>{error}</Notice>}
     {count > 50 && <Notice variant="warning">CC/BCC emails support up to 50 recipients. Choose fewer or use individual emails.</Notice>}
     <ExcludedRecipientsNotice contacts={audience.excluded} channel="email" />
-    <PrototypeEmailComposer name="" email="" student="" draft={draft} people={people} templates={templates}
+    <PrototypeEmailComposer sharedTemplateTenantId={tenantId} name="" email="" student="" draft={draft} people={people} templates={templates}
       onChange={value => { if (!locked && !sending) setDraft(value) }} onCreateTemplate={template => setTemplates(current => [...current, template])}
       onSend={send} onCollapse={onClose} onDiscard={onClose} replying={false} senderName={sender?.name || ''} senderEmail={senderEmail}
       signatureHtml={signatureHtml} signatureImageUrl={signature?.logoUrl} companyLogoUrl={signature?.companyLogoUrl}

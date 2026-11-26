@@ -16,12 +16,14 @@ import { unresolvedEmailPlaceholders } from '@/lib/headliner-email-templates'
 
 export type PrototypeEmailDraft = { subject: string; html: string; recipients?: MockEmailRecipients; bodyText?: string; contactOnly?: boolean; contextThreadId?: string }
 import PrototypeTemplates from '@/components/inbox/PrototypeTemplates'
+import SharedEmailTemplates from '@/components/inbox/SharedEmailTemplates'
 import { PrototypeEmailRecipients } from '@/components/inbox/PrototypeRecipients'
 import { fillMockTemplate, mockTextHtml, validMockEmailRecipients, type MockEmailRecipients, type MockRecipient, type MockTemplate } from '@/lib/prototype-messaging'
 
 const line: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }
 
-export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, companyLogoUrl, includeSignatureByDefault = true, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false, allowBccOnly = false }: {
+export default function PrototypeEmailComposer({ name, email, student, draft, onChange, onSend, people, templates, onCreateTemplate, signatureHtml, signatureImageUrl, companyLogoUrl, includeSignatureByDefault = true, senderName, senderEmail = PROTOTYPE_EMAIL, disabled = false, fromControl, recipientSummary, sendLabel = 'Send email', title, onBack, hideSendAction = false, allowBccOnly = false, sharedTemplateTenantId }: {
+  sharedTemplateTenantId?: string
   name: string; email: string; student: string; draft: PrototypeEmailDraft
   onChange: (draft: PrototypeEmailDraft) => void
   onSend: (body: string, html: string) => void
@@ -49,6 +51,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
   const messageHtml = () => sanitizePrototypeHtml(draft.html) + sanitizePrototypeHtml(footer.html, trustedImages)
   const placeholders = unresolvedEmailPlaceholders(`${draft.subject}\n${prototypeHtmlText(draft.html)}`)
   const placeholderKey = placeholders.join('|')
+  const Templates = sharedTemplateTenantId ? SharedEmailTemplates : PrototypeTemplates
   useEffect(() => {
     if (mode === 'write' && editor.current && editor.current.innerHTML !== draft.html) {
       editor.current.innerHTML = sanitizePrototypeHtml(draft.html)
@@ -97,7 +100,7 @@ export default function PrototypeEmailComposer({ name, email, student, draft, on
           </div>
         <div aria-label="Template actions" style={{ ...line, marginLeft: 'auto', justifyContent: 'flex-end' }}>
         {undo && <Button variant="ghost" onClick={() => { onChange({ ...draft, subject: undo.subject, html: undo.html }); setUndo(null); setDismissedPlaceholders(null) }}>Undo template</Button>}
-        <PrototypeTemplates compact triggerLabel="Use template" channel="email" templates={templates} onCreate={onCreateTemplate} currentBody={prototypeHtmlText(draft.html)} currentSubject={draft.subject} person={!draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined} onApply={(template) => {
+        <Templates key={sharedTemplateTenantId || 'preview'} tenantId={sharedTemplateTenantId || ''} compact triggerLabel="Use template" channel="email" templates={templates} onCreate={onCreateTemplate} currentBody={prototypeHtmlText(draft.html)} currentSubject={draft.subject} person={!draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined} onApply={(template) => {
           setUndo(draft)
           setDismissedPlaceholders(null)
           const person = !draft.recipients || draft.recipients.to.length + draft.recipients.cc.length + draft.recipients.bcc.length === 1 ? people.find(person => person.id === draft.recipients?.to[0]) || { name, student } : undefined

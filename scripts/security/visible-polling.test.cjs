@@ -86,7 +86,8 @@ test('notifications reuse visible single-flight polling for timer and action ref
   assert.match(source, /signal.aborted/)
   assert.match(source, /poller.stop\(\)/)
   assert.doesNotMatch(source, /setInterval|await load\(\)|void load\(\)/)
-  assert.equal((source.match(/pollerRef.current\?\.refresh\(\)/g) || []).length, 3)
+  // Open, dismiss, mark-read, and explicit retry all reuse the same poller.
+  assert.equal((source.match(/pollerRef.current\?\.refresh\(\)/g) || []).length, 4)
 })
 
 test('Leads only loads the requested tab, retaining cache and manual refresh behavior', () => {

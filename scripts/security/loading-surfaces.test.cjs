@@ -62,5 +62,6 @@ test('multiselect escapes table overflow but remains inside the active dialog fo
   assert.match(code, /window.addEventListener\('scroll', place, true\)/)
   assert.doesNotMatch(code, /appearance === 'field' \? \{ border/)
   const workspace = source('components/bands/ProductionBandsWorkspace.tsx')
-  assert.match(workspace, /style=\{\{ border: 'none', borderRadius: 0 \}\} rows=\{band.members\}/)
+  assert.match(workspace, /style=\{\{ border: 'none', borderRadius: 0 \}\} rows=\{roster\}/)
+  assert.match(workspace, /const roster: Member\[\] = band \? \[\.\.\.band.members/)
 })

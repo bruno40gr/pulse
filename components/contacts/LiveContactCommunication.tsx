@@ -132,7 +132,7 @@ export default function LiveContactCommunication({ tenantId, channel, contactIds
     renderEmail={({ draft, onChange, onBack, replying }) => {
       return <>
         {sendError && <Notice variant="error">{sendError}</Notice>}
-        <PrototypeEmailComposer name={contact.name} email={contact.email} student="" draft={draft} onChange={onChange}
+        <PrototypeEmailComposer sharedTemplateTenantId={tenantId} name={contact.name} email={contact.email} student="" draft={draft} onChange={onChange}
           onSend={(body, html) => {
             if (!target?.canSend || !mailbox || !sender) return
             void send(`/api/conversations/email?${tenant}`, { mailboxId: mailbox.id, senderEmail: sender.email, to: [target.id], cc: [], bcc: [], subject: draft.subject, body, html, expectedContactEmail: target.address }, () => { onChange({ subject: '', html: '' }); onBack() })

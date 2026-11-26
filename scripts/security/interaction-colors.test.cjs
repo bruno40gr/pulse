@@ -71,7 +71,9 @@ test('selection primitives use interaction roles rather than brand colors', () =
   for (const name of ['Checkbox', 'RadioOptionGroup', 'Switch', 'ToggleSwitch', 'WeekdayToggleGroup', 'ModalStepper', 'ProgressStepper', 'Tabs', 'Pill', 'ColorSwatch']) {
     const source = read(`components/ui/${name}.tsx`)
     assert.match(source, /interaction\.selected/)
-    assert.doesNotMatch(source, /colors\.(crimson|tealDark|teal)\b/)
+    // New-item notification badges are status, not selected-state styling.
+    const selectionSource = name === 'Tabs' ? source.slice(0, source.indexOf("{typeof tab.notificationCount")) : source
+    assert.doesNotMatch(selectionSource, /colors\.(crimson|tealDark|teal)\b/)
   }
   assert.doesNotMatch(read('components/ui/SearchSelect.tsx'), /SearchSelect.module.css/)
 })
