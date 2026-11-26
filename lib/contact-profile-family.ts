@@ -1,6 +1,6 @@
 import type { ContactPresentation } from './contact-presentation'
 
-type FamilyPerson = ContactPresentation & { account_holders?: { person_id?: string; display_person_id?: string }[] }
+type FamilyPerson = ContactPresentation & { account_holders?: { person_id?: string; display_person_id?: string; account_id?: string }[] }
 
 export function contactProfileFamilies<T extends FamilyPerson>(roster: T[], tenantId: string, personId?: string, accountId?: string) {
   const local = roster.filter(person => person.tenant_id === tenantId)
@@ -8,7 +8,7 @@ export function contactProfileFamilies<T extends FamilyPerson>(roster: T[], tena
   const accounts = new Map<string, T[]>()
   for (const row of local) {
     if (row.is_student === false) continue
-    for (const account of new Set([row.family_account_id || row.account_id, ...(row.family_linked_account_ids || row.linked_account_ids || [])].filter((id): id is string => !!id))) {
+    for (const account of new Set([row.family_account_id, row.account_id, ...(row.family_linked_account_ids || []), ...(row.linked_account_ids || []), ...(row.account_holders || []).map(holder => holder.account_id)].filter((id): id is string => !!id))) {
       const members = accounts.get(account) ?? []
       members.push(row)
       accounts.set(account, members)

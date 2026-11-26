@@ -1,16 +1,16 @@
 import type { ContactPresentation } from './contact-presentation'
-import { familyHeaderHolder, type DisplayAccountHolder } from './family-account'
+import type { DisplayAccountHolder } from './family-account'
 
 type Person = ContactPresentation & { first_name?: string | null; last_name?: string | null }
 /** Presentation only: saved family links, never matching names or destinations. */
 export function profileFamilyMembers<T extends Person>(people: T[], holders: DisplayAccountHolder[], tenantId: string, currentPersonId?: string, currentAccountId?: string) {
   const local = new Map(people.filter(person => person.tenant_id === tenantId).map(person => [person.id, person]))
   const rows = new Map<string, { id: string; name: string; person?: T; accountId?: string; holder: boolean; student: boolean }>()
-  const headerHolder = currentAccountId ? familyHeaderHolder(`account:${currentAccountId}`, holders.map((holder, index) => ({ ...holder, id: String(index) }))) : undefined
+  const headerHolder = currentAccountId ? holders.find(holder => holder.account_id === currentAccountId) : undefined
   const headerPersonId = headerHolder?.person_id || headerHolder?.display_person_id
-  for (const [index, holder] of holders.entries()) {
+  for (const holder of holders) {
     const personId = holder.person_id || holder.display_person_id
-    if ((currentPersonId && personId === currentPersonId) || headerHolder?.id === String(index)) continue
+    if ((currentPersonId && personId === currentPersonId) || holder === headerHolder) continue
     const person = personId ? local.get(personId) : undefined
     if (personId && !person) continue
     const id = person ? `person:${person.id}` : holder.account_id ? `account:${holder.account_id}` : null

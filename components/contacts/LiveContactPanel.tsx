@@ -30,6 +30,8 @@ import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/ui/Moda
 import { LessonSummary } from '@/components/ui/LessonSummary'
 import { displayAccountHolders, type DisplayAccountHolder } from '@/lib/family-account'
 import { profileFamilyMembers } from '@/lib/profile-family-members'
+import { FieldLabel } from '@/components/ui/FieldLabel'
+import { FieldValue } from '@/components/ui/FieldValue'
 
 export type AccountContact = { id: string; name: string; phone: string | null; email: string | null; memberSince: string | null }
 type Subject =
@@ -258,14 +260,14 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
         </InlineWorkspaceContext.Provider> : section === 'account' ? <AccountProfileLayout details={<>
               {familyMembers.length > 0 && <DenseSectionPanel title="Family members" actions={showsAccount && capabilities.edit && !addingStudent ? <Button size="sm" variant="secondary" disabled={!familyId} onClick={() => setAddingStudent(true)}>Add student</Button> : undefined}>
                 <div style={stack}>{familyMembers.map(member => <div key={member.id}>
-                  <a href={`/dashboard/contacts?${member.person ? `contact=${encodeURIComponent(member.person.id)}` : `account=${encodeURIComponent(member.accountId!)}`}`} style={{ color: colors.text, display: 'inline-flex', alignItems: 'center', gap: spacing.xs, maxWidth: '100%', textDecoration: 'none' }} onClick={event => {
+                  <FieldValue><a href={`/dashboard/contacts?${member.person ? `contact=${encodeURIComponent(member.person.id)}` : `account=${encodeURIComponent(member.accountId!)}`}`} style={{ color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: spacing.xs, maxWidth: '100%', textDecoration: 'none' }} onClick={event => {
                     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                     if (member.person || onOpenAccount) {
                       event.preventDefault()
                       if (canLeave()) { if (member.person) onOpenStudent(member.person); else onOpenAccount?.(member.accountId!) }
                     }
-                  }}><span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{member.name}</span><ExternalLink size={14} style={{ flexShrink: 0 }} aria-hidden="true" /></a>
-                  <div style={muted}>{[member.holder ? 'Account holder' : '', member.student ? 'Student' : ''].filter(Boolean).join(' · ')}</div>
+                  }}><span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{member.name}</span><ExternalLink size={14} style={{ flexShrink: 0 }} aria-hidden="true" /></a></FieldValue>
+                  <FieldLabel>{[member.holder ? 'Account holder' : '', member.student ? 'Student' : ''].filter(Boolean).join(' · ')}</FieldLabel>
                 </div>)}</div>
               </DenseSectionPanel>}
               <DenseSectionPanel title="Contact details" actions={showsAccount && familyMembers.length === 0 && capabilities.edit && !addingStudent ? <Button size="sm" variant="secondary" disabled={!familyId} onClick={() => setAddingStudent(true)}>Add student</Button> : undefined}>
@@ -279,7 +281,7 @@ export default function LiveContactPanel({ subject, tenantId, capabilities, init
                 onCancel={() => setAddingStudent(false)} onChanged={() => { setAddingStudent(false); onFamilyChanged?.() }} />}
               {(showsAccount ? students : person ? [person] : []).map(student => <DenseSectionPanel key={student.id}
                 title={showsAccount ? <SectionTitle as="h2"><ControlButton kind="name" style={{ fontSize: 'inherit', fontWeight: 'inherit' }} onClick={() => { if (canLeave()) onOpenStudent(student) }}>{personName(student) || 'Student'}</ControlButton></SectionTitle> : 'Subscriptions'}
-                actions={<Button onClick={() => setComingSoonFeature('Add subscription')}>Add subscription</Button>}
+                actions={<Button size="sm" variant="secondary" onClick={() => setComingSoonFeature('Add subscription')}>Add subscription</Button>}
                 contentStyle={stack}>
                 {showsAccount && ageLabel(student.date_of_birth) && <div>{ageLabel(student.date_of_birth)}</div>}
                 {student.profile_enrollments?.map(enrollment => {

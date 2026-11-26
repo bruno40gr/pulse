@@ -15,9 +15,9 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Erro
       const legacy = { name: 'Alexandra Lausten', account_id: 'alexandra', phone: '9162571078', email: 'alexandra@example.invalid' }
       const second = { person_id: 'second', account_id: 'family', name: 'Alex Smith' }
       const row = (id, first_name, patch) => ({ id, tenant_id: tenant, first_name, last_name: 'Smith', phone: '9167428265', email: 'averylongemailaddressforlayoutverification@example.invalid', client_status: 'active', custom_fields: {}, notes_history: [], student_notes_history: [], ...patch })
-      const roster = [row('child', 'Emma', { is_student: true, student_id: 's1', account_id: 'family', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: ['alexandra'], linked_account_ids: ['alexandra'], account_holders: [holder, second, legacy] }),
-        row('sibling', 'Noah', { is_student: true, student_id: 's2', account_id: 'family', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: ['alexandra'], linked_account_ids: ['alexandra'], account_holders: [holder, second, legacy] }),
-        row('holder', 'Jane', { is_student: false }), row('second', 'Alex', { is_student: true, student_id: 's3', account_id: 'family', account_holder_person_id: 'holder', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: ['alexandra'], linked_account_ids: ['alexandra'], account_holders: [holder, second, legacy] })]
+      const roster = [row('child', 'Emma', { is_student: true, student_id: 's1', account_id: 'family', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: [], linked_account_ids: [], account_holders: [holder, second, legacy] }),
+        row('sibling', 'Noah', { is_student: true, student_id: 's2', account_id: 'family', account_holder_person_id: 'holder', account_holder_name: 'Jane Smith', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: [], linked_account_ids: [], account_holders: [holder, second, legacy] }),
+        row('holder', 'Jane', { is_student: false }), row('second', 'Alex', { is_student: true, student_id: 's3', account_id: 'family', account_holder_person_id: 'holder', family_name: 'Jane Smith', family_account_id: 'family', family_linked_account_ids: [], linked_account_ids: [], account_holders: [holder, second, legacy] })]
       await page.route('**/api/**', async route => {
         const url = new URL(route.request().url())
         if (route.request().method() !== 'GET') writes.push(url.pathname)
@@ -31,7 +31,7 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Erro
       await dialog.getByRole('heading', { name: 'Family members', exact: true }).waitFor()
       assert.equal(await dialog.getByRole('link', { name: 'Jane Smith', exact: true }).count(), 0)
       assert.equal(await dialog.getByRole('link', { name: 'Alex Smith', exact: true }).count(), 1)
-      assert.match(await dialog.getByRole('link', { name: 'Alex Smith', exact: true }).locator('..').innerText(), /Account holder · Student/)
+      assert.match(await dialog.getByRole('link', { name: 'Alex Smith', exact: true }).locator('../..').innerText(), /Account holder · Student/)
       assert.equal(await dialog.getByText('Dependents', { exact: true }).count(), 0)
       assert.equal(await dialog.getByRole('heading', { name: 'Account holders', exact: true }).count(), 0)
       assert.ok(await family.count())
@@ -62,6 +62,18 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Erro
       assert.equal(await dialog.getByRole('button', { name: 'Back to contact', exact: true }).count(), 0)
       assert.match(await dialog.getByRole('button', { name: 'Send email', exact: true }).innerText(), /alexandra@example.invalid/)
       assert.equal(await dialog.getByRole('link', { name: 'Alexandra Lausten', exact: true }).count(), 0)
+      const robLink = dialog.getByRole('link', { name: 'Jane Smith', exact: true })
+      await robLink.waitFor()
+      const role = robLink.locator('../..').getByText('Account holder', { exact: true })
+      const metadataLabel = dialog.getByText('Member since', { exact: true })
+      const textStyle = node => { const css = getComputedStyle(node); return [css.fontSize, css.fontWeight, css.color] }
+      assert.deepEqual(await role.evaluate(textStyle), await metadataLabel.evaluate(textStyle))
+      const addSubscription = dialog.getByRole('button', { name: 'Add subscription', exact: true }).first()
+      const addStudent = dialog.getByRole('button', { name: 'Add student', exact: true })
+      assert.deepEqual(await addSubscription.evaluate(textStyle), await addStudent.evaluate(textStyle))
+      await robLink.click()
+      await dialog.getByRole('heading', { name: 'Jane Smith', exact: true }).waitFor()
+      await dialog.getByRole('link', { name: 'Alexandra Lausten', exact: true }).waitFor()
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       assert.ok(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'panel content is not clipped horizontally')
       await page.screenshot({ path: `/tmp/profile-family-members-${width}.png` })
