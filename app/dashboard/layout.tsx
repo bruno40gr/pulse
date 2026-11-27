@@ -130,12 +130,10 @@ function SidebarBody({ onNavigate, showBrand = true }: { onNavigate: () => void;
     })
     const handleCountChange = () => { revision += 1; poller.refresh() }
     window.addEventListener(LEAD_COUNT_EVENT, handleCountChange)
-    window.addEventListener('focus', handleCountChange)
     return () => {
       cancelled = true
       poller.stop()
       window.removeEventListener(LEAD_COUNT_EVENT, handleCountChange)
-      window.removeEventListener('focus', handleCountChange)
     }
   }, [pathname])
 

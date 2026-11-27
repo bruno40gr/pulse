@@ -7,12 +7,14 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const moduleRef = { exports: {} }
 const code = ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../../lib/conversation-email-refresh.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
-new vm.Script(code).runInNewContext({ module: moduleRef, exports: moduleRef.exports })
+const pollingModule = { exports: {} }
+new vm.Script(ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../../lib/visible-polling.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText).runInNewContext({ module: pollingModule, exports: pollingModule.exports })
+new vm.Script(code).runInNewContext({ module: moduleRef, exports: moduleRef.exports, require: name => { assert.equal(name, './visible-polling'); return pollingModule.exports } })
 const { startStoredEmailRefresh } = moduleRef.exports
 const settle = () => new Promise(resolve => setImmediate(resolve))
 function polling(load, visible = () => true) {
   let tick, cancelled = false
-  const stop = startStoredEmailRefresh({ load, visible, schedule(callback, interval) { assert.equal(interval, 15000); tick = callback; return () => { cancelled = true } } })
+  const stop = startStoredEmailRefresh({ load, visible, schedule(callback, interval) { assert.equal(interval, 60000); tick = callback; return () => { cancelled = true } } })
   return { tick: () => tick(), stop, cancelled: () => cancelled }
 }
 
@@ -36,6 +38,14 @@ test('legacy detail never polls Gmail after the initial load', async () => {
   await settle(); p.tick(); await settle()
   assert.equal(calls, 1)
   p.stop()
+})
+
+test('email summaries share the one-minute cadence without removing visibility, legacy or overlap guards', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../components/inbox/Conversations.tsx'), 'utf8')
+  assert.match(source, /if \(running \|\| cancelled \|\| document.visibilityState === 'hidden'\) return/)
+  assert.match(source, /if \(embedded \|\| !tenantId \|\| !mailboxId \|\| location.view !== 'contacts'\) return/)
+  assert.match(source, /if \(stored \|\| Date.now\(\) - lastRefresh >= 300000\) void refresh\(\) \}, SIDEBAR_POLL_INTERVAL_MS\)/)
+  assert.doesNotMatch(source, /15000|15_000/)
 })
 
 test('hidden documents pause reads and resume when visible', async () => {

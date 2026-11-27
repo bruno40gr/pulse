@@ -48,7 +48,7 @@ import { mergeEmailPages } from '@/lib/conversation-email-merge'
 import { startStoredEmailRefresh } from '@/lib/conversation-email-refresh'
 import { conversationEmailStatus } from '@/lib/conversation-email-status'
 import { formatCommunicationTimestamp } from '@/lib/communication-time'
-import { startVisiblePolling } from '@/lib/visible-polling'
+import { SIDEBAR_POLL_INTERVAL_MS, startVisiblePolling } from '@/lib/visible-polling'
 
 const draftPreviewStyle: CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', margin: `${spacing.sm} 0` }
 const draftPreview = (text: string) => { const compact = text.replace(/\s+/g, ' ').trim(); return compact.length > 200 ? `${compact.slice(0, 200).trimEnd()}…` : compact }
@@ -327,7 +327,7 @@ export default function Conversations({ emailPreview: previewEnabled = false, em
     }
     refreshEmailSummaries.current = refresh
     void refresh()
-    const interval = window.setInterval(() => { if (stored || Date.now() - lastRefresh >= 300000) void refresh() }, 15000)
+    const interval = window.setInterval(() => { if (stored || Date.now() - lastRefresh >= 300000) void refresh() }, SIDEBAR_POLL_INTERVAL_MS)
     return () => { cancelled = true; controller.abort(); window.clearInterval(interval); refreshEmailSummaries.current = null }
   }, [embedded, tenantId, mailboxId, location.view, dateFrom, dateTo])
   useEffect(() => {

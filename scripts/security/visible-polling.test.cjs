@@ -75,6 +75,7 @@ test('sidebar retains event-driven badges and does not install five-second timer
   assert.equal((source.match(/startVisiblePolling\(async signal/g) || []).length, 2)
   assert.doesNotMatch(source, /setInterval\(loadCount, 5000\)/)
   assert.match(source, /window.addEventListener\(LEAD_COUNT_EVENT, handleCountChange\)/)
+  assert.doesNotMatch(source, /window.addEventListener\('focus', handleCountChange\)/)
   assert.match(source, /window.addEventListener\(CONVERSATION_COUNT_EVENT, handleCountChange\)/)
   assert.match(source, /setConversationCount\(\(current\) => Math.max\(0, current \+ delta\)\)/)
 })

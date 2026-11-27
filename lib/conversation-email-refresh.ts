@@ -1,4 +1,6 @@
-/** Poll saved history only after the API confirms stored mode. Never overlap loads. */
+import { SIDEBAR_POLL_INTERVAL_MS } from './visible-polling'
+
+/** Use the shared cadence, and poll saved history only after stored mode is confirmed. */
 export function startStoredEmailRefresh(options: {
   load: (quiet: boolean) => Promise<boolean | undefined>
   visible: () => boolean
@@ -15,7 +17,7 @@ export function startStoredEmailRefresh(options: {
   }
   // The caller displays load failures; retain the last confirmed mode on error.
   const tick = () => { void refresh().catch(() => {}) }
-  const cancel = options.schedule(tick, 15000)
+  const cancel = options.schedule(tick, SIDEBAR_POLL_INTERVAL_MS)
   tick()
   return () => { stopped = true; cancel() }
 }
